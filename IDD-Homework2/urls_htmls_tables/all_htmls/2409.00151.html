@@ -1,0 +1,877 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2409.00151] SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS</title><meta property="og:description" content="Speech applications dealing with conversations require not only recognizing the spoken words but also determining who spoke when. The task of assigning words to speakers is typically addressed by merging the outputs of…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2409.00151">
+
+<!--Generated on Sat Oct  5 22:06:32 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Speech applications dealing with conversations require not only recognizing the spoken words but also determining who spoke when. The task of assigning words to speakers is typically addressed by merging the outputs of two separate systems, namely, an automatic speech recognition (ASR) system and a speaker diarization (SD) system. In practical settings, speaker diarization systems can experience significant degradation in performance due to a variety of factors, including uniform segmentation with a high temporal resolution, inaccurate word timestamps, incorrect clustering and estimation of speaker numbers, as well as background noise.</p>
+<p id="id2.id2" class="ltx_p">Therefore, it is important to automatically detect errors and make corrections if possible. We used a second-pass speaker tagging correction system based on a non-autoregressive language model to correct mistakes in words placed at the borders of sentences spoken by different speakers. We first show that the employed error correction approach leads to reductions in word diarization error rate (WDER) on two datasets: TAL and test set of Fisher. Additionally, we evaluated our system in the Post-ASR Speaker Tagging Correction challenge and observed significant improvements in cpWER compared to baseline methods.</p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— </span></span>
+Speaker Diarization, Speech Recognition, Error Correction, GenSEC</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Speech recognition systems have advanced significantly in the past decade. Still, even with these remarkable advances, machines have difficulties understanding natural conversations with multiple speakers, such as in broadcast interviews, meetings, telephone calls, videos or medical recordings. One of the first steps in understanding natural conversations is to recognize the words spoken and their corresponding speakers. SD determines ”who spoke when” in multi-speaker audio and is a crucial part of the speech translation system. SD is used in conjunction with ASR to assign a speaker label to each transcribed word and has widespread applications in generating meeting/interview transcripts, medical notes, automated subtitling and dubbing, downstream speaker analytics, among others. Usually, this is done in multiple steps that include (1) transcribing the words using an ASR system, (2) predicting ”who spoke when” using a speaker diarization system, and, finally, (3) reconciling the output of those two systems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. A typical reconciliation algorithm works as follows: (1) If the word segment overlaps with at least one speaker segment, then this word is associated with the speaker that has the biggest temporal overlap with this word; (2) otherwise, if this word segment does not overlap with any speaker segment, then it is associated with the speaker that has the smallest temporal distance to this word based on the segment boundaries <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Speaker diarization systems often face numerous challenges that can lead to subpar performance, negatively impacting the user’s perception of transcript quality. However, some of these errors can be mitigated through post-correction techniques. In this work, we first analyze the mistakes made during reconciliation and categorize them. We then implement a speaker error correction module to rectify inaccuracies, particularly for boundary words between sentences spoken by different speakers.</p>
+</div>
+<figure id="S1.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S1.T1.2.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Examples of different diarization errors (errors are underlined and marked in pink color).</figcaption>
+<table id="S1.T1.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S1.T1.3.1.1" class="ltx_tr">
+<th id="S1.T1.3.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r">Error Type</th>
+<th id="S1.T1.3.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column">Example</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S1.T1.3.2.1" class="ltx_tr">
+<th id="S1.T1.3.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">Type a</th>
+<td id="S1.T1.3.2.1.2" class="ltx_td ltx_align_left ltx_border_t">
+<table id="S1.T1.3.2.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.T1.3.2.1.2.1.1" class="ltx_tr">
+<td id="S1.T1.3.2.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S1.T1.3.2.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Speaker A:</span></td>
+</tr>
+<tr id="S1.T1.3.2.1.2.1.2" class="ltx_tr">
+<td id="S1.T1.3.2.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">right that’s going exactly going back to facebook’s optimizer algorithm that’s not optimizing for truth right</td>
+</tr>
+<tr id="S1.T1.3.2.1.2.1.3" class="ltx_tr">
+<td id="S1.T1.3.2.1.2.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">it’s optimizing for profit and they they claim to be neutral but of course nothing’s neutral <span id="S1.T1.3.2.1.2.1.3.1.1" class="ltx_text ltx_framed ltx_framed_underline" style="background-color:#FFBFBF;">right</span> and we have</td>
+</tr>
+<tr id="S1.T1.3.2.1.2.1.4" class="ltx_tr">
+<td id="S1.T1.3.2.1.2.1.4.1" class="ltx_td ltx_nopad_r ltx_align_left">seen the results we’ve seen what it’s actually optimized for and it’s not pretty</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr id="S1.T1.3.3.2" class="ltx_tr">
+<th id="S1.T1.3.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">Type b</th>
+<td id="S1.T1.3.3.2.2" class="ltx_td ltx_align_left ltx_border_t">
+<table id="S1.T1.3.3.2.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.T1.3.3.2.2.1.1" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S1.T1.3.3.2.2.1.1.1.1" class="ltx_text ltx_font_bold">Speaker A:</span></td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.2" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">and presumably you could take all that biased input data and say this high chance recidivism means that we</td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.3" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">should rehabilitate more i mean like you could take all that same stuff and choose to do a completely different</td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.4" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.4.1" class="ltx_td ltx_nopad_r ltx_align_left">thing with the result of</td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.5" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.5.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S1.T1.3.3.2.2.1.5.1.1" class="ltx_text ltx_font_bold">Speaker B:</span></td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.6" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.6.1" class="ltx_td ltx_nopad_r ltx_align_left">
+<span id="S1.T1.3.3.2.2.1.6.1.1" class="ltx_text ltx_framed ltx_framed_underline" style="background-color:#FFBFBF;">the algorithm</span> total that’s exactly my point exactly my point you know we could say oh i wonder why people</td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.7" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.7.1" class="ltx_td ltx_nopad_r ltx_align_left">who have this characteristic have so much worse recidivism well let’s try to help them find a job maybe that’ll</td>
+</tr>
+<tr id="S1.T1.3.3.2.2.1.8" class="ltx_tr">
+<td id="S1.T1.3.3.2.2.1.8.1" class="ltx_td ltx_nopad_r ltx_align_left">help we could use those algorithms those risk scores to try to account for our society</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr id="S1.T1.3.4.3" class="ltx_tr">
+<th id="S1.T1.3.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">Type c</th>
+<td id="S1.T1.3.4.3.2" class="ltx_td ltx_align_left ltx_border_t">
+<table id="S1.T1.3.4.3.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.T1.3.4.3.2.1.1" class="ltx_tr">
+<td id="S1.T1.3.4.3.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S1.T1.3.4.3.2.1.1.1.1" class="ltx_text ltx_font_bold">Speaker A:</span></td>
+</tr>
+<tr id="S1.T1.3.4.3.2.1.2" class="ltx_tr">
+<td id="S1.T1.3.4.3.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S1.T1.3.4.3.2.1.2.1.1" class="ltx_text ltx_framed ltx_framed_underline" style="background-color:#FFBFBF;">is this a good or bad thing that social media has been able to infiltrate politics</span></td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>RELATED WORK</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">We are inspired by the work in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, where the authors introduced the speaker error corrector (SEC). SEC corrects speaker errors at the word level without modifying the underlying ASR or acoustic SD systems. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, word embeddings from the ASR transcript are extracted using a pre-trained RoBERTa-base language model (LM) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>. These embeddings, along with the hypothesized speaker labels, are fed into a separately trained transformer encoder, which produces the corrected speaker labels. The transformer encoder is trained on both simulated diarization errors and real data.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, the authors proposed DiarizationLM, a framework to leverage large language models (LLM) to post-process the outputs from a speaker diarization system. In this framework, the outputs of the ASR and SD systems are represented in a compact textual format and included in the prompt to an optionally finetuned LLM. The outputs of the LLM can be used as the refined diarization results with the desired enhancement. As a post-processing step, this framework can be easily applied to any off-the-shelf ASR and speaker diarization systems without retraining existing components.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">More recently, in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>, the authors suggested using LLM to predict the speaker probability for the next word and incorporating this probability into the beam search decoding of speaker diarization. In this approach, prompting is implemented word-by-word, unlike in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, where a single prompt is used to post-process the entire speaker diarization results. One drawback of this proposed approach is that it requires word-level speaker probabilities for beam search decoding, which may be absent in some SD systems.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>CLASSIFYING DIARIZATION ERRORS</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.3" class="ltx_p">A typical method for assessing traditional speaker diarization systems is the diarization error rate (DER). This is calculated by adding together three types of errors: false alarms, missed detections, and speaker confusion errors. Essentially, DER compares the reference speaker labels with the predicted speaker segments in the time domain. On the other hand, the use of a joint ASR and SD system directly assign speakers to recognized words, eliminating the need to rely on time boundaries. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>, the authors proposed a new metric, word diarization error rate (WDER), to evaluate such joint ASR and SD systems, by measuring the percentage of words in the transcript that are tagged with the wrong speaker:</p>
+<table id="S3.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.Ex1.m1.1" class="ltx_Math" alttext="WDER=\frac{S_{IS}+C_{IS}}{S+C}" display="block"><semantics id="S3.Ex1.m1.1a"><mrow id="S3.Ex1.m1.1.1" xref="S3.Ex1.m1.1.1.cmml"><mrow id="S3.Ex1.m1.1.1.2" xref="S3.Ex1.m1.1.1.2.cmml"><mi id="S3.Ex1.m1.1.1.2.2" xref="S3.Ex1.m1.1.1.2.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.2.1" xref="S3.Ex1.m1.1.1.2.1.cmml">​</mo><mi id="S3.Ex1.m1.1.1.2.3" xref="S3.Ex1.m1.1.1.2.3.cmml">D</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.2.1a" xref="S3.Ex1.m1.1.1.2.1.cmml">​</mo><mi id="S3.Ex1.m1.1.1.2.4" xref="S3.Ex1.m1.1.1.2.4.cmml">E</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.2.1b" xref="S3.Ex1.m1.1.1.2.1.cmml">​</mo><mi id="S3.Ex1.m1.1.1.2.5" xref="S3.Ex1.m1.1.1.2.5.cmml">R</mi></mrow><mo id="S3.Ex1.m1.1.1.1" xref="S3.Ex1.m1.1.1.1.cmml">=</mo><mfrac id="S3.Ex1.m1.1.1.3" xref="S3.Ex1.m1.1.1.3.cmml"><mrow id="S3.Ex1.m1.1.1.3.2" xref="S3.Ex1.m1.1.1.3.2.cmml"><msub id="S3.Ex1.m1.1.1.3.2.2" xref="S3.Ex1.m1.1.1.3.2.2.cmml"><mi id="S3.Ex1.m1.1.1.3.2.2.2" xref="S3.Ex1.m1.1.1.3.2.2.2.cmml">S</mi><mrow id="S3.Ex1.m1.1.1.3.2.2.3" xref="S3.Ex1.m1.1.1.3.2.2.3.cmml"><mi id="S3.Ex1.m1.1.1.3.2.2.3.2" xref="S3.Ex1.m1.1.1.3.2.2.3.2.cmml">I</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.2.3.1" xref="S3.Ex1.m1.1.1.3.2.2.3.1.cmml">​</mo><mi id="S3.Ex1.m1.1.1.3.2.2.3.3" xref="S3.Ex1.m1.1.1.3.2.2.3.3.cmml">S</mi></mrow></msub><mo id="S3.Ex1.m1.1.1.3.2.1" xref="S3.Ex1.m1.1.1.3.2.1.cmml">+</mo><msub id="S3.Ex1.m1.1.1.3.2.3" xref="S3.Ex1.m1.1.1.3.2.3.cmml"><mi id="S3.Ex1.m1.1.1.3.2.3.2" xref="S3.Ex1.m1.1.1.3.2.3.2.cmml">C</mi><mrow id="S3.Ex1.m1.1.1.3.2.3.3" xref="S3.Ex1.m1.1.1.3.2.3.3.cmml"><mi id="S3.Ex1.m1.1.1.3.2.3.3.2" xref="S3.Ex1.m1.1.1.3.2.3.3.2.cmml">I</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.3.1" xref="S3.Ex1.m1.1.1.3.2.3.3.1.cmml">​</mo><mi id="S3.Ex1.m1.1.1.3.2.3.3.3" xref="S3.Ex1.m1.1.1.3.2.3.3.3.cmml">S</mi></mrow></msub></mrow><mrow id="S3.Ex1.m1.1.1.3.3" xref="S3.Ex1.m1.1.1.3.3.cmml"><mi id="S3.Ex1.m1.1.1.3.3.2" xref="S3.Ex1.m1.1.1.3.3.2.cmml">S</mi><mo id="S3.Ex1.m1.1.1.3.3.1" xref="S3.Ex1.m1.1.1.3.3.1.cmml">+</mo><mi id="S3.Ex1.m1.1.1.3.3.3" xref="S3.Ex1.m1.1.1.3.3.3.cmml">C</mi></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S3.Ex1.m1.1b"><apply id="S3.Ex1.m1.1.1.cmml" xref="S3.Ex1.m1.1.1"><eq id="S3.Ex1.m1.1.1.1.cmml" xref="S3.Ex1.m1.1.1.1"></eq><apply id="S3.Ex1.m1.1.1.2.cmml" xref="S3.Ex1.m1.1.1.2"><times id="S3.Ex1.m1.1.1.2.1.cmml" xref="S3.Ex1.m1.1.1.2.1"></times><ci id="S3.Ex1.m1.1.1.2.2.cmml" xref="S3.Ex1.m1.1.1.2.2">𝑊</ci><ci id="S3.Ex1.m1.1.1.2.3.cmml" xref="S3.Ex1.m1.1.1.2.3">𝐷</ci><ci id="S3.Ex1.m1.1.1.2.4.cmml" xref="S3.Ex1.m1.1.1.2.4">𝐸</ci><ci id="S3.Ex1.m1.1.1.2.5.cmml" xref="S3.Ex1.m1.1.1.2.5">𝑅</ci></apply><apply id="S3.Ex1.m1.1.1.3.cmml" xref="S3.Ex1.m1.1.1.3"><divide id="S3.Ex1.m1.1.1.3.1.cmml" xref="S3.Ex1.m1.1.1.3"></divide><apply id="S3.Ex1.m1.1.1.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2"><plus id="S3.Ex1.m1.1.1.3.2.1.cmml" xref="S3.Ex1.m1.1.1.3.2.1"></plus><apply id="S3.Ex1.m1.1.1.3.2.2.cmml" xref="S3.Ex1.m1.1.1.3.2.2"><csymbol cd="ambiguous" id="S3.Ex1.m1.1.1.3.2.2.1.cmml" xref="S3.Ex1.m1.1.1.3.2.2">subscript</csymbol><ci id="S3.Ex1.m1.1.1.3.2.2.2.cmml" xref="S3.Ex1.m1.1.1.3.2.2.2">𝑆</ci><apply id="S3.Ex1.m1.1.1.3.2.2.3.cmml" xref="S3.Ex1.m1.1.1.3.2.2.3"><times id="S3.Ex1.m1.1.1.3.2.2.3.1.cmml" xref="S3.Ex1.m1.1.1.3.2.2.3.1"></times><ci id="S3.Ex1.m1.1.1.3.2.2.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2.2.3.2">𝐼</ci><ci id="S3.Ex1.m1.1.1.3.2.2.3.3.cmml" xref="S3.Ex1.m1.1.1.3.2.2.3.3">𝑆</ci></apply></apply><apply id="S3.Ex1.m1.1.1.3.2.3.cmml" xref="S3.Ex1.m1.1.1.3.2.3"><csymbol cd="ambiguous" id="S3.Ex1.m1.1.1.3.2.3.1.cmml" xref="S3.Ex1.m1.1.1.3.2.3">subscript</csymbol><ci id="S3.Ex1.m1.1.1.3.2.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2.3.2">𝐶</ci><apply id="S3.Ex1.m1.1.1.3.2.3.3.cmml" xref="S3.Ex1.m1.1.1.3.2.3.3"><times id="S3.Ex1.m1.1.1.3.2.3.3.1.cmml" xref="S3.Ex1.m1.1.1.3.2.3.3.1"></times><ci id="S3.Ex1.m1.1.1.3.2.3.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2.3.3.2">𝐼</ci><ci id="S3.Ex1.m1.1.1.3.2.3.3.3.cmml" xref="S3.Ex1.m1.1.1.3.2.3.3.3">𝑆</ci></apply></apply></apply><apply id="S3.Ex1.m1.1.1.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3"><plus id="S3.Ex1.m1.1.1.3.3.1.cmml" xref="S3.Ex1.m1.1.1.3.3.1"></plus><ci id="S3.Ex1.m1.1.1.3.3.2.cmml" xref="S3.Ex1.m1.1.1.3.3.2">𝑆</ci><ci id="S3.Ex1.m1.1.1.3.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3.3">𝐶</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.Ex1.m1.1c">WDER=\frac{S_{IS}+C_{IS}}{S+C}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S3.p1.2" class="ltx_p">where <math id="S3.p1.1.m1.1" class="ltx_Math" alttext="S_{IS}" display="inline"><semantics id="S3.p1.1.m1.1a"><msub id="S3.p1.1.m1.1.1" xref="S3.p1.1.m1.1.1.cmml"><mi id="S3.p1.1.m1.1.1.2" xref="S3.p1.1.m1.1.1.2.cmml">S</mi><mrow id="S3.p1.1.m1.1.1.3" xref="S3.p1.1.m1.1.1.3.cmml"><mi id="S3.p1.1.m1.1.1.3.2" xref="S3.p1.1.m1.1.1.3.2.cmml">I</mi><mo lspace="0em" rspace="0em" id="S3.p1.1.m1.1.1.3.1" xref="S3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.p1.1.m1.1.1.3.3" xref="S3.p1.1.m1.1.1.3.3.cmml">S</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.p1.1.m1.1b"><apply id="S3.p1.1.m1.1.1.cmml" xref="S3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p1.1.m1.1.1.1.cmml" xref="S3.p1.1.m1.1.1">subscript</csymbol><ci id="S3.p1.1.m1.1.1.2.cmml" xref="S3.p1.1.m1.1.1.2">𝑆</ci><apply id="S3.p1.1.m1.1.1.3.cmml" xref="S3.p1.1.m1.1.1.3"><times id="S3.p1.1.m1.1.1.3.1.cmml" xref="S3.p1.1.m1.1.1.3.1"></times><ci id="S3.p1.1.m1.1.1.3.2.cmml" xref="S3.p1.1.m1.1.1.3.2">𝐼</ci><ci id="S3.p1.1.m1.1.1.3.3.cmml" xref="S3.p1.1.m1.1.1.3.3">𝑆</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.1.m1.1c">S_{IS}</annotation></semantics></math> represents the number of ASR substitutions with incorrect speaker tags, <math id="S3.p1.2.m2.1" class="ltx_Math" alttext="C_{IS}" display="inline"><semantics id="S3.p1.2.m2.1a"><msub id="S3.p1.2.m2.1.1" xref="S3.p1.2.m2.1.1.cmml"><mi id="S3.p1.2.m2.1.1.2" xref="S3.p1.2.m2.1.1.2.cmml">C</mi><mrow id="S3.p1.2.m2.1.1.3" xref="S3.p1.2.m2.1.1.3.cmml"><mi id="S3.p1.2.m2.1.1.3.2" xref="S3.p1.2.m2.1.1.3.2.cmml">I</mi><mo lspace="0em" rspace="0em" id="S3.p1.2.m2.1.1.3.1" xref="S3.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S3.p1.2.m2.1.1.3.3" xref="S3.p1.2.m2.1.1.3.3.cmml">S</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.p1.2.m2.1b"><apply id="S3.p1.2.m2.1.1.cmml" xref="S3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S3.p1.2.m2.1.1.1.cmml" xref="S3.p1.2.m2.1.1">subscript</csymbol><ci id="S3.p1.2.m2.1.1.2.cmml" xref="S3.p1.2.m2.1.1.2">𝐶</ci><apply id="S3.p1.2.m2.1.1.3.cmml" xref="S3.p1.2.m2.1.1.3"><times id="S3.p1.2.m2.1.1.3.1.cmml" xref="S3.p1.2.m2.1.1.3.1"></times><ci id="S3.p1.2.m2.1.1.3.2.cmml" xref="S3.p1.2.m2.1.1.3.2">𝐼</ci><ci id="S3.p1.2.m2.1.1.3.3.cmml" xref="S3.p1.2.m2.1.1.3.3">𝑆</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.2.m2.1c">C_{IS}</annotation></semantics></math> represents the number of correctly recognized ASR words with incorrect speaker tags, S is the total number of ASR substitutions and C is the total number of correctly recognized ASR words. WDER doesn’t take into account deletion and insertion errors as the speaker tags associated with them cannot be mapped to reference without ambiguity.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">One benefit of WDER is that it can be used to automatically identify and visualize diarization errors at the word level. By examining errors at the word level, it is possible to categorize them into three categories:</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<ol id="S3.I1" class="ltx_enumerate">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">(a)</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p">Incorrect speaker tags within a paragraph</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">(b)</span> 
+<div id="S3.I1.i2.p1" class="ltx_para">
+<p id="S3.I1.i2.p1.1" class="ltx_p">The first and last words of a paragraph having incorrect speaker tags</p>
+</div>
+</li>
+<li id="S3.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">(c)</span> 
+<div id="S3.I1.i3.p1" class="ltx_para">
+<p id="S3.I1.i3.p1.1" class="ltx_p">A complete paragraph being assigned to the wrong speaker</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.1" class="ltx_p">The main cause of errors of type (a) and (b) is the use of uniform audio segmentation with a high temporal resolution. Inaccurate word timestamps can also lead to type (b) errors. Type (c) errors typically occur due to inaccurate estimation of the number of speakers and incorrect clustering. Background noise, music and reverberation also contribute to all types of errors. Examples of each type of error are illustrated in Table <a href="#S1.T1" title="Table 1 ‣ 1 Introduction ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>SPEAKER ERROR CORRECTOR</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>System overview</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">We use the lexical speaker error corrector introduced in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, which aims to improve diarization accuracy by leveraging lexical information. In this approach, word embeddings are extracted using a pre-trained RoBERTa-base LM. These embeddings, along with the hypothesized speaker labels, are fed into a transformer encoder, which produces the corrected speaker labels.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">In contrast to the original implementation, we use an ALBERT-base LM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> due to its memory efficiency. Additionally, our error simulation procedure differs from the original work, where the target words are substituted with random words. We have also replaced the standard cross-entropy loss with a permutation invariant loss. The next section will cover all the training details.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Training details</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">We train the SEC on two-speaker scenarios, generating synthetic errors for both words and speaker tags. For word errors, we employ an alternative spelling prediction (ASP) model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>. It aims to predict how the ASR system might inaccurately recognize a given word without executing the ASR model itself. For speaker tag errors, we simulate errors at speaker change points if the input involves two speakers, as shown in Example 1. If the input contains only one speaker, we simulate errors only at the beginning or at the end of the input, as illustrated in Example 2.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<ul id="S4.I1" class="ltx_itemize">
+<li id="S4.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i1.p1" class="ltx_para">
+<p id="S4.I1.i1.p1.1" class="ltx_p"><span id="S4.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">Example 1:</span></p>
+</div>
+<div id="S4.I1.i1.p2" class="ltx_para">
+<p id="S4.I1.i1.p2.8" class="ltx_p"><span id="S4.I1.i1.p2.8.1" class="ltx_text ltx_font_bold">Reference</span>: <math id="S4.I1.i1.p2.1.m1.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.i1.p2.1.m1.1a"><mo id="S4.I1.i1.p2.1.m1.1.1" xref="S4.I1.i1.p2.1.m1.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.1.m1.1b"><lt id="S4.I1.i1.p2.1.m1.1.1.cmml" xref="S4.I1.i1.p2.1.m1.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.1.m1.1c">&lt;</annotation></semantics></math>spk1<math id="S4.I1.i1.p2.2.m2.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.i1.p2.2.m2.1a"><mo id="S4.I1.i1.p2.2.m2.1.1" xref="S4.I1.i1.p2.2.m2.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.2.m2.1b"><gt id="S4.I1.i1.p2.2.m2.1.1.cmml" xref="S4.I1.i1.p2.2.m2.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.2.m2.1c">&gt;</annotation></semantics></math> can you study with the radio on <math id="S4.I1.i1.p2.3.m3.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.i1.p2.3.m3.1a"><mo id="S4.I1.i1.p2.3.m3.1.1" xref="S4.I1.i1.p2.3.m3.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.3.m3.1b"><lt id="S4.I1.i1.p2.3.m3.1.1.cmml" xref="S4.I1.i1.p2.3.m3.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.3.m3.1c">&lt;</annotation></semantics></math>spk2<math id="S4.I1.i1.p2.4.m4.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.i1.p2.4.m4.1a"><mo id="S4.I1.i1.p2.4.m4.1.1" xref="S4.I1.i1.p2.4.m4.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.4.m4.1b"><gt id="S4.I1.i1.p2.4.m4.1.1.cmml" xref="S4.I1.i1.p2.4.m4.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.4.m4.1c">&gt;</annotation></semantics></math> no i listen to background music 
+<br class="ltx_break"><span id="S4.I1.i1.p2.8.2" class="ltx_text ltx_font_bold">Simulated</span>: <math id="S4.I1.i1.p2.5.m5.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.i1.p2.5.m5.1a"><mo id="S4.I1.i1.p2.5.m5.1.1" xref="S4.I1.i1.p2.5.m5.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.5.m5.1b"><lt id="S4.I1.i1.p2.5.m5.1.1.cmml" xref="S4.I1.i1.p2.5.m5.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.5.m5.1c">&lt;</annotation></semantics></math>spk1<math id="S4.I1.i1.p2.6.m6.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.i1.p2.6.m6.1a"><mo id="S4.I1.i1.p2.6.m6.1.1" xref="S4.I1.i1.p2.6.m6.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.6.m6.1b"><gt id="S4.I1.i1.p2.6.m6.1.1.cmml" xref="S4.I1.i1.p2.6.m6.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.6.m6.1c">&gt;</annotation></semantics></math> can you study with the radio on no i <math id="S4.I1.i1.p2.7.m7.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.i1.p2.7.m7.1a"><mo id="S4.I1.i1.p2.7.m7.1.1" xref="S4.I1.i1.p2.7.m7.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.7.m7.1b"><lt id="S4.I1.i1.p2.7.m7.1.1.cmml" xref="S4.I1.i1.p2.7.m7.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.7.m7.1c">&lt;</annotation></semantics></math>spk2<math id="S4.I1.i1.p2.8.m8.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.i1.p2.8.m8.1a"><mo id="S4.I1.i1.p2.8.m8.1.1" xref="S4.I1.i1.p2.8.m8.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.i1.p2.8.m8.1b"><gt id="S4.I1.i1.p2.8.m8.1.1.cmml" xref="S4.I1.i1.p2.8.m8.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.i1.p2.8.m8.1c">&gt;</annotation></semantics></math> listen to background music</p>
+</div>
+</li>
+<li id="S4.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i2.p1" class="ltx_para">
+<p id="S4.I1.i2.p1.1" class="ltx_p"><span id="S4.I1.i2.p1.1.1" class="ltx_text ltx_font_bold">Example 2:</span></p>
+</div>
+</li>
+<li id="S4.I1.ix1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item"></span>
+<div id="S4.I1.ix1.p1" class="ltx_para">
+<p id="S4.I1.ix1.p1.6" class="ltx_p"><span id="S4.I1.ix1.p1.6.1" class="ltx_text ltx_font_bold">Reference</span>: <math id="S4.I1.ix1.p1.1.m1.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.ix1.p1.1.m1.1a"><mo id="S4.I1.ix1.p1.1.m1.1.1" xref="S4.I1.ix1.p1.1.m1.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.1.m1.1b"><lt id="S4.I1.ix1.p1.1.m1.1.1.cmml" xref="S4.I1.ix1.p1.1.m1.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.1.m1.1c">&lt;</annotation></semantics></math>spk1<math id="S4.I1.ix1.p1.2.m2.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.ix1.p1.2.m2.1a"><mo id="S4.I1.ix1.p1.2.m2.1.1" xref="S4.I1.ix1.p1.2.m2.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.2.m2.1b"><gt id="S4.I1.ix1.p1.2.m2.1.1.cmml" xref="S4.I1.ix1.p1.2.m2.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.2.m2.1c">&gt;</annotation></semantics></math> uh huh it but it almost makes me feel like 
+<br class="ltx_break"><span id="S4.I1.ix1.p1.6.2" class="ltx_text ltx_font_bold">Simulated</span>: <math id="S4.I1.ix1.p1.3.m3.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.ix1.p1.3.m3.1a"><mo id="S4.I1.ix1.p1.3.m3.1.1" xref="S4.I1.ix1.p1.3.m3.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.3.m3.1b"><lt id="S4.I1.ix1.p1.3.m3.1.1.cmml" xref="S4.I1.ix1.p1.3.m3.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.3.m3.1c">&lt;</annotation></semantics></math>spk1<math id="S4.I1.ix1.p1.4.m4.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.ix1.p1.4.m4.1a"><mo id="S4.I1.ix1.p1.4.m4.1.1" xref="S4.I1.ix1.p1.4.m4.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.4.m4.1b"><gt id="S4.I1.ix1.p1.4.m4.1.1.cmml" xref="S4.I1.ix1.p1.4.m4.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.4.m4.1c">&gt;</annotation></semantics></math> uh huh it but it almost makes me feel <math id="S4.I1.ix1.p1.5.m5.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S4.I1.ix1.p1.5.m5.1a"><mo id="S4.I1.ix1.p1.5.m5.1.1" xref="S4.I1.ix1.p1.5.m5.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.5.m5.1b"><lt id="S4.I1.ix1.p1.5.m5.1.1.cmml" xref="S4.I1.ix1.p1.5.m5.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.5.m5.1c">&lt;</annotation></semantics></math>spk2<math id="S4.I1.ix1.p1.6.m6.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.I1.ix1.p1.6.m6.1a"><mo id="S4.I1.ix1.p1.6.m6.1.1" xref="S4.I1.ix1.p1.6.m6.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.I1.ix1.p1.6.m6.1b"><gt id="S4.I1.ix1.p1.6.m6.1.1.cmml" xref="S4.I1.ix1.p1.6.m6.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.I1.ix1.p1.6.m6.1c">&gt;</annotation></semantics></math> like</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">Our goal is to accurately predict speaker segmentation, even though the concept of speaker ID can sometimes be ambiguous. Consider the motivating example illustrated in Table <a href="#S4.T2" title="Table 2 ‣ 4.2 Training details ‣ 4 SPEAKER ERROR CORRECTOR ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. The model can either correct the first two tags or the last five tags. To handle such cases, we use permutation invariant cross-entropy loss for speaker tag classification, which selects a permutation of speakers that results in the minimum loss.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T2.2.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span>Example of ambiguous sample.</figcaption>
+<table id="S4.T2.3" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T2.3.1.1" class="ltx_tr">
+<td id="S4.T2.3.1.1.1" class="ltx_td ltx_align_left ltx_border_r ltx_border_tt">Reference Tags</td>
+<td id="S4.T2.3.1.1.2" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_tt">spk1 spk1 spk1 spk1 spk1 spk1 spk1</td>
+</tr>
+<tr id="S4.T2.3.2.2" class="ltx_tr">
+<td id="S4.T2.3.2.2.1" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r ltx_border_t">Simulated Tags</td>
+<td id="S4.T2.3.2.2.2" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb ltx_border_t">spk1 spk1 spk2 spk2 spk2 spk2 spk2</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Inference setup</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">During inference, we perform error correction only at speaker change points. We define a context window around these change points and feed the window, along with the hypothesized speaker tags, into a SEC model. The window consists of up to 18 words from the left context and 18 words from the right context, up to the nearest change points.</p>
+</div>
+<figure id="S4.T3" class="ltx_table">
+<div id="S4.T3.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:227.9pt;height:155.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-18.3pt,12.4pt) scale(0.861824197011297,0.861824197011297) ;">
+<table id="S4.T3.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T3.2.1.1.1" class="ltx_tr">
+<th id="S4.T3.2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_tt"><span id="S4.T3.2.1.1.1.1.1" class="ltx_text ltx_font_bold">Word</span></th>
+<td id="S4.T3.2.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T3.2.1.1.1.2.1" class="ltx_text ltx_font_bold">Top1</span></td>
+<td id="S4.T3.2.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T3.2.1.1.1.3.1" class="ltx_text ltx_font_bold">Top2</span></td>
+<td id="S4.T3.2.1.1.1.4" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt"><span id="S4.T3.2.1.1.1.4.1" class="ltx_text ltx_font_bold">Top3</span></td>
+</tr>
+<tr id="S4.T3.2.1.2.2" class="ltx_tr">
+<th id="S4.T3.2.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" colspan="4"><span id="S4.T3.2.1.2.2.1.1" class="ltx_text ltx_font_bold">Words seen during training</span></th>
+</tr>
+<tr id="S4.T3.2.1.3.3" class="ltx_tr">
+<th id="S4.T3.2.1.3.3.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">hashimoto</th>
+<td id="S4.T3.2.1.3.3.2" class="ltx_td ltx_align_center ltx_border_t">hashamoto</td>
+<td id="S4.T3.2.1.3.3.3" class="ltx_td ltx_align_center ltx_border_t">hashimoto</td>
+<td id="S4.T3.2.1.3.3.4" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">hashamato</td>
+</tr>
+<tr id="S4.T3.2.1.4.4" class="ltx_tr">
+<th id="S4.T3.2.1.4.4.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">jupyter</th>
+<td id="S4.T3.2.1.4.4.2" class="ltx_td ltx_align_center">jupiter</td>
+<td id="S4.T3.2.1.4.4.3" class="ltx_td ltx_align_center">jupitor</td>
+<td id="S4.T3.2.1.4.4.4" class="ltx_td ltx_nopad_r ltx_align_center">jupitter</td>
+</tr>
+<tr id="S4.T3.2.1.5.5" class="ltx_tr">
+<th id="S4.T3.2.1.5.5.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">kotlin</th>
+<td id="S4.T3.2.1.5.5.2" class="ltx_td ltx_align_center">cotlin</td>
+<td id="S4.T3.2.1.5.5.3" class="ltx_td ltx_align_center">cotlan</td>
+<td id="S4.T3.2.1.5.5.4" class="ltx_td ltx_nopad_r ltx_align_center">codlin</td>
+</tr>
+<tr id="S4.T3.2.1.6.6" class="ltx_tr">
+<th id="S4.T3.2.1.6.6.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">pulumi</th>
+<td id="S4.T3.2.1.6.6.2" class="ltx_td ltx_align_center">pulumi</td>
+<td id="S4.T3.2.1.6.6.3" class="ltx_td ltx_align_center">polumi</td>
+<td id="S4.T3.2.1.6.6.4" class="ltx_td ltx_nopad_r ltx_align_center">poulumi</td>
+</tr>
+<tr id="S4.T3.2.1.7.7" class="ltx_tr">
+<th id="S4.T3.2.1.7.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" colspan="4"><span id="S4.T3.2.1.7.7.1.1" class="ltx_text ltx_font_bold">Words unseen during training</span></th>
+</tr>
+<tr id="S4.T3.2.1.8.8" class="ltx_tr">
+<th id="S4.T3.2.1.8.8.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">farnoosh</th>
+<td id="S4.T3.2.1.8.8.2" class="ltx_td ltx_align_center ltx_border_t">farnosh</td>
+<td id="S4.T3.2.1.8.8.3" class="ltx_td ltx_align_center ltx_border_t">farnush</td>
+<td id="S4.T3.2.1.8.8.4" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">farnash</td>
+</tr>
+<tr id="S4.T3.2.1.9.9" class="ltx_tr">
+<th id="S4.T3.2.1.9.9.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">doernenburg</th>
+<td id="S4.T3.2.1.9.9.2" class="ltx_td ltx_align_center">dornenburg</td>
+<td id="S4.T3.2.1.9.9.3" class="ltx_td ltx_align_center">doernenberg</td>
+<td id="S4.T3.2.1.9.9.4" class="ltx_td ltx_nopad_r ltx_align_center">doernenburg</td>
+</tr>
+<tr id="S4.T3.2.1.10.10" class="ltx_tr">
+<th id="S4.T3.2.1.10.10.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_bb ltx_border_r">odersky</th>
+<td id="S4.T3.2.1.10.10.2" class="ltx_td ltx_align_center ltx_border_bb">oderski</td>
+<td id="S4.T3.2.1.10.10.3" class="ltx_td ltx_align_center ltx_border_bb">odersky</td>
+<td id="S4.T3.2.1.10.10.4" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">odderski</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T3.3.1.1" class="ltx_text ltx_font_bold">Table 3</span>: </span>Top three alternates generated by the ASP model.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Results</h2>
+
+<figure id="S5.T4" class="ltx_table">
+<table id="S5.T4.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.2.1.1" class="ltx_tr">
+<th id="S5.T4.2.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row" style="padding-bottom:0.86108pt;"><span id="S5.T4.2.1.1.1.1" class="ltx_text ltx_font_bold">Model</span></th>
+<th id="S5.T4.2.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column" style="padding-bottom:0.86108pt;"><span id="S5.T4.2.1.1.2.1" class="ltx_text ltx_font_bold">BLEU</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.2.2.1" class="ltx_tr">
+<th id="S5.T4.2.2.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding-bottom:0.86108pt;">Identity</th>
+<td id="S5.T4.2.2.1.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-bottom:0.86108pt;">0.48</td>
+</tr>
+<tr id="S5.T4.2.3.2" class="ltx_tr">
+<th id="S5.T4.2.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-bottom:0.86108pt;">ASP with greedy decoding</th>
+<td id="S5.T4.2.3.2.2" class="ltx_td ltx_align_center" style="padding-bottom:0.86108pt;">0.6</td>
+</tr>
+<tr id="S5.T4.2.4.3" class="ltx_tr">
+<th id="S5.T4.2.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b">ASP with beam search</th>
+<td id="S5.T4.2.4.3.2" class="ltx_td ltx_align_center ltx_border_b">0.605</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S5.T4.3.1.1" class="ltx_text ltx_font_bold">Table 4</span>: </span>Performance of the ASP model with and without beam search in comparison to the identity baseline.</figcaption>
+</figure>
+<figure id="S5.T5" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S5.T5.2.1.1" class="ltx_text ltx_font_bold">Table 5</span>: </span>Example case from the TAL testing set (errors are underlined and marked in pink color).</figcaption>
+<table id="S5.T5.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T5.3.1.1" class="ltx_tr">
+<th id="S5.T5.3.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Before Correction</th>
+<th id="S5.T5.3.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">After Correction</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T5.3.2.1" class="ltx_tr">
+<td id="S5.T5.3.2.1.1" class="ltx_td ltx_align_left ltx_border_bb ltx_border_t">
+<table id="S5.T5.3.2.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T5.3.2.1.1.1.1" class="ltx_tr">
+<td id="S5.T5.3.2.1.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk2]: three percent to five percent you mean of all</td>
+</tr>
+<tr id="S5.T5.3.2.1.1.1.2" class="ltx_tr">
+<td id="S5.T5.3.2.1.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">healthcare</td>
+</tr>
+<tr id="S5.T5.3.2.1.1.1.3" class="ltx_tr">
+<td id="S5.T5.3.2.1.1.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk5]: <span id="S5.T5.3.2.1.1.1.3.1.1" class="ltx_text ltx_framed ltx_framed_underline" style="background-color:#FFBFBF;">professionals</span> all across the profession <span id="S5.T5.3.2.1.1.1.3.1.2" class="ltx_text ltx_framed ltx_framed_underline" style="background-color:#FFBFBF;">wow</span>
+</td>
+</tr>
+<tr id="S5.T5.3.2.1.1.1.4" class="ltx_tr">
+<td id="S5.T5.3.2.1.1.1.4.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk2]: which drugs</td>
+</tr>
+</table>
+</td>
+<td id="S5.T5.3.2.1.2" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb ltx_border_t">
+<table id="S5.T5.3.2.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T5.3.2.1.2.1.1" class="ltx_tr">
+<td id="S5.T5.3.2.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk2]: three percent to five percent you mean of all</td>
+</tr>
+<tr id="S5.T5.3.2.1.2.1.2" class="ltx_tr">
+<td id="S5.T5.3.2.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">healthcare professionals</td>
+</tr>
+<tr id="S5.T5.3.2.1.2.1.3" class="ltx_tr">
+<td id="S5.T5.3.2.1.2.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk5]: all across the profession</td>
+</tr>
+<tr id="S5.T5.3.2.1.2.1.4" class="ltx_tr">
+<td id="S5.T5.3.2.1.2.1.4.1" class="ltx_td ltx_nopad_r ltx_align_left">[spk2]: wow which drugs</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Evaluation setup</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">In this work, we use the full Fisher <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>, DailyDialog <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, and SLT GenSEC Challenge Track-2 training datasets to train the SEC model. We split the Fisher data into training, validation and test sets as defined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>. For evaluation, in addition to the Fisher test split, we use the standard test split of the TAL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> dataset. For internal evaluations and model selection, we report performance using the WDER, as we believe it provides a more accurate representation of a speaker diarization system’s performance at the word level compared to the cpWER metric <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>. Our final evaluation for the Post-ASR Speaker Tagging Correction challenge is conducted using the cpWER metric.</p>
+</div>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p">We use the pre-trained FastConformer-Large model<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_fastconformer_ctc_large</span></span></span></span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> to transcribe test datasets and then diarize them using the Titanet-Small<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_small</span></span></span></span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> embedding extractor along with the standard spectral clustering <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>. After generating the transcript, we apply our SEC model to it and compare the corrected speaker tags with the ground truth tags using either WDER or cpWER.</p>
+</div>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Alternate spelling prediction model</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">To train the alternate spelling prediction model, we use roughly 1.15 million word pairs that were mistakenly recognized by a Conformer-medium model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>. We use a medium-size pre-trained Conformer checkpoint<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_ctc_medium</span></span></span></span> that was made available by Nvidia. Furthermore, we removed error pairs in which the phonetic forms of the reference and predicted words had an edit distance greater than 50%. We used the grapheme-to-phoneme (G2P) library<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://github.com/Kyubyong/g2p</span></span></span></span> to convert words to the corresponding phoneme sequence.</p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p">Similar to <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, our ASP model is also based on a transformer encoder-decoder framework. It has two layers in both the encoder and decoder with two attention heads per layer and 400 units per layer resulting in a total of 6.5M parameters. However, unlike the original paper, the input and the output subword tokenization is the same as the tokenization used for the ASR model.</p>
+</div>
+<div id="S5.SS2.p3" class="ltx_para">
+<p id="S5.SS2.p3.1" class="ltx_p">At inference time, we use beam search to produce a 3-best list of alternate spellings for each word. During the training of the SEC model, we generate ASR errors by replacing the target word with a randomly picked alternate.</p>
+</div>
+<div id="S5.SS2.p4" class="ltx_para">
+<p id="S5.SS2.p4.1" class="ltx_p">To test the accuracy of the ASP model, we measure the BLEU score <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> between the word pieces of the reference and predicted alternates. Table <a href="#S5.T4" title="Table 4 ‣ 5 Results ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows the results of the ASP model on the test set. For comparison, we present the baseline score for an identity system that keeps the input word unchanged. In addition, we report the score obtained by a refined ASP model using beam search. Table <a href="#S4.T3" title="Table 3 ‣ 4.3 Inference setup ‣ 4 SPEAKER ERROR CORRECTOR ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> illustrates examples of alternates that the ASP model produces.</p>
+</div>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>SEC system</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p">We use a pre-trained ALBERT-base model as the backbone LM and a transformer encoder with 128 hidden states. For word error simulation, we either leave the word unchanged or substitute it with a corresponding alternate generated by the ASP model with a probability of 0.1. For speaker errors, we introduce a maximum of two errors: in 40% of inputs, no errors are simulated; in 48% of inputs, a single speaker tag error is generated; and in 12% of inputs, two speaker tag errors are simulated. The model is trained with an average sequence length of 30 words per batch, which was found to be optimal through hyperparameter search in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Initially, we trained only the transformer encoder part of the SEC model. Subsequently, we unfreeze the ALBERT part and train the entire SEC model.</p>
+</div>
+</section>
+<section id="S5.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.4 </span>Results</h3>
+
+<figure id="S5.T6" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table"><span id="S5.T6.2.1.1" class="ltx_text ltx_font_bold">Table 6</span>: </span>The performance of the SEC model on the Fisher and TAL datasets. The results are reported in WDER. The x/y notation signifies the number of incorrectly assigned words (x) out of the total words analyzed (y).</figcaption>
+<table id="S5.T6.3" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T6.3.1.1" class="ltx_tr">
+<th id="S5.T6.3.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">Model Type</th>
+<th id="S5.T6.3.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Fisher</th>
+<th id="S5.T6.3.1.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_tt">TAL</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T6.3.2.1" class="ltx_tr">
+<th id="S5.T6.3.2.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">No Correction</th>
+<td id="S5.T6.3.2.1.2" class="ltx_td ltx_align_center ltx_border_t">2.8 (7673/274398)</td>
+<td id="S5.T6.3.2.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">4.25 (14487/340991)</td>
+</tr>
+<tr id="S5.T6.3.3.2" class="ltx_tr">
+<th id="S5.T6.3.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">SEC</th>
+<td id="S5.T6.3.3.2.2" class="ltx_td ltx_align_center ltx_border_bb">2.42 (6653/274398)</td>
+<td id="S5.T6.3.3.2.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">4.11 (14012/340991)</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="S5.T7" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table"><span id="S5.T7.2.1.1" class="ltx_text ltx_font_bold">Table 7</span>: </span>The performance of the SEC model on the SLT GenSEC Challenge Track-2 dev and eval datasets. The results are reported in cpWER.</figcaption>
+<table id="S5.T7.3" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T7.3.1.1" class="ltx_tr">
+<th id="S5.T7.3.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">Model Type</th>
+<th id="S5.T7.3.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">dev</th>
+<th id="S5.T7.3.1.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_tt">eval</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T7.3.2.1" class="ltx_tr">
+<th id="S5.T7.3.2.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">No Correction</th>
+<td id="S5.T7.3.2.1.2" class="ltx_td ltx_align_center ltx_border_t">24.64 (5998/24335)</td>
+<td id="S5.T7.3.2.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">28.45 (5563/19552)</td>
+</tr>
+<tr id="S5.T7.3.3.2" class="ltx_tr">
+<th id="S5.T7.3.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Baseline</th>
+<td id="S5.T7.3.3.2.2" class="ltx_td ltx_align_center">24.53 (5971/24335)</td>
+<td id="S5.T7.3.3.2.3" class="ltx_td ltx_nopad_r ltx_align_center">28.36 (5546/19552)</td>
+</tr>
+<tr id="S5.T7.3.4.3" class="ltx_tr">
+<th id="S5.T7.3.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">SEC</th>
+<td id="S5.T7.3.4.3.2" class="ltx_td ltx_align_center ltx_border_bb">23.97 (5834/24335)</td>
+<td id="S5.T7.3.4.3.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">27.76 (5429/19552)</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.SS4.p1" class="ltx_para">
+<p id="S5.SS4.p1.1" class="ltx_p">From Table <a href="#S5.T6" title="Table 6 ‣ 5.4 Results ‣ 5 Results ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> and Table <a href="#S5.T7" title="Table 7 ‣ 5.4 Results ‣ 5 Results ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> we can see that the SEC model consistently outperforms the ”No Correction” baseline across different datasets. For instance, on the Fisher dataset, the SEC model reduces the WDER from 2.8% to 2.42%. Similarly, on the TAL dataset, the WDER decreases from 4.25% to 4.11%. This improvement is also evident in the cpWER metric for the SLT GenSEC Challenge Track-2 datasets, where the SEC model achieves lower error rates on both the dev and eval sets compared to the baseline <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>. Table <a href="#S5.T5" title="Table 5 ‣ 5 Results ‣ SPEAKER TAGGING CORRECTION WITH NON-AUTOREGRESSIVE LANGUAGE MODELS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> presents an example case from the TAL testing set, where we see improvements after applying the speaker error correction model.</p>
+</div>
+<div id="S5.SS4.p2" class="ltx_para">
+<p id="S5.SS4.p2.1" class="ltx_p">One drawback of our method is that it is only applied to speaker change points. When we apply the model more frequently, we observe performance degradation.</p>
+</div>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>CONCLUSIONS</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this work, we implemented a speaker error correction model to correct word-level speaker errors for boundary words between sentences spoken by different speakers. We achieve this using a language model over the ASR transcriptions to correct the speaker labels. We train the SEC model using only text data by simulating both word errors and speaker errors without the need for any paired audio-text data. For simulating word errors, we train an alternate spelling prediction model that can predict how the ASR will recognize a given word. We achieved an absolute reduction in WDER of over 0.38% and 0.14% across the Fisher test and TAL datasets, respectively. Additionally, we evaluated our system in the Post-ASR Speaker Tagging Correction challenge and observed improvements in cpWER compared to baseline methods. The proposed SEC framework is also lightweight and can be integrated as a post-processing module over existing on-device ASR-SD systems.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Rohit Paturi, Sundararajan Srinivasan, and Xiang Li,
+
+</span>
+<span class="ltx_bibblock">“Lexical Speaker Error Correction: Leveraging Language Models for Speaker Diarization Error Correction,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">Proc. INTERSPEECH 2023</span>, 2023, pp. 3567–3571.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Quan Wang, Yiling Huang, Guanlong Zhao, Evan Clark, Wei Xia, and Hank Liao,
+
+</span>
+<span class="ltx_bibblock">“DiarizationLM: Speaker Diarization Post-Processing with Large Language Models,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2401.03506</span>, 2024.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov,
+
+</span>
+<span class="ltx_bibblock">“Roberta: A robustly optimized bert pretraining approach,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1907.11692</span>, 2019.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Tae Jin Park, Kunal Dhawan, Nithin Koluguri, and Jagadeesh Balam,
+
+</span>
+<span class="ltx_bibblock">“Enhancing speaker diarization with large language models: A contextual beam search approach,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span>. IEEE, 2024, pp. 10861–10865.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Laurent El Shafey, Hagen Soltau, and Izhak Shafran,
+
+</span>
+<span class="ltx_bibblock">“Joint speech recognition and speaker diarization via sequence transduction,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Interspeech</span>, 2019.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Zhenzhong Lan, Mingda Chen, Sebastian Goodman, Kevin Gimpel, Piyush Sharma, and Radu Soricut,
+
+</span>
+<span class="ltx_bibblock">“Albert: A lite bert for self-supervised learning of language representations,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1909.11942</span>, 2019.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Jennifer Fox and Natalie Delworth,
+
+</span>
+<span class="ltx_bibblock">“Improving Contextual Recognition of Rare Words with an Alternate Spelling Prediction Model,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">Proc. Interspeech 2022</span>, 2022, pp. 3914–3918.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Christopher Cieri, David Graff, Owen Kimball, Dave Miller, and Kevin Walker,
+
+</span>
+<span class="ltx_bibblock">“Fisher english training speech part 1 transcripts,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">Philadelphia: Linguistic Data Consortium</span>, 2004.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Christopher Cieri, David Graff, Owen Kimball, Dave Miller, and Kevin Walker,
+
+</span>
+<span class="ltx_bibblock">“Fisher english training part 2, transcripts ldc2005t19,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Web Download. Philadelphia: Linguistic Data Consortium</span>, 2005.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Yanran Li, Hui Su, Xiaoyu Shen, Wenjie Li, Ziqiang Cao, and Shuzi Niu,
+
+</span>
+<span class="ltx_bibblock">“DailyDialog: A manually labelled multi-turn dialogue dataset,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">Proceedings of the Eighth International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</span>, Greg Kondrak and Taro Watanabe, Eds., Taipei, Taiwan, Nov. 2017, pp. 986–995, Asian Federation of Natural Language Processing.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Quan Wang, Yiling Huang, Han Lu, Guanlong Zhao, and Ignacio Lopez Moreno,
+
+</span>
+<span class="ltx_bibblock">“Highly efficient real-time streaming and fully on-device speaker diarization with multi-stage clustering,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2210.13690</span>, 2022.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Huanru Henry Mao, Shuyang Li, Julian McAuley, and G. Cottrell,
+
+</span>
+<span class="ltx_bibblock">“Speech recognition and multi-speaker diarization of long conversations,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">Interspeech</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Daniel Povey, Arnab Ghoshal, Gilles Boulianne, Luká vs Burget, Ondrej Glembek, Nagendra Kumar Goel, Mirko Hannemann, Petr Motlícek, Yanmin Qian, Petr Schwarz, Jan Silovský, Georg Stemmer, and Karel Veselý,
+
+</span>
+<span class="ltx_bibblock">“The kaldi speech recognition toolkit,”
+
+</span>
+<span class="ltx_bibblock">2011.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Thilo von Neumann, Christoph Boeddeker, Marc Delcroix, and Reinhold Haeb-Umbach,
+
+</span>
+<span class="ltx_bibblock">“Meeteval: A toolkit for computation of word error rates for meeting transcription systems,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">CHiME-2023 Workshop, Dublin, England</span>, 2023.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Dima Rekesh, Nithin Rao Koluguri, Samuel Kriman, Somshubra Majumdar, Vahid Noroozi, He Huang, Oleksii Hrinchuk, Krishna Puvvada, Ankur Kumar, Jagadeesh Balam, et al.,
+
+</span>
+<span class="ltx_bibblock">“Fast conformer with linearly scalable attention for efficient speech recognition,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</span>. IEEE, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Nithin Rao Koluguri, Taejin Park, and Boris Ginsburg,
+
+</span>
+<span class="ltx_bibblock">“Titanet: Neural model for speaker representation with 1d depth-wise separable convolutions and global context,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib16.1.1" class="ltx_text ltx_font_italic">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span>. IEEE, 2022, pp. 8102–8106.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Ulrike Von Luxburg,
+
+</span>
+<span class="ltx_bibblock">“A tutorial on spectral clustering,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">Statistics and computing</span>, vol. 17, pp. 395–416, 2007.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zhengdong Zhang, Yonghui Wu, and Ruoming Pang,
+
+</span>
+<span class="ltx_bibblock">“Conformer: Convolution-augmented Transformer for Speech Recognition,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Proc. Interspeech 2020</span>, 2020, pp. 5036–5040.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu,
+
+</span>
+<span class="ltx_bibblock">“Bleu: a method for automatic evaluation of machine translation,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Proceedings of the 40th annual meeting of the Association for Computational Linguistics</span>, 2002, pp. 311–318.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2409.00149" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2409.00151" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2409.00151">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2409.00151" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2409.00152" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Oct  5 22:06:32 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

@@ -1,0 +1,955 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1906.04329] Federated Learning for Emoji Prediction in a Mobile Keyboard</title><meta property="og:description" content="We show that a word-level recurrent neural network can predict emoji from text
+typed on a mobile keyboard. We demonstrate the usefulness of transfer learning
+for predicting emoji by pretraining the model using a langua…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Federated Learning for Emoji Prediction in a Mobile Keyboard">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Federated Learning for Emoji Prediction in a Mobile Keyboard">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1906.04329">
+
+<!--Generated on Sat Mar 16 09:29:10 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<!--Document created on  %****␣acl2019.tex␣Line␣50␣**** .-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Federated Learning for Emoji Prediction in a Mobile Keyboard</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Swaroop Ramaswamy  Rajiv Mathews  Kanishka Rao  Françoise Beaufays 
+<br class="ltx_break">Google LLC 
+<br class="ltx_break">Mountain View, CA, U.S.A. 
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">{swaroopram, mathews, kanishkarao, fsb}@google.com</span>
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">We show that a word-level recurrent neural network can predict emoji from text
+typed on a mobile keyboard. We demonstrate the usefulness of transfer learning
+for predicting emoji by pretraining the model using a language modeling task.
+We also propose mechanisms to trigger emoji and tune the diversity of
+candidates. The model is trained using a distributed on-device learning
+framework called federated learning. The federated model is shown to achieve
+better performance than a server-trained model. This work demonstrates the
+feasibility of using federated learning to train production-quality models for
+natural language understanding tasks while keeping users’ data on their devices.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Emoji have become an important mode of expression on smartphones as users
+increasingly use them to communicate on social media and chat applications.
+Easily accessible emoji suggestions have therefore become an important feature
+for mobile keyboards.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Gboard
+is a mobile keyboard with more than 1 billion installs and support for over 600
+language varieties. With this work, we provide a mechanism by which Gboard offers emoji as predictions based on the text previously typed, as shown in
+Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/1906.04329/assets/figures/gboard_screenshot.png" id="S1.F1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="206" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Emoji predictions in Gboard. Based on the context “This party is lit”,
+Gboard predicts both emoji and words.</figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Mobile devices are constrained by both memory and CPU. Low-latency is also
+required, since users typically expect a keyboard response within 20
+ms of an input event <cite class="ltx_cite ltx_citemacro_cite">Hellsten et al. (<a href="#bib.bib10" title="" class="ltx_ref">2017</a>)</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">A unidirectional recurrent neural network architecture (RNN) is used in this
+work. Since forward RNNs only include dependencies backwards in time, the model state can be cached at each timestep during
+inference to reduce latency.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Federated Learning</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Federated Learning (FL) <cite class="ltx_cite ltx_citemacro_cite">Bonawitz et al. (<a href="#bib.bib3" title="" class="ltx_ref">2019</a>)</cite> is a new computation paradigm
+in which data is kept on users’ devices and never collected centrally.
+Instead, minimal and focused model updates are transmitted to the server.
+This allows us to train models while keeping users’ data on their devices. FL can be combined with other privacy-preserving techniques like secure multi-party
+computation <cite class="ltx_cite ltx_citemacro_cite">Bonawitz et al. (<a href="#bib.bib4" title="" class="ltx_ref">2017</a>)</cite> and differential
+privacy <cite class="ltx_cite ltx_citemacro_cite">McMahan et al. (<a href="#bib.bib14" title="" class="ltx_ref">2018</a>); Agarwal et al. (<a href="#bib.bib2" title="" class="ltx_ref">2018</a>); Abadi et al. (<a href="#bib.bib1" title="" class="ltx_ref">2016</a>)</cite>.
+FL has been shown to be robust to unbalanced and non-IID data.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.7" class="ltx_p">We use the <span id="S2.p2.7.1" class="ltx_text ltx_font_typewriter">FederatedAveraging</span> algorithm presented
+in <cite class="ltx_cite ltx_citemacro_citet">McMahan et al. (<a href="#bib.bib13" title="" class="ltx_ref">2017</a>)</cite> to aggregate client updates after
+each round of local, on-device training to produce a new global model. At training round
+<math id="S2.p2.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.p2.1.m1.1a"><mi id="S2.p2.1.m1.1.1" xref="S2.p2.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.1b"><ci id="S2.p2.1.m1.1.1.cmml" xref="S2.p2.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.1c">t</annotation></semantics></math>, a global model with parameters <math id="S2.p2.2.m2.1" class="ltx_Math" alttext="w_{t}" display="inline"><semantics id="S2.p2.2.m2.1a"><msub id="S2.p2.2.m2.1.1" xref="S2.p2.2.m2.1.1.cmml"><mi id="S2.p2.2.m2.1.1.2" xref="S2.p2.2.m2.1.1.2.cmml">w</mi><mi id="S2.p2.2.m2.1.1.3" xref="S2.p2.2.m2.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p2.2.m2.1b"><apply id="S2.p2.2.m2.1.1.cmml" xref="S2.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S2.p2.2.m2.1.1.1.cmml" xref="S2.p2.2.m2.1.1">subscript</csymbol><ci id="S2.p2.2.m2.1.1.2.cmml" xref="S2.p2.2.m2.1.1.2">𝑤</ci><ci id="S2.p2.2.m2.1.1.3.cmml" xref="S2.p2.2.m2.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.2.m2.1c">w_{t}</annotation></semantics></math>, is sent to <math id="S2.p2.3.m3.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S2.p2.3.m3.1a"><mi id="S2.p2.3.m3.1.1" xref="S2.p2.3.m3.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S2.p2.3.m3.1b"><ci id="S2.p2.3.m3.1.1.cmml" xref="S2.p2.3.m3.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.3.m3.1c">K</annotation></semantics></math> devices selected from
+the device population. Each device has a local dataset <math id="S2.p2.4.m4.1" class="ltx_Math" alttext="P_{k}" display="inline"><semantics id="S2.p2.4.m4.1a"><msub id="S2.p2.4.m4.1.1" xref="S2.p2.4.m4.1.1.cmml"><mi id="S2.p2.4.m4.1.1.2" xref="S2.p2.4.m4.1.1.2.cmml">P</mi><mi id="S2.p2.4.m4.1.1.3" xref="S2.p2.4.m4.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p2.4.m4.1b"><apply id="S2.p2.4.m4.1.1.cmml" xref="S2.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S2.p2.4.m4.1.1.1.cmml" xref="S2.p2.4.m4.1.1">subscript</csymbol><ci id="S2.p2.4.m4.1.1.2.cmml" xref="S2.p2.4.m4.1.1.2">𝑃</ci><ci id="S2.p2.4.m4.1.1.3.cmml" xref="S2.p2.4.m4.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.4.m4.1c">P_{k}</annotation></semantics></math> which is split into
+batches of size <math id="S2.p2.5.m5.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S2.p2.5.m5.1a"><mi id="S2.p2.5.m5.1.1" xref="S2.p2.5.m5.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S2.p2.5.m5.1b"><ci id="S2.p2.5.m5.1.1.cmml" xref="S2.p2.5.m5.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.5.m5.1c">B</annotation></semantics></math>. Stochastic gradient descent (SGD) is used on the
+clients to compute new model parameters <math id="S2.p2.6.m6.1" class="ltx_Math" alttext="w_{k}^{t+1}" display="inline"><semantics id="S2.p2.6.m6.1a"><msubsup id="S2.p2.6.m6.1.1" xref="S2.p2.6.m6.1.1.cmml"><mi id="S2.p2.6.m6.1.1.2.2" xref="S2.p2.6.m6.1.1.2.2.cmml">w</mi><mi id="S2.p2.6.m6.1.1.2.3" xref="S2.p2.6.m6.1.1.2.3.cmml">k</mi><mrow id="S2.p2.6.m6.1.1.3" xref="S2.p2.6.m6.1.1.3.cmml"><mi id="S2.p2.6.m6.1.1.3.2" xref="S2.p2.6.m6.1.1.3.2.cmml">t</mi><mo id="S2.p2.6.m6.1.1.3.1" xref="S2.p2.6.m6.1.1.3.1.cmml">+</mo><mn id="S2.p2.6.m6.1.1.3.3" xref="S2.p2.6.m6.1.1.3.3.cmml">1</mn></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S2.p2.6.m6.1b"><apply id="S2.p2.6.m6.1.1.cmml" xref="S2.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.p2.6.m6.1.1.1.cmml" xref="S2.p2.6.m6.1.1">superscript</csymbol><apply id="S2.p2.6.m6.1.1.2.cmml" xref="S2.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.p2.6.m6.1.1.2.1.cmml" xref="S2.p2.6.m6.1.1">subscript</csymbol><ci id="S2.p2.6.m6.1.1.2.2.cmml" xref="S2.p2.6.m6.1.1.2.2">𝑤</ci><ci id="S2.p2.6.m6.1.1.2.3.cmml" xref="S2.p2.6.m6.1.1.2.3">𝑘</ci></apply><apply id="S2.p2.6.m6.1.1.3.cmml" xref="S2.p2.6.m6.1.1.3"><plus id="S2.p2.6.m6.1.1.3.1.cmml" xref="S2.p2.6.m6.1.1.3.1"></plus><ci id="S2.p2.6.m6.1.1.3.2.cmml" xref="S2.p2.6.m6.1.1.3.2">𝑡</ci><cn type="integer" id="S2.p2.6.m6.1.1.3.3.cmml" xref="S2.p2.6.m6.1.1.3.3">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.6.m6.1c">w_{k}^{t+1}</annotation></semantics></math>. These client weights are
+then averaged across devices, on the server, to compute the new model parameters <math id="S2.p2.7.m7.1" class="ltx_Math" alttext="w_{t+1}" display="inline"><semantics id="S2.p2.7.m7.1a"><msub id="S2.p2.7.m7.1.1" xref="S2.p2.7.m7.1.1.cmml"><mi id="S2.p2.7.m7.1.1.2" xref="S2.p2.7.m7.1.1.2.cmml">w</mi><mrow id="S2.p2.7.m7.1.1.3" xref="S2.p2.7.m7.1.1.3.cmml"><mi id="S2.p2.7.m7.1.1.3.2" xref="S2.p2.7.m7.1.1.3.2.cmml">t</mi><mo id="S2.p2.7.m7.1.1.3.1" xref="S2.p2.7.m7.1.1.3.1.cmml">+</mo><mn id="S2.p2.7.m7.1.1.3.3" xref="S2.p2.7.m7.1.1.3.3.cmml">1</mn></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.p2.7.m7.1b"><apply id="S2.p2.7.m7.1.1.cmml" xref="S2.p2.7.m7.1.1"><csymbol cd="ambiguous" id="S2.p2.7.m7.1.1.1.cmml" xref="S2.p2.7.m7.1.1">subscript</csymbol><ci id="S2.p2.7.m7.1.1.2.cmml" xref="S2.p2.7.m7.1.1.2">𝑤</ci><apply id="S2.p2.7.m7.1.1.3.cmml" xref="S2.p2.7.m7.1.1.3"><plus id="S2.p2.7.m7.1.1.3.1.cmml" xref="S2.p2.7.m7.1.1.3.1"></plus><ci id="S2.p2.7.m7.1.1.3.2.cmml" xref="S2.p2.7.m7.1.1.3.2">𝑡</ci><cn type="integer" id="S2.p2.7.m7.1.1.3.3.cmml" xref="S2.p2.7.m7.1.1.3.3">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.7.m7.1c">w_{t+1}</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Method</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Network architecture</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">The Long-Short-Term Memory (LSTM) <cite class="ltx_cite ltx_citemacro_cite">Hochreiter and Schmidhuber (<a href="#bib.bib11" title="" class="ltx_ref">1997</a>)</cite> architecture has been shown to
+achieve state-of-the art performance of a number of sentiment prediction and
+language modeling tasks <cite class="ltx_cite ltx_citemacro_cite">Radford et al. (<a href="#bib.bib16" title="" class="ltx_ref">2017</a>)</cite>.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.3" class="ltx_p">We use an LSTM variant called the Coupled Input and Forget Gate
+(CIFG) <cite class="ltx_cite ltx_citemacro_cite">Greff et al. (<a href="#bib.bib8" title="" class="ltx_ref">2017</a>)</cite>. As with Gated Recurrent Units <cite class="ltx_cite ltx_citemacro_cite">Cho et al. (<a href="#bib.bib6" title="" class="ltx_ref">2014</a>)</cite>, the
+CIFG uses a single gate to control both the input and recurrent cell
+self-connections. The input gate (<math id="S3.SS1.p2.1.m1.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S3.SS1.p2.1.m1.1a"><mi id="S3.SS1.p2.1.m1.1.1" xref="S3.SS1.p2.1.m1.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.1.m1.1b"><ci id="S3.SS1.p2.1.m1.1.1.cmml" xref="S3.SS1.p2.1.m1.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.1.m1.1c">i</annotation></semantics></math>) and the forget gate (<math id="S3.SS1.p2.2.m2.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S3.SS1.p2.2.m2.1a"><mi id="S3.SS1.p2.2.m2.1.1" xref="S3.SS1.p2.2.m2.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.2.m2.1b"><ci id="S3.SS1.p2.2.m2.1.1.cmml" xref="S3.SS1.p2.2.m2.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.2.m2.1c">f</annotation></semantics></math>) are related by <math id="S3.SS1.p2.3.m3.1" class="ltx_Math" alttext="f=1-i" display="inline"><semantics id="S3.SS1.p2.3.m3.1a"><mrow id="S3.SS1.p2.3.m3.1.1" xref="S3.SS1.p2.3.m3.1.1.cmml"><mi id="S3.SS1.p2.3.m3.1.1.2" xref="S3.SS1.p2.3.m3.1.1.2.cmml">f</mi><mo id="S3.SS1.p2.3.m3.1.1.1" xref="S3.SS1.p2.3.m3.1.1.1.cmml">=</mo><mrow id="S3.SS1.p2.3.m3.1.1.3" xref="S3.SS1.p2.3.m3.1.1.3.cmml"><mn id="S3.SS1.p2.3.m3.1.1.3.2" xref="S3.SS1.p2.3.m3.1.1.3.2.cmml">1</mn><mo id="S3.SS1.p2.3.m3.1.1.3.1" xref="S3.SS1.p2.3.m3.1.1.3.1.cmml">−</mo><mi id="S3.SS1.p2.3.m3.1.1.3.3" xref="S3.SS1.p2.3.m3.1.1.3.3.cmml">i</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.3.m3.1b"><apply id="S3.SS1.p2.3.m3.1.1.cmml" xref="S3.SS1.p2.3.m3.1.1"><eq id="S3.SS1.p2.3.m3.1.1.1.cmml" xref="S3.SS1.p2.3.m3.1.1.1"></eq><ci id="S3.SS1.p2.3.m3.1.1.2.cmml" xref="S3.SS1.p2.3.m3.1.1.2">𝑓</ci><apply id="S3.SS1.p2.3.m3.1.1.3.cmml" xref="S3.SS1.p2.3.m3.1.1.3"><minus id="S3.SS1.p2.3.m3.1.1.3.1.cmml" xref="S3.SS1.p2.3.m3.1.1.3.1"></minus><cn type="integer" id="S3.SS1.p2.3.m3.1.1.3.2.cmml" xref="S3.SS1.p2.3.m3.1.1.3.2">1</cn><ci id="S3.SS1.p2.3.m3.1.1.3.3.cmml" xref="S3.SS1.p2.3.m3.1.1.3.3">𝑖</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.3.m3.1c">f=1-i</annotation></semantics></math>.
+This coupling reduces the number of parameters per cell by 25%, compared to an LSTM.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">We use an input word vocabulary size of 10,000, an input embedding size of 96, and a
+two-layer CIFG with 256 units per layer. The logits are passed through a softmax
+layer to predict probabilities over 100 emoji.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Pretraining</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Howard and Ruder (<a href="#bib.bib12" title="" class="ltx_ref">2018</a>)</cite> demonstrated that pretraining parameters on a language modeling
+task can improve performance on other tasks.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">We pretrain all layers except the output projection layer, using a language
+model trained to predict the next word in a sentence. For the output projection,
+we reuse the input embeddings. This type of sharing of input and output
+embeddings has been shown to improve performance of language
+models <cite class="ltx_cite ltx_citemacro_cite">Press and Wolf (<a href="#bib.bib15" title="" class="ltx_ref">2017</a>)</cite>. Pretraining is done with federated learning using techniques similar to those
+described by <cite class="ltx_cite ltx_citemacro_citet">Hard et al. (<a href="#bib.bib9" title="" class="ltx_ref">2018</a>)</cite>. The language model achieves an Accuracy@1
+of 13.7%, on the same vocabulary. Pretraining with a language model task leads to
+much faster convergence for the emoji model, as seen in Figure <a href="#S3.F2" title="Figure 2 ‣ 3.2 Pretraining ‣ 3 Method ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure"><img src="/html/1906.04329/assets/x1.png" id="S3.F2.g1" class="ltx_graphics ltx_img_landscape" width="461" height="346" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Accuracy@1 vs. training step with and without
+pretraining, using server-based evaluations.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Triggering</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">In addition to predicting the correct emoji, a triggering mechanism must
+determine when to show emoji predictions to users. For instance, a user
+is likely to type <img src="/html/1906.04329/assets/x2.png" id="S3.SS3.p1.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"> after typing “Congrats” or
+“Congrats to you” but not after “Congrats to”.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">One way to handle this would be to use a single language model that can predict
+both words and emojis. However, we want to separate the task of predicting
+relevant emoji from that of deciding how much we wanted emoji to trigger,
+since the latter is more of a product decision, rather than a technical challenge.
+For instance, if we want to allow users to control how often emoji predictions are offered,
+it’s easier to do with a separate model.</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p">Another way to handle triggering is to use a separate binary classification model
+that predicts the likelihood of the user typing any emoji after a given phrase.
+However, using a separate model for triggering
+leads to additional overhead in terms of memory and latency. Instead, we
+adjust the softmax layer of the model to predict over <math id="S3.SS3.p3.1.m1.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S3.SS3.p3.1.m1.1a"><mi id="S3.SS3.p3.1.m1.1.1" xref="S3.SS3.p3.1.m1.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p3.1.m1.1b"><ci id="S3.SS3.p3.1.m1.1.1.cmml" xref="S3.SS3.p3.1.m1.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p3.1.m1.1c">N</annotation></semantics></math> emoji and an
+additional unknown token <span id="S3.SS3.p3.1.1" class="ltx_text ltx_font_typewriter">&lt;UNK&gt;</span> class. The <span id="S3.SS3.p3.1.2" class="ltx_text ltx_font_typewriter">&lt;UNK&gt;</span> class is set
+as the target output for inputs without emoji labels. At inference, we show the predictions from the model only if the probability of the <span id="S3.SS3.p3.1.3" class="ltx_text ltx_font_typewriter">&lt;UNK&gt;</span>
+class is less than a certain threshold.</p>
+</div>
+<div id="S3.SS3.p4" class="ltx_para">
+<p id="S3.SS3.p4.1" class="ltx_p">During training, sentences without emoji are truncated to a random length in the
+range [1, length of sentence]. Truncation allows the model to learn to not
+predict emoji after conjunctions, prepositions etc. which typically occur in the
+middle of sentences.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Diversification</h3>
+
+<figure id="S3.F3" class="ltx_figure"><img src="/html/1906.04329/assets/figures/chart.png" id="S3.F3.g1" class="ltx_graphics ltx_img_landscape" width="598" height="355" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Distribution of 15 most frequently used emoji in English (US).</figcaption>
+</figure>
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.2" class="ltx_p">The distribution of emoji usage frequency is very light-tailed as seen in
+Figure <a href="#S3.F3" title="Figure 3 ‣ 3.4 Diversification ‣ 3 Method ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. As a result, the top predictions from the model are
+almost always the most frequent emoji regardless of the input context. To
+overcome this, the probability of each emoji(<math id="S3.SS4.p1.1.m1.1" class="ltx_Math" alttext="\widehat{P}" display="inline"><semantics id="S3.SS4.p1.1.m1.1a"><mover accent="true" id="S3.SS4.p1.1.m1.1.1" xref="S3.SS4.p1.1.m1.1.1.cmml"><mi id="S3.SS4.p1.1.m1.1.1.2" xref="S3.SS4.p1.1.m1.1.1.2.cmml">P</mi><mo id="S3.SS4.p1.1.m1.1.1.1" xref="S3.SS4.p1.1.m1.1.1.1.cmml">^</mo></mover><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.1.m1.1b"><apply id="S3.SS4.p1.1.m1.1.1.cmml" xref="S3.SS4.p1.1.m1.1.1"><ci id="S3.SS4.p1.1.m1.1.1.1.cmml" xref="S3.SS4.p1.1.m1.1.1.1">^</ci><ci id="S3.SS4.p1.1.m1.1.1.2.cmml" xref="S3.SS4.p1.1.m1.1.1.2">𝑃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.1.m1.1c">\widehat{P}</annotation></semantics></math>) is scaled by the
+empirical probability of that emoji(<math id="S3.SS4.p1.2.m2.1" class="ltx_Math" alttext="P" display="inline"><semantics id="S3.SS4.p1.2.m2.1a"><mi id="S3.SS4.p1.2.m2.1.1" xref="S3.SS4.p1.2.m2.1.1.cmml">P</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.2.m2.1b"><ci id="S3.SS4.p1.2.m2.1.1.cmml" xref="S3.SS4.p1.2.m2.1.1">𝑃</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.2.m2.1c">P</annotation></semantics></math>) in the training data as follows.</p>
+</div>
+<div id="S3.SS4.p2" class="ltx_para">
+<table id="S3.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.E1.m1.2" class="ltx_Math" alttext="S_{i}=\frac{\widehat{P}\left(\textrm{emoji}=i|\textrm{text}\right)}{{P\left(\textrm{emoji}=i\right)}^{\alpha}}" display="block"><semantics id="S3.E1.m1.2a"><mrow id="S3.E1.m1.2.3" xref="S3.E1.m1.2.3.cmml"><msub id="S3.E1.m1.2.3.2" xref="S3.E1.m1.2.3.2.cmml"><mi id="S3.E1.m1.2.3.2.2" xref="S3.E1.m1.2.3.2.2.cmml">S</mi><mi id="S3.E1.m1.2.3.2.3" xref="S3.E1.m1.2.3.2.3.cmml">i</mi></msub><mo id="S3.E1.m1.2.3.1" xref="S3.E1.m1.2.3.1.cmml">=</mo><mfrac id="S3.E1.m1.2.2" xref="S3.E1.m1.2.2.cmml"><mrow id="S3.E1.m1.1.1.1" xref="S3.E1.m1.1.1.1.cmml"><mover accent="true" id="S3.E1.m1.1.1.1.3" xref="S3.E1.m1.1.1.1.3.cmml"><mi id="S3.E1.m1.1.1.1.3.2" xref="S3.E1.m1.1.1.1.3.2.cmml">P</mi><mo id="S3.E1.m1.1.1.1.3.1" xref="S3.E1.m1.1.1.1.3.1.cmml">^</mo></mover><mo lspace="0em" rspace="0em" id="S3.E1.m1.1.1.1.2" xref="S3.E1.m1.1.1.1.2.cmml">​</mo><mrow id="S3.E1.m1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.cmml"><mo id="S3.E1.m1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E1.m1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.cmml"><mtext id="S3.E1.m1.1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.2a.cmml">emoji</mtext><mo id="S3.E1.m1.1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.1.cmml">=</mo><mrow id="S3.E1.m1.1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.3.cmml"><mi id="S3.E1.m1.1.1.1.1.1.1.3.2" xref="S3.E1.m1.1.1.1.1.1.1.3.2.cmml">i</mi><mo fence="false" id="S3.E1.m1.1.1.1.1.1.1.3.1" xref="S3.E1.m1.1.1.1.1.1.1.3.1.cmml">|</mo><mtext id="S3.E1.m1.1.1.1.1.1.1.3.3" xref="S3.E1.m1.1.1.1.1.1.1.3.3a.cmml">text</mtext></mrow></mrow><mo id="S3.E1.m1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mrow id="S3.E1.m1.2.2.2" xref="S3.E1.m1.2.2.2.cmml"><mi id="S3.E1.m1.2.2.2.3" xref="S3.E1.m1.2.2.2.3.cmml">P</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.2.2.2.2" xref="S3.E1.m1.2.2.2.2.cmml">​</mo><msup id="S3.E1.m1.2.2.2.1" xref="S3.E1.m1.2.2.2.1.cmml"><mrow id="S3.E1.m1.2.2.2.1.1.1" xref="S3.E1.m1.2.2.2.1.1.1.1.cmml"><mo id="S3.E1.m1.2.2.2.1.1.1.2" xref="S3.E1.m1.2.2.2.1.1.1.1.cmml">(</mo><mrow id="S3.E1.m1.2.2.2.1.1.1.1" xref="S3.E1.m1.2.2.2.1.1.1.1.cmml"><mtext id="S3.E1.m1.2.2.2.1.1.1.1.2" xref="S3.E1.m1.2.2.2.1.1.1.1.2a.cmml">emoji</mtext><mo id="S3.E1.m1.2.2.2.1.1.1.1.1" xref="S3.E1.m1.2.2.2.1.1.1.1.1.cmml">=</mo><mi id="S3.E1.m1.2.2.2.1.1.1.1.3" xref="S3.E1.m1.2.2.2.1.1.1.1.3.cmml">i</mi></mrow><mo id="S3.E1.m1.2.2.2.1.1.1.3" xref="S3.E1.m1.2.2.2.1.1.1.1.cmml">)</mo></mrow><mi id="S3.E1.m1.2.2.2.1.3" xref="S3.E1.m1.2.2.2.1.3.cmml">α</mi></msup></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S3.E1.m1.2b"><apply id="S3.E1.m1.2.3.cmml" xref="S3.E1.m1.2.3"><eq id="S3.E1.m1.2.3.1.cmml" xref="S3.E1.m1.2.3.1"></eq><apply id="S3.E1.m1.2.3.2.cmml" xref="S3.E1.m1.2.3.2"><csymbol cd="ambiguous" id="S3.E1.m1.2.3.2.1.cmml" xref="S3.E1.m1.2.3.2">subscript</csymbol><ci id="S3.E1.m1.2.3.2.2.cmml" xref="S3.E1.m1.2.3.2.2">𝑆</ci><ci id="S3.E1.m1.2.3.2.3.cmml" xref="S3.E1.m1.2.3.2.3">𝑖</ci></apply><apply id="S3.E1.m1.2.2.cmml" xref="S3.E1.m1.2.2"><divide id="S3.E1.m1.2.2.3.cmml" xref="S3.E1.m1.2.2"></divide><apply id="S3.E1.m1.1.1.1.cmml" xref="S3.E1.m1.1.1.1"><times id="S3.E1.m1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.2"></times><apply id="S3.E1.m1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.3"><ci id="S3.E1.m1.1.1.1.3.1.cmml" xref="S3.E1.m1.1.1.1.3.1">^</ci><ci id="S3.E1.m1.1.1.1.3.2.cmml" xref="S3.E1.m1.1.1.1.3.2">𝑃</ci></apply><apply id="S3.E1.m1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1"><eq id="S3.E1.m1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1"></eq><ci id="S3.E1.m1.1.1.1.1.1.1.2a.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2"><mtext id="S3.E1.m1.1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2">emoji</mtext></ci><apply id="S3.E1.m1.1.1.1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3"><csymbol cd="latexml" id="S3.E1.m1.1.1.1.1.1.1.3.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3.1">conditional</csymbol><ci id="S3.E1.m1.1.1.1.1.1.1.3.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3.2">𝑖</ci><ci id="S3.E1.m1.1.1.1.1.1.1.3.3a.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3.3"><mtext id="S3.E1.m1.1.1.1.1.1.1.3.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3.3">text</mtext></ci></apply></apply></apply><apply id="S3.E1.m1.2.2.2.cmml" xref="S3.E1.m1.2.2.2"><times id="S3.E1.m1.2.2.2.2.cmml" xref="S3.E1.m1.2.2.2.2"></times><ci id="S3.E1.m1.2.2.2.3.cmml" xref="S3.E1.m1.2.2.2.3">𝑃</ci><apply id="S3.E1.m1.2.2.2.1.cmml" xref="S3.E1.m1.2.2.2.1"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.2.1.2.cmml" xref="S3.E1.m1.2.2.2.1">superscript</csymbol><apply id="S3.E1.m1.2.2.2.1.1.1.1.cmml" xref="S3.E1.m1.2.2.2.1.1.1"><eq id="S3.E1.m1.2.2.2.1.1.1.1.1.cmml" xref="S3.E1.m1.2.2.2.1.1.1.1.1"></eq><ci id="S3.E1.m1.2.2.2.1.1.1.1.2a.cmml" xref="S3.E1.m1.2.2.2.1.1.1.1.2"><mtext id="S3.E1.m1.2.2.2.1.1.1.1.2.cmml" xref="S3.E1.m1.2.2.2.1.1.1.1.2">emoji</mtext></ci><ci id="S3.E1.m1.2.2.2.1.1.1.1.3.cmml" xref="S3.E1.m1.2.2.2.1.1.1.1.3">𝑖</ci></apply><ci id="S3.E1.m1.2.2.2.1.3.cmml" xref="S3.E1.m1.2.2.2.1.3">𝛼</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E1.m1.2c">S_{i}=\frac{\widehat{P}\left(\textrm{emoji}=i|\textrm{text}\right)}{{P\left(\textrm{emoji}=i\right)}^{\alpha}}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S3.SS4.p3" class="ltx_para">
+<p id="S3.SS4.p3.2" class="ltx_p">where <math id="S3.SS4.p3.1.m1.1" class="ltx_Math" alttext="\alpha" display="inline"><semantics id="S3.SS4.p3.1.m1.1a"><mi id="S3.SS4.p3.1.m1.1.1" xref="S3.SS4.p3.1.m1.1.1.cmml">α</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p3.1.m1.1b"><ci id="S3.SS4.p3.1.m1.1.1.cmml" xref="S3.SS4.p3.1.m1.1.1">𝛼</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p3.1.m1.1c">\alpha</annotation></semantics></math> is a scaling factor, determined empirically through experiments on live
+traffic. Setting <math id="S3.SS4.p3.2.m2.1" class="ltx_Math" alttext="\alpha" display="inline"><semantics id="S3.SS4.p3.2.m2.1a"><mi id="S3.SS4.p3.2.m2.1.1" xref="S3.SS4.p3.2.m2.1.1.cmml">α</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p3.2.m2.1b"><ci id="S3.SS4.p3.2.m2.1.1.cmml" xref="S3.SS4.p3.2.m2.1.1">𝛼</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p3.2.m2.1c">\alpha</annotation></semantics></math> to 0 removes diversification. Table <a href="#S3.T1" title="Table 1 ‣ 3.4 Diversification ‣ 3 Method ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>
+provides examples with and without diversification.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<table id="S3.T1.14" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.2.2" class="ltx_tr">
+<th id="S3.T1.2.2.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span id="S3.T1.2.2.3.1" class="ltx_text ltx_font_italic">Context</span></th>
+<th id="S3.T1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math id="S3.T1.1.1.1.m1.1" class="ltx_Math" alttext="\alpha=0.0" display="inline"><semantics id="S3.T1.1.1.1.m1.1a"><mrow id="S3.T1.1.1.1.m1.1.1" xref="S3.T1.1.1.1.m1.1.1.cmml"><mi id="S3.T1.1.1.1.m1.1.1.2" xref="S3.T1.1.1.1.m1.1.1.2.cmml">α</mi><mo id="S3.T1.1.1.1.m1.1.1.1" xref="S3.T1.1.1.1.m1.1.1.1.cmml">=</mo><mn id="S3.T1.1.1.1.m1.1.1.3" xref="S3.T1.1.1.1.m1.1.1.3.cmml">0.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.T1.1.1.1.m1.1b"><apply id="S3.T1.1.1.1.m1.1.1.cmml" xref="S3.T1.1.1.1.m1.1.1"><eq id="S3.T1.1.1.1.m1.1.1.1.cmml" xref="S3.T1.1.1.1.m1.1.1.1"></eq><ci id="S3.T1.1.1.1.m1.1.1.2.cmml" xref="S3.T1.1.1.1.m1.1.1.2">𝛼</ci><cn type="float" id="S3.T1.1.1.1.m1.1.1.3.cmml" xref="S3.T1.1.1.1.m1.1.1.3">0.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.1.1.1.m1.1c">\alpha=0.0</annotation></semantics></math></th>
+<th id="S3.T1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><math id="S3.T1.2.2.2.m1.1" class="ltx_Math" alttext="\alpha=0.7" display="inline"><semantics id="S3.T1.2.2.2.m1.1a"><mrow id="S3.T1.2.2.2.m1.1.1" xref="S3.T1.2.2.2.m1.1.1.cmml"><mi id="S3.T1.2.2.2.m1.1.1.2" xref="S3.T1.2.2.2.m1.1.1.2.cmml">α</mi><mo id="S3.T1.2.2.2.m1.1.1.1" xref="S3.T1.2.2.2.m1.1.1.1.cmml">=</mo><mn id="S3.T1.2.2.2.m1.1.1.3" xref="S3.T1.2.2.2.m1.1.1.3.cmml">0.7</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.T1.2.2.2.m1.1b"><apply id="S3.T1.2.2.2.m1.1.1.cmml" xref="S3.T1.2.2.2.m1.1.1"><eq id="S3.T1.2.2.2.m1.1.1.1.cmml" xref="S3.T1.2.2.2.m1.1.1.1"></eq><ci id="S3.T1.2.2.2.m1.1.1.2.cmml" xref="S3.T1.2.2.2.m1.1.1.2">𝛼</ci><cn type="float" id="S3.T1.2.2.2.m1.1.1.3.cmml" xref="S3.T1.2.2.2.m1.1.1.3">0.7</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.2.2.2.m1.1c">\alpha=0.7</annotation></semantics></math></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.4.4" class="ltx_tr">
+<th id="S3.T1.4.4.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Sorry I ended up falling asleep</th>
+<td id="S3.T1.3.3.1" class="ltx_td ltx_align_center ltx_border_t"><img src="/html/1906.04329/assets/x3.png" id="S3.T1.3.3.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.4.4.2" class="ltx_td ltx_align_center ltx_border_t"><img src="/html/1906.04329/assets/x4.png" id="S3.T1.4.4.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S3.T1.6.6" class="ltx_tr">
+<th id="S3.T1.6.6.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Good morning sunshine</th>
+<td id="S3.T1.5.5.1" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x5.png" id="S3.T1.5.5.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.6.6.2" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x6.png" id="S3.T1.6.6.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S3.T1.8.8" class="ltx_tr">
+<th id="S3.T1.8.8.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Coz I miss you xx</th>
+<td id="S3.T1.7.7.1" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x7.png" id="S3.T1.7.7.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.8.8.2" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x8.png" id="S3.T1.8.8.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S3.T1.10.10" class="ltx_tr">
+<th id="S3.T1.10.10.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">I’m so sorry sweetie</th>
+<td id="S3.T1.9.9.1" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x9.png" id="S3.T1.9.9.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.10.10.2" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x10.png" id="S3.T1.10.10.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S3.T1.12.12" class="ltx_tr">
+<th id="S3.T1.12.12.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Hey girl you take it easy</th>
+<td id="S3.T1.11.11.1" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x11.png" id="S3.T1.11.11.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.12.12.2" class="ltx_td ltx_align_center"><img src="/html/1906.04329/assets/x12.png" id="S3.T1.12.12.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S3.T1.14.14" class="ltx_tr">
+<th id="S3.T1.14.14.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">not sure what happened to that</th>
+<td id="S3.T1.13.13.1" class="ltx_td ltx_align_center ltx_border_bb"><img src="/html/1906.04329/assets/x13.png" id="S3.T1.13.13.1.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+<td id="S3.T1.14.14.2" class="ltx_td ltx_align_center ltx_border_bb"><img src="/html/1906.04329/assets/x14.png" id="S3.T1.14.14.2.g1" class="ltx_graphics ltx_img_square" width="15" height="15" alt="[Uncaptioned image]"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Examples of emoji predictions with and without diversification</figcaption>
+</figure>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Server-based Training</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">Server-based training of models is done on data logged from Gboard users who have
+opted to periodically share anonymized snippets of text typed in selected apps. All
+personally identifiable information is stripped from these logs. The logs are
+filtered further to only include sentences that are labeled as English with high
+confidence by a language detection
+model <cite class="ltx_cite ltx_citemacro_cite">Botha et al. (<a href="#bib.bib5" title="" class="ltx_ref">2017</a>); Zhang et al. (<a href="#bib.bib21" title="" class="ltx_ref">2018</a>)</cite>. The subset of logs used for
+training contain approximately 370 million snippets, approximately 11 million of
+which contain emoji. Hyperparameters for server-based training are optimized using a
+black-box optimization technique <cite class="ltx_cite ltx_citemacro_cite">Golovin et al. (<a href="#bib.bib7" title="" class="ltx_ref">2017</a>)</cite>.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Federated Training</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">The data used for federated training is stored in local caches on
+client devices. For a device to participate in training, it must have at least
+2 GB of RAM, must be located in United States or Canada, and must be using
+English (US) as the primary language. In addition, only devices that
+are connected to un-metered networks, idle, and charging are eligible for
+participation at any given time. On average, each
+client has approximately 400 sentences. The model is trained for one epoch on
+each client, in each round. The model typically converges after 2000 training rounds.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">In federated training, there is no explicit split of data into train and eval
+samples. Instead, a separate evaluation task runs on a different subset of
+client devices in parallel to the training task. The eval task uses model
+checkpoints generated by the federated training task during a 24-hour period and
+aggregates the metrics across evaluation rounds.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Evaluation</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">Model quality is evaluated using Accuracy@1, defined as the ratio of accurate
+top-1 emoji predictions to the total number of examples containing emoji.
+Area Under ROC Curve (AUC) is used to evaluate the quality of the triggering mechanism.
+Computing the AUC involves numerical integration and is not straightforward to do in the FL setting.
+Therefore, we report AUC only on logs data that is collected on the server. All
+evaluation metrics are computed prior to diversification.</p>
+</div>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">7 </span>Federated Experiments</h2>
+
+<div id="S7.p1" class="ltx_para">
+<p id="S7.p1.2" class="ltx_p">In FL, the contents of the client caches are constantly changing as old entries
+are cleared and replaced by new activity. Since these experiments were conducted
+non-concurrently, the client cache contents are different and therefore numbers
+cannot be compared across experiments. We conduct experiments to study the
+effect of client batch size (<math id="S7.p1.1.m1.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S7.p1.1.m1.1a"><mi id="S7.p1.1.m1.1.1" xref="S7.p1.1.m1.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S7.p1.1.m1.1b"><ci id="S7.p1.1.m1.1.1.cmml" xref="S7.p1.1.m1.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S7.p1.1.m1.1c">B</annotation></semantics></math>), devices per round (<math id="S7.p1.2.m2.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S7.p1.2.m2.1a"><mi id="S7.p1.2.m2.1.1" xref="S7.p1.2.m2.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S7.p1.2.m2.1b"><ci id="S7.p1.2.m2.1.1.cmml" xref="S7.p1.2.m2.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S7.p1.2.m2.1c">K</annotation></semantics></math>) and server optimizer
+configuration on model quality. We then take the best model and compare it with
+a server trained model. The results are summarized in
+Table <a href="#S7.T2" title="Table 2 ‣ 7 Federated Experiments ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+<figure id="S7.T2" class="ltx_table">
+<table id="S7.T2.11" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S7.T2.11.12.1" class="ltx_tr">
+<td id="S7.T2.11.12.1.1" class="ltx_td ltx_align_center ltx_border_tt"><span id="S7.T2.11.12.1.1.1" class="ltx_text ltx_font_italic">Experiment</span></td>
+<td id="S7.T2.11.12.1.2" class="ltx_td ltx_align_left ltx_border_tt"><span id="S7.T2.11.12.1.2.1" class="ltx_text ltx_font_italic">Accuracy@1</span></td>
+<td id="S7.T2.11.12.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S7.T2.11.12.1.3.1" class="ltx_text ltx_font_italic">AUC</span></td>
+</tr>
+<tr id="S7.T2.1.1" class="ltx_tr">
+<td id="S7.T2.1.1.1" class="ltx_td ltx_align_center ltx_border_t"><math id="S7.T2.1.1.1.m1.1" class="ltx_Math" alttext="B=1" display="inline"><semantics id="S7.T2.1.1.1.m1.1a"><mrow id="S7.T2.1.1.1.m1.1.1" xref="S7.T2.1.1.1.m1.1.1.cmml"><mi id="S7.T2.1.1.1.m1.1.1.2" xref="S7.T2.1.1.1.m1.1.1.2.cmml">B</mi><mo id="S7.T2.1.1.1.m1.1.1.1" xref="S7.T2.1.1.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.1.1.1.m1.1.1.3" xref="S7.T2.1.1.1.m1.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.1.1.1.m1.1b"><apply id="S7.T2.1.1.1.m1.1.1.cmml" xref="S7.T2.1.1.1.m1.1.1"><eq id="S7.T2.1.1.1.m1.1.1.1.cmml" xref="S7.T2.1.1.1.m1.1.1.1"></eq><ci id="S7.T2.1.1.1.m1.1.1.2.cmml" xref="S7.T2.1.1.1.m1.1.1.2">𝐵</ci><cn type="integer" id="S7.T2.1.1.1.m1.1.1.3.cmml" xref="S7.T2.1.1.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.1.1.1.m1.1c">B=1</annotation></semantics></math></td>
+<td id="S7.T2.1.1.2" class="ltx_td ltx_align_left ltx_border_t">0.008</td>
+<td id="S7.T2.1.1.3" class="ltx_td ltx_align_center ltx_border_t">0.513</td>
+</tr>
+<tr id="S7.T2.2.2" class="ltx_tr">
+<td id="S7.T2.2.2.1" class="ltx_td ltx_align_center"><math id="S7.T2.2.2.1.m1.1" class="ltx_Math" alttext="B=10" display="inline"><semantics id="S7.T2.2.2.1.m1.1a"><mrow id="S7.T2.2.2.1.m1.1.1" xref="S7.T2.2.2.1.m1.1.1.cmml"><mi id="S7.T2.2.2.1.m1.1.1.2" xref="S7.T2.2.2.1.m1.1.1.2.cmml">B</mi><mo id="S7.T2.2.2.1.m1.1.1.1" xref="S7.T2.2.2.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.2.2.1.m1.1.1.3" xref="S7.T2.2.2.1.m1.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.2.2.1.m1.1b"><apply id="S7.T2.2.2.1.m1.1.1.cmml" xref="S7.T2.2.2.1.m1.1.1"><eq id="S7.T2.2.2.1.m1.1.1.1.cmml" xref="S7.T2.2.2.1.m1.1.1.1"></eq><ci id="S7.T2.2.2.1.m1.1.1.2.cmml" xref="S7.T2.2.2.1.m1.1.1.2">𝐵</ci><cn type="integer" id="S7.T2.2.2.1.m1.1.1.3.cmml" xref="S7.T2.2.2.1.m1.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.2.2.1.m1.1c">B=10</annotation></semantics></math></td>
+<td id="S7.T2.2.2.2" class="ltx_td ltx_align_left">0.037</td>
+<td id="S7.T2.2.2.3" class="ltx_td ltx_align_center">0.500</td>
+</tr>
+<tr id="S7.T2.3.3" class="ltx_tr">
+<td id="S7.T2.3.3.1" class="ltx_td ltx_align_center"><math id="S7.T2.3.3.1.m1.1" class="ltx_Math" alttext="B=50" display="inline"><semantics id="S7.T2.3.3.1.m1.1a"><mrow id="S7.T2.3.3.1.m1.1.1" xref="S7.T2.3.3.1.m1.1.1.cmml"><mi id="S7.T2.3.3.1.m1.1.1.2" xref="S7.T2.3.3.1.m1.1.1.2.cmml">B</mi><mo id="S7.T2.3.3.1.m1.1.1.1" xref="S7.T2.3.3.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.3.3.1.m1.1.1.3" xref="S7.T2.3.3.1.m1.1.1.3.cmml">50</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.3.3.1.m1.1b"><apply id="S7.T2.3.3.1.m1.1.1.cmml" xref="S7.T2.3.3.1.m1.1.1"><eq id="S7.T2.3.3.1.m1.1.1.1.cmml" xref="S7.T2.3.3.1.m1.1.1.1"></eq><ci id="S7.T2.3.3.1.m1.1.1.2.cmml" xref="S7.T2.3.3.1.m1.1.1.2">𝐵</ci><cn type="integer" id="S7.T2.3.3.1.m1.1.1.3.cmml" xref="S7.T2.3.3.1.m1.1.1.3">50</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.3.3.1.m1.1c">B=50</annotation></semantics></math></td>
+<td id="S7.T2.3.3.2" class="ltx_td ltx_align_left">0.240</td>
+<td id="S7.T2.3.3.3" class="ltx_td ltx_align_center">0.837</td>
+</tr>
+<tr id="S7.T2.4.4" class="ltx_tr">
+<td id="S7.T2.4.4.1" class="ltx_td ltx_align_center"><math id="S7.T2.4.4.1.m1.1" class="ltx_Math" alttext="B=200" display="inline"><semantics id="S7.T2.4.4.1.m1.1a"><mrow id="S7.T2.4.4.1.m1.1.1" xref="S7.T2.4.4.1.m1.1.1.cmml"><mi id="S7.T2.4.4.1.m1.1.1.2" xref="S7.T2.4.4.1.m1.1.1.2.cmml">B</mi><mo id="S7.T2.4.4.1.m1.1.1.1" xref="S7.T2.4.4.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.4.4.1.m1.1.1.3" xref="S7.T2.4.4.1.m1.1.1.3.cmml">200</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.4.4.1.m1.1b"><apply id="S7.T2.4.4.1.m1.1.1.cmml" xref="S7.T2.4.4.1.m1.1.1"><eq id="S7.T2.4.4.1.m1.1.1.1.cmml" xref="S7.T2.4.4.1.m1.1.1.1"></eq><ci id="S7.T2.4.4.1.m1.1.1.2.cmml" xref="S7.T2.4.4.1.m1.1.1.2">𝐵</ci><cn type="integer" id="S7.T2.4.4.1.m1.1.1.3.cmml" xref="S7.T2.4.4.1.m1.1.1.3">200</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.4.4.1.m1.1c">B=200</annotation></semantics></math></td>
+<td id="S7.T2.4.4.2" class="ltx_td ltx_align_left">0.253</td>
+<td id="S7.T2.4.4.3" class="ltx_td ltx_align_center">0.863</td>
+</tr>
+<tr id="S7.T2.5.5" class="ltx_tr">
+<td id="S7.T2.5.5.1" class="ltx_td ltx_align_center ltx_border_t"><math id="S7.T2.5.5.1.m1.1" class="ltx_Math" alttext="K=20" display="inline"><semantics id="S7.T2.5.5.1.m1.1a"><mrow id="S7.T2.5.5.1.m1.1.1" xref="S7.T2.5.5.1.m1.1.1.cmml"><mi id="S7.T2.5.5.1.m1.1.1.2" xref="S7.T2.5.5.1.m1.1.1.2.cmml">K</mi><mo id="S7.T2.5.5.1.m1.1.1.1" xref="S7.T2.5.5.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.5.5.1.m1.1.1.3" xref="S7.T2.5.5.1.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.5.5.1.m1.1b"><apply id="S7.T2.5.5.1.m1.1.1.cmml" xref="S7.T2.5.5.1.m1.1.1"><eq id="S7.T2.5.5.1.m1.1.1.1.cmml" xref="S7.T2.5.5.1.m1.1.1.1"></eq><ci id="S7.T2.5.5.1.m1.1.1.2.cmml" xref="S7.T2.5.5.1.m1.1.1.2">𝐾</ci><cn type="integer" id="S7.T2.5.5.1.m1.1.1.3.cmml" xref="S7.T2.5.5.1.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.5.5.1.m1.1c">K=20</annotation></semantics></math></td>
+<td id="S7.T2.5.5.2" class="ltx_td ltx_align_left ltx_border_t">0.239</td>
+<td id="S7.T2.5.5.3" class="ltx_td ltx_align_center ltx_border_t">0.846</td>
+</tr>
+<tr id="S7.T2.6.6" class="ltx_tr">
+<td id="S7.T2.6.6.1" class="ltx_td ltx_align_center"><math id="S7.T2.6.6.1.m1.1" class="ltx_Math" alttext="K=50" display="inline"><semantics id="S7.T2.6.6.1.m1.1a"><mrow id="S7.T2.6.6.1.m1.1.1" xref="S7.T2.6.6.1.m1.1.1.cmml"><mi id="S7.T2.6.6.1.m1.1.1.2" xref="S7.T2.6.6.1.m1.1.1.2.cmml">K</mi><mo id="S7.T2.6.6.1.m1.1.1.1" xref="S7.T2.6.6.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.6.6.1.m1.1.1.3" xref="S7.T2.6.6.1.m1.1.1.3.cmml">50</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.6.6.1.m1.1b"><apply id="S7.T2.6.6.1.m1.1.1.cmml" xref="S7.T2.6.6.1.m1.1.1"><eq id="S7.T2.6.6.1.m1.1.1.1.cmml" xref="S7.T2.6.6.1.m1.1.1.1"></eq><ci id="S7.T2.6.6.1.m1.1.1.2.cmml" xref="S7.T2.6.6.1.m1.1.1.2">𝐾</ci><cn type="integer" id="S7.T2.6.6.1.m1.1.1.3.cmml" xref="S7.T2.6.6.1.m1.1.1.3">50</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.6.6.1.m1.1c">K=50</annotation></semantics></math></td>
+<td id="S7.T2.6.6.2" class="ltx_td ltx_align_left">0.242</td>
+<td id="S7.T2.6.6.3" class="ltx_td ltx_align_center">0.852</td>
+</tr>
+<tr id="S7.T2.7.7" class="ltx_tr">
+<td id="S7.T2.7.7.1" class="ltx_td ltx_align_center"><math id="S7.T2.7.7.1.m1.1" class="ltx_Math" alttext="K=200" display="inline"><semantics id="S7.T2.7.7.1.m1.1a"><mrow id="S7.T2.7.7.1.m1.1.1" xref="S7.T2.7.7.1.m1.1.1.cmml"><mi id="S7.T2.7.7.1.m1.1.1.2" xref="S7.T2.7.7.1.m1.1.1.2.cmml">K</mi><mo id="S7.T2.7.7.1.m1.1.1.1" xref="S7.T2.7.7.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.7.7.1.m1.1.1.3" xref="S7.T2.7.7.1.m1.1.1.3.cmml">200</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.7.7.1.m1.1b"><apply id="S7.T2.7.7.1.m1.1.1.cmml" xref="S7.T2.7.7.1.m1.1.1"><eq id="S7.T2.7.7.1.m1.1.1.1.cmml" xref="S7.T2.7.7.1.m1.1.1.1"></eq><ci id="S7.T2.7.7.1.m1.1.1.2.cmml" xref="S7.T2.7.7.1.m1.1.1.2">𝐾</ci><cn type="integer" id="S7.T2.7.7.1.m1.1.1.3.cmml" xref="S7.T2.7.7.1.m1.1.1.3">200</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.7.7.1.m1.1c">K=200</annotation></semantics></math></td>
+<td id="S7.T2.7.7.2" class="ltx_td ltx_align_left">0.253</td>
+<td id="S7.T2.7.7.3" class="ltx_td ltx_align_center">0.867</td>
+</tr>
+<tr id="S7.T2.8.8" class="ltx_tr">
+<td id="S7.T2.8.8.1" class="ltx_td ltx_align_center"><math id="S7.T2.8.8.1.m1.1" class="ltx_Math" alttext="K=500" display="inline"><semantics id="S7.T2.8.8.1.m1.1a"><mrow id="S7.T2.8.8.1.m1.1.1" xref="S7.T2.8.8.1.m1.1.1.cmml"><mi id="S7.T2.8.8.1.m1.1.1.2" xref="S7.T2.8.8.1.m1.1.1.2.cmml">K</mi><mo id="S7.T2.8.8.1.m1.1.1.1" xref="S7.T2.8.8.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.8.8.1.m1.1.1.3" xref="S7.T2.8.8.1.m1.1.1.3.cmml">500</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.8.8.1.m1.1b"><apply id="S7.T2.8.8.1.m1.1.1.cmml" xref="S7.T2.8.8.1.m1.1.1"><eq id="S7.T2.8.8.1.m1.1.1.1.cmml" xref="S7.T2.8.8.1.m1.1.1.1"></eq><ci id="S7.T2.8.8.1.m1.1.1.2.cmml" xref="S7.T2.8.8.1.m1.1.1.2">𝐾</ci><cn type="integer" id="S7.T2.8.8.1.m1.1.1.3.cmml" xref="S7.T2.8.8.1.m1.1.1.3">500</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.8.8.1.m1.1c">K=500</annotation></semantics></math></td>
+<td id="S7.T2.8.8.2" class="ltx_td ltx_align_left">0.255</td>
+<td id="S7.T2.8.8.3" class="ltx_td ltx_align_center">0.863</td>
+</tr>
+<tr id="S7.T2.9.9" class="ltx_tr">
+<td id="S7.T2.9.9.1" class="ltx_td ltx_align_center ltx_border_t">SGD, <math id="S7.T2.9.9.1.m1.1" class="ltx_Math" alttext="\eta_{s}=1.0" display="inline"><semantics id="S7.T2.9.9.1.m1.1a"><mrow id="S7.T2.9.9.1.m1.1.1" xref="S7.T2.9.9.1.m1.1.1.cmml"><msub id="S7.T2.9.9.1.m1.1.1.2" xref="S7.T2.9.9.1.m1.1.1.2.cmml"><mi id="S7.T2.9.9.1.m1.1.1.2.2" xref="S7.T2.9.9.1.m1.1.1.2.2.cmml">η</mi><mi id="S7.T2.9.9.1.m1.1.1.2.3" xref="S7.T2.9.9.1.m1.1.1.2.3.cmml">s</mi></msub><mo id="S7.T2.9.9.1.m1.1.1.1" xref="S7.T2.9.9.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.9.9.1.m1.1.1.3" xref="S7.T2.9.9.1.m1.1.1.3.cmml">1.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.9.9.1.m1.1b"><apply id="S7.T2.9.9.1.m1.1.1.cmml" xref="S7.T2.9.9.1.m1.1.1"><eq id="S7.T2.9.9.1.m1.1.1.1.cmml" xref="S7.T2.9.9.1.m1.1.1.1"></eq><apply id="S7.T2.9.9.1.m1.1.1.2.cmml" xref="S7.T2.9.9.1.m1.1.1.2"><csymbol cd="ambiguous" id="S7.T2.9.9.1.m1.1.1.2.1.cmml" xref="S7.T2.9.9.1.m1.1.1.2">subscript</csymbol><ci id="S7.T2.9.9.1.m1.1.1.2.2.cmml" xref="S7.T2.9.9.1.m1.1.1.2.2">𝜂</ci><ci id="S7.T2.9.9.1.m1.1.1.2.3.cmml" xref="S7.T2.9.9.1.m1.1.1.2.3">𝑠</ci></apply><cn type="float" id="S7.T2.9.9.1.m1.1.1.3.cmml" xref="S7.T2.9.9.1.m1.1.1.3">1.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.9.9.1.m1.1c">\eta_{s}=1.0</annotation></semantics></math>
+</td>
+<td id="S7.T2.9.9.2" class="ltx_td ltx_align_left ltx_border_t">0.236</td>
+<td id="S7.T2.9.9.3" class="ltx_td ltx_align_center ltx_border_t">0.850</td>
+</tr>
+<tr id="S7.T2.10.10" class="ltx_tr">
+<td id="S7.T2.10.10.1" class="ltx_td ltx_align_center">SGD, <math id="S7.T2.10.10.1.m1.1" class="ltx_Math" alttext="\eta_{s}=2.0" display="inline"><semantics id="S7.T2.10.10.1.m1.1a"><mrow id="S7.T2.10.10.1.m1.1.1" xref="S7.T2.10.10.1.m1.1.1.cmml"><msub id="S7.T2.10.10.1.m1.1.1.2" xref="S7.T2.10.10.1.m1.1.1.2.cmml"><mi id="S7.T2.10.10.1.m1.1.1.2.2" xref="S7.T2.10.10.1.m1.1.1.2.2.cmml">η</mi><mi id="S7.T2.10.10.1.m1.1.1.2.3" xref="S7.T2.10.10.1.m1.1.1.2.3.cmml">s</mi></msub><mo id="S7.T2.10.10.1.m1.1.1.1" xref="S7.T2.10.10.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.10.10.1.m1.1.1.3" xref="S7.T2.10.10.1.m1.1.1.3.cmml">2.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.10.10.1.m1.1b"><apply id="S7.T2.10.10.1.m1.1.1.cmml" xref="S7.T2.10.10.1.m1.1.1"><eq id="S7.T2.10.10.1.m1.1.1.1.cmml" xref="S7.T2.10.10.1.m1.1.1.1"></eq><apply id="S7.T2.10.10.1.m1.1.1.2.cmml" xref="S7.T2.10.10.1.m1.1.1.2"><csymbol cd="ambiguous" id="S7.T2.10.10.1.m1.1.1.2.1.cmml" xref="S7.T2.10.10.1.m1.1.1.2">subscript</csymbol><ci id="S7.T2.10.10.1.m1.1.1.2.2.cmml" xref="S7.T2.10.10.1.m1.1.1.2.2">𝜂</ci><ci id="S7.T2.10.10.1.m1.1.1.2.3.cmml" xref="S7.T2.10.10.1.m1.1.1.2.3">𝑠</ci></apply><cn type="float" id="S7.T2.10.10.1.m1.1.1.3.cmml" xref="S7.T2.10.10.1.m1.1.1.3">2.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.10.10.1.m1.1c">\eta_{s}=2.0</annotation></semantics></math>
+</td>
+<td id="S7.T2.10.10.2" class="ltx_td ltx_align_left">0.245</td>
+<td id="S7.T2.10.10.3" class="ltx_td ltx_align_center">0.856</td>
+</tr>
+<tr id="S7.T2.11.11" class="ltx_tr">
+<td id="S7.T2.11.11.1" class="ltx_td ltx_align_center">Momentum, <math id="S7.T2.11.11.1.m1.1" class="ltx_Math" alttext="\eta_{s}=1.0" display="inline"><semantics id="S7.T2.11.11.1.m1.1a"><mrow id="S7.T2.11.11.1.m1.1.1" xref="S7.T2.11.11.1.m1.1.1.cmml"><msub id="S7.T2.11.11.1.m1.1.1.2" xref="S7.T2.11.11.1.m1.1.1.2.cmml"><mi id="S7.T2.11.11.1.m1.1.1.2.2" xref="S7.T2.11.11.1.m1.1.1.2.2.cmml">η</mi><mi id="S7.T2.11.11.1.m1.1.1.2.3" xref="S7.T2.11.11.1.m1.1.1.2.3.cmml">s</mi></msub><mo id="S7.T2.11.11.1.m1.1.1.1" xref="S7.T2.11.11.1.m1.1.1.1.cmml">=</mo><mn id="S7.T2.11.11.1.m1.1.1.3" xref="S7.T2.11.11.1.m1.1.1.3.cmml">1.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.T2.11.11.1.m1.1b"><apply id="S7.T2.11.11.1.m1.1.1.cmml" xref="S7.T2.11.11.1.m1.1.1"><eq id="S7.T2.11.11.1.m1.1.1.1.cmml" xref="S7.T2.11.11.1.m1.1.1.1"></eq><apply id="S7.T2.11.11.1.m1.1.1.2.cmml" xref="S7.T2.11.11.1.m1.1.1.2"><csymbol cd="ambiguous" id="S7.T2.11.11.1.m1.1.1.2.1.cmml" xref="S7.T2.11.11.1.m1.1.1.2">subscript</csymbol><ci id="S7.T2.11.11.1.m1.1.1.2.2.cmml" xref="S7.T2.11.11.1.m1.1.1.2.2">𝜂</ci><ci id="S7.T2.11.11.1.m1.1.1.2.3.cmml" xref="S7.T2.11.11.1.m1.1.1.2.3">𝑠</ci></apply><cn type="float" id="S7.T2.11.11.1.m1.1.1.3.cmml" xref="S7.T2.11.11.1.m1.1.1.3">1.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.11.11.1.m1.1c">\eta_{s}=1.0</annotation></semantics></math>
+</td>
+<td id="S7.T2.11.11.2" class="ltx_td ltx_align_left">0.247</td>
+<td id="S7.T2.11.11.3" class="ltx_td ltx_align_center">0.856</td>
+</tr>
+<tr id="S7.T2.11.13.2" class="ltx_tr">
+<td id="S7.T2.11.13.2.1" class="ltx_td ltx_align_center ltx_border_t">Best federated</td>
+<td id="S7.T2.11.13.2.2" class="ltx_td ltx_align_left ltx_border_t">0.256</td>
+<td id="S7.T2.11.13.2.3" class="ltx_td ltx_align_center ltx_border_t">0.863</td>
+</tr>
+<tr id="S7.T2.11.14.3" class="ltx_tr">
+<td id="S7.T2.11.14.3.1" class="ltx_td ltx_align_center ltx_border_bb">Best server trained</td>
+<td id="S7.T2.11.14.3.2" class="ltx_td ltx_align_left ltx_border_bb">0.239</td>
+<td id="S7.T2.11.14.3.3" class="ltx_td ltx_align_center ltx_border_bb">0.898</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>The results from federated experiments. All numbers reported are
+after 2000 training rounds. <math id="S7.T2.13.m1.1" class="ltx_Math" alttext="\eta_{s}" display="inline"><semantics id="S7.T2.13.m1.1b"><msub id="S7.T2.13.m1.1.1" xref="S7.T2.13.m1.1.1.cmml"><mi id="S7.T2.13.m1.1.1.2" xref="S7.T2.13.m1.1.1.2.cmml">η</mi><mi id="S7.T2.13.m1.1.1.3" xref="S7.T2.13.m1.1.1.3.cmml">s</mi></msub><annotation-xml encoding="MathML-Content" id="S7.T2.13.m1.1c"><apply id="S7.T2.13.m1.1.1.cmml" xref="S7.T2.13.m1.1.1"><csymbol cd="ambiguous" id="S7.T2.13.m1.1.1.1.cmml" xref="S7.T2.13.m1.1.1">subscript</csymbol><ci id="S7.T2.13.m1.1.1.2.cmml" xref="S7.T2.13.m1.1.1.2">𝜂</ci><ci id="S7.T2.13.m1.1.1.3.cmml" xref="S7.T2.13.m1.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.T2.13.m1.1d">\eta_{s}</annotation></semantics></math> refers to the learning rate used
+on the server for applying the update aggregated across users in each round.</figcaption>
+</figure>
+<div id="S7.p2" class="ltx_para">
+<p id="S7.p2.1" class="ltx_p">Because of the sparsity of sentences containing emoji in the client caches, the
+model quality is improved to a large degree by using large client batch sizes.
+This is not entirely surprising, since gradient updates are more accurate with
+larger batch sizes <cite class="ltx_cite ltx_citemacro_cite">Smith et al. (<a href="#bib.bib17" title="" class="ltx_ref">2018</a>)</cite>. This is particularly true when the target
+classes are heavily imbalanced.</p>
+</div>
+<div id="S7.p3" class="ltx_para">
+<p id="S7.p3.1" class="ltx_p">The accuracy of the model also increases with the number of devices
+per round but there are diminishing returns beyond <math id="S7.p3.1.m1.1" class="ltx_Math" alttext="K=500" display="inline"><semantics id="S7.p3.1.m1.1a"><mrow id="S7.p3.1.m1.1.1" xref="S7.p3.1.m1.1.1.cmml"><mi id="S7.p3.1.m1.1.1.2" xref="S7.p3.1.m1.1.1.2.cmml">K</mi><mo id="S7.p3.1.m1.1.1.1" xref="S7.p3.1.m1.1.1.1.cmml">=</mo><mn id="S7.p3.1.m1.1.1.3" xref="S7.p3.1.m1.1.1.3.cmml">500</mn></mrow><annotation-xml encoding="MathML-Content" id="S7.p3.1.m1.1b"><apply id="S7.p3.1.m1.1.1.cmml" xref="S7.p3.1.m1.1.1"><eq id="S7.p3.1.m1.1.1.1.cmml" xref="S7.p3.1.m1.1.1.1"></eq><ci id="S7.p3.1.m1.1.1.2.cmml" xref="S7.p3.1.m1.1.1.2">𝐾</ci><cn type="integer" id="S7.p3.1.m1.1.1.3.cmml" xref="S7.p3.1.m1.1.1.3">500</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.p3.1.m1.1c">K=500</annotation></semantics></math>.</p>
+</div>
+<div id="S7.p4" class="ltx_para">
+<p id="S7.p4.1" class="ltx_p">We experimented with various optimizers for the server update after each round
+of federated training and found that using momentum of 0.9 with Nesterov
+accelerated gradients <cite class="ltx_cite ltx_citemacro_cite">Sutskever et al. (<a href="#bib.bib18" title="" class="ltx_ref">2013</a>)</cite> gives significant benefits
+over using SGD, both in terms of speed of convergence and model performance.</p>
+</div>
+<div id="S7.p5" class="ltx_para">
+<p id="S7.p5.1" class="ltx_p">The best federated model, which runs in production, uses <math id="S7.p5.1.m1.2" class="ltx_Math" alttext="B=1000,K=1000" display="inline"><semantics id="S7.p5.1.m1.2a"><mrow id="S7.p5.1.m1.2.2.2" xref="S7.p5.1.m1.2.2.3.cmml"><mrow id="S7.p5.1.m1.1.1.1.1" xref="S7.p5.1.m1.1.1.1.1.cmml"><mi id="S7.p5.1.m1.1.1.1.1.2" xref="S7.p5.1.m1.1.1.1.1.2.cmml">B</mi><mo id="S7.p5.1.m1.1.1.1.1.1" xref="S7.p5.1.m1.1.1.1.1.1.cmml">=</mo><mn id="S7.p5.1.m1.1.1.1.1.3" xref="S7.p5.1.m1.1.1.1.1.3.cmml">1000</mn></mrow><mo id="S7.p5.1.m1.2.2.2.3" xref="S7.p5.1.m1.2.2.3a.cmml">,</mo><mrow id="S7.p5.1.m1.2.2.2.2" xref="S7.p5.1.m1.2.2.2.2.cmml"><mi id="S7.p5.1.m1.2.2.2.2.2" xref="S7.p5.1.m1.2.2.2.2.2.cmml">K</mi><mo id="S7.p5.1.m1.2.2.2.2.1" xref="S7.p5.1.m1.2.2.2.2.1.cmml">=</mo><mn id="S7.p5.1.m1.2.2.2.2.3" xref="S7.p5.1.m1.2.2.2.2.3.cmml">1000</mn></mrow></mrow><annotation-xml encoding="MathML-Content" id="S7.p5.1.m1.2b"><apply id="S7.p5.1.m1.2.2.3.cmml" xref="S7.p5.1.m1.2.2.2"><csymbol cd="ambiguous" id="S7.p5.1.m1.2.2.3a.cmml" xref="S7.p5.1.m1.2.2.2.3">formulae-sequence</csymbol><apply id="S7.p5.1.m1.1.1.1.1.cmml" xref="S7.p5.1.m1.1.1.1.1"><eq id="S7.p5.1.m1.1.1.1.1.1.cmml" xref="S7.p5.1.m1.1.1.1.1.1"></eq><ci id="S7.p5.1.m1.1.1.1.1.2.cmml" xref="S7.p5.1.m1.1.1.1.1.2">𝐵</ci><cn type="integer" id="S7.p5.1.m1.1.1.1.1.3.cmml" xref="S7.p5.1.m1.1.1.1.1.3">1000</cn></apply><apply id="S7.p5.1.m1.2.2.2.2.cmml" xref="S7.p5.1.m1.2.2.2.2"><eq id="S7.p5.1.m1.2.2.2.2.1.cmml" xref="S7.p5.1.m1.2.2.2.2.1"></eq><ci id="S7.p5.1.m1.2.2.2.2.2.cmml" xref="S7.p5.1.m1.2.2.2.2.2">𝐾</ci><cn type="integer" id="S7.p5.1.m1.2.2.2.2.3.cmml" xref="S7.p5.1.m1.2.2.2.2.3">1000</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S7.p5.1.m1.2c">B=1000,K=1000</annotation></semantics></math>, and
+is trained with momentum. We assign a weight of 0 to 99% of the
+<span id="S7.p5.1.1" class="ltx_text ltx_font_typewriter">&lt;UNK&gt;</span> examples at training time so as to balance the triggering and
+emoji prediction losses. We ran federated evaluation tasks of the best server-trained model on the
+client caches in order to fairly compare the two training approaches. The
+federated model achieved better Accuracy@1 in the federated evaluation, as shown in Figure <a href="#S7.F4" title="Figure 4 ‣ 7 Federated Experiments ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>. However, the AUC achieved
+by the federated model is lower than that of the server trained model.</p>
+</div>
+<div id="S7.p6" class="ltx_para">
+<p id="S7.p6.1" class="ltx_p">AUC is only computed on the logs collected on the server.
+These logs are restricted to short snippets
+of text typed in selected apps, therefore the data is not believed to be as
+representative of the text typed by users as data that resides on the client
+caches. The lower AUC of the federated model is likely because of this bias.</p>
+</div>
+<figure id="S7.F4" class="ltx_figure"><img src="/html/1906.04329/assets/x15.png" id="S7.F4.g1" class="ltx_graphics ltx_img_landscape" width="461" height="346" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Evaluation Accuracy@1 vs. Round for federated and server trained models.</figcaption>
+</figure>
+</section>
+<section id="S8" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">8 </span>Live experiment</h2>
+
+<div id="S8.p1" class="ltx_para">
+<p id="S8.p1.1" class="ltx_p">At inference time, we use a quantized TensorFlow Lite <cite class="ltx_cite ltx_citemacro_cite"><a href="#bib.bib19" title="" class="ltx_ref">TFLite </a></cite> model format. The
+average inference latency is around 1 ms.</p>
+</div>
+<div id="S8.p2" class="ltx_para">
+<p id="S8.p2.1" class="ltx_p">We ran a live-traffic experiment for users in USA and Canada typing in English
+(US). We observed that both the federated and the server trained model lead to
+significant increases in the overall click-through rate (CTR) of predictions,
+total emoji shares, and daily active users (DAU) of emoji (see Table <a href="#S8.T3" title="Table 3 ‣ 8 Live experiment ‣ Federated Learning for Emoji Prediction in a Mobile Keyboard" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>).
+We also observed that the federated model did better than the server trained model on
+all of the metrics.</p>
+</div>
+<div id="S8.p3" class="ltx_para">
+<p id="S8.p3.1" class="ltx_p">Given that emoji are triggered rarely, the increase in CTR is quite large, for
+both the models.</p>
+</div>
+<figure id="S8.T3" class="ltx_table">
+<table id="S8.T3.6" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S8.T3.6.7.1" class="ltx_tr">
+<th id="S8.T3.6.7.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span id="S8.T3.6.7.1.1.1" class="ltx_text ltx_font_italic">Metric</span></th>
+<th id="S8.T3.6.7.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2"><span id="S8.T3.6.7.1.2.1" class="ltx_text ltx_font_italic">Relative change [%]</span></th>
+</tr>
+<tr id="S8.T3.6.8.2" class="ltx_tr">
+<th id="S8.T3.6.8.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_t"></th>
+<th id="S8.T3.6.8.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S8.T3.6.8.2.2.1" class="ltx_text ltx_font_italic">Server trained</span></th>
+<th id="S8.T3.6.8.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S8.T3.6.8.2.3.1" class="ltx_text ltx_font_italic">Federated</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S8.T3.2.2" class="ltx_tr">
+<th id="S8.T3.2.2.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Prediction CTR</th>
+<td id="S8.T3.1.1.1" class="ltx_td ltx_align_center ltx_border_t"><math id="S8.T3.1.1.1.m1.1" class="ltx_Math" alttext="3.61\pm 1.00" display="inline"><semantics id="S8.T3.1.1.1.m1.1a"><mrow id="S8.T3.1.1.1.m1.1.1" xref="S8.T3.1.1.1.m1.1.1.cmml"><mn id="S8.T3.1.1.1.m1.1.1.2" xref="S8.T3.1.1.1.m1.1.1.2.cmml">3.61</mn><mo id="S8.T3.1.1.1.m1.1.1.1" xref="S8.T3.1.1.1.m1.1.1.1.cmml">±</mo><mn id="S8.T3.1.1.1.m1.1.1.3" xref="S8.T3.1.1.1.m1.1.1.3.cmml">1.00</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.1.1.1.m1.1b"><apply id="S8.T3.1.1.1.m1.1.1.cmml" xref="S8.T3.1.1.1.m1.1.1"><csymbol cd="latexml" id="S8.T3.1.1.1.m1.1.1.1.cmml" xref="S8.T3.1.1.1.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.1.1.1.m1.1.1.2.cmml" xref="S8.T3.1.1.1.m1.1.1.2">3.61</cn><cn type="float" id="S8.T3.1.1.1.m1.1.1.3.cmml" xref="S8.T3.1.1.1.m1.1.1.3">1.00</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.1.1.1.m1.1c">3.61\pm 1.00</annotation></semantics></math></td>
+<td id="S8.T3.2.2.2" class="ltx_td ltx_align_center ltx_border_t">
+<math id="S8.T3.2.2.2.m1.1" class="ltx_Math" alttext="3.66\pm 0.95" display="inline"><semantics id="S8.T3.2.2.2.m1.1a"><mrow id="S8.T3.2.2.2.m1.1.1" xref="S8.T3.2.2.2.m1.1.1.cmml"><mn id="S8.T3.2.2.2.m1.1.1.2" xref="S8.T3.2.2.2.m1.1.1.2.cmml">3.66</mn><mo id="S8.T3.2.2.2.m1.1.1.1" xref="S8.T3.2.2.2.m1.1.1.1.cmml">±</mo><mn id="S8.T3.2.2.2.m1.1.1.3" xref="S8.T3.2.2.2.m1.1.1.3.cmml">0.95</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.2.2.2.m1.1b"><apply id="S8.T3.2.2.2.m1.1.1.cmml" xref="S8.T3.2.2.2.m1.1.1"><csymbol cd="latexml" id="S8.T3.2.2.2.m1.1.1.1.cmml" xref="S8.T3.2.2.2.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.2.2.2.m1.1.1.2.cmml" xref="S8.T3.2.2.2.m1.1.1.2">3.66</cn><cn type="float" id="S8.T3.2.2.2.m1.1.1.3.cmml" xref="S8.T3.2.2.2.m1.1.1.3">0.95</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.2.2.2.m1.1c">3.66\pm 0.95</annotation></semantics></math> <span class="ltx_rule" style="width:0.0pt;height:11.2pt;background:black;display:inline-block;"></span>
+</td>
+</tr>
+<tr id="S8.T3.4.4" class="ltx_tr">
+<th id="S8.T3.4.4.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Emoji Shares</th>
+<td id="S8.T3.3.3.1" class="ltx_td ltx_align_center"><math id="S8.T3.3.3.1.m1.1" class="ltx_Math" alttext="3.63\pm 0.99" display="inline"><semantics id="S8.T3.3.3.1.m1.1a"><mrow id="S8.T3.3.3.1.m1.1.1" xref="S8.T3.3.3.1.m1.1.1.cmml"><mn id="S8.T3.3.3.1.m1.1.1.2" xref="S8.T3.3.3.1.m1.1.1.2.cmml">3.63</mn><mo id="S8.T3.3.3.1.m1.1.1.1" xref="S8.T3.3.3.1.m1.1.1.1.cmml">±</mo><mn id="S8.T3.3.3.1.m1.1.1.3" xref="S8.T3.3.3.1.m1.1.1.3.cmml">0.99</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.3.3.1.m1.1b"><apply id="S8.T3.3.3.1.m1.1.1.cmml" xref="S8.T3.3.3.1.m1.1.1"><csymbol cd="latexml" id="S8.T3.3.3.1.m1.1.1.1.cmml" xref="S8.T3.3.3.1.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.3.3.1.m1.1.1.2.cmml" xref="S8.T3.3.3.1.m1.1.1.2">3.63</cn><cn type="float" id="S8.T3.3.3.1.m1.1.1.3.cmml" xref="S8.T3.3.3.1.m1.1.1.3">0.99</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.3.3.1.m1.1c">3.63\pm 0.99</annotation></semantics></math></td>
+<td id="S8.T3.4.4.2" class="ltx_td ltx_align_center"><math id="S8.T3.4.4.2.m1.1" class="ltx_Math" alttext="5.54\pm 1.19" display="inline"><semantics id="S8.T3.4.4.2.m1.1a"><mrow id="S8.T3.4.4.2.m1.1.1" xref="S8.T3.4.4.2.m1.1.1.cmml"><mn id="S8.T3.4.4.2.m1.1.1.2" xref="S8.T3.4.4.2.m1.1.1.2.cmml">5.54</mn><mo id="S8.T3.4.4.2.m1.1.1.1" xref="S8.T3.4.4.2.m1.1.1.1.cmml">±</mo><mn id="S8.T3.4.4.2.m1.1.1.3" xref="S8.T3.4.4.2.m1.1.1.3.cmml">1.19</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.4.4.2.m1.1b"><apply id="S8.T3.4.4.2.m1.1.1.cmml" xref="S8.T3.4.4.2.m1.1.1"><csymbol cd="latexml" id="S8.T3.4.4.2.m1.1.1.1.cmml" xref="S8.T3.4.4.2.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.4.4.2.m1.1.1.2.cmml" xref="S8.T3.4.4.2.m1.1.1.2">5.54</cn><cn type="float" id="S8.T3.4.4.2.m1.1.1.3.cmml" xref="S8.T3.4.4.2.m1.1.1.3">1.19</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.4.4.2.m1.1c">5.54\pm 1.19</annotation></semantics></math></td>
+</tr>
+<tr id="S8.T3.6.6" class="ltx_tr">
+<th id="S8.T3.6.6.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Emoji DAU</th>
+<td id="S8.T3.5.5.1" class="ltx_td ltx_align_center ltx_border_bb"><math id="S8.T3.5.5.1.m1.1" class="ltx_Math" alttext="9.57\pm 0.39" display="inline"><semantics id="S8.T3.5.5.1.m1.1a"><mrow id="S8.T3.5.5.1.m1.1.1" xref="S8.T3.5.5.1.m1.1.1.cmml"><mn id="S8.T3.5.5.1.m1.1.1.2" xref="S8.T3.5.5.1.m1.1.1.2.cmml">9.57</mn><mo id="S8.T3.5.5.1.m1.1.1.1" xref="S8.T3.5.5.1.m1.1.1.1.cmml">±</mo><mn id="S8.T3.5.5.1.m1.1.1.3" xref="S8.T3.5.5.1.m1.1.1.3.cmml">0.39</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.5.5.1.m1.1b"><apply id="S8.T3.5.5.1.m1.1.1.cmml" xref="S8.T3.5.5.1.m1.1.1"><csymbol cd="latexml" id="S8.T3.5.5.1.m1.1.1.1.cmml" xref="S8.T3.5.5.1.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.5.5.1.m1.1.1.2.cmml" xref="S8.T3.5.5.1.m1.1.1.2">9.57</cn><cn type="float" id="S8.T3.5.5.1.m1.1.1.3.cmml" xref="S8.T3.5.5.1.m1.1.1.3">0.39</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.5.5.1.m1.1c">9.57\pm 0.39</annotation></semantics></math></td>
+<td id="S8.T3.6.6.2" class="ltx_td ltx_align_center ltx_border_bb"><math id="S8.T3.6.6.2.m1.1" class="ltx_Math" alttext="11.22\pm 0.48" display="inline"><semantics id="S8.T3.6.6.2.m1.1a"><mrow id="S8.T3.6.6.2.m1.1.1" xref="S8.T3.6.6.2.m1.1.1.cmml"><mn id="S8.T3.6.6.2.m1.1.1.2" xref="S8.T3.6.6.2.m1.1.1.2.cmml">11.22</mn><mo id="S8.T3.6.6.2.m1.1.1.1" xref="S8.T3.6.6.2.m1.1.1.1.cmml">±</mo><mn id="S8.T3.6.6.2.m1.1.1.3" xref="S8.T3.6.6.2.m1.1.1.3.cmml">0.48</mn></mrow><annotation-xml encoding="MathML-Content" id="S8.T3.6.6.2.m1.1b"><apply id="S8.T3.6.6.2.m1.1.1.cmml" xref="S8.T3.6.6.2.m1.1.1"><csymbol cd="latexml" id="S8.T3.6.6.2.m1.1.1.1.cmml" xref="S8.T3.6.6.2.m1.1.1.1">plus-or-minus</csymbol><cn type="float" id="S8.T3.6.6.2.m1.1.1.2.cmml" xref="S8.T3.6.6.2.m1.1.1.2">11.22</cn><cn type="float" id="S8.T3.6.6.2.m1.1.1.3.cmml" xref="S8.T3.6.6.2.m1.1.1.3">0.48</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S8.T3.6.6.2.m1.1c">11.22\pm 0.48</annotation></semantics></math></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Relative changes to metrics as a result of the server trained and
+federated emoji prediction models, measured in experiments on live user traffic.
+The baseline does not have any emoji predictions.
+Quoted 95% confidence interval errors for all
+results are derived using the jackknife method with user buckets.</figcaption>
+</figure>
+</section>
+<section id="S9" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">9 </span>Conclusions</h2>
+
+<div id="S9.p1" class="ltx_para">
+<p id="S9.p1.1" class="ltx_p">In this paper, we train an emoji prediction model using a CIFG-LSTM network. We
+demonstrate that this model can be trained using FL to achieve
+better performance than a server trained model. This work builds
+on previous practical applications of federated learning
+in <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib20" title="" class="ltx_ref">2018</a>); Hard et al. (<a href="#bib.bib9" title="" class="ltx_ref">2018</a>); Bonawitz et al. (<a href="#bib.bib3" title="" class="ltx_ref">2019</a>)</cite>. We show that FL
+works even with sparse data and poorly balanced classes.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Abadi et al. (2016)</span>
+<span class="ltx_bibblock">
+Martin Abadi, Andy Chu, Ian Goodfellow, H Brendan McMahan, Ilya Mironov, Kunal
+Talwar, and Li Zhang. 2016.
+
+</span>
+<span class="ltx_bibblock">Deep learning with differential privacy.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2016 ACM SIGSAC Conference on Computer
+and Communications Security</em>, pages 308–318. ACM.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Agarwal et al. (2018)</span>
+<span class="ltx_bibblock">
+Naman Agarwal, Ananda Theertha Suresh, Felix Yu, Sanjiv Kumar, and Brendan
+McMahan. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://papers.nips.cc/paper/7984-cpsgd-communication-efficient-and-differentially-private-distributed-sgd.pdf" title="" class="ltx_ref ltx_href">cpsgd: Communication-efficient and differentially-private distributed sgd</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Neural Information Processing Systems</em>.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bonawitz et al. (2019)</span>
+<span class="ltx_bibblock">
+Keith Bonawitz, Hubert Eichner, Wolfgang Grieskamp, Dzmitry Huba, Alex
+Ingerman, Vladimir Ivanov, Chloe Kiddon, Jakub Konecny, Stefano Mazzocchi,
+H Brendan McMahan, et al. 2019.
+
+</span>
+<span class="ltx_bibblock">Towards federated learning at scale: System design.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1902.01046</em>.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bonawitz et al. (2017)</span>
+<span class="ltx_bibblock">
+Keith Bonawitz, Vladimir Ivanov, Ben Kreuter, Antonio Marcedone, H. Brendan
+McMahan, Sarvar Patel, Daniel Ramage, Aaron Segal, and Karn Seth. 2017.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1145/3133956.3133982" title="" class="ltx_ref ltx_href">Practical secure
+aggregation for privacy-preserving machine learning</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2017 ACM SIGSAC Conference on Computer
+and Communications Security</em>, CCS ’17, pages 1175–1191, New York, NY, USA.
+ACM.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Botha et al. (2017)</span>
+<span class="ltx_bibblock">
+Jan A. Botha, Emily Pitler, Ji Ma, Anton Bakalov, Alex Salcianu, David I Weiss,
+Ryan T. McDonald, and Slav Petrov. 2017.
+
+</span>
+<span class="ltx_bibblock">Natural language processing with small feed-forward networks.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">EMNLP</em>.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Cho et al. (2014)</span>
+<span class="ltx_bibblock">
+Kyunghyun Cho, Bart van Merrienboer, Caglar Gulcehre, Dzmitry Bahdanau, Fethi
+Bougares, Holger Schwenk, and Yoshua Bengio. 2014.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.3115/v1/D14-1179" title="" class="ltx_ref ltx_href">Learning phrase
+representations using RNN encoder–decoder for statistical machine
+translation</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2014 Conference on Empirical Methods in
+Natural Language Processing (EMNLP)</em>, pages 1724–1734, Doha, Qatar.
+Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Golovin et al. (2017)</span>
+<span class="ltx_bibblock">
+Daniel Golovin, Benjamin Solnik, Subhodeep Moitra, Greg Kochanski, John Elliot
+Karro, and D. Sculley, editors. 2017.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://www.kdd.org/kdd2017/papers/view/google-vizier-a-service-for-black-box-optimization" title="" class="ltx_ref ltx_href"><em id="bib.bib7.1.1.1" class="ltx_emph ltx_font_italic">Google Vizier: A Service for Black-Box Optimization</em></a>.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Greff et al. (2017)</span>
+<span class="ltx_bibblock">
+Klaus Greff, Rupesh Kumar Srivastava, Jan Koutnx00EDk, Bas R. Steunebrink, and
+Jx00FCrgen Schmidhuber. 2017.
+
+</span>
+<span class="ltx_bibblock">Lstm: A search space odyssey.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">IEEE Transactions on Neural Networks and Learning Systems</em>,
+28:2222–2232.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hard et al. (2018)</span>
+<span class="ltx_bibblock">
+Andrew Hard, Kanishka Rao, Rajiv Mathews, Françoise Beaufays, Sean
+Augenstein, Hubert Eichner, Chloé Kiddon, and Daniel Ramage. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1811.03604" title="" class="ltx_ref ltx_href">Federated learning for
+mobile keyboard prediction</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, abs/1811.03604.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hellsten et al. (2017)</span>
+<span class="ltx_bibblock">
+Lars Hellsten, Brian Roark, Prasoon Goyal, Cyril Allauzen, Francoise Beaufays,
+Tom Ouyang, Michael Riley, and David Rybach. 2017.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://aclweb.org/anthology/W17-4002" title="" class="ltx_ref ltx_href">Transliterated mobile
+keyboard input via weighted finite-state transducers</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 13th International Conference on Finite
+State Methods and Natural Language Processing (FSMNLP)</em>.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hochreiter and Schmidhuber (1997)</span>
+<span class="ltx_bibblock">
+Sepp Hochreiter and Jürgen Schmidhuber. 1997.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1162/neco.1997.9.8.1735" title="" class="ltx_ref ltx_href">Long short-term
+memory</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Neural Comput.</em>, 9(8):1735–1780.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Howard and Ruder (2018)</span>
+<span class="ltx_bibblock">
+Jeremy Howard and Sebastian Ruder. 2018.
+
+</span>
+<span class="ltx_bibblock">Universal language model fine-tuning for text classification.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 56th Annual Meeting of the Association
+for Computational Linguistics (Volume 1: Long Papers)</em>, volume 1, pages
+328–339.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">McMahan et al. (2017)</span>
+<span class="ltx_bibblock">
+Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and
+Blaise Agüera y Arcas. 2017.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://proceedings.mlr.press/v54/mcmahan17a.html" title="" class="ltx_ref ltx_href">Communication-efficient learning of deep networks from decentralized data</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 20th International Conference on
+Artificial Intelligence and Statistics, AISTATS 2017, 20-22 April 2017,
+Fort Lauderdale, FL, USA</em>, pages 1273–1282.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">McMahan et al. (2018)</span>
+<span class="ltx_bibblock">
+Brendan McMahan, Daniel Ramage, Kunal Talwar, and Li Zhang. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://openreview.net/pdf?id=BJ0hF1Z0b" title="" class="ltx_ref ltx_href">Learning
+differentially private recurrent language models</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations
+(ICLR)</em>.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Press and Wolf (2017)</span>
+<span class="ltx_bibblock">
+Ofir Press and Lior Wolf. 2017.
+
+</span>
+<span class="ltx_bibblock">Using the output embedding to improve language models.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">EACL</em>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Radford et al. (2017)</span>
+<span class="ltx_bibblock">
+Alec Radford, Rafal Józefowicz, and Ilya Sutskever. 2017.
+
+</span>
+<span class="ltx_bibblock">Learning to generate reviews and discovering sentiment.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, abs/1704.01444.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Smith et al. (2018)</span>
+<span class="ltx_bibblock">
+Samuel L. Smith, Pieter-Jan Kindermans, and Quoc V. Le. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://openreview.net/forum?id=B1Yy1BxCZ" title="" class="ltx_ref ltx_href">Don’t decay the
+learning rate, increase the batch size</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sutskever et al. (2013)</span>
+<span class="ltx_bibblock">
+Ilya Sutskever, James Martens, George Dahl, and Geoffrey Hinton. 2013.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://proceedings.mlr.press/v28/sutskever13.html" title="" class="ltx_ref ltx_href">On the
+importance of initialization and momentum in deep learning</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 30th International Conference on Machine
+Learning</em>, volume 28, pages 1139–1147, Atlanta, Georgia, USA.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">(19)</span>
+<span class="ltx_bibblock">
+TFLite.
+
+</span>
+<span class="ltx_bibblock">Tensorflow lite, “tensorflow’s solution for running machine
+learning models on mobile and embedded devices,”.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://www.tensorflow.org/lite" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://www.tensorflow.org/lite</a>.
+
+</span>
+<span class="ltx_bibblock">Accessed: 2019-01-16.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2018)</span>
+<span class="ltx_bibblock">
+Timothy Yang, Galen Andrew, Hubert Eichner, Haicheng Sun, Wei Li, Nicholas
+Kong, Daniel Ramage, and Françoise Beaufays. 2018.
+
+</span>
+<span class="ltx_bibblock">Applied federated learning: Improving google keyboard query
+suggestion.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1812.02903</em>.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2018)</span>
+<span class="ltx_bibblock">
+Yuan Zhang, Jason Riesa, Daniel Gillick, Anton Bakalov, Jason Baldridge, and
+David I Weiss. 2018.
+
+</span>
+<span class="ltx_bibblock">A fast, compact, accurate model for language identification of
+codemixed text.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">EMNLP</em>.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1906.04328" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1906.04329" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1906.04329">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1906.04329" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1906.04330" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar 16 09:29:10 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

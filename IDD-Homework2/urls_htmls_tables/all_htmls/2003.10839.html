@@ -1,0 +1,627 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2003.10839] Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data</title><meta property="og:description" content="In this paper, we present a deep learning-based image processing technique for extraction of bone structures in chest radiographs using a U-Net FCNN.
+The U-Net was trained to accomplish the task in a fully supervised s…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2003.10839">
+
+<!--Generated on Sat Mar  2 12:36:45 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Bone Structures Extraction and Enhancement in Chest Radiographs 
+<br class="ltx_break">via CNN trained on Synthetic data </h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">In this paper, we present a deep learning-based image processing technique for extraction of bone structures in chest radiographs using a U-Net FCNN.
+The U-Net was trained to accomplish the task in a fully supervised setting.
+To create the training image pairs, we employed simulated X-Ray or Digitally Reconstructed Radiographs (DRR), derived from 664 CT scans belonging to the LIDC-IDRI dataset.
+Using HU based segmentation of bone structures in the CT domain, a synthetic 2D ”Bone x-ray” DRR is produced and used for training the network.
+For the reconstruction loss, we utilize two loss functions- L1 Loss and perceptual loss.
+Once the bone structures are extracted, the original image can be enhanced by fusing the original input x-ray and the synthesized “Bone X-ray”. We show that our enhancement technique is applicable to real x-ray data, and display our results on the NIH Chest X-Ray-14 dataset.</p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— </span></span>
+Deep learning, Image synthesis, Image enhancement, CT, X-ray, DRR</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Chest X-ray (CXR)
+is the most frequently performed diagnostic X-ray examination. It produces images of the heart, lungs, airways, blood vessels and the bones of the spine and chest.
+Bones are the most dense structures visible on a normal Chest X-ray and include the ribs, clavicles,the scapulae, part of the spine and the upper arms.
+The ribs are essential structures of the osseous thorax and provide information that aids in the interpretation of radiologic images. Techniques for making precise identification of the ribs are useful in detection of rib lesions and localization of lung lesions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. The large number of overlapping anatomical structures appearing in a CXR can cause the radiologist to overlook bone pathologies.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">One of the motivations for extraction of the rib bones is to allow their suppression <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. This allows obtaining soft-tissue-like images for better soft lung structure analysis. By using Dual Energy acquisition it is possible to achieve comparable results, but since it requires a dedicated scanner it is not commonly performed.
+In 2006 Suzuki et al.<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> introduced a method for suppression of ribs in chest radiographs by means of Massive Training Artificial Neural Networks (MTANN). Their work relied on Dual energy X-ray in the creation of training images. They named the resulting images “bone-image-like” and by subtracting them they were able to produce “soft-tissue-image-like” images where ribs and clavicles were substantially suppressed. The bone images created in the process were limited to clavicles and ribs, and were relatively noisy compared to the dual-energy bone image.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Other recently published works have used Digitally Reconstructed Radiographs (DRR) for training CNN models. Esteban et al.<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> used DRR for training X-ray to CT registration while Albarqouni et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> used DRR image training for decomposing CXR into several anatomical planes.
+In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> authors used rib-bone atlases to automatically extract the patient rib-bone on conventional frontal CXRs. Their system chooses the most similar models in the atlas set and then registers them to the patient’s X-ray. In recent work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> a Wavelet-CNN model for bone suppression was introduced and used to predict a series of wavelet sub-band images of bone image. They used dual energy subtraction (DES) CXRs for training.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In earlier work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, we presented a method for enhancing the contrast of soft lung structures in chest radiographs using U-Nets. The current work provides an extension by addressing specifically the bones. Most notable difference to previous works is the use of perceptual loss <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> for improved reconstruction of the bone image. As an output of the work we focus on enhancement of bone structures in chest X-ray. Our training approach is based on CT data and is focused on extraction of bones and their enhancement in combination with the original radiograph. The enhanced result maintains a close appearance to a regular x-ray, which may be attractive to radiologists.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">An overview of our approach is presented in
+Section 2. Experimental results are shown in Section 3. In Section 4, a discussion of the results is presented followed by a conclusion of the work.
+</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Methods</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Given a chest X-ray as input, we introduce a system that allows extraction of bone structures as well as synthesis of an enhanced radiograph. An overview of the approach is presented in Fig.<a href="#S2.F1" title="Figure 1 ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.
+The proposed methodology is based on neural networks trained on synthetic data (Fig.<a href="#S2.F1" title="Figure 1 ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.I)
+To produce training images we use DRRs that were generated from a subset of LIDC-IDRI dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>.
+Following training, we use the trained network on a real CXR to perform prediction of bone image (Fig.<a href="#S2.F1" title="Figure 1 ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.II)
+Finally, we present a use case in which the bone image is used for bone enhancment on a real CXR (Fig.<a href="#S2.F1" title="Figure 1 ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.III)</p>
+</div>
+<figure id="S2.F1" class="ltx_figure">
+<p id="S2.F1.1" class="ltx_p ltx_align_center"><span id="S2.F1.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/Bones_arc.png" id="S2.F1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="314" height="413" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S2.F1.3.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Description of our Approach</figcaption>
+</figure>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Synthetic X-ray Generation (DRRs) </h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">We review the physical process which governs chest X-ray generation and our method for simulating synthetic X-ray, or digitally reconstructed radiographs (DRRs). The method is based on our recently published work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>:
+As X-rays propagate through matter, their energy decreases.
+This attenuation in the energy of the incident X-ray depends on the distance traveled and on the attenuation coefficient.
+This relationship is expressed by Beer Lambert’s law, where <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="I_{0}" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><msub id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml"><mi id="S2.SS1.p1.1.m1.1.1.2" xref="S2.SS1.p1.1.m1.1.1.2.cmml">I</mi><mn id="S2.SS1.p1.1.m1.1.1.3" xref="S2.SS1.p1.1.m1.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><apply id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.2">𝐼</ci><cn type="integer" id="S2.SS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">I_{0}</annotation></semantics></math> is the incident beam, I is the Intensity after traveling a distance x and A is the attenuation coefficient:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.1" class="ltx_Math" alttext="I=I_{0}\exp^{Ax}" display="block"><semantics id="S2.E1.m1.1a"><mrow id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml"><mi id="S2.E1.m1.1.1.2" xref="S2.E1.m1.1.1.2.cmml">I</mi><mo id="S2.E1.m1.1.1.1" xref="S2.E1.m1.1.1.1.cmml">=</mo><mrow id="S2.E1.m1.1.1.3" xref="S2.E1.m1.1.1.3.cmml"><msub id="S2.E1.m1.1.1.3.2" xref="S2.E1.m1.1.1.3.2.cmml"><mi id="S2.E1.m1.1.1.3.2.2" xref="S2.E1.m1.1.1.3.2.2.cmml">I</mi><mn id="S2.E1.m1.1.1.3.2.3" xref="S2.E1.m1.1.1.3.2.3.cmml">0</mn></msub><mo lspace="0.167em" rspace="0em" id="S2.E1.m1.1.1.3.1" xref="S2.E1.m1.1.1.3.1.cmml">​</mo><msup id="S2.E1.m1.1.1.3.3" xref="S2.E1.m1.1.1.3.3.cmml"><mi id="S2.E1.m1.1.1.3.3.2" xref="S2.E1.m1.1.1.3.3.2.cmml">exp</mi><mrow id="S2.E1.m1.1.1.3.3.3" xref="S2.E1.m1.1.1.3.3.3.cmml"><mi id="S2.E1.m1.1.1.3.3.3.2" xref="S2.E1.m1.1.1.3.3.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.1.1.3.3.3.1" xref="S2.E1.m1.1.1.3.3.3.1.cmml">​</mo><mi id="S2.E1.m1.1.1.3.3.3.3" xref="S2.E1.m1.1.1.3.3.3.3.cmml">x</mi></mrow></msup></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.1b"><apply id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1"><eq id="S2.E1.m1.1.1.1.cmml" xref="S2.E1.m1.1.1.1"></eq><ci id="S2.E1.m1.1.1.2.cmml" xref="S2.E1.m1.1.1.2">𝐼</ci><apply id="S2.E1.m1.1.1.3.cmml" xref="S2.E1.m1.1.1.3"><times id="S2.E1.m1.1.1.3.1.cmml" xref="S2.E1.m1.1.1.3.1"></times><apply id="S2.E1.m1.1.1.3.2.cmml" xref="S2.E1.m1.1.1.3.2"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.3.2.1.cmml" xref="S2.E1.m1.1.1.3.2">subscript</csymbol><ci id="S2.E1.m1.1.1.3.2.2.cmml" xref="S2.E1.m1.1.1.3.2.2">𝐼</ci><cn type="integer" id="S2.E1.m1.1.1.3.2.3.cmml" xref="S2.E1.m1.1.1.3.2.3">0</cn></apply><apply id="S2.E1.m1.1.1.3.3.cmml" xref="S2.E1.m1.1.1.3.3"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.3.3.1.cmml" xref="S2.E1.m1.1.1.3.3">superscript</csymbol><exp id="S2.E1.m1.1.1.3.3.2.cmml" xref="S2.E1.m1.1.1.3.3.2"></exp><apply id="S2.E1.m1.1.1.3.3.3.cmml" xref="S2.E1.m1.1.1.3.3.3"><times id="S2.E1.m1.1.1.3.3.3.1.cmml" xref="S2.E1.m1.1.1.3.3.3.1"></times><ci id="S2.E1.m1.1.1.3.3.3.2.cmml" xref="S2.E1.m1.1.1.3.3.3.2">𝐴</ci><ci id="S2.E1.m1.1.1.3.3.3.3.cmml" xref="S2.E1.m1.1.1.3.3.3.3">𝑥</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.1c">I=I_{0}\exp^{Ax}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.4" class="ltx_p">In order to simulate the X-ray generation process, calculation of the attenuation coefficient is required for each voxel in the CT volume. In a CT volume, each voxel is represented by its Hounsfield unit (HU) value, which is a linear transformation of the original linear attenuation coefficient. Therefore the information regarding the linear attenuation is maintained.
+We assume for simplicity a parallel projection model and compute the average attenuation coefficient along the y axis ranging from [1,N] (where N is the pixel length of the posterior anterior view).
+Denoting the CT volume by G(x,y,z), the 2D average attenuation map can be computed using Eq. 2:</p>
+<table id="S2.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E2.m1.7" class="ltx_Math" alttext="\mu_{av}(x,z)=\sum_{y=1}^{N}\dfrac{\mu_{water}(G(x,y,z)+1000)}{(N\cdot 1000)}" display="block"><semantics id="S2.E2.m1.7a"><mrow id="S2.E2.m1.7.8" xref="S2.E2.m1.7.8.cmml"><mrow id="S2.E2.m1.7.8.2" xref="S2.E2.m1.7.8.2.cmml"><msub id="S2.E2.m1.7.8.2.2" xref="S2.E2.m1.7.8.2.2.cmml"><mi id="S2.E2.m1.7.8.2.2.2" xref="S2.E2.m1.7.8.2.2.2.cmml">μ</mi><mrow id="S2.E2.m1.7.8.2.2.3" xref="S2.E2.m1.7.8.2.2.3.cmml"><mi id="S2.E2.m1.7.8.2.2.3.2" xref="S2.E2.m1.7.8.2.2.3.2.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.7.8.2.2.3.1" xref="S2.E2.m1.7.8.2.2.3.1.cmml">​</mo><mi id="S2.E2.m1.7.8.2.2.3.3" xref="S2.E2.m1.7.8.2.2.3.3.cmml">v</mi></mrow></msub><mo lspace="0em" rspace="0em" id="S2.E2.m1.7.8.2.1" xref="S2.E2.m1.7.8.2.1.cmml">​</mo><mrow id="S2.E2.m1.7.8.2.3.2" xref="S2.E2.m1.7.8.2.3.1.cmml"><mo stretchy="false" id="S2.E2.m1.7.8.2.3.2.1" xref="S2.E2.m1.7.8.2.3.1.cmml">(</mo><mi id="S2.E2.m1.6.6" xref="S2.E2.m1.6.6.cmml">x</mi><mo id="S2.E2.m1.7.8.2.3.2.2" xref="S2.E2.m1.7.8.2.3.1.cmml">,</mo><mi id="S2.E2.m1.7.7" xref="S2.E2.m1.7.7.cmml">z</mi><mo stretchy="false" id="S2.E2.m1.7.8.2.3.2.3" xref="S2.E2.m1.7.8.2.3.1.cmml">)</mo></mrow></mrow><mo rspace="0.111em" id="S2.E2.m1.7.8.1" xref="S2.E2.m1.7.8.1.cmml">=</mo><mrow id="S2.E2.m1.7.8.3" xref="S2.E2.m1.7.8.3.cmml"><munderover id="S2.E2.m1.7.8.3.1" xref="S2.E2.m1.7.8.3.1.cmml"><mo movablelimits="false" id="S2.E2.m1.7.8.3.1.2.2" xref="S2.E2.m1.7.8.3.1.2.2.cmml">∑</mo><mrow id="S2.E2.m1.7.8.3.1.2.3" xref="S2.E2.m1.7.8.3.1.2.3.cmml"><mi id="S2.E2.m1.7.8.3.1.2.3.2" xref="S2.E2.m1.7.8.3.1.2.3.2.cmml">y</mi><mo id="S2.E2.m1.7.8.3.1.2.3.1" xref="S2.E2.m1.7.8.3.1.2.3.1.cmml">=</mo><mn id="S2.E2.m1.7.8.3.1.2.3.3" xref="S2.E2.m1.7.8.3.1.2.3.3.cmml">1</mn></mrow><mi id="S2.E2.m1.7.8.3.1.3" xref="S2.E2.m1.7.8.3.1.3.cmml">N</mi></munderover><mfrac id="S2.E2.m1.5.5" xref="S2.E2.m1.5.5.cmml"><mrow id="S2.E2.m1.4.4.4" xref="S2.E2.m1.4.4.4.cmml"><msub id="S2.E2.m1.4.4.4.6" xref="S2.E2.m1.4.4.4.6.cmml"><mi id="S2.E2.m1.4.4.4.6.2" xref="S2.E2.m1.4.4.4.6.2.cmml">μ</mi><mrow id="S2.E2.m1.4.4.4.6.3" xref="S2.E2.m1.4.4.4.6.3.cmml"><mi id="S2.E2.m1.4.4.4.6.3.2" xref="S2.E2.m1.4.4.4.6.3.2.cmml">w</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.6.3.1" xref="S2.E2.m1.4.4.4.6.3.1.cmml">​</mo><mi id="S2.E2.m1.4.4.4.6.3.3" xref="S2.E2.m1.4.4.4.6.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.6.3.1a" xref="S2.E2.m1.4.4.4.6.3.1.cmml">​</mo><mi id="S2.E2.m1.4.4.4.6.3.4" xref="S2.E2.m1.4.4.4.6.3.4.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.6.3.1b" xref="S2.E2.m1.4.4.4.6.3.1.cmml">​</mo><mi id="S2.E2.m1.4.4.4.6.3.5" xref="S2.E2.m1.4.4.4.6.3.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.6.3.1c" xref="S2.E2.m1.4.4.4.6.3.1.cmml">​</mo><mi id="S2.E2.m1.4.4.4.6.3.6" xref="S2.E2.m1.4.4.4.6.3.6.cmml">r</mi></mrow></msub><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.5" xref="S2.E2.m1.4.4.4.5.cmml">​</mo><mrow id="S2.E2.m1.4.4.4.4.1" xref="S2.E2.m1.4.4.4.4.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.4.4.4.4.1.2" xref="S2.E2.m1.4.4.4.4.1.1.cmml">(</mo><mrow id="S2.E2.m1.4.4.4.4.1.1" xref="S2.E2.m1.4.4.4.4.1.1.cmml"><mrow id="S2.E2.m1.4.4.4.4.1.1.2" xref="S2.E2.m1.4.4.4.4.1.1.2.cmml"><mi id="S2.E2.m1.4.4.4.4.1.1.2.2" xref="S2.E2.m1.4.4.4.4.1.1.2.2.cmml">G</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.4.4.4.4.1.1.2.1" xref="S2.E2.m1.4.4.4.4.1.1.2.1.cmml">​</mo><mrow id="S2.E2.m1.4.4.4.4.1.1.2.3.2" xref="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml"><mo stretchy="false" id="S2.E2.m1.4.4.4.4.1.1.2.3.2.1" xref="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml">(</mo><mi id="S2.E2.m1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.cmml">x</mi><mo id="S2.E2.m1.4.4.4.4.1.1.2.3.2.2" xref="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml">,</mo><mi id="S2.E2.m1.2.2.2.2" xref="S2.E2.m1.2.2.2.2.cmml">y</mi><mo id="S2.E2.m1.4.4.4.4.1.1.2.3.2.3" xref="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml">,</mo><mi id="S2.E2.m1.3.3.3.3" xref="S2.E2.m1.3.3.3.3.cmml">z</mi><mo stretchy="false" id="S2.E2.m1.4.4.4.4.1.1.2.3.2.4" xref="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml">)</mo></mrow></mrow><mo id="S2.E2.m1.4.4.4.4.1.1.1" xref="S2.E2.m1.4.4.4.4.1.1.1.cmml">+</mo><mn id="S2.E2.m1.4.4.4.4.1.1.3" xref="S2.E2.m1.4.4.4.4.1.1.3.cmml">1000</mn></mrow><mo stretchy="false" id="S2.E2.m1.4.4.4.4.1.3" xref="S2.E2.m1.4.4.4.4.1.1.cmml">)</mo></mrow></mrow><mrow id="S2.E2.m1.5.5.5.1" xref="S2.E2.m1.5.5.5.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.5.5.5.1.2" xref="S2.E2.m1.5.5.5.1.1.cmml">(</mo><mrow id="S2.E2.m1.5.5.5.1.1" xref="S2.E2.m1.5.5.5.1.1.cmml"><mi id="S2.E2.m1.5.5.5.1.1.2" xref="S2.E2.m1.5.5.5.1.1.2.cmml">N</mi><mo lspace="0.222em" rspace="0.222em" id="S2.E2.m1.5.5.5.1.1.1" xref="S2.E2.m1.5.5.5.1.1.1.cmml">⋅</mo><mn id="S2.E2.m1.5.5.5.1.1.3" xref="S2.E2.m1.5.5.5.1.1.3.cmml">1000</mn></mrow><mo stretchy="false" id="S2.E2.m1.5.5.5.1.3" xref="S2.E2.m1.5.5.5.1.1.cmml">)</mo></mrow></mfrac></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m1.7b"><apply id="S2.E2.m1.7.8.cmml" xref="S2.E2.m1.7.8"><eq id="S2.E2.m1.7.8.1.cmml" xref="S2.E2.m1.7.8.1"></eq><apply id="S2.E2.m1.7.8.2.cmml" xref="S2.E2.m1.7.8.2"><times id="S2.E2.m1.7.8.2.1.cmml" xref="S2.E2.m1.7.8.2.1"></times><apply id="S2.E2.m1.7.8.2.2.cmml" xref="S2.E2.m1.7.8.2.2"><csymbol cd="ambiguous" id="S2.E2.m1.7.8.2.2.1.cmml" xref="S2.E2.m1.7.8.2.2">subscript</csymbol><ci id="S2.E2.m1.7.8.2.2.2.cmml" xref="S2.E2.m1.7.8.2.2.2">𝜇</ci><apply id="S2.E2.m1.7.8.2.2.3.cmml" xref="S2.E2.m1.7.8.2.2.3"><times id="S2.E2.m1.7.8.2.2.3.1.cmml" xref="S2.E2.m1.7.8.2.2.3.1"></times><ci id="S2.E2.m1.7.8.2.2.3.2.cmml" xref="S2.E2.m1.7.8.2.2.3.2">𝑎</ci><ci id="S2.E2.m1.7.8.2.2.3.3.cmml" xref="S2.E2.m1.7.8.2.2.3.3">𝑣</ci></apply></apply><interval closure="open" id="S2.E2.m1.7.8.2.3.1.cmml" xref="S2.E2.m1.7.8.2.3.2"><ci id="S2.E2.m1.6.6.cmml" xref="S2.E2.m1.6.6">𝑥</ci><ci id="S2.E2.m1.7.7.cmml" xref="S2.E2.m1.7.7">𝑧</ci></interval></apply><apply id="S2.E2.m1.7.8.3.cmml" xref="S2.E2.m1.7.8.3"><apply id="S2.E2.m1.7.8.3.1.cmml" xref="S2.E2.m1.7.8.3.1"><csymbol cd="ambiguous" id="S2.E2.m1.7.8.3.1.1.cmml" xref="S2.E2.m1.7.8.3.1">superscript</csymbol><apply id="S2.E2.m1.7.8.3.1.2.cmml" xref="S2.E2.m1.7.8.3.1"><csymbol cd="ambiguous" id="S2.E2.m1.7.8.3.1.2.1.cmml" xref="S2.E2.m1.7.8.3.1">subscript</csymbol><sum id="S2.E2.m1.7.8.3.1.2.2.cmml" xref="S2.E2.m1.7.8.3.1.2.2"></sum><apply id="S2.E2.m1.7.8.3.1.2.3.cmml" xref="S2.E2.m1.7.8.3.1.2.3"><eq id="S2.E2.m1.7.8.3.1.2.3.1.cmml" xref="S2.E2.m1.7.8.3.1.2.3.1"></eq><ci id="S2.E2.m1.7.8.3.1.2.3.2.cmml" xref="S2.E2.m1.7.8.3.1.2.3.2">𝑦</ci><cn type="integer" id="S2.E2.m1.7.8.3.1.2.3.3.cmml" xref="S2.E2.m1.7.8.3.1.2.3.3">1</cn></apply></apply><ci id="S2.E2.m1.7.8.3.1.3.cmml" xref="S2.E2.m1.7.8.3.1.3">𝑁</ci></apply><apply id="S2.E2.m1.5.5.cmml" xref="S2.E2.m1.5.5"><divide id="S2.E2.m1.5.5.6.cmml" xref="S2.E2.m1.5.5"></divide><apply id="S2.E2.m1.4.4.4.cmml" xref="S2.E2.m1.4.4.4"><times id="S2.E2.m1.4.4.4.5.cmml" xref="S2.E2.m1.4.4.4.5"></times><apply id="S2.E2.m1.4.4.4.6.cmml" xref="S2.E2.m1.4.4.4.6"><csymbol cd="ambiguous" id="S2.E2.m1.4.4.4.6.1.cmml" xref="S2.E2.m1.4.4.4.6">subscript</csymbol><ci id="S2.E2.m1.4.4.4.6.2.cmml" xref="S2.E2.m1.4.4.4.6.2">𝜇</ci><apply id="S2.E2.m1.4.4.4.6.3.cmml" xref="S2.E2.m1.4.4.4.6.3"><times id="S2.E2.m1.4.4.4.6.3.1.cmml" xref="S2.E2.m1.4.4.4.6.3.1"></times><ci id="S2.E2.m1.4.4.4.6.3.2.cmml" xref="S2.E2.m1.4.4.4.6.3.2">𝑤</ci><ci id="S2.E2.m1.4.4.4.6.3.3.cmml" xref="S2.E2.m1.4.4.4.6.3.3">𝑎</ci><ci id="S2.E2.m1.4.4.4.6.3.4.cmml" xref="S2.E2.m1.4.4.4.6.3.4">𝑡</ci><ci id="S2.E2.m1.4.4.4.6.3.5.cmml" xref="S2.E2.m1.4.4.4.6.3.5">𝑒</ci><ci id="S2.E2.m1.4.4.4.6.3.6.cmml" xref="S2.E2.m1.4.4.4.6.3.6">𝑟</ci></apply></apply><apply id="S2.E2.m1.4.4.4.4.1.1.cmml" xref="S2.E2.m1.4.4.4.4.1"><plus id="S2.E2.m1.4.4.4.4.1.1.1.cmml" xref="S2.E2.m1.4.4.4.4.1.1.1"></plus><apply id="S2.E2.m1.4.4.4.4.1.1.2.cmml" xref="S2.E2.m1.4.4.4.4.1.1.2"><times id="S2.E2.m1.4.4.4.4.1.1.2.1.cmml" xref="S2.E2.m1.4.4.4.4.1.1.2.1"></times><ci id="S2.E2.m1.4.4.4.4.1.1.2.2.cmml" xref="S2.E2.m1.4.4.4.4.1.1.2.2">𝐺</ci><vector id="S2.E2.m1.4.4.4.4.1.1.2.3.1.cmml" xref="S2.E2.m1.4.4.4.4.1.1.2.3.2"><ci id="S2.E2.m1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1">𝑥</ci><ci id="S2.E2.m1.2.2.2.2.cmml" xref="S2.E2.m1.2.2.2.2">𝑦</ci><ci id="S2.E2.m1.3.3.3.3.cmml" xref="S2.E2.m1.3.3.3.3">𝑧</ci></vector></apply><cn type="integer" id="S2.E2.m1.4.4.4.4.1.1.3.cmml" xref="S2.E2.m1.4.4.4.4.1.1.3">1000</cn></apply></apply><apply id="S2.E2.m1.5.5.5.1.1.cmml" xref="S2.E2.m1.5.5.5.1"><ci id="S2.E2.m1.5.5.5.1.1.1.cmml" xref="S2.E2.m1.5.5.5.1.1.1">⋅</ci><ci id="S2.E2.m1.5.5.5.1.1.2.cmml" xref="S2.E2.m1.5.5.5.1.1.2">𝑁</ci><cn type="integer" id="S2.E2.m1.5.5.5.1.1.3.cmml" xref="S2.E2.m1.5.5.5.1.1.3">1000</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.7c">\mu_{av}(x,z)=\sum_{y=1}^{N}\dfrac{\mu_{water}(G(x,y,z)+1000)}{(N\cdot 1000)}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p2.5" class="ltx_p">Utilizing Beer Lambert’s law (Eq 1) the DRR is generated as shown in Eq. 3:</p>
+<table id="S2.E3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E3.m1.4" class="ltx_Math" alttext="I_{DRR}(x,z)=\exp^{\beta\cdot\mu_{av}(x,z)}" display="block"><semantics id="S2.E3.m1.4a"><mrow id="S2.E3.m1.4.5" xref="S2.E3.m1.4.5.cmml"><mrow id="S2.E3.m1.4.5.2" xref="S2.E3.m1.4.5.2.cmml"><msub id="S2.E3.m1.4.5.2.2" xref="S2.E3.m1.4.5.2.2.cmml"><mi id="S2.E3.m1.4.5.2.2.2" xref="S2.E3.m1.4.5.2.2.2.cmml">I</mi><mrow id="S2.E3.m1.4.5.2.2.3" xref="S2.E3.m1.4.5.2.2.3.cmml"><mi id="S2.E3.m1.4.5.2.2.3.2" xref="S2.E3.m1.4.5.2.2.3.2.cmml">D</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.4.5.2.2.3.1" xref="S2.E3.m1.4.5.2.2.3.1.cmml">​</mo><mi id="S2.E3.m1.4.5.2.2.3.3" xref="S2.E3.m1.4.5.2.2.3.3.cmml">R</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.4.5.2.2.3.1a" xref="S2.E3.m1.4.5.2.2.3.1.cmml">​</mo><mi id="S2.E3.m1.4.5.2.2.3.4" xref="S2.E3.m1.4.5.2.2.3.4.cmml">R</mi></mrow></msub><mo lspace="0em" rspace="0em" id="S2.E3.m1.4.5.2.1" xref="S2.E3.m1.4.5.2.1.cmml">​</mo><mrow id="S2.E3.m1.4.5.2.3.2" xref="S2.E3.m1.4.5.2.3.1.cmml"><mo stretchy="false" id="S2.E3.m1.4.5.2.3.2.1" xref="S2.E3.m1.4.5.2.3.1.cmml">(</mo><mi id="S2.E3.m1.3.3" xref="S2.E3.m1.3.3.cmml">x</mi><mo id="S2.E3.m1.4.5.2.3.2.2" xref="S2.E3.m1.4.5.2.3.1.cmml">,</mo><mi id="S2.E3.m1.4.4" xref="S2.E3.m1.4.4.cmml">z</mi><mo stretchy="false" id="S2.E3.m1.4.5.2.3.2.3" xref="S2.E3.m1.4.5.2.3.1.cmml">)</mo></mrow></mrow><mo id="S2.E3.m1.4.5.1" xref="S2.E3.m1.4.5.1.cmml">=</mo><msup id="S2.E3.m1.4.5.3" xref="S2.E3.m1.4.5.3.cmml"><mi id="S2.E3.m1.4.5.3.2" xref="S2.E3.m1.4.5.3.2.cmml">exp</mi><mrow id="S2.E3.m1.2.2.2" xref="S2.E3.m1.2.2.2.cmml"><mrow id="S2.E3.m1.2.2.2.4" xref="S2.E3.m1.2.2.2.4.cmml"><mi id="S2.E3.m1.2.2.2.4.2" xref="S2.E3.m1.2.2.2.4.2.cmml">β</mi><mo lspace="0.222em" rspace="0.222em" id="S2.E3.m1.2.2.2.4.1" xref="S2.E3.m1.2.2.2.4.1.cmml">⋅</mo><msub id="S2.E3.m1.2.2.2.4.3" xref="S2.E3.m1.2.2.2.4.3.cmml"><mi id="S2.E3.m1.2.2.2.4.3.2" xref="S2.E3.m1.2.2.2.4.3.2.cmml">μ</mi><mrow id="S2.E3.m1.2.2.2.4.3.3" xref="S2.E3.m1.2.2.2.4.3.3.cmml"><mi id="S2.E3.m1.2.2.2.4.3.3.2" xref="S2.E3.m1.2.2.2.4.3.3.2.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.4.3.3.1" xref="S2.E3.m1.2.2.2.4.3.3.1.cmml">​</mo><mi id="S2.E3.m1.2.2.2.4.3.3.3" xref="S2.E3.m1.2.2.2.4.3.3.3.cmml">v</mi></mrow></msub></mrow><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.3" xref="S2.E3.m1.2.2.2.3.cmml">​</mo><mrow id="S2.E3.m1.2.2.2.5.2" xref="S2.E3.m1.2.2.2.5.1.cmml"><mo stretchy="false" id="S2.E3.m1.2.2.2.5.2.1" xref="S2.E3.m1.2.2.2.5.1.cmml">(</mo><mi id="S2.E3.m1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.cmml">x</mi><mo id="S2.E3.m1.2.2.2.5.2.2" xref="S2.E3.m1.2.2.2.5.1.cmml">,</mo><mi id="S2.E3.m1.2.2.2.2" xref="S2.E3.m1.2.2.2.2.cmml">z</mi><mo stretchy="false" id="S2.E3.m1.2.2.2.5.2.3" xref="S2.E3.m1.2.2.2.5.1.cmml">)</mo></mrow></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m1.4b"><apply id="S2.E3.m1.4.5.cmml" xref="S2.E3.m1.4.5"><eq id="S2.E3.m1.4.5.1.cmml" xref="S2.E3.m1.4.5.1"></eq><apply id="S2.E3.m1.4.5.2.cmml" xref="S2.E3.m1.4.5.2"><times id="S2.E3.m1.4.5.2.1.cmml" xref="S2.E3.m1.4.5.2.1"></times><apply id="S2.E3.m1.4.5.2.2.cmml" xref="S2.E3.m1.4.5.2.2"><csymbol cd="ambiguous" id="S2.E3.m1.4.5.2.2.1.cmml" xref="S2.E3.m1.4.5.2.2">subscript</csymbol><ci id="S2.E3.m1.4.5.2.2.2.cmml" xref="S2.E3.m1.4.5.2.2.2">𝐼</ci><apply id="S2.E3.m1.4.5.2.2.3.cmml" xref="S2.E3.m1.4.5.2.2.3"><times id="S2.E3.m1.4.5.2.2.3.1.cmml" xref="S2.E3.m1.4.5.2.2.3.1"></times><ci id="S2.E3.m1.4.5.2.2.3.2.cmml" xref="S2.E3.m1.4.5.2.2.3.2">𝐷</ci><ci id="S2.E3.m1.4.5.2.2.3.3.cmml" xref="S2.E3.m1.4.5.2.2.3.3">𝑅</ci><ci id="S2.E3.m1.4.5.2.2.3.4.cmml" xref="S2.E3.m1.4.5.2.2.3.4">𝑅</ci></apply></apply><interval closure="open" id="S2.E3.m1.4.5.2.3.1.cmml" xref="S2.E3.m1.4.5.2.3.2"><ci id="S2.E3.m1.3.3.cmml" xref="S2.E3.m1.3.3">𝑥</ci><ci id="S2.E3.m1.4.4.cmml" xref="S2.E3.m1.4.4">𝑧</ci></interval></apply><apply id="S2.E3.m1.4.5.3.cmml" xref="S2.E3.m1.4.5.3"><csymbol cd="ambiguous" id="S2.E3.m1.4.5.3.1.cmml" xref="S2.E3.m1.4.5.3">superscript</csymbol><exp id="S2.E3.m1.4.5.3.2.cmml" xref="S2.E3.m1.4.5.3.2"></exp><apply id="S2.E3.m1.2.2.2.cmml" xref="S2.E3.m1.2.2.2"><times id="S2.E3.m1.2.2.2.3.cmml" xref="S2.E3.m1.2.2.2.3"></times><apply id="S2.E3.m1.2.2.2.4.cmml" xref="S2.E3.m1.2.2.2.4"><ci id="S2.E3.m1.2.2.2.4.1.cmml" xref="S2.E3.m1.2.2.2.4.1">⋅</ci><ci id="S2.E3.m1.2.2.2.4.2.cmml" xref="S2.E3.m1.2.2.2.4.2">𝛽</ci><apply id="S2.E3.m1.2.2.2.4.3.cmml" xref="S2.E3.m1.2.2.2.4.3"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.4.3.1.cmml" xref="S2.E3.m1.2.2.2.4.3">subscript</csymbol><ci id="S2.E3.m1.2.2.2.4.3.2.cmml" xref="S2.E3.m1.2.2.2.4.3.2">𝜇</ci><apply id="S2.E3.m1.2.2.2.4.3.3.cmml" xref="S2.E3.m1.2.2.2.4.3.3"><times id="S2.E3.m1.2.2.2.4.3.3.1.cmml" xref="S2.E3.m1.2.2.2.4.3.3.1"></times><ci id="S2.E3.m1.2.2.2.4.3.3.2.cmml" xref="S2.E3.m1.2.2.2.4.3.3.2">𝑎</ci><ci id="S2.E3.m1.2.2.2.4.3.3.3.cmml" xref="S2.E3.m1.2.2.2.4.3.3.3">𝑣</ci></apply></apply></apply><interval closure="open" id="S2.E3.m1.2.2.2.5.1.cmml" xref="S2.E3.m1.2.2.2.5.2"><ci id="S2.E3.m1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1">𝑥</ci><ci id="S2.E3.m1.2.2.2.2.cmml" xref="S2.E3.m1.2.2.2.2">𝑧</ci></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.4c">I_{DRR}(x,z)=\exp^{\beta\cdot\mu_{av}(x,z)}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p2.3" class="ltx_p">The attenuation coefficient of water <math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="\mu_{water}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><msub id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml"><mi id="S2.SS1.p2.1.m1.1.1.2" xref="S2.SS1.p2.1.m1.1.1.2.cmml">μ</mi><mrow id="S2.SS1.p2.1.m1.1.1.3" xref="S2.SS1.p2.1.m1.1.1.3.cmml"><mi id="S2.SS1.p2.1.m1.1.1.3.2" xref="S2.SS1.p2.1.m1.1.1.3.2.cmml">w</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.3" xref="S2.SS1.p2.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1a" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.4" xref="S2.SS1.p2.1.m1.1.1.3.4.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1b" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.5" xref="S2.SS1.p2.1.m1.1.1.3.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1c" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.6" xref="S2.SS1.p2.1.m1.1.1.3.6.cmml">r</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><apply id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.1.m1.1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.1.m1.1.1.2.cmml" xref="S2.SS1.p2.1.m1.1.1.2">𝜇</ci><apply id="S2.SS1.p2.1.m1.1.1.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3"><times id="S2.SS1.p2.1.m1.1.1.3.1.cmml" xref="S2.SS1.p2.1.m1.1.1.3.1"></times><ci id="S2.SS1.p2.1.m1.1.1.3.2.cmml" xref="S2.SS1.p2.1.m1.1.1.3.2">𝑤</ci><ci id="S2.SS1.p2.1.m1.1.1.3.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3">𝑎</ci><ci id="S2.SS1.p2.1.m1.1.1.3.4.cmml" xref="S2.SS1.p2.1.m1.1.1.3.4">𝑡</ci><ci id="S2.SS1.p2.1.m1.1.1.3.5.cmml" xref="S2.SS1.p2.1.m1.1.1.3.5">𝑒</ci><ci id="S2.SS1.p2.1.m1.1.1.3.6.cmml" xref="S2.SS1.p2.1.m1.1.1.3.6">𝑟</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">\mu_{water}</annotation></semantics></math> was taken as 0.2 <math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="CM^{-1}" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mrow id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml"><mi id="S2.SS1.p2.2.m2.1.1.2" xref="S2.SS1.p2.2.m2.1.1.2.cmml">C</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.2.m2.1.1.1" xref="S2.SS1.p2.2.m2.1.1.1.cmml">​</mo><msup id="S2.SS1.p2.2.m2.1.1.3" xref="S2.SS1.p2.2.m2.1.1.3.cmml"><mi id="S2.SS1.p2.2.m2.1.1.3.2" xref="S2.SS1.p2.2.m2.1.1.3.2.cmml">M</mi><mrow id="S2.SS1.p2.2.m2.1.1.3.3" xref="S2.SS1.p2.2.m2.1.1.3.3.cmml"><mo id="S2.SS1.p2.2.m2.1.1.3.3a" xref="S2.SS1.p2.2.m2.1.1.3.3.cmml">−</mo><mn id="S2.SS1.p2.2.m2.1.1.3.3.2" xref="S2.SS1.p2.2.m2.1.1.3.3.2.cmml">1</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><apply id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1"><times id="S2.SS1.p2.2.m2.1.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1.1"></times><ci id="S2.SS1.p2.2.m2.1.1.2.cmml" xref="S2.SS1.p2.2.m2.1.1.2">𝐶</ci><apply id="S2.SS1.p2.2.m2.1.1.3.cmml" xref="S2.SS1.p2.2.m2.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.2.m2.1.1.3.1.cmml" xref="S2.SS1.p2.2.m2.1.1.3">superscript</csymbol><ci id="S2.SS1.p2.2.m2.1.1.3.2.cmml" xref="S2.SS1.p2.2.m2.1.1.3.2">𝑀</ci><apply id="S2.SS1.p2.2.m2.1.1.3.3.cmml" xref="S2.SS1.p2.2.m2.1.1.3.3"><minus id="S2.SS1.p2.2.m2.1.1.3.3.1.cmml" xref="S2.SS1.p2.2.m2.1.1.3.3"></minus><cn type="integer" id="S2.SS1.p2.2.m2.1.1.3.3.2.cmml" xref="S2.SS1.p2.2.m2.1.1.3.3.2">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">CM^{-1}</annotation></semantics></math> while <math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="\beta" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mi id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml">β</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><ci id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1">𝛽</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">\beta</annotation></semantics></math> was selected as 0.02 such that the simulated X-ray matched the appearance of real X-ray images.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Creation of 2D image pairs for training: </h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Our goal is to extract the bone structures of a given chest X-ray. For this we employ a U-Net and train it using pairs of synthetic X-ray (DRR) images.
+The source image is a synthetic X-ray generated as described in section <a href="#S2.SS1" title="2.1 Synthetic X-ray Generation (DRRs) ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.1</span></a>.
+For generating the target image, we first define bone voxels as the set of voxels with HU values in [300,700]. We set all non bone voxels to a value of -1024 HU (Air). We then generate the synthetic X-ray (section <a href="#S2.SS1" title="2.1 Synthetic X-ray Generation (DRRs) ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.1</span></a>) corresponding to the Bone voxels.
+We term the resulting target image: “bone X-ray” since all soft tissues are removed from this image.
+An example “bone X-ray” is presented in Fig.<a href="#S2.F2" title="Figure 2 ‣ 2.2 Creation of 2D image pairs for training: ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. It is noticeable that only bone structures appear, excluding overlapping soft tissue anatomical structures such as the heart, liver, stomach and fat.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S2.F2.1" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S2.F2.1.1" class="ltx_p ltx_align_center"><span id="S2.F2.1.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/train_64_org.png" id="S2.F2.1.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S2.F2.1.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S2.F2.1.2.1" class="ltx_text">(a) Source - DRR Image</span></p>
+</div>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S2.F2.2" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S2.F2.2.1" class="ltx_p ltx_align_center"><span id="S2.F2.2.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/train_64_gt.png" id="S2.F2.2.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S2.F2.2.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S2.F2.2.2.1" class="ltx_text">(b) Target - “bone X-ray”</span></p>
+</div>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S2.F2.4.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>synthetic image pair used for training</figcaption>
+</figure>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Bone Extraction U-Net </h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">The network used in this work are based on the U-net FCNN architecture <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>.
+We specify here the modifications which we made to the original architecture:
+The inputs and output size is <math id="S2.SS3.p1.1.m1.1" class="ltx_Math" alttext="512\times 512" display="inline"><semantics id="S2.SS3.p1.1.m1.1a"><mrow id="S2.SS3.p1.1.m1.1.1" xref="S2.SS3.p1.1.m1.1.1.cmml"><mn id="S2.SS3.p1.1.m1.1.1.2" xref="S2.SS3.p1.1.m1.1.1.2.cmml">512</mn><mo lspace="0.222em" rspace="0.222em" id="S2.SS3.p1.1.m1.1.1.1" xref="S2.SS3.p1.1.m1.1.1.1.cmml">×</mo><mn id="S2.SS3.p1.1.m1.1.1.3" xref="S2.SS3.p1.1.m1.1.1.3.cmml">512</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.1.m1.1b"><apply id="S2.SS3.p1.1.m1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1"><times id="S2.SS3.p1.1.m1.1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1.1"></times><cn type="integer" id="S2.SS3.p1.1.m1.1.1.2.cmml" xref="S2.SS3.p1.1.m1.1.1.2">512</cn><cn type="integer" id="S2.SS3.p1.1.m1.1.1.3.cmml" xref="S2.SS3.p1.1.m1.1.1.3">512</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.1.m1.1c">512\times 512</annotation></semantics></math> with 32 filters in the first convolution layer
+Dilated convolutions (dilation rate = 2) were added in areas of the network in order to enlarge the receptive field.
+We use ReLu activation functions throughout the net while at the network output we use the Tanh activation.
+A diagram describing the architecture is presented in Fig. <a href="#S2.F3" title="Figure 3 ‣ 2.3 Bone Extraction U-Net ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a></p>
+</div>
+<figure id="S2.F3" class="ltx_figure">
+<div id="S2.F3.1" class="ltx_block ltx_minipage ltx_align_bottom" style="width:433.6pt;">
+<p id="S2.F3.1.1" class="ltx_p ltx_align_center"><span id="S2.F3.1.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/u-net.png" id="S2.F3.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="314" height="205" alt="Refer to caption"></span></p>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S2.F3.3.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>U-Net Architecture for Bone Extraction</figcaption>
+</figure>
+<figure id="S2.F4" class="ltx_figure">
+<p id="S2.F4.1" class="ltx_p ltx_align_center"><span id="S2.F4.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/per_loss.png" id="S2.F4.1.1.g1" class="ltx_graphics ltx_img_landscape" width="314" height="137" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S2.F4.3.1.1" class="ltx_text ltx_font_bold">Fig. 4</span>: </span>Description of the training Scheme</figcaption>
+</figure>
+<section id="S2.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.3.1 </span>Loss Functions </h4>
+
+<div id="S2.SS3.SSS1.p1" class="ltx_para">
+<p id="S2.SS3.SSS1.p1.1" class="ltx_p">We examined two loss functions, the first is the commonly used L1 Loss, the second is the perceptual loss. The L1 loss aims to minimize pixel level difference, while Perceptual loss encourages the reconstruction to have a similar feature representation.</p>
+</div>
+<div id="S2.SS3.SSS1.p2" class="ltx_para">
+<p id="S2.SS3.SSS1.p2.1" class="ltx_p">The L1 loss is a point loss which minimizes the gray value absolute difference, as in Eq.<a href="#S2.E4" title="In 2.3.1 Loss Functions ‣ 2.3 Bone Extraction U-Net ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+<table id="S2.E4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E4.m1.1" class="ltx_math_unparsed" alttext="L_{L1}=\left\lVert(y_{pred}-(y_{gt})\right\rVert_{1}" display="block"><semantics id="S2.E4.m1.1a"><mrow id="S2.E4.m1.1b"><msub id="S2.E4.m1.1.1"><mi id="S2.E4.m1.1.1.2">L</mi><mrow id="S2.E4.m1.1.1.3"><mi id="S2.E4.m1.1.1.3.2">L</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.1.3.1">​</mo><mn id="S2.E4.m1.1.1.3.3">1</mn></mrow></msub><mo rspace="0.1389em" id="S2.E4.m1.1.2">=</mo><mrow id="S2.E4.m1.1.3"><mo fence="true" lspace="0.1389em" rspace="0em" stretchy="true" id="S2.E4.m1.1.3.1">∥</mo><msub id="S2.E4.m1.1.3.2"><mrow id="S2.E4.m1.1.3.2.2"><mo stretchy="false" id="S2.E4.m1.1.3.2.2.1">(</mo><msub id="S2.E4.m1.1.3.2.2.2"><mi id="S2.E4.m1.1.3.2.2.2.2">y</mi><mrow id="S2.E4.m1.1.3.2.2.2.3"><mi id="S2.E4.m1.1.3.2.2.2.3.2">p</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.3.2.2.2.3.1">​</mo><mi id="S2.E4.m1.1.3.2.2.2.3.3">r</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.3.2.2.2.3.1a">​</mo><mi id="S2.E4.m1.1.3.2.2.2.3.4">e</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.3.2.2.2.3.1b">​</mo><mi id="S2.E4.m1.1.3.2.2.2.3.5">d</mi></mrow></msub><mo id="S2.E4.m1.1.3.2.2.3">−</mo><mrow id="S2.E4.m1.1.3.2.2.4"><mo stretchy="false" id="S2.E4.m1.1.3.2.2.4.1">(</mo><msub id="S2.E4.m1.1.3.2.2.4.2"><mi id="S2.E4.m1.1.3.2.2.4.2.2">y</mi><mrow id="S2.E4.m1.1.3.2.2.4.2.3"><mi id="S2.E4.m1.1.3.2.2.4.2.3.2">g</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.3.2.2.4.2.3.1">​</mo><mi id="S2.E4.m1.1.3.2.2.4.2.3.3">t</mi></mrow></msub><mo stretchy="false" id="S2.E4.m1.1.3.2.2.4.3">)</mo></mrow><mo fence="true" lspace="0em" stretchy="true" id="S2.E4.m1.1.3.2.2.5">∥</mo></mrow><mn id="S2.E4.m1.1.3.2.3">1</mn></msub></mrow></mrow><annotation encoding="application/x-tex" id="S2.E4.m1.1c">L_{L1}=\left\lVert(y_{pred}-(y_{gt})\right\rVert_{1}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S2.SS3.SSS1.p3" class="ltx_para">
+<p id="S2.SS3.SSS1.p3.9" class="ltx_p">The perceptual loss measures high-level semantic differences between images. It makes use of a loss network, pre-trained
+for image classification. The loss network <math id="S2.SS3.SSS1.p3.1.m1.1" class="ltx_Math" alttext="\varphi" display="inline"><semantics id="S2.SS3.SSS1.p3.1.m1.1a"><mi id="S2.SS3.SSS1.p3.1.m1.1.1" xref="S2.SS3.SSS1.p3.1.m1.1.1.cmml">φ</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.1.m1.1b"><ci id="S2.SS3.SSS1.p3.1.m1.1.1.cmml" xref="S2.SS3.SSS1.p3.1.m1.1.1">𝜑</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.1.m1.1c">\varphi</annotation></semantics></math> used in this work is a VGG16 CNN, pretrained on ImageNet.
+For perceptual loss, we compute the feature reconstruction loss, as in Eq.<a href="#S2.E5" title="In 2.3.1 Loss Functions ‣ 2.3 Bone Extraction U-Net ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>. We denote the activation output of layer <math id="S2.SS3.SSS1.p3.2.m2.1" class="ltx_Math" alttext="{}^{\prime}block2\_conv2^{\prime}" display="inline"><semantics id="S2.SS3.SSS1.p3.2.m2.1a"><mrow id="S2.SS3.SSS1.p3.2.m2.1.1" xref="S2.SS3.SSS1.p3.2.m2.1.1.cmml"><mmultiscripts id="S2.SS3.SSS1.p3.2.m2.1.1.2" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.cmml"><mi id="S2.SS3.SSS1.p3.2.m2.1.1.2.2" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.2.cmml">b</mi><mprescripts id="S2.SS3.SSS1.p3.2.m2.1.1.2a" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.cmml"></mprescripts><mrow id="S2.SS3.SSS1.p3.2.m2.1.1.2b" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.cmml"></mrow><mo id="S2.SS3.SSS1.p3.2.m2.1.1.2.3" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.3.cmml">′</mo></mmultiscripts><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.3" xref="S2.SS3.SSS1.p3.2.m2.1.1.3.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1a" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.4" xref="S2.SS3.SSS1.p3.2.m2.1.1.4.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1b" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.5" xref="S2.SS3.SSS1.p3.2.m2.1.1.5.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1c" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.6" xref="S2.SS3.SSS1.p3.2.m2.1.1.6.cmml">k</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1d" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mn id="S2.SS3.SSS1.p3.2.m2.1.1.7" xref="S2.SS3.SSS1.p3.2.m2.1.1.7.cmml">2</mn><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1e" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi mathvariant="normal" id="S2.SS3.SSS1.p3.2.m2.1.1.8" xref="S2.SS3.SSS1.p3.2.m2.1.1.8.cmml">_</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1f" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.9" xref="S2.SS3.SSS1.p3.2.m2.1.1.9.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1g" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.10" xref="S2.SS3.SSS1.p3.2.m2.1.1.10.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1h" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.11" xref="S2.SS3.SSS1.p3.2.m2.1.1.11.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1i" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.2.m2.1.1.12" xref="S2.SS3.SSS1.p3.2.m2.1.1.12.cmml">v</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.2.m2.1.1.1j" xref="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml">​</mo><msup id="S2.SS3.SSS1.p3.2.m2.1.1.13" xref="S2.SS3.SSS1.p3.2.m2.1.1.13.cmml"><mn id="S2.SS3.SSS1.p3.2.m2.1.1.13.2" xref="S2.SS3.SSS1.p3.2.m2.1.1.13.2.cmml">2</mn><mo id="S2.SS3.SSS1.p3.2.m2.1.1.13.3" xref="S2.SS3.SSS1.p3.2.m2.1.1.13.3.cmml">′</mo></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.2.m2.1b"><apply id="S2.SS3.SSS1.p3.2.m2.1.1.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1"><times id="S2.SS3.SSS1.p3.2.m2.1.1.1.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.1"></times><apply id="S2.SS3.SSS1.p3.2.m2.1.1.2.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.2"><csymbol cd="ambiguous" id="S2.SS3.SSS1.p3.2.m2.1.1.2.1.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.2">superscript</csymbol><ci id="S2.SS3.SSS1.p3.2.m2.1.1.2.2.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.2">𝑏</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.2.3.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.2.3">′</ci></apply><ci id="S2.SS3.SSS1.p3.2.m2.1.1.3.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.3">𝑙</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.4.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.4">𝑜</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.5.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.5">𝑐</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.6.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.6">𝑘</ci><cn type="integer" id="S2.SS3.SSS1.p3.2.m2.1.1.7.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.7">2</cn><ci id="S2.SS3.SSS1.p3.2.m2.1.1.8.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.8">_</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.9.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.9">𝑐</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.10.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.10">𝑜</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.11.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.11">𝑛</ci><ci id="S2.SS3.SSS1.p3.2.m2.1.1.12.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.12">𝑣</ci><apply id="S2.SS3.SSS1.p3.2.m2.1.1.13.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.13"><csymbol cd="ambiguous" id="S2.SS3.SSS1.p3.2.m2.1.1.13.1.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.13">superscript</csymbol><cn type="integer" id="S2.SS3.SSS1.p3.2.m2.1.1.13.2.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.13.2">2</cn><ci id="S2.SS3.SSS1.p3.2.m2.1.1.13.3.cmml" xref="S2.SS3.SSS1.p3.2.m2.1.1.13.3">′</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.2.m2.1c">{}^{\prime}block2\_conv2^{\prime}</annotation></semantics></math> (the fourth layer) of VGG16 network as <math id="S2.SS3.SSS1.p3.3.m3.1" class="ltx_Math" alttext="\varphi(x)" display="inline"><semantics id="S2.SS3.SSS1.p3.3.m3.1a"><mrow id="S2.SS3.SSS1.p3.3.m3.1.2" xref="S2.SS3.SSS1.p3.3.m3.1.2.cmml"><mi id="S2.SS3.SSS1.p3.3.m3.1.2.2" xref="S2.SS3.SSS1.p3.3.m3.1.2.2.cmml">φ</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.3.m3.1.2.1" xref="S2.SS3.SSS1.p3.3.m3.1.2.1.cmml">​</mo><mrow id="S2.SS3.SSS1.p3.3.m3.1.2.3.2" xref="S2.SS3.SSS1.p3.3.m3.1.2.cmml"><mo stretchy="false" id="S2.SS3.SSS1.p3.3.m3.1.2.3.2.1" xref="S2.SS3.SSS1.p3.3.m3.1.2.cmml">(</mo><mi id="S2.SS3.SSS1.p3.3.m3.1.1" xref="S2.SS3.SSS1.p3.3.m3.1.1.cmml">x</mi><mo stretchy="false" id="S2.SS3.SSS1.p3.3.m3.1.2.3.2.2" xref="S2.SS3.SSS1.p3.3.m3.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.3.m3.1b"><apply id="S2.SS3.SSS1.p3.3.m3.1.2.cmml" xref="S2.SS3.SSS1.p3.3.m3.1.2"><times id="S2.SS3.SSS1.p3.3.m3.1.2.1.cmml" xref="S2.SS3.SSS1.p3.3.m3.1.2.1"></times><ci id="S2.SS3.SSS1.p3.3.m3.1.2.2.cmml" xref="S2.SS3.SSS1.p3.3.m3.1.2.2">𝜑</ci><ci id="S2.SS3.SSS1.p3.3.m3.1.1.cmml" xref="S2.SS3.SSS1.p3.3.m3.1.1">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.3.m3.1c">\varphi(x)</annotation></semantics></math>.
+In order to fit the input requirements of the VGG16 network which was trained on 224<math id="S2.SS3.SSS1.p3.4.m4.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S2.SS3.SSS1.p3.4.m4.1a"><mo id="S2.SS3.SSS1.p3.4.m4.1.1" xref="S2.SS3.SSS1.p3.4.m4.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.4.m4.1b"><times id="S2.SS3.SSS1.p3.4.m4.1.1.cmml" xref="S2.SS3.SSS1.p3.4.m4.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.4.m4.1c">\times</annotation></semantics></math>224<math id="S2.SS3.SSS1.p3.5.m5.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S2.SS3.SSS1.p3.5.m5.1a"><mo id="S2.SS3.SSS1.p3.5.m5.1.1" xref="S2.SS3.SSS1.p3.5.m5.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.5.m5.1b"><times id="S2.SS3.SSS1.p3.5.m5.1.1.cmml" xref="S2.SS3.SSS1.p3.5.m5.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.5.m5.1c">\times</annotation></semantics></math>3 color images, we
+duplicate the predictions of the network to create an RGB output denoted as <math id="S2.SS3.SSS1.p3.6.m6.1" class="ltx_Math" alttext="yc_{pred}" display="inline"><semantics id="S2.SS3.SSS1.p3.6.m6.1a"><mrow id="S2.SS3.SSS1.p3.6.m6.1.1" xref="S2.SS3.SSS1.p3.6.m6.1.1.cmml"><mi id="S2.SS3.SSS1.p3.6.m6.1.1.2" xref="S2.SS3.SSS1.p3.6.m6.1.1.2.cmml">y</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.6.m6.1.1.1" xref="S2.SS3.SSS1.p3.6.m6.1.1.1.cmml">​</mo><msub id="S2.SS3.SSS1.p3.6.m6.1.1.3" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.cmml"><mi id="S2.SS3.SSS1.p3.6.m6.1.1.3.2" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.2.cmml">c</mi><mrow id="S2.SS3.SSS1.p3.6.m6.1.1.3.3" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.cmml"><mi id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.2" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.2.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.3" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.3.cmml">r</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1a" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.4" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.4.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1b" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.5" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.5.cmml">d</mi></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.6.m6.1b"><apply id="S2.SS3.SSS1.p3.6.m6.1.1.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1"><times id="S2.SS3.SSS1.p3.6.m6.1.1.1.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.1"></times><ci id="S2.SS3.SSS1.p3.6.m6.1.1.2.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.2">𝑦</ci><apply id="S2.SS3.SSS1.p3.6.m6.1.1.3.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.SSS1.p3.6.m6.1.1.3.1.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3">subscript</csymbol><ci id="S2.SS3.SSS1.p3.6.m6.1.1.3.2.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.2">𝑐</ci><apply id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3"><times id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.1"></times><ci id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.2.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.2">𝑝</ci><ci id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.3.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.3">𝑟</ci><ci id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.4.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.4">𝑒</ci><ci id="S2.SS3.SSS1.p3.6.m6.1.1.3.3.5.cmml" xref="S2.SS3.SSS1.p3.6.m6.1.1.3.3.5">𝑑</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.6.m6.1c">yc_{pred}</annotation></semantics></math> ,<math id="S2.SS3.SSS1.p3.7.m7.1" class="ltx_Math" alttext="yc_{gt}" display="inline"><semantics id="S2.SS3.SSS1.p3.7.m7.1a"><mrow id="S2.SS3.SSS1.p3.7.m7.1.1" xref="S2.SS3.SSS1.p3.7.m7.1.1.cmml"><mi id="S2.SS3.SSS1.p3.7.m7.1.1.2" xref="S2.SS3.SSS1.p3.7.m7.1.1.2.cmml">y</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.7.m7.1.1.1" xref="S2.SS3.SSS1.p3.7.m7.1.1.1.cmml">​</mo><msub id="S2.SS3.SSS1.p3.7.m7.1.1.3" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.cmml"><mi id="S2.SS3.SSS1.p3.7.m7.1.1.3.2" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.2.cmml">c</mi><mrow id="S2.SS3.SSS1.p3.7.m7.1.1.3.3" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.cmml"><mi id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.2" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.2.cmml">g</mi><mo lspace="0em" rspace="0em" id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.1" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.1.cmml">​</mo><mi id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.3" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.3.cmml">t</mi></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.7.m7.1b"><apply id="S2.SS3.SSS1.p3.7.m7.1.1.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1"><times id="S2.SS3.SSS1.p3.7.m7.1.1.1.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.1"></times><ci id="S2.SS3.SSS1.p3.7.m7.1.1.2.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.2">𝑦</ci><apply id="S2.SS3.SSS1.p3.7.m7.1.1.3.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.SSS1.p3.7.m7.1.1.3.1.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3">subscript</csymbol><ci id="S2.SS3.SSS1.p3.7.m7.1.1.3.2.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.2">𝑐</ci><apply id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3"><times id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.1.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.1"></times><ci id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.2.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.2">𝑔</ci><ci id="S2.SS3.SSS1.p3.7.m7.1.1.3.3.3.cmml" xref="S2.SS3.SSS1.p3.7.m7.1.1.3.3.3">𝑡</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.7.m7.1c">yc_{gt}</annotation></semantics></math> resulting in image of dimensions 512<math id="S2.SS3.SSS1.p3.8.m8.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S2.SS3.SSS1.p3.8.m8.1a"><mo id="S2.SS3.SSS1.p3.8.m8.1.1" xref="S2.SS3.SSS1.p3.8.m8.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.8.m8.1b"><times id="S2.SS3.SSS1.p3.8.m8.1.1.cmml" xref="S2.SS3.SSS1.p3.8.m8.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.8.m8.1c">\times</annotation></semantics></math>512<math id="S2.SS3.SSS1.p3.9.m9.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S2.SS3.SSS1.p3.9.m9.1a"><mo id="S2.SS3.SSS1.p3.9.m9.1.1" xref="S2.SS3.SSS1.p3.9.m9.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS1.p3.9.m9.1b"><times id="S2.SS3.SSS1.p3.9.m9.1.1.cmml" xref="S2.SS3.SSS1.p3.9.m9.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS1.p3.9.m9.1c">\times</annotation></semantics></math>3.
+The training scheme is displayed in Fig.<a href="#S2.F4" title="Figure 4 ‣ 2.3 Bone Extraction U-Net ‣ 2 Methods ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+</div>
+<div id="S2.SS3.SSS1.p4" class="ltx_para">
+<table id="S2.E5" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E5.m1.1" class="ltx_math_unparsed" alttext="L_{Perceptual}=\left\lVert(\varphi(yc_{pred})-\varphi(yc_{gt})\right\rVert_{2}" display="block"><semantics id="S2.E5.m1.1a"><mrow id="S2.E5.m1.1b"><msub id="S2.E5.m1.1.1"><mi id="S2.E5.m1.1.1.2">L</mi><mrow id="S2.E5.m1.1.1.3"><mi id="S2.E5.m1.1.1.3.2">P</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1">​</mo><mi id="S2.E5.m1.1.1.3.3">e</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1a">​</mo><mi id="S2.E5.m1.1.1.3.4">r</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1b">​</mo><mi id="S2.E5.m1.1.1.3.5">c</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1c">​</mo><mi id="S2.E5.m1.1.1.3.6">e</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1d">​</mo><mi id="S2.E5.m1.1.1.3.7">p</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1e">​</mo><mi id="S2.E5.m1.1.1.3.8">t</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1f">​</mo><mi id="S2.E5.m1.1.1.3.9">u</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1g">​</mo><mi id="S2.E5.m1.1.1.3.10">a</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.3.1h">​</mo><mi id="S2.E5.m1.1.1.3.11">l</mi></mrow></msub><mo rspace="0.1389em" id="S2.E5.m1.1.2">=</mo><mrow id="S2.E5.m1.1.3"><mo fence="true" lspace="0.1389em" rspace="0em" stretchy="true" id="S2.E5.m1.1.3.1">∥</mo><msub id="S2.E5.m1.1.3.2"><mrow id="S2.E5.m1.1.3.2.2"><mo stretchy="false" id="S2.E5.m1.1.3.2.2.1">(</mo><mi id="S2.E5.m1.1.3.2.2.2">φ</mi><mrow id="S2.E5.m1.1.3.2.2.3"><mo stretchy="false" id="S2.E5.m1.1.3.2.2.3.1">(</mo><mi id="S2.E5.m1.1.3.2.2.3.2">y</mi><msub id="S2.E5.m1.1.3.2.2.3.3"><mi id="S2.E5.m1.1.3.2.2.3.3.2">c</mi><mrow id="S2.E5.m1.1.3.2.2.3.3.3"><mi id="S2.E5.m1.1.3.2.2.3.3.3.2">p</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.3.2.2.3.3.3.1">​</mo><mi id="S2.E5.m1.1.3.2.2.3.3.3.3">r</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.3.2.2.3.3.3.1a">​</mo><mi id="S2.E5.m1.1.3.2.2.3.3.3.4">e</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.3.2.2.3.3.3.1b">​</mo><mi id="S2.E5.m1.1.3.2.2.3.3.3.5">d</mi></mrow></msub><mo stretchy="false" id="S2.E5.m1.1.3.2.2.3.4">)</mo></mrow><mo id="S2.E5.m1.1.3.2.2.4">−</mo><mi id="S2.E5.m1.1.3.2.2.5">φ</mi><mrow id="S2.E5.m1.1.3.2.2.6"><mo stretchy="false" id="S2.E5.m1.1.3.2.2.6.1">(</mo><mi id="S2.E5.m1.1.3.2.2.6.2">y</mi><msub id="S2.E5.m1.1.3.2.2.6.3"><mi id="S2.E5.m1.1.3.2.2.6.3.2">c</mi><mrow id="S2.E5.m1.1.3.2.2.6.3.3"><mi id="S2.E5.m1.1.3.2.2.6.3.3.2">g</mi><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.3.2.2.6.3.3.1">​</mo><mi id="S2.E5.m1.1.3.2.2.6.3.3.3">t</mi></mrow></msub><mo stretchy="false" id="S2.E5.m1.1.3.2.2.6.4">)</mo></mrow><mo fence="true" lspace="0em" stretchy="true" id="S2.E5.m1.1.3.2.2.7">∥</mo></mrow><mn id="S2.E5.m1.1.3.2.3">2</mn></msub></mrow></mrow><annotation encoding="application/x-tex" id="S2.E5.m1.1c">L_{Perceptual}=\left\lVert(\varphi(yc_{pred})-\varphi(yc_{gt})\right\rVert_{2}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(5)</span></td>
+</tr></tbody>
+</table>
+</div>
+</section>
+<section id="S2.SS3.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.3.2 </span>Training Details </h4>
+
+<div id="S2.SS3.SSS2.p1" class="ltx_para">
+<p id="S2.SS3.SSS2.p1.1" class="ltx_p">For training, we used zero mean normalized batches of size 8 and ADAM optimizer. The optimal initial learning rate was found to be 1E-3. Validation loss converged after 100 epochs.</p>
+</div>
+<div id="S2.SS3.SSS2.p2" class="ltx_para">
+<p id="S2.SS3.SSS2.p2.2" class="ltx_p">We utilized random data augmentation for both the source and the target using horizontal flipping, additive Gaussian noise, bias(<math id="S2.SS3.SSS2.p2.1.m1.1" class="ltx_Math" alttext="\pm 20\%" display="inline"><semantics id="S2.SS3.SSS2.p2.1.m1.1a"><mrow id="S2.SS3.SSS2.p2.1.m1.1.1" xref="S2.SS3.SSS2.p2.1.m1.1.1.cmml"><mo id="S2.SS3.SSS2.p2.1.m1.1.1a" xref="S2.SS3.SSS2.p2.1.m1.1.1.cmml">±</mo><mrow id="S2.SS3.SSS2.p2.1.m1.1.1.2" xref="S2.SS3.SSS2.p2.1.m1.1.1.2.cmml"><mn id="S2.SS3.SSS2.p2.1.m1.1.1.2.2" xref="S2.SS3.SSS2.p2.1.m1.1.1.2.2.cmml">20</mn><mo id="S2.SS3.SSS2.p2.1.m1.1.1.2.1" xref="S2.SS3.SSS2.p2.1.m1.1.1.2.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS2.p2.1.m1.1b"><apply id="S2.SS3.SSS2.p2.1.m1.1.1.cmml" xref="S2.SS3.SSS2.p2.1.m1.1.1"><csymbol cd="latexml" id="S2.SS3.SSS2.p2.1.m1.1.1.1.cmml" xref="S2.SS3.SSS2.p2.1.m1.1.1">plus-or-minus</csymbol><apply id="S2.SS3.SSS2.p2.1.m1.1.1.2.cmml" xref="S2.SS3.SSS2.p2.1.m1.1.1.2"><csymbol cd="latexml" id="S2.SS3.SSS2.p2.1.m1.1.1.2.1.cmml" xref="S2.SS3.SSS2.p2.1.m1.1.1.2.1">percent</csymbol><cn type="integer" id="S2.SS3.SSS2.p2.1.m1.1.1.2.2.cmml" xref="S2.SS3.SSS2.p2.1.m1.1.1.2.2">20</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS2.p2.1.m1.1c">\pm 20\%</annotation></semantics></math>), scaling(<math id="S2.SS3.SSS2.p2.2.m2.1" class="ltx_Math" alttext="\pm 30\%" display="inline"><semantics id="S2.SS3.SSS2.p2.2.m2.1a"><mrow id="S2.SS3.SSS2.p2.2.m2.1.1" xref="S2.SS3.SSS2.p2.2.m2.1.1.cmml"><mo id="S2.SS3.SSS2.p2.2.m2.1.1a" xref="S2.SS3.SSS2.p2.2.m2.1.1.cmml">±</mo><mrow id="S2.SS3.SSS2.p2.2.m2.1.1.2" xref="S2.SS3.SSS2.p2.2.m2.1.1.2.cmml"><mn id="S2.SS3.SSS2.p2.2.m2.1.1.2.2" xref="S2.SS3.SSS2.p2.2.m2.1.1.2.2.cmml">30</mn><mo id="S2.SS3.SSS2.p2.2.m2.1.1.2.1" xref="S2.SS3.SSS2.p2.2.m2.1.1.2.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.SSS2.p2.2.m2.1b"><apply id="S2.SS3.SSS2.p2.2.m2.1.1.cmml" xref="S2.SS3.SSS2.p2.2.m2.1.1"><csymbol cd="latexml" id="S2.SS3.SSS2.p2.2.m2.1.1.1.cmml" xref="S2.SS3.SSS2.p2.2.m2.1.1">plus-or-minus</csymbol><apply id="S2.SS3.SSS2.p2.2.m2.1.1.2.cmml" xref="S2.SS3.SSS2.p2.2.m2.1.1.2"><csymbol cd="latexml" id="S2.SS3.SSS2.p2.2.m2.1.1.2.1.cmml" xref="S2.SS3.SSS2.p2.2.m2.1.1.2.1">percent</csymbol><cn type="integer" id="S2.SS3.SSS2.p2.2.m2.1.1.2.2.cmml" xref="S2.SS3.SSS2.p2.2.m2.1.1.2.2">30</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.SSS2.p2.2.m2.1c">\pm 30\%</annotation></semantics></math>) and image sharpening(alpha=0.5).</p>
+</div>
+</section>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Use Case: A Scheme for bone Structures Enhancement in Real CXR</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p">Once extracted, the bone structures can be added to the original DRR image, allowing for a selective enhancement of bone structures.
+For the enhancement of a real radiograph, we use the bone structures extraction U-Net to extract bone structures from the input image (i.e prediction of a “bone X-ray”).
+We then fuse the two images using a weighted summation.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments and Results</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p"><span id="S3.p1.1.1" class="ltx_text ltx_font_bold">Bone Structures Extraction Metrics on Synthetic Data</span></p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">A subset of 644 CT scans belonging to LIDC dataset was used.
+For each CT case we generate a DRR and a “bone X-ray” pair.
+We split the dataset to training, validation and test subsets containing 386, 129, 129 pairs, respectively.
+We evaluate our results on the test subset and report RMSE, PSNR, SSIM(Structural similarity) and MSSIM(multiscale SSIM).
+Results are given in Table.<a href="#S3.T1" title="Table 1 ‣ 3 Experiments and Results ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. We see that in the synthetic data scenario, the best metrics were achieved using perceptual loss training: MSSIM: 0.84, SSIM: 0.7,PSNR: 22.6dB and RMSE :19.25.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T1.2.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Bone Extraction Test Metrics on Synthetic X-ray (mean,std)</figcaption>
+<table id="S3.T1.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.3.1.1" class="ltx_tr">
+<th id="S3.T1.3.1.1.1" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">Loss</th>
+<th id="S3.T1.3.1.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">RMSE</th>
+<th id="S3.T1.3.1.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">PSNR[dB]</th>
+<th id="S3.T1.3.1.1.4" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">SSIM</th>
+<th id="S3.T1.3.1.1.5" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">MSSIM</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.3.2.1" class="ltx_tr">
+<td id="S3.T1.3.2.1.1" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">L1</td>
+<td id="S3.T1.3.2.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.2.1.2.1" class="ltx_text">20.5(4.1)</span></td>
+<td id="S3.T1.3.2.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.2.1.3.1" class="ltx_text">22.0(1.6)</span></td>
+<td id="S3.T1.3.2.1.4" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.2.1.4.1" class="ltx_text">0.70(.07))</span></td>
+<td id="S3.T1.3.2.1.5" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.2.1.5.1" class="ltx_text">0.83(0.04)</span></td>
+</tr>
+<tr id="S3.T1.3.3.2" class="ltx_tr">
+<td id="S3.T1.3.3.2.1" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;">Perceptual</td>
+<td id="S3.T1.3.3.2.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.3.2.2.1" class="ltx_text ltx_font_bold">19.25(4)</span></td>
+<td id="S3.T1.3.3.2.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.3.2.3.1" class="ltx_text ltx_font_bold">22.6(1.7)</span></td>
+<td id="S3.T1.3.3.2.4" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_r ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.3.2.4.1" class="ltx_text ltx_font_bold">0.70(.08)</span></td>
+<td id="S3.T1.3.3.2.5" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t" style="padding-left:0.0pt;padding-right:0.0pt;"><span id="S3.T1.3.3.2.5.1" class="ltx_text ltx_font_bold">0.84(.04)</span></td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.1" class="ltx_p"><span id="S3.p3.1.1" class="ltx_text ltx_font_bold">Applicability to Real X-ray
+<br class="ltx_break"></span>In order to explore the applicability of our algorithm to real X-ray, we apply the bone extraction U-Net on images from NIH ChestX-ray14 dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>. The results were obtained by using perceptual loss during training.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.1" class="ltx_p">In Figure <a href="#S3.F5" title="Figure 5 ‣ 3 Experiments and Results ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> we show the results of the enhancement on a Real X-ray. It is noticeable that the heart and other soft structures are removed from the extracted bone layer.</p>
+</div>
+<figure id="S3.F5" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F5.1" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S3.F5.1.1" class="ltx_p ltx_align_center"><span id="S3.F5.1.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/8_org.png" id="S3.F5.1.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S3.F5.1.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F5.1.2.1" class="ltx_text">(a) Real CXR</span></p>
+</div>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F5.2" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S3.F5.2.1" class="ltx_p ltx_align_center"><span id="S3.F5.2.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/8_ge.png" id="S3.F5.2.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S3.F5.2.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F5.2.2.1" class="ltx_text">(b) Bone Enhanced CXR</span></p>
+</div>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F5.3" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S3.F5.3.1" class="ltx_p ltx_align_center"><span id="S3.F5.3.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/8_ce.png" id="S3.F5.3.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S3.F5.3.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F5.3.2.1" class="ltx_text">(c) Color View</span></p>
+</div>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F5.4" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S3.F5.4.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F5.4.1.1" class="ltx_text"><img src="/html/2003.10839/assets/Figs2/8_pred.png" id="S3.F5.4.1.1.g1" class="ltx_graphics ltx_img_square" width="157" height="157" alt="Refer to caption"></span></p>
+<p id="S3.F5.4.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F5.4.2.1" class="ltx_text">(d) Extracted Bones</span></p>
+</div>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S3.F5.6.1.1" class="ltx_text ltx_font_bold">Fig. 5</span>: </span>Real X-ray Results - NIH X-ray14 </figcaption>
+</figure>
+<div id="S3.p5" class="ltx_para">
+<p id="S3.p5.1" class="ltx_p"><span id="S3.p5.1.1" class="ltx_text ltx_font_bold">Real X-ray: Perceptual Loss vs L1 Loss - Qualitative 
+<br class="ltx_break"></span>In Fig.<a href="#S3.F6" title="Figure 6 ‣ 3 Experiments and Results ‣ Bone Structures Extraction and Enhancement in Chest Radiographs via CNN trained on Synthetic data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>, two bone images were created by two U-Net, one trained using L1 and a second trained by Perceptual Loss. Using Perceptual Loss we achieved a higher level of detail in the vertebrae, and the image sharpness is improved.</p>
+</div>
+<figure id="S3.F6" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F6.1" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:208.1pt;">
+<p id="S3.F6.1.1" class="ltx_p ltx_align_center"><span id="S3.F6.1.1.1" class="ltx_text"><img src="" id="S3.F6.1.1.1.g1" class="ltx_graphics ltx_missing ltx_missing_image" alt="Refer to caption"></span></p>
+<p id="S3.F6.1.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F6.1.2.1" class="ltx_text">(a)L1 Loss(zoomed view)</span></p>
+</div>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<div id="S3.F6.2" class="ltx_block ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:216.8pt;">
+<p id="S3.F6.2.1" class="ltx_p ltx_align_center"><span id="S3.F6.2.1.1" class="ltx_text"><img src="" id="S3.F6.2.1.1.g1" class="ltx_graphics ltx_missing ltx_missing_image" alt="Refer to caption"></span></p>
+<p id="S3.F6.2.2" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F6.2.2.1" class="ltx_text">(b) Perceptual Loss(zoomed view)</span></p>
+</div>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S3.F6.4.1.1" class="ltx_text ltx_font_bold">Fig. 6</span>: </span>L1 Loss Vs Perceptual Loss - NIH X-ray14 </figcaption>
+</figure>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Discussion and Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In this work, we presented a method for enhancement and extraction of bone structures in chest X-ray.
+We used synthetic data for training and showed that the resulting trained networks are robust even for Real CXRs.
+The use of perceptual loss showed improved metrics on the synthetic dataset while for real CXR, it improved sharpness and detail of the bone images.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Kurihara et al.,
+
+</span>
+<span class="ltx_bibblock">“The ribs: anatomic and radiologic considerations,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">Radiographics</span>, vol. 19, no. 1, pp. 105–119, 1999.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Candemir et al.,
+
+</span>
+<span class="ltx_bibblock">“Atlas-based rib-bone detection in chest x-rays,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">Comp. Med. Imaging and Graphics.</span>, vol. 51, pp. 32–39, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Suzuki et al.,
+
+</span>
+<span class="ltx_bibblock">“Image-processing technique for suppressing ribs in chest
+radiographs by means of massive training artificial neural network (mtann),”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">IEEE Trans. on Med. Imaging</span>, vol. 25, no. 4, pp. 406–416,
+2006.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Esteban et al.,
+
+</span>
+<span class="ltx_bibblock">“Towards fully automatic x-ray to ct registration,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">MICCAI</span>. Springer, 2019, pp. 631–639.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Shadi Albarqouni, Javad Fotouhi, and Nassir Navab,
+
+</span>
+<span class="ltx_bibblock">“X-ray in-depth decomposition: Revealing the latent structures,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">MICCAI</span>. Springer, 2017, pp. 444–452.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Chen et al.,
+
+</span>
+<span class="ltx_bibblock">“Bone suppression of chest radiographs with cascaded convolutional
+networks in wavelet domain,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">IEEE Access</span>, vol. 7, pp. 8346–8357, 2019.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Ophir Gozes and Hayit Greenspan,
+
+</span>
+<span class="ltx_bibblock">“Lung structures enhancement in chest radiographs via ct based fcnn
+training,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">MICCAI workshop on Image Analysis for Moving Organ, Breast,
+and Thoracic Images</span>, pp. 147–158. Springer, 2018.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Justin Johnson, Alexandre Alahi, and Li Fei-Fei,
+
+</span>
+<span class="ltx_bibblock">“Perceptual losses for real-time style transfer and
+super-resolution,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">ECCV</span>. Springer, 2016, pp. 694–711.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Armato et al.,
+
+</span>
+<span class="ltx_bibblock">“Data from lidc-idri. the cancer imaging archive,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">DOI http://doi. org/10.7937 K</span>, vol. 9, pp. 7, 2015.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Olaf Ronneberger, Philipp Fischer, and Thomas Brox,
+
+</span>
+<span class="ltx_bibblock">“U-net: Convolutional networks for biomedical image segmentation,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">MICCAI</span>. Springer, 2015, pp. 234–241.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Wang et al.,
+
+</span>
+<span class="ltx_bibblock">“Chestx-ray8: Hospital-scale chest x-ray database and benchmarks on
+weakly-supervised classification and localization of common thorax
+diseases,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">CVPR</span>, 2017, pp. 2097–2106.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2003.10838" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2003.10839" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2003.10839">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2003.10839" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2003.10840" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar  2 12:36:45 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

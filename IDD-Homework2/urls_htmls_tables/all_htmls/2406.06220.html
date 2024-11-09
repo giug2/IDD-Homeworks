@@ -1,0 +1,1105 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.06220] Label-Looping: Highly Efficient Decoding for Transducers</title><meta property="og:description" content="This paper introduces a highly efficient greedy decoding algorithm for Transducer inference.
+We propose a novel data structure using CUDA tensors to represent partial hypotheses in a batch that supports parallelized hy…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Label-Looping: Highly Efficient Decoding for Transducers">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Label-Looping: Highly Efficient Decoding for Transducers">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.06220">
+
+<!--Generated on Fri Jul  5 23:19:57 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.8" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.9" class="ltx_ERROR undefined">\name</span>
+<p id="p1.7" class="ltx_p">VladimirBataev<sup id="p1.7.1" class="ltx_sup">∗</sup> <sup id="p1.7.2" class="ltx_sup"><span id="p1.7.2.1" class="ltx_text ltx_font_italic">1,2</span></sup>
+<span id="p1.7.3" class="ltx_ERROR undefined">\name</span>HainanXu<sup id="p1.7.4" class="ltx_sup">∗</sup> <sup id="p1.7.5" class="ltx_sup">1</sup>
+<span id="p1.7.6" class="ltx_ERROR undefined">\name</span>DanielGalvez<sup id="p1.7.7" class="ltx_sup">1</sup>
+<span id="p1.7.8" class="ltx_ERROR undefined">\name</span>VitalyLavrukhin<sup id="p1.7.9" class="ltx_sup">1</sup>
+<span id="p1.7.10" class="ltx_ERROR undefined">\name</span>BorisGinsburg<sup id="p1.7.11" class="ltx_sup">1</sup></p>
+</div>
+<h1 class="ltx_title ltx_title_document">Label-Looping: Highly Efficient Decoding for Transducers</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id5.id1" class="ltx_p">This paper introduces a highly efficient greedy decoding algorithm for Transducer inference.
+We propose a novel data structure using CUDA tensors to represent partial hypotheses in a batch that supports parallelized hypothesis manipulations.
+During decoding, our algorithm maximizes GPU parallelism by adopting a nested-loop design, where the inner loop consumes all blank predictions, while non-blank predictions are handled in the outer loop.
+Our algorithm is general-purpose and can work with both conventional Transducers and Token-and-Duration Transducers.
+Experiments show that the label-looping algorithm can bring a speedup up to 2.0X compared to conventional batched decoding algorithms when using batch size 32, and can
+be combined with other compiler or GPU call-related techniques to bring more speedup.
+We will open-source our implementation to benefit the research community.
+<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">†</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">†</sup><sup id="footnote1.1" class="ltx_sup">∗</sup> Equal contribution.</span></span></span></p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>speech recognition, Transducer, TDT, Token-and-Duration Transducer, parallel computing
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Speech recognition is the task of converting human speech audio into the text sequence that it represents. As speech is one of the most natural ways people communicate, speech recognition technology has been a hot research topic for decades. Nowadays, because of the research efforts and the abundance of computational resources available, we have developed sophisticated speech models that can achieve high accuracy in recognition tasks, and most of those models are freely available with many high-quality open-source speech recognition toolkits, including NeMo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, ESPNet <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, SpeechBrain <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, Espresso <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>, etc.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">One popular model for speech processing is Transducer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>. In terms of model architecture, Transducer and CTC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> are related in that they both adopt a frame-synchronous paradigm and have a special blank symbol as an output label so that the model output can be of a different length than the audio input. The major difference between those models is that CTC adopts a conditional independence assumption in predicting tokens from each frame. At the same time, Transducers consider textual context during token prediction, making it achieve better accuracy than CTC models at a slightly increased computational cost.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Many research works have attempted to improve the efficiency of Transducer models.
+More powerful encoder architectures, e.g. Transformers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> and Conformers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> are proposed to replace the original LSTM encoders <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>, which both improve the model's accuracy and efficiency.
+<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite> replaced LSTM decoders with a stateless decoder, which shows a speed-up of running Transducer models with a slight degradation in model performance.
+<em id="S1.p3.1.1" class="ltx_emph ltx_font_italic">Multi-blank Transducers</em> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> introduced <em id="S1.p3.1.2" class="ltx_emph ltx_font_italic">big blank</em> tokens that allow skipping of multiple frames during decoding when blank symbols are predicted during inference, bringing significant speed-up and also slightly improved model accuracy;
+<em id="S1.p3.1.3" class="ltx_emph ltx_font_italic">Token-and-Duration Transducer</em> (TDT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> models extend the multi-blank model by decoupling the prediction of tokens and durations so that the model can skip multiple frames after each prediction, regardless of whether it's a blank, bringing even more speed-up to Transducer inference.
+<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> added additional constraints to Transducers in terms of the maximum labels emitted per frame which shows speed-up for its inference. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> proposed to use a CTC model to help predict blank symbols in advance, so the overall decoding time of the model can be reduced.
+<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> all proposed alternative ways to expand search paths to speed up beam search for Transducers.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In this paper, we focus on improving the decoding algorithm of Transducer models by proposing a <em id="S1.p4.1.1" class="ltx_emph ltx_font_italic">label-looping</em> algorithm for batched inference, which achieves significant speed-up. The contribution of this paper is as follows,</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<ol id="S1.I1" class="ltx_enumerate">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">We propose a novel data structure to represent partial hypotheses within each batch, that can be efficiently manipulated using PyTorch <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> CUDA tensor operations.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">We propose a novel strategy to precompute the encoder and decoder projections before the joiner computations.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">We propose a novel <em id="S1.I1.i3.p1.1.1" class="ltx_emph ltx_font_italic">label-looping</em> algorithm that separates the processing of blank and non-blank emissions of Transducer decoding, maximizing parallelism.</p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S1.I1.i4.p1" class="ltx_para">
+<p id="S1.I1.i4.p1.1" class="ltx_p">Our algorithm brings up to 2.0X speedup compared to existing batched decoding algorithms, and can bring up to 3.2X speedup when combined with technique in compilation and GPU call optimization.</p>
+</div>
+</li>
+<li id="S1.I1.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">5.</span> 
+<div id="S1.I1.i5.p1" class="ltx_para">
+<p id="S1.I1.i5.p1.1" class="ltx_p">Our implementation will be open-sourced through NeMo toolkit <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> so that the results can be easily reproduced.</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Transducer Backgrounds</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">The Transducer model is a popular end-to-end speech recognition model architecture, first proposed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>. As shown in Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Transducer Backgrounds ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, it consists of an encoder, a decoder, and a joiner. The encoder and decoder extract higher-level information from the audio and the text history context, respectively, and the joiner combines the outputs of the encoder and decoder and computes a probability distribution over the vocabulary. The Transducer model has a special <em id="S2.p1.1.1" class="ltx_emph ltx_font_italic">blank</em> symbol in its vocabulary, which serves as outputs for input frames that do not contribute additional labels to the output.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2406.06220/assets/rnnt.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_square" width="219" height="197" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Transducer Architecture</figcaption>
+</figure>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">The inference of the Transducer model requires traversing the encoder output frame by frame, and iteratively predicting tokens based on the prediction history. Algorithm <a href="#alg1" title="Algorithm 1 ‣ 2 Transducer Backgrounds ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the inference procedure of the Transducer model on a single audio utterance, where the blank symbol is represented as <math id="S2.p2.1.m1.1" class="ltx_Math" alttext="\O" display="inline"><semantics id="S2.p2.1.m1.1a"><mi id="S2.p2.1.m1.1.1" xref="S2.p2.1.m1.1.1.cmml">Ø</mi><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.1b"><ci id="S2.p2.1.m1.1.1.cmml" xref="S2.p2.1.m1.1.1">italic-Ø</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.1c">\O</annotation></semantics></math>. We point out several observations of the algorithm, from lines 11 to 15,</p>
+<ul id="S2.I1" class="ltx_itemize">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p"><math id="S2.I1.i1.p1.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.I1.i1.p1.1.m1.1a"><mi id="S2.I1.i1.p1.1.m1.1.1" xref="S2.I1.i1.p1.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i1.p1.1.m1.1b"><ci id="S2.I1.i1.p1.1.m1.1.1.cmml" xref="S2.I1.i1.p1.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i1.p1.1.m1.1c">t</annotation></semantics></math> is incremented only after blank predictions and remains unchanged for non-blank predictions.</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p">only non-blank predictions are added to the output, and used to update decoder states.</p>
+</div>
+</li>
+</ul>
+</div>
+<figure id="alg1" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span id="alg1.2.1.1" class="ltx_text ltx_font_bold">Algorithm 1</span> </span> Inference of Transducer</figcaption>
+<div id="alg1.3" class="ltx_listing ltx_listing">
+<div id="alg1.l1" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l1.1.1.1" class="ltx_text" style="font-size:80%;">1:</span></span>  <span id="alg1.l1.2" class="ltx_text ltx_font_bold">input:</span> acoustic input <math id="alg1.l1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="alg1.l1.m1.1a"><mi id="alg1.l1.m1.1.1" xref="alg1.l1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="alg1.l1.m1.1b"><ci id="alg1.l1.m1.1.1.cmml" xref="alg1.l1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l1.m1.1c">x</annotation></semantics></math>
+
+</div>
+<div id="alg1.l2" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l2.1.1.1" class="ltx_text" style="font-size:80%;">2:</span></span>  enc = encoder(x) # output dim is [T, dim]
+
+</div>
+<div id="alg1.l3" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l3.1.1.1" class="ltx_text" style="font-size:80%;">3:</span></span>  hyp, state, <math id="alg1.l3.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg1.l3.m1.1a"><mi id="alg1.l3.m1.1.1" xref="alg1.l3.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg1.l3.m1.1b"><ci id="alg1.l3.m1.1.1.cmml" xref="alg1.l3.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.m1.1c">t</annotation></semantics></math> = [], decoder.init_state(), 0
+
+</div>
+<div id="alg1.l4" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l4.1.1.1" class="ltx_text" style="font-size:80%;">4:</span></span>  <span id="alg1.l4.2" class="ltx_text ltx_font_bold">while</span> <math id="alg1.l4.m1.1" class="ltx_Math" alttext="t&lt;" display="inline"><semantics id="alg1.l4.m1.1a"><mrow id="alg1.l4.m1.1.1" xref="alg1.l4.m1.1.1.cmml"><mi id="alg1.l4.m1.1.1.2" xref="alg1.l4.m1.1.1.2.cmml">t</mi><mo id="alg1.l4.m1.1.1.1" xref="alg1.l4.m1.1.1.1.cmml">&lt;</mo><mi id="alg1.l4.m1.1.1.3" xref="alg1.l4.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l4.m1.1b"><apply id="alg1.l4.m1.1.1.cmml" xref="alg1.l4.m1.1.1"><lt id="alg1.l4.m1.1.1.1.cmml" xref="alg1.l4.m1.1.1.1"></lt><ci id="alg1.l4.m1.1.1.2.cmml" xref="alg1.l4.m1.1.1.2">𝑡</ci><csymbol cd="latexml" id="alg1.l4.m1.1.1.3.cmml" xref="alg1.l4.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l4.m1.1c">t&lt;</annotation></semantics></math> T <span id="alg1.l4.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg1.l5" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l5.1.1.1" class="ltx_text" style="font-size:80%;">5:</span></span>     <span id="alg1.l5.2" class="ltx_text ltx_font_bold">if</span> hyp is [] <span id="alg1.l5.3" class="ltx_text ltx_font_bold">then</span>
+
+
+
+</div>
+<div id="alg1.l6" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l6.1.1.1" class="ltx_text" style="font-size:80%;">6:</span></span>        dec, new-state = decoder(state, BOS)
+
+</div>
+<div id="alg1.l7" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l7.1.1.1" class="ltx_text" style="font-size:80%;">7:</span></span>     <span id="alg1.l7.2" class="ltx_text ltx_font_bold">else</span>
+
+
+</div>
+<div id="alg1.l8" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l8.1.1.1" class="ltx_text" style="font-size:80%;">8:</span></span>        dec, new-state = decoder(state, hyp[-1])
+
+</div>
+<div id="alg1.l9" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l9.1.1.1" class="ltx_text" style="font-size:80%;">9:</span></span>     token-probs = joiner(enc[<math id="alg1.l9.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg1.l9.m1.1a"><mi id="alg1.l9.m1.1.1" xref="alg1.l9.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg1.l9.m1.1b"><ci id="alg1.l9.m1.1.1.cmml" xref="alg1.l9.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l9.m1.1c">t</annotation></semantics></math>], dec)
+
+</div>
+<div id="alg1.l10" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l10.1.1.1" class="ltx_text" style="font-size:80%;">10:</span></span>     prediction = argmax(token-probs)
+
+</div>
+<div id="alg1.l11" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l11.1.1.1" class="ltx_text" style="font-size:80%;">11:</span></span>     <span id="alg1.l11.2" class="ltx_text ltx_font_bold">if</span> prediction is not Ø <span id="alg1.l11.3" class="ltx_text ltx_font_bold">then</span>
+
+
+
+</div>
+<div id="alg1.l12" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l12.1.1.1" class="ltx_text" style="font-size:80%;">12:</span></span>        hyp.append(prediction)
+
+</div>
+<div id="alg1.l13" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l13.1.1.1" class="ltx_text" style="font-size:80%;">13:</span></span>        state = new-state
+
+</div>
+<div id="alg1.l14" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l14.1.1.1" class="ltx_text" style="font-size:80%;">14:</span></span>     <span id="alg1.l14.2" class="ltx_text ltx_font_bold">else</span>
+
+
+</div>
+<div id="alg1.l15" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l15.1.1.1" class="ltx_text" style="font-size:80%;">15:</span></span>        <math id="alg1.l15.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg1.l15.m1.1a"><mi id="alg1.l15.m1.1.1" xref="alg1.l15.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg1.l15.m1.1b"><ci id="alg1.l15.m1.1.1.cmml" xref="alg1.l15.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l15.m1.1c">t</annotation></semantics></math> = <math id="alg1.l15.m2.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg1.l15.m2.1a"><mi id="alg1.l15.m2.1.1" xref="alg1.l15.m2.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg1.l15.m2.1b"><ci id="alg1.l15.m2.1.1.cmml" xref="alg1.l15.m2.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l15.m2.1c">t</annotation></semantics></math> + 1
+
+</div>
+<div id="alg1.l16" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l16.1.1.1" class="ltx_text" style="font-size:80%;">16:</span></span>  <span id="alg1.l16.2" class="ltx_text ltx_font_bold">return</span> hyp
+
+</div>
+</div>
+</figure>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.2" class="ltx_p">The difference in processing blank and non-blank predictions presents difficulties for efficient batch inference for Transducers, since the time index <math id="S2.p3.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.p3.1.m1.1a"><mi id="S2.p3.1.m1.1.1" xref="S2.p3.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.p3.1.m1.1b"><ci id="S2.p3.1.m1.1.1.cmml" xref="S2.p3.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.1.m1.1c">t</annotation></semantics></math> for different utterances can increment at different times, and partial hypotheses for different utterances might grow asynchronously as well. This asynchrony makes it hard to implement an efficient batched inference algorithm that can leverage parallel computing fully.
+A common implementation of batched inference for Transducers is shown in Algorithm <a href="#alg2" title="Algorithm 2 ‣ 2 Transducer Backgrounds ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (for simplicity, this Algorithm assumes all audio in the batch has the same length <math id="S2.p3.2.m2.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.p3.2.m2.1a"><mi id="S2.p3.2.m2.1.1" xref="S2.p3.2.m2.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.p3.2.m2.1b"><ci id="S2.p3.2.m2.1.1.cmml" xref="S2.p3.2.m2.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.2.m2.1c">T</annotation></semantics></math>; in practice, we need extra checks in the code for individual audio lengths). This algorithm has the following limitations in terms of efficiency:</p>
+<ol id="S2.I2" class="ltx_enumerate">
+<li id="S2.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I2.i1.p1" class="ltx_para">
+<p id="S2.I2.i1.p1.1" class="ltx_p">The algorithm increments the time stamp <math id="S2.I2.i1.p1.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.I2.i1.p1.1.m1.1a"><mi id="S2.I2.i1.p1.1.m1.1.1" xref="S2.I2.i1.p1.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.I2.i1.p1.1.m1.1b"><ci id="S2.I2.i1.p1.1.m1.1.1.cmml" xref="S2.I2.i1.p1.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I2.i1.p1.1.m1.1c">t</annotation></semantics></math> for different utterances synchronously, and if one utterance predicts a non-blank symbol, all other utterances in the same batch must wait before the whole batch advances to the next time step.</p>
+</div>
+</li>
+<li id="S2.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I2.i2.p1" class="ltx_para">
+<p id="S2.I2.i2.p1.1" class="ltx_p">Lines 7 and 15 selectively update the decoder states and outputs, depending on whether the last prediction is blank. This means some of the decoder state computation is wasted.</p>
+</div>
+</li>
+<li id="S2.I2.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S2.I2.i3.p1" class="ltx_para">
+<p id="S2.I2.i3.p1.1" class="ltx_p">At lines 11 to 13, processing of different hypotheses in the batch is done sequentially with a for-loop to handle blank and non-blank predictions differently, which can be time-consuming.</p>
+</div>
+</li>
+</ol>
+</div>
+<figure id="alg2" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span id="alg2.2.1.1" class="ltx_text ltx_font_bold">Algorithm 2</span> </span> Batched Inference of Transducer</figcaption>
+<div id="alg2.3" class="ltx_listing ltx_listing">
+<div id="alg2.l1" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l1.1.1.1" class="ltx_text" style="font-size:80%;">1:</span></span>  <span id="alg2.l1.2" class="ltx_text ltx_font_bold">input:</span> acoustic input <math id="alg2.l1.m1.4" class="ltx_Math" alttext="x_{1},x_{2},...,x_{B}" display="inline"><semantics id="alg2.l1.m1.4a"><mrow id="alg2.l1.m1.4.4.3" xref="alg2.l1.m1.4.4.4.cmml"><msub id="alg2.l1.m1.2.2.1.1" xref="alg2.l1.m1.2.2.1.1.cmml"><mi id="alg2.l1.m1.2.2.1.1.2" xref="alg2.l1.m1.2.2.1.1.2.cmml">x</mi><mn id="alg2.l1.m1.2.2.1.1.3" xref="alg2.l1.m1.2.2.1.1.3.cmml">1</mn></msub><mo id="alg2.l1.m1.4.4.3.4" xref="alg2.l1.m1.4.4.4.cmml">,</mo><msub id="alg2.l1.m1.3.3.2.2" xref="alg2.l1.m1.3.3.2.2.cmml"><mi id="alg2.l1.m1.3.3.2.2.2" xref="alg2.l1.m1.3.3.2.2.2.cmml">x</mi><mn id="alg2.l1.m1.3.3.2.2.3" xref="alg2.l1.m1.3.3.2.2.3.cmml">2</mn></msub><mo id="alg2.l1.m1.4.4.3.5" xref="alg2.l1.m1.4.4.4.cmml">,</mo><mi mathvariant="normal" id="alg2.l1.m1.1.1" xref="alg2.l1.m1.1.1.cmml">…</mi><mo id="alg2.l1.m1.4.4.3.6" xref="alg2.l1.m1.4.4.4.cmml">,</mo><msub id="alg2.l1.m1.4.4.3.3" xref="alg2.l1.m1.4.4.3.3.cmml"><mi id="alg2.l1.m1.4.4.3.3.2" xref="alg2.l1.m1.4.4.3.3.2.cmml">x</mi><mi id="alg2.l1.m1.4.4.3.3.3" xref="alg2.l1.m1.4.4.3.3.3.cmml">B</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="alg2.l1.m1.4b"><list id="alg2.l1.m1.4.4.4.cmml" xref="alg2.l1.m1.4.4.3"><apply id="alg2.l1.m1.2.2.1.1.cmml" xref="alg2.l1.m1.2.2.1.1"><csymbol cd="ambiguous" id="alg2.l1.m1.2.2.1.1.1.cmml" xref="alg2.l1.m1.2.2.1.1">subscript</csymbol><ci id="alg2.l1.m1.2.2.1.1.2.cmml" xref="alg2.l1.m1.2.2.1.1.2">𝑥</ci><cn type="integer" id="alg2.l1.m1.2.2.1.1.3.cmml" xref="alg2.l1.m1.2.2.1.1.3">1</cn></apply><apply id="alg2.l1.m1.3.3.2.2.cmml" xref="alg2.l1.m1.3.3.2.2"><csymbol cd="ambiguous" id="alg2.l1.m1.3.3.2.2.1.cmml" xref="alg2.l1.m1.3.3.2.2">subscript</csymbol><ci id="alg2.l1.m1.3.3.2.2.2.cmml" xref="alg2.l1.m1.3.3.2.2.2">𝑥</ci><cn type="integer" id="alg2.l1.m1.3.3.2.2.3.cmml" xref="alg2.l1.m1.3.3.2.2.3">2</cn></apply><ci id="alg2.l1.m1.1.1.cmml" xref="alg2.l1.m1.1.1">…</ci><apply id="alg2.l1.m1.4.4.3.3.cmml" xref="alg2.l1.m1.4.4.3.3"><csymbol cd="ambiguous" id="alg2.l1.m1.4.4.3.3.1.cmml" xref="alg2.l1.m1.4.4.3.3">subscript</csymbol><ci id="alg2.l1.m1.4.4.3.3.2.cmml" xref="alg2.l1.m1.4.4.3.3.2">𝑥</ci><ci id="alg2.l1.m1.4.4.3.3.3.cmml" xref="alg2.l1.m1.4.4.3.3.3">𝐵</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="alg2.l1.m1.4c">x_{1},x_{2},...,x_{B}</annotation></semantics></math>
+
+</div>
+<div id="alg2.l2" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l2.1.1.1" class="ltx_text" style="font-size:80%;">2:</span></span>  encs = encoder(<math id="alg2.l2.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="alg2.l2.m1.1a"><mi id="alg2.l2.m1.1.1" xref="alg2.l2.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="alg2.l2.m1.1b"><ci id="alg2.l2.m1.1.1.cmml" xref="alg2.l2.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="alg2.l2.m1.1c">x</annotation></semantics></math>) # output dim is [B, T, dim]
+
+</div>
+<div id="alg2.l3" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l3.1.1.1" class="ltx_text" style="font-size:80%;">3:</span></span>  hyps, states, t = [[] * B], [decoder.init_state() * B], 0
+
+</div>
+<div id="alg2.l4" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l4.1.1.1" class="ltx_text" style="font-size:80%;">4:</span></span>  predictions = [BOS * B]
+
+</div>
+<div id="alg2.l5" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l5.1.1.1" class="ltx_text" style="font-size:80%;">5:</span></span>  <span id="alg2.l5.2" class="ltx_text ltx_font_bold">while</span> <math id="alg2.l5.m1.1" class="ltx_Math" alttext="t&lt;" display="inline"><semantics id="alg2.l5.m1.1a"><mrow id="alg2.l5.m1.1.1" xref="alg2.l5.m1.1.1.cmml"><mi id="alg2.l5.m1.1.1.2" xref="alg2.l5.m1.1.1.2.cmml">t</mi><mo id="alg2.l5.m1.1.1.1" xref="alg2.l5.m1.1.1.1.cmml">&lt;</mo><mi id="alg2.l5.m1.1.1.3" xref="alg2.l5.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg2.l5.m1.1b"><apply id="alg2.l5.m1.1.1.cmml" xref="alg2.l5.m1.1.1"><lt id="alg2.l5.m1.1.1.1.cmml" xref="alg2.l5.m1.1.1.1"></lt><ci id="alg2.l5.m1.1.1.2.cmml" xref="alg2.l5.m1.1.1.2">𝑡</ci><csymbol cd="latexml" id="alg2.l5.m1.1.1.3.cmml" xref="alg2.l5.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg2.l5.m1.1c">t&lt;</annotation></semantics></math> T <span id="alg2.l5.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg2.l6" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l6.1.1.1" class="ltx_text" style="font-size:80%;">6:</span></span>     d, s = decoder(states, predictions)
+
+</div>
+<div id="alg2.l7" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l7.1.1.1" class="ltx_text" style="font-size:80%;">7:</span></span>     decs[i], states[i] = d[i], s[i] where predictions[i] <math id="alg2.l7.m1.1" class="ltx_Math" alttext="\neq" display="inline"><semantics id="alg2.l7.m1.1a"><mo id="alg2.l7.m1.1.1" xref="alg2.l7.m1.1.1.cmml">≠</mo><annotation-xml encoding="MathML-Content" id="alg2.l7.m1.1b"><neq id="alg2.l7.m1.1.1.cmml" xref="alg2.l7.m1.1.1"></neq></annotation-xml><annotation encoding="application/x-tex" id="alg2.l7.m1.1c">\neq</annotation></semantics></math> Ø
+</div>
+<div id="alg2.l8" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l8.1.1.1" class="ltx_text" style="font-size:80%;">8:</span></span>     token-probs = joiner(encs[<math id="alg2.l8.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg2.l8.m1.1a"><mi id="alg2.l8.m1.1.1" xref="alg2.l8.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg2.l8.m1.1b"><ci id="alg2.l8.m1.1.1.cmml" xref="alg2.l8.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg2.l8.m1.1c">t</annotation></semantics></math>], decs)
+
+</div>
+<div id="alg2.l9" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l9.1.1.1" class="ltx_text" style="font-size:80%;">9:</span></span>     predictions = argmax(token-probs)
+
+</div>
+<div id="alg2.l10" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l10.1.1.1" class="ltx_text" style="font-size:80%;">10:</span></span>     <span id="alg2.l10.2" class="ltx_text ltx_font_bold">while</span> predictions is not all Ø <span id="alg2.l10.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg2.l11" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l11.1.1.1" class="ltx_text" style="font-size:80%;">11:</span></span>        <span id="alg2.l11.2" class="ltx_text ltx_font_bold">for</span> i = 1 to B <span id="alg2.l11.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg2.l12" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l12.1.1.1" class="ltx_text" style="font-size:80%;">12:</span></span>           <span id="alg2.l12.2" class="ltx_text ltx_font_bold">if</span> predictions[i] is not Ø <span id="alg2.l12.3" class="ltx_text ltx_font_bold">then</span>
+
+
+
+</div>
+<div id="alg2.l13" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l13.1.1.1" class="ltx_text" style="font-size:80%;">13:</span></span>              hyps[i].append(predictions[i])
+
+</div>
+<div id="alg2.l14" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l14.1.1.1" class="ltx_text" style="font-size:80%;">14:</span></span>        d, s = decoder(states, predictions)
+
+</div>
+<div id="alg2.l15" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l15.1.1.1" class="ltx_text" style="font-size:80%;">15:</span></span>        decs[i], states[i] = d[i], s[i] where predictions[i] <math id="alg2.l15.m1.1" class="ltx_Math" alttext="\neq" display="inline"><semantics id="alg2.l15.m1.1a"><mo id="alg2.l15.m1.1.1" xref="alg2.l15.m1.1.1.cmml">≠</mo><annotation-xml encoding="MathML-Content" id="alg2.l15.m1.1b"><neq id="alg2.l15.m1.1.1.cmml" xref="alg2.l15.m1.1.1"></neq></annotation-xml><annotation encoding="application/x-tex" id="alg2.l15.m1.1c">\neq</annotation></semantics></math> Ø
+</div>
+<div id="alg2.l16" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l16.1.1.1" class="ltx_text" style="font-size:80%;">16:</span></span>        token-probs = joiner(encs[<math id="alg2.l16.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="alg2.l16.m1.1a"><mi id="alg2.l16.m1.1.1" xref="alg2.l16.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="alg2.l16.m1.1b"><ci id="alg2.l16.m1.1.1.cmml" xref="alg2.l16.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="alg2.l16.m1.1c">t</annotation></semantics></math>], decs)
+
+</div>
+<div id="alg2.l17" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l17.1.1.1" class="ltx_text" style="font-size:80%;">17:</span></span>        predictions = argmax(token-probs)
+
+</div>
+<div id="alg2.l18" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l18.1.1.1" class="ltx_text" style="font-size:80%;">18:</span></span>     <math id="alg2.l18.m1.1" class="ltx_Math" alttext="t=t+1" display="inline"><semantics id="alg2.l18.m1.1a"><mrow id="alg2.l18.m1.1.1" xref="alg2.l18.m1.1.1.cmml"><mi id="alg2.l18.m1.1.1.2" xref="alg2.l18.m1.1.1.2.cmml">t</mi><mo id="alg2.l18.m1.1.1.1" xref="alg2.l18.m1.1.1.1.cmml">=</mo><mrow id="alg2.l18.m1.1.1.3" xref="alg2.l18.m1.1.1.3.cmml"><mi id="alg2.l18.m1.1.1.3.2" xref="alg2.l18.m1.1.1.3.2.cmml">t</mi><mo id="alg2.l18.m1.1.1.3.1" xref="alg2.l18.m1.1.1.3.1.cmml">+</mo><mn id="alg2.l18.m1.1.1.3.3" xref="alg2.l18.m1.1.1.3.3.cmml">1</mn></mrow></mrow><annotation-xml encoding="MathML-Content" id="alg2.l18.m1.1b"><apply id="alg2.l18.m1.1.1.cmml" xref="alg2.l18.m1.1.1"><eq id="alg2.l18.m1.1.1.1.cmml" xref="alg2.l18.m1.1.1.1"></eq><ci id="alg2.l18.m1.1.1.2.cmml" xref="alg2.l18.m1.1.1.2">𝑡</ci><apply id="alg2.l18.m1.1.1.3.cmml" xref="alg2.l18.m1.1.1.3"><plus id="alg2.l18.m1.1.1.3.1.cmml" xref="alg2.l18.m1.1.1.3.1"></plus><ci id="alg2.l18.m1.1.1.3.2.cmml" xref="alg2.l18.m1.1.1.3.2">𝑡</ci><cn type="integer" id="alg2.l18.m1.1.1.3.3.cmml" xref="alg2.l18.m1.1.1.3.3">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg2.l18.m1.1c">t=t+1</annotation></semantics></math>
+
+</div>
+<div id="alg2.l19" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg2.l19.1.1.1" class="ltx_text" style="font-size:80%;">19:</span></span>  <span id="alg2.l19.2" class="ltx_text ltx_font_bold">return</span> hyps
+
+</div>
+</div>
+</figure>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Methods</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">In this Section, we describe our algorithm for batched Transducer inference, which consists of two novel components,</p>
+<ol id="S3.I1" class="ltx_enumerate">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p">a data structure to represent hypotheses in a batch that supports parallelized manipulation of hypotheses and,</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S3.I1.i2.p1" class="ltx_para">
+<p id="S3.I1.i2.p1.1" class="ltx_p">an algorithm to run inference on Transducers that maximizes the parallelism.</p>
+</div>
+</li>
+</ol>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Representation of batched hypotheses</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">To represent partial hypotheses during inference, instead of having a single <em id="S3.SS1.p1.1.1" class="ltx_emph ltx_font_italic">Hypothesis</em> class that stores the tokens, time-stamps, scores, etc, we store information about hypotheses in a batch in one <em id="S3.SS1.p1.1.2" class="ltx_emph ltx_font_italic">BatchedHyps</em> class, in which all information is stored with CUDA tensors. Operations like adding tokens to partial hypotheses, updating scores and time-stamps etc, are implemented with masked CUDA tensor operations for both correctness and high efficiency.
+Our design stores the texts of partial hypotheses with a 2D tensor of [B, max-length], where B is the number of utterances in the batch, and the max-length is initialized with a smaller value proportional to the length of the audio and will double the size if this max-length is exceeded.
+We show a simple pseudo-code for the class below and would advise readers to check our open-sourced implementation for details.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<div id="S3.SS1.p2.1" class="ltx_listing ltx_lst_language_Python ltx_lstlisting ltx_listing">
+<div class="ltx_listing_data"><a href="data:text/plain;base64,Y2xhc3MgQmF0Y2hlZEh5cHM6CiAgY3VycmVudF9sZW5ndGhzOiBMb25nVGVuc29yW0JdCiAgdHJhbnNjcmlwdHM6IExvbmdUZW5zb3JbQiwgbWF4X2xlbmd0aF0KCiAgZGVmIGFkZF9yZXN1bHRzKHNlbGYsIGFkZF9tYXNrLCBsYWJlbHMpOgogICAgc2VsZi50cmFuc2NyaXB0c1tyYW5nZShCKSwKICAgICAgc2VsZi5jdXJyZW50X2xlbmd0aHNdID0gbGFiZWxzCiAgICBzZWxmLmN1cnJlbnRfbGVuZ3RocyArPSBhZGRfbWFzaw==" download="">⬇</a></div>
+<div id="lstnumberx1" class="ltx_listingline">
+<span id="lstnumberx1.1" class="ltx_text ltx_lst_keyword ltx_font_typewriter ltx_font_bold">class</span><span id="lstnumberx1.2" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx1.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">BatchedHyps</span><span id="lstnumberx1.4" class="ltx_text ltx_font_typewriter">:</span>
+</div>
+<div id="lstnumberx2" class="ltx_listingline">
+<span id="lstnumberx2.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx2.2" class="ltx_text ltx_lst_identifier ltx_font_typewriter">current_lengths</span><span id="lstnumberx2.3" class="ltx_text ltx_font_typewriter">:</span><span id="lstnumberx2.4" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx2.5" class="ltx_text ltx_lst_identifier ltx_font_typewriter">LongTensor</span><span id="lstnumberx2.6" class="ltx_text ltx_font_typewriter">[</span><span id="lstnumberx2.7" class="ltx_text ltx_lst_identifier ltx_font_typewriter">B</span><span id="lstnumberx2.8" class="ltx_text ltx_font_typewriter">]</span>
+</div>
+<div id="lstnumberx3" class="ltx_listingline">
+<span id="lstnumberx3.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx3.2" class="ltx_text ltx_lst_identifier ltx_font_typewriter">transcripts</span><span id="lstnumberx3.3" class="ltx_text ltx_font_typewriter">:</span><span id="lstnumberx3.4" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx3.5" class="ltx_text ltx_lst_identifier ltx_font_typewriter">LongTensor</span><span id="lstnumberx3.6" class="ltx_text ltx_font_typewriter">[</span><span id="lstnumberx3.7" class="ltx_text ltx_lst_identifier ltx_font_typewriter">B</span><span id="lstnumberx3.8" class="ltx_text ltx_font_typewriter">,</span><span id="lstnumberx3.9" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx3.10" class="ltx_text ltx_lst_identifier ltx_font_typewriter">max_length</span><span id="lstnumberx3.11" class="ltx_text ltx_font_typewriter">]</span>
+</div>
+<div id="lstnumberx4" class="ltx_listingline">
+</div>
+<div id="lstnumberx5" class="ltx_listingline">
+<span id="lstnumberx5.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx5.2" class="ltx_text ltx_lst_keyword ltx_font_typewriter ltx_font_bold">def</span><span id="lstnumberx5.3" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx5.4" class="ltx_text ltx_lst_identifier ltx_font_typewriter">add_results</span><span id="lstnumberx5.5" class="ltx_text ltx_font_typewriter">(</span><span id="lstnumberx5.6" class="ltx_text ltx_lst_identifier ltx_font_typewriter">self</span><span id="lstnumberx5.7" class="ltx_text ltx_font_typewriter">,</span><span id="lstnumberx5.8" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx5.9" class="ltx_text ltx_lst_identifier ltx_font_typewriter">add_mask</span><span id="lstnumberx5.10" class="ltx_text ltx_font_typewriter">,</span><span id="lstnumberx5.11" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx5.12" class="ltx_text ltx_lst_identifier ltx_font_typewriter">labels</span><span id="lstnumberx5.13" class="ltx_text ltx_font_typewriter">):</span>
+</div>
+<div id="lstnumberx6" class="ltx_listingline">
+<span id="lstnumberx6.1" class="ltx_text ltx_lst_space ltx_font_typewriter">    </span><span id="lstnumberx6.2" class="ltx_text ltx_lst_identifier ltx_font_typewriter">self</span><span id="lstnumberx6.3" class="ltx_text ltx_font_typewriter">.</span><span id="lstnumberx6.4" class="ltx_text ltx_lst_identifier ltx_font_typewriter">transcripts</span><span id="lstnumberx6.5" class="ltx_text ltx_font_typewriter">[</span><span id="lstnumberx6.6" class="ltx_text ltx_lst_keyword ltx_lst_keywords2 ltx_font_typewriter ltx_font_bold">range</span><span id="lstnumberx6.7" class="ltx_text ltx_font_typewriter">(</span><span id="lstnumberx6.8" class="ltx_text ltx_lst_identifier ltx_font_typewriter">B</span><span id="lstnumberx6.9" class="ltx_text ltx_font_typewriter">),</span>
+</div>
+<div id="lstnumberx7" class="ltx_listingline">
+<span id="lstnumberx7.1" class="ltx_text ltx_lst_space ltx_font_typewriter">      </span><span id="lstnumberx7.2" class="ltx_text ltx_lst_identifier ltx_font_typewriter">self</span><span id="lstnumberx7.3" class="ltx_text ltx_font_typewriter">.</span><span id="lstnumberx7.4" class="ltx_text ltx_lst_identifier ltx_font_typewriter">current_lengths</span><span id="lstnumberx7.5" class="ltx_text ltx_font_typewriter">]</span><span id="lstnumberx7.6" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx7.7" class="ltx_text ltx_font_typewriter">=</span><span id="lstnumberx7.8" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx7.9" class="ltx_text ltx_lst_identifier ltx_font_typewriter">labels</span>
+</div>
+<div id="lstnumberx8" class="ltx_listingline">
+<span id="lstnumberx8.1" class="ltx_text ltx_lst_space ltx_font_typewriter">    </span><span id="lstnumberx8.2" class="ltx_text ltx_lst_identifier ltx_font_typewriter">self</span><span id="lstnumberx8.3" class="ltx_text ltx_font_typewriter">.</span><span id="lstnumberx8.4" class="ltx_text ltx_lst_identifier ltx_font_typewriter">current_lengths</span><span id="lstnumberx8.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx8.6" class="ltx_text ltx_font_typewriter">+=</span><span id="lstnumberx8.7" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx8.8" class="ltx_text ltx_lst_identifier ltx_font_typewriter">add_mask</span>
+</div>
+</div>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Label-looping algorithm for conventional Transducers</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">Our proposed algorithm is shown in Algorithm <a href="#alg3" title="Algorithm 3 ‣ 3.2 Label-looping algorithm for conventional Transducers ‣ 3 Methods ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. It is based on the observation that, only <em id="S3.SS2.p1.1.1" class="ltx_emph ltx_font_italic">non-blank predictions</em> require decoder state updates, so we can maximize the parallelism of computation by having the outer loop (line 6) of the algorithm process only <em id="S3.SS2.p1.1.2" class="ltx_emph ltx_font_italic">non-blank predictions</em>. The less expensive <em id="S3.SS2.p1.1.3" class="ltx_emph ltx_font_italic">blank predictions</em> are processed in the inner loop (line 12). With this design, after the decoder is run (line 7), there is no need to selectively keep the updated states, a process that is required in the original Algorithm <a href="#alg2" title="Algorithm 2 ‣ 2 Transducer Backgrounds ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (lines 7 and 15).</p>
+</div>
+<figure id="alg3" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span id="alg3.2.1.1" class="ltx_text ltx_font_bold">Algorithm 3</span> </span> Label-looping Algorithm</figcaption>
+<div id="alg3.3" class="ltx_listing ltx_listing">
+<div id="alg3.l1" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l1.1.1.1" class="ltx_text" style="font-size:80%;">1:</span></span>  <span id="alg3.l1.2" class="ltx_text ltx_font_bold">input:</span> acoustic input <math id="alg3.l1.m1.4" class="ltx_Math" alttext="x_{1},x_{2},...,x_{B}" display="inline"><semantics id="alg3.l1.m1.4a"><mrow id="alg3.l1.m1.4.4.3" xref="alg3.l1.m1.4.4.4.cmml"><msub id="alg3.l1.m1.2.2.1.1" xref="alg3.l1.m1.2.2.1.1.cmml"><mi id="alg3.l1.m1.2.2.1.1.2" xref="alg3.l1.m1.2.2.1.1.2.cmml">x</mi><mn id="alg3.l1.m1.2.2.1.1.3" xref="alg3.l1.m1.2.2.1.1.3.cmml">1</mn></msub><mo id="alg3.l1.m1.4.4.3.4" xref="alg3.l1.m1.4.4.4.cmml">,</mo><msub id="alg3.l1.m1.3.3.2.2" xref="alg3.l1.m1.3.3.2.2.cmml"><mi id="alg3.l1.m1.3.3.2.2.2" xref="alg3.l1.m1.3.3.2.2.2.cmml">x</mi><mn id="alg3.l1.m1.3.3.2.2.3" xref="alg3.l1.m1.3.3.2.2.3.cmml">2</mn></msub><mo id="alg3.l1.m1.4.4.3.5" xref="alg3.l1.m1.4.4.4.cmml">,</mo><mi mathvariant="normal" id="alg3.l1.m1.1.1" xref="alg3.l1.m1.1.1.cmml">…</mi><mo id="alg3.l1.m1.4.4.3.6" xref="alg3.l1.m1.4.4.4.cmml">,</mo><msub id="alg3.l1.m1.4.4.3.3" xref="alg3.l1.m1.4.4.3.3.cmml"><mi id="alg3.l1.m1.4.4.3.3.2" xref="alg3.l1.m1.4.4.3.3.2.cmml">x</mi><mi id="alg3.l1.m1.4.4.3.3.3" xref="alg3.l1.m1.4.4.3.3.3.cmml">B</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="alg3.l1.m1.4b"><list id="alg3.l1.m1.4.4.4.cmml" xref="alg3.l1.m1.4.4.3"><apply id="alg3.l1.m1.2.2.1.1.cmml" xref="alg3.l1.m1.2.2.1.1"><csymbol cd="ambiguous" id="alg3.l1.m1.2.2.1.1.1.cmml" xref="alg3.l1.m1.2.2.1.1">subscript</csymbol><ci id="alg3.l1.m1.2.2.1.1.2.cmml" xref="alg3.l1.m1.2.2.1.1.2">𝑥</ci><cn type="integer" id="alg3.l1.m1.2.2.1.1.3.cmml" xref="alg3.l1.m1.2.2.1.1.3">1</cn></apply><apply id="alg3.l1.m1.3.3.2.2.cmml" xref="alg3.l1.m1.3.3.2.2"><csymbol cd="ambiguous" id="alg3.l1.m1.3.3.2.2.1.cmml" xref="alg3.l1.m1.3.3.2.2">subscript</csymbol><ci id="alg3.l1.m1.3.3.2.2.2.cmml" xref="alg3.l1.m1.3.3.2.2.2">𝑥</ci><cn type="integer" id="alg3.l1.m1.3.3.2.2.3.cmml" xref="alg3.l1.m1.3.3.2.2.3">2</cn></apply><ci id="alg3.l1.m1.1.1.cmml" xref="alg3.l1.m1.1.1">…</ci><apply id="alg3.l1.m1.4.4.3.3.cmml" xref="alg3.l1.m1.4.4.3.3"><csymbol cd="ambiguous" id="alg3.l1.m1.4.4.3.3.1.cmml" xref="alg3.l1.m1.4.4.3.3">subscript</csymbol><ci id="alg3.l1.m1.4.4.3.3.2.cmml" xref="alg3.l1.m1.4.4.3.3.2">𝑥</ci><ci id="alg3.l1.m1.4.4.3.3.3.cmml" xref="alg3.l1.m1.4.4.3.3.3">𝐵</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="alg3.l1.m1.4c">x_{1},x_{2},...,x_{B}</annotation></semantics></math>
+
+</div>
+<div id="alg3.l2" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l2.1.1.1" class="ltx_text" style="font-size:80%;">2:</span></span>  encs = encoder(<math id="alg3.l2.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="alg3.l2.m1.1a"><mi id="alg3.l2.m1.1.1" xref="alg3.l2.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="alg3.l2.m1.1b"><ci id="alg3.l2.m1.1.1.cmml" xref="alg3.l2.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="alg3.l2.m1.1c">x</annotation></semantics></math>) # output dim is [B, T, dim]
+
+</div>
+<div id="alg3.l3" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l3.1.1.1" class="ltx_text" style="font-size:80%;">3:</span></span>  hyps, state = [[] * B], [decoder.init_state() * B]
+
+</div>
+<div id="alg3.l4" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l4.1.1.1" class="ltx_text" style="font-size:80%;">4:</span></span>  predictions = [BOS * B]
+
+</div>
+<div id="alg3.l5" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l5.1.1.1" class="ltx_text" style="font-size:80%;">5:</span></span>  b2done, b2t = [False * B], [0 * B]
+
+</div>
+<div id="alg3.l6" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l6.1.1.1" class="ltx_text" style="font-size:80%;">6:</span></span>  <span id="alg3.l6.2" class="ltx_text ltx_font_bold">while</span> not b2done.all() <span id="alg3.l6.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg3.l7" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l7.1.1.1" class="ltx_text" style="font-size:80%;">7:</span></span>     decs, states = decoder(state, predictions)
+
+</div>
+<div id="alg3.l8" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l8.1.1.1" class="ltx_text" style="font-size:80%;">8:</span></span>     token-probs = joiner(encs[b2t], decs)
+
+</div>
+<div id="alg3.l9" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l9.1.1.1" class="ltx_text" style="font-size:80%;">9:</span></span>     predictions = argmax(token-probs)
+
+</div>
+<div id="alg3.l10" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l10.1.1.1" class="ltx_text" style="font-size:80%;">10:</span></span>     b2t[b] += 1 where prediction[b] is Ø
+</div>
+<div id="alg3.l11" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l11.1.1.1" class="ltx_text" style="font-size:80%;">11:</span></span>     b2done[b] = true where b2t[b] <math id="alg3.l11.m1.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="alg3.l11.m1.1a"><mo id="alg3.l11.m1.1.1" xref="alg3.l11.m1.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="alg3.l11.m1.1b"><gt id="alg3.l11.m1.1.1.cmml" xref="alg3.l11.m1.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="alg3.l11.m1.1c">&gt;</annotation></semantics></math> audio-length[b]
+
+</div>
+<div id="alg3.l12" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l12.1.1.1" class="ltx_text" style="font-size:80%;">12:</span></span>     <span id="alg3.l12.2" class="ltx_text ltx_font_bold">while</span> some prediction is blank and not done <span id="alg3.l12.3" class="ltx_text ltx_font_bold">do</span>
+
+
+
+</div>
+<div id="alg3.l13" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l13.1.1.1" class="ltx_text" style="font-size:80%;">13:</span></span>        token-probs = joiner(encs[b2t], decs)
+
+</div>
+<div id="alg3.l14" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l14.1.1.1" class="ltx_text" style="font-size:80%;">14:</span></span>        more-predictions = argmax(token-probs)
+
+</div>
+<div id="alg3.l15" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l15.1.1.1" class="ltx_text" style="font-size:80%;">15:</span></span>        predictions[b] = more-predictions[b] where prediction[b] is Ø
+</div>
+<div id="alg3.l16" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l16.1.1.1" class="ltx_text" style="font-size:80%;">16:</span></span>        b2t[b] += 1 where prediction[b] is still Ø
+</div>
+<div id="alg3.l17" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l17.1.1.1" class="ltx_text" style="font-size:80%;">17:</span></span>        b2done[b] = true where b2t[b] <math id="alg3.l17.m1.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="alg3.l17.m1.1a"><mo id="alg3.l17.m1.1.1" xref="alg3.l17.m1.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="alg3.l17.m1.1b"><gt id="alg3.l17.m1.1.1.cmml" xref="alg3.l17.m1.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="alg3.l17.m1.1c">&gt;</annotation></semantics></math> audio-length[b]
+
+</div>
+<div id="alg3.l18" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l18.1.1.1" class="ltx_text" style="font-size:80%;">18:</span></span>     hyps.append(predictions)
+
+</div>
+<div id="alg3.l19" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg3.l19.1.1.1" class="ltx_text" style="font-size:80%;">19:</span></span>  <span id="alg3.l19.2" class="ltx_text ltx_font_bold">return</span> hyps
+
+</div>
+</div>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Label-looping algorithm for TDT models</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">Token-and-duration Transducers (TDT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> is an extension of Transducer models that decouples token and duration prediction. With TDT, <math id="S3.SS3.p1.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.SS3.p1.1.m1.1a"><mi id="S3.SS3.p1.1.m1.1.1" xref="S3.SS3.p1.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.1.m1.1b"><ci id="S3.SS3.p1.1.m1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.1.m1.1c">t</annotation></semantics></math> can be updated regardless of whether the predicted token is blank, and can be incremented by more than 1.
+The label-looping algorithm for the TDT model is mostly similar to that of conventional Transducers. The only difference is at lines 10 and 16 when updating <em id="S3.SS3.p1.1.1" class="ltx_emph ltx_font_italic">b2t</em>, the increment amount of the TDT model comes from the model's duration prediction. Due to space limitations, we refer our readers to our open-source implementation for the actual algorithm.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Precomputation of encoder/decoder projections</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">In the standard Transducer model architecture, two linear layers are
+required to project the encoder and decoder outputs into the same vector space.
+While this computation is not costly per se, it is repeatedly run through the
+decoding process and thus can become a significant overhead. In our algorithm,
+we propose precomputing those projections, at lines 2 and 7 in Algorithm 3, before feeding them to the joiner.</p>
+</div>
+<div id="S3.SS4.p2" class="ltx_para">
+<p id="S3.SS4.p2.1" class="ltx_p">We point out it is also possible to precompute the projections with the original Algorithm 1 (lines 2, 6, and 14). However,
+the decoder updates (lines 6 and 14) happen much more frequently, and part of the output would be filtered out at lines 7 and 15. As a result, the precomputation of projections would have a smaller impact on the original algorithm.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experiments</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">We compared our label-looping algorithm against the baseline algorithm shown in Algorithm <a href="#alg2" title="Algorithm 2 ‣ 2 Transducer Backgrounds ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+All experiments are conducted with the NeMo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> toolkit.
+Table <a href="#S4.T1" title="Table 1 ‣ 4 Experiments ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the information of models that we use for evaluation. All these models are publicly available.
+They use 8X subsampling in its Fast-Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> encoder's output, and 1024 BPE <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> vocabulary size at the output side. <span id="footnote1a" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>The model names are <a href="stt_en_fastconformer_transducer_large" title="" class="ltx_ref ltx_url ltx_font_typewriter">stt_en_fastconformer_transducer_large</a>, <a href="parakeet-rnnt-1.1b" title="" class="ltx_ref ltx_url ltx_font_typewriter">parakeet-rnnt-1.1b</a>, <a href="stt_en_fastconformer_tdt_large" title="" class="ltx_ref ltx_url ltx_font_typewriter">stt_en_fastconformer_tdt_large</a>, <a href="parakeet-tdt-1.1b" title="" class="ltx_ref ltx_url ltx_font_typewriter">parakeet-tdt-1.1b</a> respectively. Modes can be accessed by appending the model name after <a target="_blank" href="https://huggingface.co/nvidia/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://huggingface.co/nvidia/</a>.</span></span></span>
+For each model, we report its <em id="S4.p1.1.1" class="ltx_emph ltx_font_italic">inversed real-time factor</em> <span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>defined as the ratio of audio length to its decoding time. E.g. if it takes 1 second to decode a 2-second audio, then RTFx = 2.</span></span></span> (RTFx) on the LibriSpeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> test-other dataset. To provide a better picture, we also include the RTFx for time spent in decoding only, excluding encoder computations, since the latter can more directly reflect the speed-up brought by our algorithms. To get a more accurate measurement, we first run decoding twice to ``warm up'' the cache required for those algorithms to work more efficiently, and report the average time from the third to fifth measurement. All experiments are done on NVIDIA RTX A6000 GPU.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Transducer models used for evaluation</figcaption>
+<table id="S4.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">model</th>
+<th id="S4.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">model type</th>
+<th id="S4.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"># params (millions)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.2.1" class="ltx_tr">
+<td id="S4.T1.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">RNNT-L</td>
+<td id="S4.T1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">Transducer</td>
+<td id="S4.T1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">114</td>
+</tr>
+<tr id="S4.T1.1.3.2" class="ltx_tr">
+<td id="S4.T1.1.3.2.1" class="ltx_td ltx_align_center">RNNT-XXL</td>
+<td id="S4.T1.1.3.2.2" class="ltx_td ltx_align_center">Transducer</td>
+<td id="S4.T1.1.3.2.3" class="ltx_td ltx_align_center">1100</td>
+</tr>
+<tr id="S4.T1.1.4.3" class="ltx_tr">
+<td id="S4.T1.1.4.3.1" class="ltx_td ltx_align_center">TDT-L</td>
+<td id="S4.T1.1.4.3.2" class="ltx_td ltx_align_center">TDT</td>
+<td id="S4.T1.1.4.3.3" class="ltx_td ltx_align_center">114</td>
+</tr>
+<tr id="S4.T1.1.5.4" class="ltx_tr">
+<td id="S4.T1.1.5.4.1" class="ltx_td ltx_align_center ltx_border_bb">TDT-XXL</td>
+<td id="S4.T1.1.5.4.2" class="ltx_td ltx_align_center ltx_border_bb">TDT</td>
+<td id="S4.T1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_bb">1100</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Results with Transducers</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">Table <a href="#S4.T2" title="Table 2 ‣ 4.1 Results with Transducers ‣ 4 Experiments ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> presents our results with conventional Transducers.
+We see the label-looping algorithm consistently speeds up decoding regardless of batch size. Also, a larger relative speedup can be seen for larger batch sizes. This is because, as the batch size grows, the baseline algorithm introduces more overhead, since the more utterances, the more likely one utterance would need to wait for other utterances to advance <math id="S4.SS1.p1.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S4.SS1.p1.1.m1.1a"><mi id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.1b"><ci id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.1c">t</annotation></semantics></math> in decoding. We also observe greater speed-up for non-encoder computations. Notably, for both models, our algorithm brings around 2.6X speed-up for batch-size=32 on non-encoder computations.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Transducer (RNN-T) decoding speed of different algorithms and batch-sizes on LibriSpeech test-other. We report ``total computation RTFx / non-encoder RTFx'', where RTF is the inversed real-time factor. Bf16 precision is used for all models. WER is 3.9% for the L model, 2.7% for the XXL model.</figcaption>
+<table id="S4.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.1.1.1" class="ltx_tr">
+<th id="S4.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">model-batch</th>
+<th id="S4.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">baseline</th>
+<th id="S4.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">ours</th>
+<th id="S4.T2.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">rel. speedup</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.2.1" class="ltx_tr">
+<td id="S4.T2.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">L-1</td>
+<td id="S4.T2.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">70.1 / 105.6</td>
+<td id="S4.T2.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">95.5 / 179.0</td>
+<td id="S4.T2.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">1.4X / 1.7X</td>
+</tr>
+<tr id="S4.T2.1.3.2" class="ltx_tr">
+<td id="S4.T2.1.3.2.1" class="ltx_td ltx_align_center">L-4</td>
+<td id="S4.T2.1.3.2.2" class="ltx_td ltx_align_center">158.4 / 200.1</td>
+<td id="S4.T2.1.3.2.3" class="ltx_td ltx_align_center">257.1 / 385.4</td>
+<td id="S4.T2.1.3.2.4" class="ltx_td ltx_align_center">1.6X / 1.9X</td>
+</tr>
+<tr id="S4.T2.1.4.3" class="ltx_tr">
+<td id="S4.T2.1.4.3.1" class="ltx_td ltx_align_center">L-16</td>
+<td id="S4.T2.1.4.3.2" class="ltx_td ltx_align_center">313.7 / 390.1</td>
+<td id="S4.T2.1.4.3.3" class="ltx_td ltx_align_center">584.5 / 894.4</td>
+<td id="S4.T2.1.4.3.4" class="ltx_td ltx_align_center">1.9X / 2.3X</td>
+</tr>
+<tr id="S4.T2.1.5.4" class="ltx_tr">
+<td id="S4.T2.1.5.4.1" class="ltx_td ltx_align_center">L-32</td>
+<td id="S4.T2.1.5.4.2" class="ltx_td ltx_align_center">383.8 / 512.8</td>
+<td id="S4.T2.1.5.4.3" class="ltx_td ltx_align_center">751.2 / 1403.6</td>
+<td id="S4.T2.1.5.4.4" class="ltx_td ltx_align_center">2.0X / 2.7X</td>
+</tr>
+<tr id="S4.T2.1.6.5" class="ltx_tr">
+<td id="S4.T2.1.6.5.1" class="ltx_td ltx_align_center ltx_border_t">XXL-1</td>
+<td id="S4.T2.1.6.5.2" class="ltx_td ltx_align_center ltx_border_t">47.2 / 98.8</td>
+<td id="S4.T2.1.6.5.3" class="ltx_td ltx_align_center ltx_border_t">59.3 / 174.3</td>
+<td id="S4.T2.1.6.5.4" class="ltx_td ltx_align_center ltx_border_t">1.3X / 1.8X</td>
+</tr>
+<tr id="S4.T2.1.7.6" class="ltx_tr">
+<td id="S4.T2.1.7.6.1" class="ltx_td ltx_align_center">XXL-4</td>
+<td id="S4.T2.1.7.6.2" class="ltx_td ltx_align_center">123.9 / 191.3</td>
+<td id="S4.T2.1.7.6.3" class="ltx_td ltx_align_center">183.1 / 380.0</td>
+<td id="S4.T2.1.7.6.4" class="ltx_td ltx_align_center">1.5X / 2.0X</td>
+</tr>
+<tr id="S4.T2.1.8.7" class="ltx_tr">
+<td id="S4.T2.1.8.7.1" class="ltx_td ltx_align_center">XXL-16</td>
+<td id="S4.T2.1.8.7.2" class="ltx_td ltx_align_center">218.0 / 388.5</td>
+<td id="S4.T2.1.8.7.3" class="ltx_td ltx_align_center">321.6 / 886.2</td>
+<td id="S4.T2.1.8.7.4" class="ltx_td ltx_align_center">1.5X / 2.3X</td>
+</tr>
+<tr id="S4.T2.1.9.8" class="ltx_tr">
+<td id="S4.T2.1.9.8.1" class="ltx_td ltx_align_center ltx_border_bb">XXL-32</td>
+<td id="S4.T2.1.9.8.2" class="ltx_td ltx_align_center ltx_border_bb">248.4 / 532.7</td>
+<td id="S4.T2.1.9.8.3" class="ltx_td ltx_align_center ltx_border_bb">352.2 / 1393.4</td>
+<td id="S4.T2.1.9.8.4" class="ltx_td ltx_align_center ltx_border_bb">1.4X / 2.6X</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Results with Token-and-Duration Transducers</h3>
+
+<figure id="S4.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>TDT decoding speed of different algorithms with different batchsizes on LibriSpeech test-other. Total RTFx / non-encoder RTFx. WER is 3.7% for the L model, 2.8% for XXL for our label-looping algorithm; for baseline, the WER fluctuates.</figcaption>
+<table id="S4.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.1.1.1" class="ltx_tr">
+<th id="S4.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">model name</th>
+<th id="S4.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">baseline</th>
+<th id="S4.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">ours</th>
+<th id="S4.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">rel. speedup</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.2.1" class="ltx_tr">
+<td id="S4.T3.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">L-1</td>
+<td id="S4.T3.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">116.0 / 264.5</td>
+<td id="S4.T3.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">116.5 / 269.3</td>
+<td id="S4.T3.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">1.0X / 1.0X</td>
+</tr>
+<tr id="S4.T3.1.3.2" class="ltx_tr">
+<td id="S4.T3.1.3.2.1" class="ltx_td ltx_align_center">L-4</td>
+<td id="S4.T3.1.3.2.2" class="ltx_td ltx_align_center">243.4 / 358.1</td>
+<td id="S4.T3.1.3.2.3" class="ltx_td ltx_align_center">347.7 / 632.6</td>
+<td id="S4.T3.1.3.2.4" class="ltx_td ltx_align_center">1.4X / 1.8X</td>
+</tr>
+<tr id="S4.T3.1.4.3" class="ltx_tr">
+<td id="S4.T3.1.4.3.1" class="ltx_td ltx_align_center">L-16</td>
+<td id="S4.T3.1.4.3.2" class="ltx_td ltx_align_center">416.2 / 563.9</td>
+<td id="S4.T3.1.4.3.3" class="ltx_td ltx_align_center">825.3 / 1615.9</td>
+<td id="S4.T3.1.4.3.4" class="ltx_td ltx_align_center">2.0X / 2.9X</td>
+</tr>
+<tr id="S4.T3.1.5.4" class="ltx_tr">
+<td id="S4.T3.1.5.4.1" class="ltx_td ltx_align_center">L-32</td>
+<td id="S4.T3.1.5.4.2" class="ltx_td ltx_align_center">477.2 / 696.7</td>
+<td id="S4.T3.1.5.4.3" class="ltx_td ltx_align_center">1006.8 / 2634.2</td>
+<td id="S4.T3.1.5.4.4" class="ltx_td ltx_align_center">2.1X / 3.8X</td>
+</tr>
+<tr id="S4.T3.1.6.5" class="ltx_tr">
+<td id="S4.T3.1.6.5.1" class="ltx_td ltx_align_center ltx_border_t">XXL-1</td>
+<td id="S4.T3.1.6.5.2" class="ltx_td ltx_align_center ltx_border_t">66.1 / 241.3</td>
+<td id="S4.T3.1.6.5.3" class="ltx_td ltx_align_center ltx_border_t">66.1 / 251.7</td>
+<td id="S4.T3.1.6.5.4" class="ltx_td ltx_align_center ltx_border_t">1.0X / 1.0X</td>
+</tr>
+<tr id="S4.T3.1.7.6" class="ltx_tr">
+<td id="S4.T3.1.7.6.1" class="ltx_td ltx_align_center">XXL-4</td>
+<td id="S4.T3.1.7.6.2" class="ltx_td ltx_align_center">147.9 / 258.8</td>
+<td id="S4.T3.1.7.6.3" class="ltx_td ltx_align_center">219.5 / 584.5</td>
+<td id="S4.T3.1.7.6.4" class="ltx_td ltx_align_center">1.5X / 2.3X</td>
+</tr>
+<tr id="S4.T3.1.8.7" class="ltx_tr">
+<td id="S4.T3.1.8.7.1" class="ltx_td ltx_align_center">XXL-16</td>
+<td id="S4.T3.1.8.7.2" class="ltx_td ltx_align_center">243.7 / 478.3</td>
+<td id="S4.T3.1.8.7.3" class="ltx_td ltx_align_center">374.8 / 1467.9</td>
+<td id="S4.T3.1.8.7.4" class="ltx_td ltx_align_center">1.5X / 3.1X</td>
+</tr>
+<tr id="S4.T3.1.9.8" class="ltx_tr">
+<td id="S4.T3.1.9.8.1" class="ltx_td ltx_align_center ltx_border_bb">XXL-32</td>
+<td id="S4.T3.1.9.8.2" class="ltx_td ltx_align_center ltx_border_bb">265.2 / 616.3</td>
+<td id="S4.T3.1.9.8.3" class="ltx_td ltx_align_center ltx_border_bb">394.0 / 2434.1</td>
+<td id="S4.T3.1.9.8.4" class="ltx_td ltx_align_center ltx_border_bb">1.5X / 3.9X</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">Our TDT model experiments are shown in Table <a href="#S4.T3" title="Table 3 ‣ 4.2 Results with Token-and-Duration Transducers ‣ 4 Experiments ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. Note, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> states that TDT's batched decoding is tricky, and proposes an approximate algorithm, which is not deterministic and requires special modifications during model training. At the time of writing, there is no open-sourced implementation of exact and general-purpose TDT batched decoding, and ours is the first such implementation available to the public.
+For the baseline, we adopt the approximate method from <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, which takes the minimum of predicted durations in the batch for advancement. Note: this method has non-deterministic outputs and is only included here for time comparison purposes. We can see from the Table that greater speed-ups can be seen with TDT models than conventional Transducers, and we see over 3.8X speed-up for non-encoder computation for both L and XXL models.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Analysis</h2>
+
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Impact of precomputing encoder/decoder projections</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">In this section, we study the effects of precomputing the encoder and decoder projections, where we compare the decoding RTFx with or without the precomputation of projections. The results are in Table <a href="#S5.T4" title="Table 4 ‣ 5.1 Impact of precomputing encoder/decoder projections ‣ 5 Analysis ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>. We see that overall, precomputing the encoder and decoder outputs brings over 20% speedup for the decoding process excluding encoder computations.</p>
+</div>
+<figure id="S5.T4" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 4: </span>Decoding RTFx (excluding encoder) between precomputation of projections and on-the-fly projections. Decoded on LibriSpeech test-other with RNNT-Large, bf16 precision.</figcaption>
+<table id="S5.T4.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.1.1.1" class="ltx_tr">
+<th id="S5.T4.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt">batch-size</th>
+<th id="S5.T4.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">w/o</th>
+<th id="S5.T4.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">w/precomputation</th>
+<th id="S5.T4.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">rel. speed-up</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.1.2.1" class="ltx_tr">
+<th id="S5.T4.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t">1</th>
+<td id="S5.T4.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">147.7</td>
+<td id="S5.T4.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">179.0</td>
+<td id="S5.T4.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">1.21X</td>
+</tr>
+<tr id="S5.T4.1.3.2" class="ltx_tr">
+<th id="S5.T4.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">4</th>
+<td id="S5.T4.1.3.2.2" class="ltx_td ltx_align_center">303.8</td>
+<td id="S5.T4.1.3.2.3" class="ltx_td ltx_align_center">385.4</td>
+<td id="S5.T4.1.3.2.4" class="ltx_td ltx_align_center">1.27X</td>
+</tr>
+<tr id="S5.T4.1.4.3" class="ltx_tr">
+<th id="S5.T4.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb">32</th>
+<td id="S5.T4.1.4.3.2" class="ltx_td ltx_align_center ltx_border_bb">1080.3</td>
+<td id="S5.T4.1.4.3.3" class="ltx_td ltx_align_center ltx_border_bb">1403.6</td>
+<td id="S5.T4.1.4.3.4" class="ltx_td ltx_align_center ltx_border_bb">1.30X</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Impacts of different subsampling rates</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">In all experiments we report above, the encoder uses 8X subsampling. Another commonly used subsampling rate is 4X and we test our model's speed on a publicly available model <span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><a target="_blank" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_transducer_large" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_transducer_large</a></span></span></span> and show the results in Table <a href="#S5.T5" title="Table 5 ‣ 5.2 Impacts of different subsampling rates ‣ 5 Analysis ‣ Label-Looping: Highly Efficient Decoding for Transducers" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>.
+We see that with 4X models, our algorithm also significantly improves inference speed, up to 1.8X for total runtime and 2.6X for non-encoder computation.</p>
+</div>
+<figure id="S5.T5" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>Performance on conformer-large models with 4x subsampling, bf16 precision. We report the total / non-encoder RTFx for decoding Librispeech-testother.</figcaption>
+<table id="S5.T5.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T5.1.1.1" class="ltx_tr">
+<th id="S5.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt">batch-size</th>
+<th id="S5.T5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">baseline</th>
+<th id="S5.T5.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">ours</th>
+<th id="S5.T5.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">rel. speed-up</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T5.1.2.1" class="ltx_tr">
+<th id="S5.T5.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t">1</th>
+<td id="S5.T5.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">48.2 / 63.2</td>
+<td id="S5.T5.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">79.5 / 130.8</td>
+<td id="S5.T5.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">1.6X / 2.1X</td>
+</tr>
+<tr id="S5.T5.1.3.2" class="ltx_tr">
+<th id="S5.T5.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">4</th>
+<td id="S5.T5.1.3.2.2" class="ltx_td ltx_align_center">104.7 / 123.1</td>
+<td id="S5.T5.1.3.2.3" class="ltx_td ltx_align_center">192.9 / 262.3</td>
+<td id="S5.T5.1.3.2.4" class="ltx_td ltx_align_center">1.8X / 2.1X</td>
+</tr>
+<tr id="S5.T5.1.4.3" class="ltx_tr">
+<th id="S5.T5.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">16</th>
+<td id="S5.T5.1.4.3.2" class="ltx_td ltx_align_center">187.2 / 243.1</td>
+<td id="S5.T5.1.4.3.3" class="ltx_td ltx_align_center">341.6 / 577.5</td>
+<td id="S5.T5.1.4.3.4" class="ltx_td ltx_align_center">1.8X / 2.4X</td>
+</tr>
+<tr id="S5.T5.1.5.4" class="ltx_tr">
+<th id="S5.T5.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb">32</th>
+<td id="S5.T5.1.5.4.2" class="ltx_td ltx_align_center ltx_border_bb">226.0 / 328.7</td>
+<td id="S5.T5.1.5.4.3" class="ltx_td ltx_align_center ltx_border_bb">399.0 / 866.2</td>
+<td id="S5.T5.1.5.4.4" class="ltx_td ltx_align_center ltx_border_bb">1.8X / 2.6X</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>Combining with TorchScript and CUDA Graphs</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p">Since the speedup brought by our method is purely algorithmic, it can be combined with other methods that speed up the decoding process from other aspects such as code compilation and GPU call optimization. Here we report decoding results combining our algorithm with TorchScript<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span><a target="_blank" href="https://pytorch.org/docs/stable/jit.html" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://pytorch.org/docs/stable/jit.html</a></span></span></span> and with CUDA graphs <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>
+methods. Note, TorchScript and CUDA graph techniques aren't compatible at the time of writing, hence we do not include experiments combining them both.</p>
+</div>
+<figure id="S5.T6" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 6: </span>Combining Label-looping with TorchScript or CUDA graphs. Batchsize = 32. Full-time RTFx / Non-encoder RTFx.</figcaption>
+<table id="S5.T6.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T6.1.1.1" class="ltx_tr">
+<th id="S5.T6.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">model</th>
+<th id="S5.T6.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">RNNT</th>
+<th id="S5.T6.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">TDT</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T6.1.2.1" class="ltx_tr">
+<td id="S5.T6.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">label-looping</td>
+<td id="S5.T6.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">751.2 / 1403.6</td>
+<td id="S5.T6.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">1006.8 / 2634.2</td>
+</tr>
+<tr id="S5.T6.1.3.2" class="ltx_tr">
+<td id="S5.T6.1.3.2.1" class="ltx_td ltx_align_center">+ TorchScript</td>
+<td id="S5.T6.1.3.2.2" class="ltx_td ltx_align_center">882.1 / 1942.4</td>
+<td id="S5.T6.1.3.2.3" class="ltx_td ltx_align_center">1118.0 / 3628.2</td>
+</tr>
+<tr id="S5.T6.1.4.3" class="ltx_tr">
+<td id="S5.T6.1.4.3.1" class="ltx_td ltx_align_center ltx_border_bb">+ cudagraphs</td>
+<td id="S5.T6.1.4.3.2" class="ltx_td ltx_align_center ltx_border_bb">1232.7 / 5197.2</td>
+<td id="S5.T6.1.4.3.3" class="ltx_td ltx_align_center ltx_border_bb">1393.4 / 9614.8</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.SS3.p2" class="ltx_para">
+<p id="S5.SS3.p2.1" class="ltx_p">Note, that we show this table to see that our method is compatible with other methods. Because of the scope of this paper, this is the only table with results that combine those other optimizations. The speedup reported from all other tables is solely from the algorithmic changes of the label-looping algorithm.</p>
+</div>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusion and Future Work</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this paper, we introduce a novel set of algorithms to improve the efficiency of Transducer models. The algorithm uses a label-looping design, which minimizes the number of decoder calls, greatly reducing the runtime of decoding. Our experiments show that label-looping algorithms bring consistent speed-up over baseline batched decoding algorithms. In particular, we see a speed-up of 2.0X for batch size = 32 for conventional Transducers, and 2.1X for TDT models.
+Since our method is purely algorithmic, we show that it can combine with other methods like TorchScript and CUDA graphs to bring further speed up to Transducer decoding.
+Our algorithm will be open-sourced through the NeMo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> toolkit.</p>
+</div>
+<div id="S6.p2" class="ltx_para">
+<p id="S6.p2.1" class="ltx_p">We will continue our research efforts to improve the algorithm for future work. In particular, since our algorithm reduces the computational cost of the decoder greatly, this allows us to scale up the decoder for Transducer networks, e.g. using more layers or using more sophisticated networks like Transformers.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+O. Kuchaiev, J. Li, H. Nguyen, O. Hrinchuk, R. Leary, B. Ginsburg, S. Kriman, S. Beliaev, V. Lavrukhin <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Nemo: a toolkit for building ai applications using neural modules,'' in <em id="bib.bib1.2.2" class="ltx_emph ltx_font_italic">NeurIPS Workshop on Systems for ML</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+S. Watanabe, T. Hori, S. Karita, T. Hayashi, J. Nishitoba, Y. Unno, N. Enrique Yalta Soplin, J. Heymann, M. Wiesner, N. Chen, A. Renduchintala, and T. Ochiai, ``ESPnet: End-to-end speech processing toolkit,'' in <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+M. Ravanelli, T. Parcollet, P. Plantinga, A. Rouhe, S. Cornell, L. Lugosch, C. Subakan, N. Dawalatabad, A. Heba, J. Zhong <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``SpeechBrain: A general-purpose speech toolkit,'' in <em id="bib.bib3.2.2" class="ltx_emph ltx_font_italic">Interspeech</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Y. Wang, T. Chen, H. Xu, S. Ding, H. Lv, Y. Shao, N. Peng, L. Xie, S. Watanabe, and S. Khudanpur, ``Espresso: A fast end-to-end neural speech recognition toolkit,'' in <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Automatic Speech Recognition and Understanding Workshop (ASRU)</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+A. Graves, ``Sequence transduction with recurrent neural networks,'' in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2012.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+A. Graves, S. Fernández, F. Gomez, and J. Schmidhuber, ``Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks,'' in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2006.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, ``Attention is all you need,'' <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, vol. 30, 2017.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+A. Gulati, J. Qin, C.-C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han, S. Wang, Z. Zhang, Y. Wu <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Conformer: Convolution-augmented transformer for speech recognition,'' <em id="bib.bib8.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2005.08100</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+M. Ghodsi, X. Liu, J. Apfel, R. Cabrera, and E. Weinstein, ``Rnn-transducer with stateless prediction network,'' in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2020, pp. 7049–7053.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+H. Xu, F. Jia, S. Majumdar, S. Watanabe, and B. Ginsburg, ``Multi-blank transducers for speech recognition,'' <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">arXiv:2211.03541</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+H. Xu, F. Jia, S. Majumdar, H. Huang, S. Watanabe, and B. Ginsburg, ``Efficient sequence transduction by jointly predicting tokens and durations,'' <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2304.06795</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+W. Kang, L. Guo, F. Kuang, L. Lin, M. Luo, Z. Yao, X. Yang, P. Żelasko, and D. Povey, ``Fast and parallel decoding for transducer,'' in <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Z. Tian, J. Yi, Y. Bai, J. Tao, S. Zhang, and Z. Wen, ``Fsr: Accelerating the inference process of transducer-based models by applying fast-skip regularization,'' <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2104.02882</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+G. Saon, Z. Tüske, and K. Audhkhasi, ``Alignment-length synchronous decoding for rnn transducer,'' in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2020, pp. 7804–7808.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+J. Kim, Y. Lee, and E. Kim, ``Accelerating rnn transducer inference via adaptive expansion search,'' <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">IEEE Signal Processing Letters</em>, vol. 27, pp. 2019–2023, 2020.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+J. Kim and Y. Lee, ``Accelerating rnn transducer inference via one-step constrained beam search,'' <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2002.03577</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan, T. Killeen, Z. Lin, N. Gimelshein, L. Antiga <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Pytorch: An imperative style, high-performance deep learning library,'' <em id="bib.bib17.2.2" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, vol. 32, 2019.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+D. Rekesh, N. R. Koluguri, S. Kriman, S. Majumdar, V. Noroozi, H. Huang, O. Hrinchuk, K. Puvvada, A. Kumar, J. Balam <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Fast conformer with linearly scalable attention for efficient speech recognition,'' in <em id="bib.bib18.2.2" class="ltx_emph ltx_font_italic">2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</em>.   IEEE, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+R. Sennrich, B. Haddow, and A. Birch, ``Neural machine translation of rare words with subword units,'' <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1508.07909</em>, 2015.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, ``Librispeech: an asr corpus based on public domain audio books,'' in <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">2015 IEEE international conference on acoustics, speech and signal processing (ICASSP)</em>.   IEEE, 2015, pp. 5206–5210.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+D. Galvez, V. Bataev, H. Xu, and T. Kaldewey, ``Speed of light exact greedy decoding for rnn-t speech recognition models on gpu,'' <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">arXiv:2406.03791</em>, 2024.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.06219" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.06220" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.06220">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.06220" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.06221" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Jul  5 23:19:57 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

@@ -1,0 +1,1263 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1812.02903] Applied Federated Learning: Improving Google Keyboard Query Suggestions</title><meta property="og:description" content="Federated learning is a distributed form of machine learning where both the
+training data and model training are decentralized. In this paper, we use
+federated learning in a commercial, global-scale setting to train, e…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Applied Federated Learning: Improving Google Keyboard Query Suggestions">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Applied Federated Learning: Improving Google Keyboard Query Suggestions">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1812.02903">
+
+<!--Generated on Sat Mar 16 07:24:44 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Applied Federated Learning: 
+<br class="ltx_break">Improving Google Keyboard Query Suggestions</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Federated learning is a distributed form of machine learning where both the
+training data and model training are decentralized. In this paper, we use
+federated learning in a commercial, global-scale setting to train, evaluate and
+deploy a model to improve virtual keyboard search suggestion quality without
+direct access to the underlying user data. We describe our observations in
+federated training, compare metrics to live deployments, and present resulting
+quality increases. In whole, we demonstrate how federated learning can be
+applied end-to-end to both improve user experiences and enhance user privacy.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">The introduction of <span id="S1.p1.1.1" class="ltx_text ltx_font_italic">Federated Learning</span> (FL) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> enables a new paradigm of machine learning where both the training data
+and most of the computation involved in model training are decentralized. In
+contrast to traditional server-side training where user data is aggregated on
+centralized servers for training, FL instead trains models on end user devices
+while aggregating only ephemeral parameter updates on a centralized server. This
+is particularly advantageous for environments where privacy is paramount.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">The Google Keyboard (Gboard) is a virtual keyboard for mobile devices with over
+1 billion installs in 2018. Gboard includes both typing features like text
+autocorrection, next-word prediction and word completions as well as expression
+features like emoji, GIFs and Stickers (curated, expressive illustrations and
+animations). As both a mobile application and keyboard, Gboard has unique
+constraints which lends itself well to both on-device inference and training.
+First, as a keyboard application with access to much of what a user types into
+their mobile device, Gboard must respect the user’s privacy. Using FL allows us
+to train machine learning models without collecting sensitive raw input from
+users. Second, latency must be minimal; in a mobile typing environment, timely
+suggestions are necessary in order to maintain relevance. On-device inference
+and training through FL enable us to both minimize latency and maximize privacy.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In this paper, we use FL in a commercial, global-scale setting to train and
+deploy a model to production for inference – all without access to the
+underlying user data. Our use case is search query suggestions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>:
+when a user enters text, Gboard uses a <span id="S1.p3.1.1" class="ltx_text ltx_font_italic">baseline model</span> to determine and
+possibly surface search suggestions relevant to the input. For instance, typing
+<span id="S1.p3.1.2" class="ltx_text ltx_font_italic">“Let’s eat at Charlie’s”</span> may display a web query suggestion to search
+for nearby restaurants of that name; other types of suggestions include GIFs and
+Stickers. Here, we improve the feature by filtering query suggestions from the
+baseline model with an additional <span id="S1.p3.1.3" class="ltx_text ltx_font_italic">triggering model</span> that is trained with
+FL. By combining query suggestions with FL and on-device inference, we
+demonstrate quality improvements to Gboard suggestions while enhancing user
+privacy and respecting mobile constraints.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">This is just one application of FL – one where developers have never had access
+to the training data. Other works have additionally explored federated
+multi-task learning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>, parallel stochastic optimization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>,
+and threat actors in the context of FL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>. For next word
+prediction, Gboard has also used FL to train a neural language model which
+demonstrated better performance than a model trained with traditional
+server-based collection and training <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Language models have also
+been trained with FL and differential privacy for further privacy
+enhancements <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. By leveraging federated
+learning, we continue to improve user experience in a privacy-advantaged manner.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">This paper is organized as follows. In Section 2 we introduce FL, its
+advantages and the enabling system infrastructure. Section 3 describes the
+trained and deployed model architecture. Section 4 dives into our experience
+training models with FL including training requirements and characteristics. In
+Section 5, we deploy the federated trained model in a live inference experiment
+and discuss the results, especially with respect to expected versus actual
+metrics.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Federated Learning and On-device Infrastructure</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Federated Learning</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">The wealth of user interaction data on mobile devices, including typing,
+gestures, video and audio capture, etc., holds the promise of enabling ever more
+intelligent applications. FL enables development of such intelligent
+applications while simplifying the task of building privacy into infrastructure
+and training.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">FL is an approach to distributed computation in which the data is kept at the
+network edges and never collected centrally <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Instead, minimal,
+focused model updates are transmitted, optionally employing additional
+privacy-preserving technologies such as secure multiparty computation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+and differential privacy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>. Compared to traditional
+approaches in which data is collected and stored in a central location, FL
+offers increased privacy.</p>
+</div>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.1" class="ltx_p">In summary, FL is best suited for tasks where one or more of the following hold:</p>
+</div>
+<div id="S2.SS1.p4" class="ltx_para">
+<ol id="S2.I1" class="ltx_enumerate">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p">The task labels don’t require human labelers but are naturally derived
+from user interaction.</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p">The training data is privacy sensitive.</p>
+</div>
+</li>
+<li id="S2.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S2.I1.i3.p1" class="ltx_para">
+<p id="S2.I1.i3.p1.1" class="ltx_p">The training data is too large to be feasibly collected centrally.</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S2.SS1.p5" class="ltx_para">
+<p id="S2.SS1.p5.1" class="ltx_p">In particular, the best tasks for FL are those where (1) applies, and
+additionally (2) and/or (3) apply.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Privacy Advantages of Federated Learning</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">FL, specifically Federated Averaging <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, in its most basic form
+proceeds as follows. In a series of <span id="S2.SS2.p1.1.1" class="ltx_text ltx_font_italic">rounds</span>, the parameter server
+selects some number of <span id="S2.SS2.p1.1.2" class="ltx_text ltx_font_italic">clients</span> to participate in training for that
+round. Each selected client downloads a copy of the current model parameters
+and performs some number of local model updates using its local training data;
+for example, it may perform a single epoch of minibatch stochastic gradient
+descent. Then the clients upload their model update – that is, the difference
+between the final parameters after training and the original parameters – and
+the server averages the contributions before accumulating them into the global
+model.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">In contrast to uploading the training data to the server, the FL approach has
+clear privacy advantages even in its most basic form:</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<ol id="S2.I2" class="ltx_enumerate">
+<li id="S2.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I2.i1.p1" class="ltx_para">
+<p id="S2.I2.i1.p1.1" class="ltx_p">Only the minimal information necessary for model training (the model
+parameter deltas) is transmitted. The updates will never contain more
+information than the data from which they derive, and typically will contain
+much less. In particular, this reduces the risk of deanonymization via joins
+with other data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>.</p>
+</div>
+</li>
+<li id="S2.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I2.i2.p1" class="ltx_para">
+<p id="S2.I2.i2.p1.1" class="ltx_p">The model update is ephemeral, lasting only long enough to be
+transmitted and incorporated into the global model. Thus while the model
+aggregator needs to be trusted enough to be given access to each client’s
+model parameter deltas, only the final, trained model is supplied to end
+users for inference. Typically any one client’s contribution to that final
+model is negligible.</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S2.SS2.p4" class="ltx_para">
+<p id="S2.SS2.p4.1" class="ltx_p">In addition to these advantages, FL can guarantee an even higher standard of
+privacy by making use of two additional techniques. With <span id="S2.SS2.p4.1.1" class="ltx_text ltx_font_italic">secure
+aggregation</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, clients’ updates are securely summed into a
+single aggregate update without revealing any client’s individual component
+even to the server. This is accomplished by cryptographically simulating a
+trusted third party. <span id="S2.SS2.p4.1.2" class="ltx_text ltx_font_italic">Differential privacy</span> techniques can be used in
+which each client adds a carefully calibrated amount of noise to their update
+to mask their contribution to the learned model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. However, since
+neither of these techniques were employed in the present work, we will not
+describe them in further detail here.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>System Description</h3>
+
+<figure id="S2.F1" class="ltx_figure"><img src="/html/1812.02903/assets/figures/system_arch.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="699" height="291" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S2.F1.2.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Architecture overview. Inference and training are on-device; model
+updates are sent to the server during training rounds and trained models
+are deployed manually to clients.</figcaption>
+</figure>
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">In this section we provide a brief technical description of the client and
+server side runtime that enables FL in Gboard by walking through the process of
+performing training, evaluation and inference of the query suggestion triggering
+model.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p">As described earlier, our use case is to train a model that predicts whether
+query suggestions are useful, in order to filter out less relevant queries. We
+collect training data for this model by observing user interactions with the
+app: when surfacing a query suggestion to a user, a tuple <span id="S2.SS3.p2.1.1" class="ltx_text ltx_font_italic">(features;
+label)</span> is stored in an on-device <span id="S2.SS3.p2.1.2" class="ltx_text ltx_font_italic">training cache</span>, a SQLite based
+database with a time-to-live based data retention policy.</p>
+</div>
+<div id="S2.SS3.p3" class="ltx_para">
+<ul id="S2.I3" class="ltx_itemize">
+<li id="S2.I3.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i1.p1" class="ltx_para">
+<p id="S2.I3.i1.p1.1" class="ltx_p"><span id="S2.I3.i1.p1.1.1" class="ltx_text ltx_font_italic">features</span> is a collection of query and context related
+information</p>
+</div>
+</li>
+<li id="S2.I3.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i2.p1" class="ltx_para">
+<p id="S2.I3.i2.p1.1" class="ltx_p"><span id="S2.I3.i2.p1.1.1" class="ltx_text ltx_font_italic">label</span> is the associated user action from {<span id="S2.I3.i2.p1.1.2" class="ltx_text ltx_font_italic">clicked,
+ignored</span>}.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S2.SS3.p4" class="ltx_para">
+<p id="S2.SS3.p4.1" class="ltx_p">This data is then used for on-device training and evaluation of models provided
+by our servers.</p>
+</div>
+<div id="S2.SS3.p5" class="ltx_para">
+<p id="S2.SS3.p5.1" class="ltx_p">A key requirement for our on-device machine learning infrastructure is to have
+no impact on user experience and mobile data usage. We achieve this by using
+Android’s JobScheduler to schedule background jobs that run in a separate Unix
+process when the device is idle, charging, and connected to an unmetered
+network, and interrupt the task when these conditions change.</p>
+</div>
+<div id="S2.SS3.p6" class="ltx_para">
+<p id="S2.SS3.p6.1" class="ltx_p">When conditions allow – typically at night time when a phone is charging and
+connected to a Wi-Fi network – the client runtime is started and checks in with
+our server infrastructure, providing a <span id="S2.SS3.p6.1.1" class="ltx_text ltx_font_italic">population name</span> identifier, but
+no information that could be used to identify the device or user. The server
+runtime waits until a predefined number of clients for this population have
+connected, then provides each with a <span id="S2.SS3.p6.1.2" class="ltx_text ltx_font_italic">training task</span> that contains:</p>
+</div>
+<div id="S2.SS3.p7" class="ltx_para">
+<ul id="S2.I4" class="ltx_itemize">
+<li id="S2.I4.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I4.i1.p1" class="ltx_para">
+<p id="S2.I4.i1.p1.1" class="ltx_p">a model consisting of a TensorFlow graph and
+checkpoint <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite></p>
+</div>
+</li>
+<li id="S2.I4.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I4.i2.p1" class="ltx_para">
+<p id="S2.I4.i2.p1.1" class="ltx_p">metadata about how to execute the model (input + output node names,
+types and shapes; operational metrics to report to the server such as loss,
+statistics of the data processed). Execution can refer, but is not limited
+to, training or evaluation passes.</p>
+</div>
+</li>
+<li id="S2.I4.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I4.i3.p1" class="ltx_para">
+<p id="S2.I4.i3.p1.1" class="ltx_p">selection criteria used to query the training cache (e.g. filter data
+by date)</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S2.SS3.p8" class="ltx_para">
+<p id="S2.SS3.p8.1" class="ltx_p">The client executes the task using a custom task interpreter based on
+TensorFlow Mobile <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, a stripped down Android build of the
+TensorFlow runtime. In the case of training, a task-defined number of epochs
+(stochastic gradient descent passes over the training data) are performed, and
+the resulting updates to the model and operational metrics are anonymously
+uploaded to the server. There – again using TensorFlow – these ephemeral
+updates are aggregated using the Federated Averaging algorithm to produce a new
+model, and the aggregate metrics allow for monitoring training progress.</p>
+</div>
+<div id="S2.SS3.p9" class="ltx_para">
+<p id="S2.SS3.p9.1" class="ltx_p">To balance the load across more devices and avoid over- or under-representing
+individual devices in the training procedure, the client receives a minimum
+delay it should wait before checking in with the server again. In parallel to
+these on-device training tasks that modify the model, we also execute on-device
+evaluation tasks of the most recent model iteration similar to data center
+training to monitor progress, and estimate click-threshold satisfying
+requirements such as retained impression rate. Upon convergence, a trained
+checkpoint is used to create and deploy a model to clients for inference.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Model Architecture</h2>
+
+<figure id="S3.F2" class="ltx_figure"><img src="/html/1812.02903/assets/figures/model_arch.png" id="S3.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="699" height="224" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F2.2.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>Setup of the baseline model (traditionally server trained) with the
+triggering model (federated trained). The baseline model generates candidates
+and the triggering model decides whether to show the candidate.</figcaption>
+</figure>
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">In this section, we describe the model setup used to improve Gboard’s query
+suggestion system. The system works in two stages – a traditionally server-side
+trained <span id="S3.p1.1.1" class="ltx_text ltx_font_italic">baseline model</span> which generates query candidates, and a
+<span id="S3.p1.1.2" class="ltx_text ltx_font_italic">triggering model</span> trained via FL (Figure <a href="#S3.F2" title="Figure 2 ‣ 3 Model Architecture ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>). The goal
+is to improve query click-through-rate (CTR) by taking suggestions from the
+baseline model and removing low quality suggestions through the triggering
+model.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Baseline Model</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">First, we use a <span id="S3.SS1.p1.1.1" class="ltx_text ltx_font_italic">baseline model</span> for query suggestion, trained offline
+with traditional server-based machine learning techniques. This model first
+generates query suggestion candidates by matching the user’s input to an
+on-device subset of the Google Knowledge Graph (KG) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">It then scores these suggestions using a Long Short-Term Memory
+(LSTM) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> network trained on an offline corpus of chat data to detect
+potential query candidates. This LSTM is trained to predict the KG category of a
+word in a sentence and returns higher scores when the KG category of the query
+candidate matches the expected category. With on-device training, we expect to
+improve over the baseline model by making use of user clicks and interactions –
+signals which are available on-device for federated training.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">The highest scoring candidate from the baseline model is selected and displayed
+as a query suggestion (an impression). The user then either clicks on or
+ignores the suggestion. We store these suggestions and user interactions in the
+on-device training cache, along with other features like time of day, to
+generate training examples for use in FL.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Triggering Model</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">The task of the federated trained model is designed to take in the suggested
+query candidate from the baseline model, and determine if the suggestion should
+or should not be shown to the user. We refer to this model as the
+<span id="S3.SS2.p1.1.1" class="ltx_text ltx_font_italic">triggering model</span>. The triggering model used in our experiments is a
+logistic regression model trained to predict the probability of a click; the
+output is a score for a given query, with higher scores meaning greater
+confidence in the suggestion.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">When deploying the triggering model, we select a threshold <math id="S3.SS2.p2.1.m1.1" class="ltx_Math" alttext="\tau" display="inline"><semantics id="S3.SS2.p2.1.m1.1a"><mi id="S3.SS2.p2.1.m1.1.1" xref="S3.SS2.p2.1.m1.1.1.cmml">τ</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.1.m1.1b"><ci id="S3.SS2.p2.1.m1.1.1.cmml" xref="S3.SS2.p2.1.m1.1.1">𝜏</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.1.m1.1c">\tau</annotation></semantics></math> in order to
+reach a desired triggering rate, where a higher threshold is stricter and
+reduces the trigger rate of suggestions. Tuning the triggering threshold allows
+us to balance the tradeoff between providing value to the user and potentially
+hiding a valuable suggestion. As a logistic regression model, the score is in
+logit space, where the predicted probability of a click is the logistic sigmoid
+function applied to the score. In model training and deployment, we evaluated
+performance at uniformly spaced thresholds.</p>
+</div>
+<div id="S3.SS2.p3" class="ltx_para">
+<p id="S3.SS2.p3.1" class="ltx_p">A feature-based representation of the query is supplied to the logistic
+regression model. Below are some of the features we incorporate in our model:</p>
+</div>
+<div id="S3.SS2.p4" class="ltx_para">
+<p id="S3.SS2.p4.1" class="ltx_p"><span id="S3.SS2.p4.1.1" class="ltx_text ltx_font_bold">Past Clicks and Impressions</span> The number of impressions the current user
+has seen on past rich suggestions, as well as the number of times they have
+clicked on a suggestion, both represented as log transformed real values. The
+model takes in both overall clicks and impressions, as well as clicks and
+impressions broken down by KG category. This allows the model to personalize
+triggering based on past user behavior.</p>
+</div>
+<div id="S3.SS2.p5" class="ltx_para">
+<p id="S3.SS2.p5.1" class="ltx_p"><span id="S3.SS2.p5.1.1" class="ltx_text ltx_font_bold">Baseline Score</span> The score output by the baseline model, represented as
+a binned, real-valued feature. This score is derived from an LSTM model over
+the input text, which incorporates context into the model.</p>
+</div>
+<div id="S3.SS2.p6" class="ltx_para">
+<p id="S3.SS2.p6.1" class="ltx_p"><span id="S3.SS2.p6.1.1" class="ltx_text ltx_font_bold">Day of Week, Hour of Day</span> These temporal features, represented as
+one-hot vectors, allow the model to capture temporal patterns in query
+suggestion click behavior.</p>
+</div>
+<div id="S3.SS2.p7" class="ltx_para">
+<p id="S3.SS2.p7.1" class="ltx_p">Using a logistic regression model as an initial use case of FL has the advantage
+of being easily trainable given the convexity of the error function, as compared
+to multi-layer neural networks. For our initial training, we have a limited
+number of clients and training examples, which makes it impractical to train
+models with a large number of parameters. Furthermore, the label is binary and
+heavily skewed (we have many more impressions than clicks). However a benefit of
+logistic regression is that it is possible to interpret and validate the
+resulting trained model by directly inspecting the model weights. In other
+environments with more data or clients, more complex neural network models can
+be trained with FL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Training with Federated Learning</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">Here we describe the conditions we require for FL, as well as observations from
+training with FL.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Federated Training Requirements</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">For training with FL, we enforce several constraints on both devices and FL
+tasks.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<br class="ltx_break">
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">To participate in training, a client device must meet the following
+requirements:</p>
+</div>
+<div id="S4.SS1.p4" class="ltx_para">
+<p id="S4.SS1.p4.1" class="ltx_p"><span id="S4.SS1.p4.1.1" class="ltx_text ltx_font_bold">Environmental Conditions</span> Device must be charging, on unmetered network
+(typically Wi-Fi), and idle. This primarily translates to devices being charged
+overnight and minimizes impact to the user experience.</p>
+</div>
+<div id="S4.SS1.p5" class="ltx_para">
+<p id="S4.SS1.p5.1" class="ltx_p"><span id="S4.SS1.p5.1.1" class="ltx_text ltx_font_bold">Device Specifications</span> Device must have at least 2GB of memory and
+operate Android SDK level 21+.</p>
+</div>
+<div id="S4.SS1.p6" class="ltx_para">
+<p id="S4.SS1.p6.1" class="ltx_p"><span id="S4.SS1.p6.1.1" class="ltx_text ltx_font_bold">Language Restriction</span> Limited to en-US and en-CA users. However, many of
+our training clients are in India and other countries which commonly default to
+an Android locale of en-US, causing unexpected training populations. While this
+is fixed in later infrastructure iterations, the work presented here does have
+this skew.</p>
+</div>
+<div id="S4.SS1.p7" class="ltx_para">
+<br class="ltx_break">
+</div>
+<div id="S4.SS1.p8" class="ltx_para">
+<p id="S4.SS1.p8.1" class="ltx_p">During federated training, we apply the following server constraints to our FL
+tasks:</p>
+</div>
+<div id="S4.SS1.p9" class="ltx_para">
+<p id="S4.SS1.p9.1" class="ltx_p"><span id="S4.SS1.p9.1.1" class="ltx_text ltx_font_bold">Goal Client Count</span> The target number of clients for a round of
+federated training, here 100.</p>
+</div>
+<div id="S4.SS1.p10" class="ltx_para">
+<p id="S4.SS1.p10.1" class="ltx_p"><span id="S4.SS1.p10.1.1" class="ltx_text ltx_font_bold">Minimum Client Count</span> The minimum number of clients required to run a
+round. Here 80, i.e. although we ideally want 100 training clients, we will run
+a round even if we only have 80 clients.</p>
+</div>
+<div id="S4.SS1.p11" class="ltx_para">
+<p id="S4.SS1.p11.1" class="ltx_p"><span id="S4.SS1.p11.1.1" class="ltx_text ltx_font_bold">Training Period</span> How frequently we would like to run rounds of
+training. Here 5 min.</p>
+</div>
+<div id="S4.SS1.p12" class="ltx_para">
+<p id="S4.SS1.p12.1" class="ltx_p"><span id="S4.SS1.p12.1.1" class="ltx_text ltx_font_bold">Report Window</span> The maximum time to wait for clients to report back with
+model updates, here 2 minutes.</p>
+</div>
+<div id="S4.SS1.p13" class="ltx_para">
+<p id="S4.SS1.p13.1" class="ltx_p"><span id="S4.SS1.p13.1.1" class="ltx_text ltx_font_bold">Minimum Reporting Fraction</span> The fraction of clients, relative to the
+actual number of clients gathered for a round, which have to report back to
+commit a round by the end of the Report Window. Here 0.8.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Federated Training</h3>
+
+<figure id="S4.F3" class="ltx_figure"><img src="/html/1812.02903/assets/figures/rounds_completed_combined_hori.png" id="S4.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="699" height="216" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F3.2.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>Round completion over time and round completion rate over time,
+times are in PST. Rounds progress faster at night when more devices are
+charging and on an unmetered network.</figcaption>
+</figure>
+<figure id="S4.F4" class="ltx_figure"><img src="/html/1812.02903/assets/figures/eval_loss_and_example_count.png" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="370" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F4.2.1.1" class="ltx_text ltx_font_bold">Fig. 4</span>: </span>Eval loss and training example count over time, times are in PST,
+hour ranges inclusive. Training example count is highest in the evening as
+more devices are available. In contrast, eval loss is highest during the
+day when few devices are available and those available represent a skewed
+population.</figcaption>
+</figure>
+<figure id="S4.F5" class="ltx_figure"><img src="/html/1812.02903/assets/figures/train_and_eval.png" id="S4.F5.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="370" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F5.2.1.1" class="ltx_text ltx_font_bold">Fig. 5</span>: </span>Train and eval loss of the logistic regression triggering model
+over rounds (bucketed to 100 rounds).</figcaption>
+</figure>
+<figure id="S4.F6" class="ltx_figure"><img src="/html/1812.02903/assets/figures/retained_impressions.png" id="S4.F6.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="370" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F6.4.1.1" class="ltx_text ltx_font_bold">Fig. 6</span>: </span>Retained impressions at thresholds <math id="S4.F6.2.m1.1" class="ltx_Math" alttext="\tau_{0}&lt;\tau_{1}&lt;\tau_{2}" display="inline"><semantics id="S4.F6.2.m1.1b"><mrow id="S4.F6.2.m1.1.1" xref="S4.F6.2.m1.1.1.cmml"><msub id="S4.F6.2.m1.1.1.2" xref="S4.F6.2.m1.1.1.2.cmml"><mi id="S4.F6.2.m1.1.1.2.2" xref="S4.F6.2.m1.1.1.2.2.cmml">τ</mi><mn id="S4.F6.2.m1.1.1.2.3" xref="S4.F6.2.m1.1.1.2.3.cmml">0</mn></msub><mo id="S4.F6.2.m1.1.1.3" xref="S4.F6.2.m1.1.1.3.cmml">&lt;</mo><msub id="S4.F6.2.m1.1.1.4" xref="S4.F6.2.m1.1.1.4.cmml"><mi id="S4.F6.2.m1.1.1.4.2" xref="S4.F6.2.m1.1.1.4.2.cmml">τ</mi><mn id="S4.F6.2.m1.1.1.4.3" xref="S4.F6.2.m1.1.1.4.3.cmml">1</mn></msub><mo id="S4.F6.2.m1.1.1.5" xref="S4.F6.2.m1.1.1.5.cmml">&lt;</mo><msub id="S4.F6.2.m1.1.1.6" xref="S4.F6.2.m1.1.1.6.cmml"><mi id="S4.F6.2.m1.1.1.6.2" xref="S4.F6.2.m1.1.1.6.2.cmml">τ</mi><mn id="S4.F6.2.m1.1.1.6.3" xref="S4.F6.2.m1.1.1.6.3.cmml">2</mn></msub></mrow><annotation-xml encoding="MathML-Content" id="S4.F6.2.m1.1c"><apply id="S4.F6.2.m1.1.1.cmml" xref="S4.F6.2.m1.1.1"><and id="S4.F6.2.m1.1.1a.cmml" xref="S4.F6.2.m1.1.1"></and><apply id="S4.F6.2.m1.1.1b.cmml" xref="S4.F6.2.m1.1.1"><lt id="S4.F6.2.m1.1.1.3.cmml" xref="S4.F6.2.m1.1.1.3"></lt><apply id="S4.F6.2.m1.1.1.2.cmml" xref="S4.F6.2.m1.1.1.2"><csymbol cd="ambiguous" id="S4.F6.2.m1.1.1.2.1.cmml" xref="S4.F6.2.m1.1.1.2">subscript</csymbol><ci id="S4.F6.2.m1.1.1.2.2.cmml" xref="S4.F6.2.m1.1.1.2.2">𝜏</ci><cn type="integer" id="S4.F6.2.m1.1.1.2.3.cmml" xref="S4.F6.2.m1.1.1.2.3">0</cn></apply><apply id="S4.F6.2.m1.1.1.4.cmml" xref="S4.F6.2.m1.1.1.4"><csymbol cd="ambiguous" id="S4.F6.2.m1.1.1.4.1.cmml" xref="S4.F6.2.m1.1.1.4">subscript</csymbol><ci id="S4.F6.2.m1.1.1.4.2.cmml" xref="S4.F6.2.m1.1.1.4.2">𝜏</ci><cn type="integer" id="S4.F6.2.m1.1.1.4.3.cmml" xref="S4.F6.2.m1.1.1.4.3">1</cn></apply></apply><apply id="S4.F6.2.m1.1.1c.cmml" xref="S4.F6.2.m1.1.1"><lt id="S4.F6.2.m1.1.1.5.cmml" xref="S4.F6.2.m1.1.1.5"></lt><share href="#S4.F6.2.m1.1.1.4.cmml" id="S4.F6.2.m1.1.1d.cmml" xref="S4.F6.2.m1.1.1"></share><apply id="S4.F6.2.m1.1.1.6.cmml" xref="S4.F6.2.m1.1.1.6"><csymbol cd="ambiguous" id="S4.F6.2.m1.1.1.6.1.cmml" xref="S4.F6.2.m1.1.1.6">subscript</csymbol><ci id="S4.F6.2.m1.1.1.6.2.cmml" xref="S4.F6.2.m1.1.1.6.2">𝜏</ci><cn type="integer" id="S4.F6.2.m1.1.1.6.3.cmml" xref="S4.F6.2.m1.1.1.6.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.F6.2.m1.1d">\tau_{0}&lt;\tau_{1}&lt;\tau_{2}</annotation></semantics></math>,
+uniformly spaced, over time.</figcaption>
+</figure>
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">From our training of the Triggering Model with FL, we make several
+observations.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">Since we only train on-device when the device is charging, connected to an
+unmetered network, and idle, most training occurs in the evening hours, leading
+to diurnal patterns. As a result, training rounds progress much more quickly at
+night than during the day as more clients are available, where night/day are in
+North America time zones since we are targeting devices with country United
+States and Canada.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">Figure <a href="#S4.F3" title="Figure 3 ‣ 4.2 Federated Training ‣ 4 Training with Federated Learning ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows training progress across a
+week (times in PST) while Figure <a href="#S4.F4" title="Figure 4 ‣ 4.2 Federated Training ‣ 4 Training with Federated Learning ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows
+our model training and eval loss bucketed by time of day. Note that most round
+progression is centered around midnight, while round completion around noon is
+nearly flat. While there are still clients available during non-peak hours,
+fewer rounds are completed due to fewer available clients as well as client
+contention from running other training tasks, e.g. to train language
+models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. As a result, it is more difficult to satisfy the training
+task parameters – in our case 100 clients with 80% reporting back within two
+minutes for a successful round.</p>
+</div>
+<div id="S4.SS2.p4" class="ltx_para">
+<p id="S4.SS2.p4.1" class="ltx_p">Furthermore, devices which are training during off-peak hours (during the day
+in North America) have an inherent skew. For example, devices which require
+charging during the day may indicate that the phone is an older device with a
+battery which requires more frequent charging.</p>
+</div>
+<div id="S4.SS2.p5" class="ltx_para">
+<p id="S4.SS2.p5.1" class="ltx_p">Similarly, our country restriction was based on the device’s Android country so
+any device with a locale set to en-US or en-CA would participate in training
+even if the user was not geographically located in the US or Canada. In
+particular, many devices in and around India are set by default to Android
+locale en-US and are not modified by end-users; as a result, many of our devices
+training during the day (PST) are devices located in and around India (where it
+is evening). These developing markets tend to have less reliable network and
+power access which contributes to low round completions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>.</p>
+</div>
+<div id="S4.SS2.p6" class="ltx_para">
+<p id="S4.SS2.p6.1" class="ltx_p">The diurnal distribution of user populations also contributes to regular cycles
+in model metrics, including training and eval loss, during federated training.
+Since the devices training on clients during the day are often unexpected user
+populations with bias from the main population, the overall model loss tends to
+increase during the day and decrease at night. Both of these diurnal effects are
+evident in Figure <a href="#S4.F5" title="Figure 5 ‣ 4.2 Federated Training ‣ 4 Training with Federated Learning ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> which depicts the average eval
+loss and the average training examples per round, bucketed by time of day. Note
+that training example count is highest in the evening as more devices are
+available. In contrast, eval loss is highest during the day when few devices are
+available and those available represent a skewed population.</p>
+</div>
+<div id="S4.SS2.p7" class="ltx_para">
+<p id="S4.SS2.p7.1" class="ltx_p">In addition to the loss, we can measure other metrics to track the performance
+of our model during training. In Figure <a href="#S4.F6" title="Figure 6 ‣ 4.2 Federated Training ‣ 4 Training with Federated Learning ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>, we plot
+the retained impressions at various thresholds over time.</p>
+</div>
+<div id="S4.SS2.p8" class="ltx_para">
+<p id="S4.SS2.p8.1" class="ltx_p">As a whole, training with FL introduces a number of interesting diurnal
+characteristics. We expect that as development of FL continues, overall
+training speed of FL will increase; however, the nature of globally-distributed
+training examples and clients will continue to be inherent challenges with FL.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Model Debugging Without Training Example Access</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Typically a trained machine learning model can be validated by evaluating its
+performance on a held-out validation set. The FL analogue to such a central
+validation set is to perform evaluation by pushing the trained model to devices
+to score it on their own data and report back the results. However, on-device
+metrics like loss, CTR and retained impressions do not necessarily tell the
+whole story that traditionally inspecting key training examples might provide.
+For this reason it is valuable to have tools for debugging models without
+reference to training data.</p>
+</div>
+<div id="S4.SS3.p2" class="ltx_para">
+<p id="S4.SS3.p2.1" class="ltx_p">During model development, synthetically generated proxy data was used to
+validate the model architecture to select ballparks for basic hyperparameters
+like learning rate. The generated data encoded some basic first-order statistics
+like aggregate click-through-rate, an expectation that some users would click
+more than others or at different times of day, etc. The model was also validated
+with integration and end-to-end testing on a handful of realistic hand –
+constructed and donated examples. The combination of synthetic and donated data
+enabled model development, validated that the approach learned patterns we’d
+encoded into the data, and built confidence that it would learn as expected with
+data generated by the application.</p>
+</div>
+<div id="S4.SS3.p3" class="ltx_para">
+<p id="S4.SS3.p3.1" class="ltx_p">To validate the model after training, we interpreted the coefficients of our
+logistic regression model via direct examination of the weights in order to gain
+insight into what the model had learned. We determined that FL had produced a
+reasonable model (reasonable enough to warrant pushing to devices for live
+inference experiments) considering that:</p>
+</div>
+<div id="S4.SS3.p4" class="ltx_para">
+<ul id="S4.I1" class="ltx_itemize">
+<li id="S4.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i1.p1" class="ltx_para">
+<p id="S4.I1.i1.p1.1" class="ltx_p">the weights corresponding to query categories had intuitive values</p>
+</div>
+</li>
+<li id="S4.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i2.p1" class="ltx_para">
+<p id="S4.I1.i2.p1.1" class="ltx_p">the weights corresponding to binned real-valued features tended to have
+smooth, monotone progressions</p>
+</div>
+</li>
+<li id="S4.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i3.p1" class="ltx_para">
+<p id="S4.I1.i3.p1.1" class="ltx_p">the weights of more common features were larger in absolute value, i.e.
+the model came to rely on them more due to their frequency.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S4.SS3.p5" class="ltx_para">
+<p id="S4.SS3.p5.1" class="ltx_p">Manual inspection of the weights also uncovered an unusual pattern that
+revealed a way to improve future model iterations. One binned real-valued
+feature had zero weight for most of its range, indicating that the expected
+range of the feature was too large. We improved future iterations of the model
+by restricting the feature to the correct range so the binned values (which did
+not change in number) gave more precision within the range. This is just one
+example approach to the broader domain of debugging without training example
+access.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Live Results and Observations</h2>
+
+<figure id="S5.T1" class="ltx_table">
+<table id="S5.T1.5" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.T1.5.6.1" class="ltx_tr">
+<th id="S5.T1.5.6.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<td id="S5.T1.5.6.1.2" class="ltx_td ltx_align_center ltx_border_tt" colspan="3">Training Metrics From Federated Training</td>
+<td id="S5.T1.5.6.1.3" class="ltx_td ltx_align_center ltx_border_tt" colspan="3">Live Metrics From Live Experiments</td>
+</tr>
+<tr id="S5.T1.2.2" class="ltx_tr">
+<th id="S5.T1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">Threshold</th>
+<td id="S5.T1.1.1.1" class="ltx_td ltx_align_center">
+<math id="S5.T1.1.1.1.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.T1.1.1.1.m1.1a"><mi mathvariant="normal" id="S5.T1.1.1.1.m1.1.1" xref="S5.T1.1.1.1.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.T1.1.1.1.m1.1b"><ci id="S5.T1.1.1.1.m1.1.1.cmml" xref="S5.T1.1.1.1.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.1.1.1.m1.1c">\Delta</annotation></semantics></math>CTR</td>
+<td id="S5.T1.2.2.4" class="ltx_td ltx_align_center">Retained impressions</td>
+<td id="S5.T1.2.2.5" class="ltx_td ltx_align_center">Retained
+clicks</td>
+<td id="S5.T1.2.2.2" class="ltx_td ltx_align_center">
+<math id="S5.T1.2.2.2.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.T1.2.2.2.m1.1a"><mi mathvariant="normal" id="S5.T1.2.2.2.m1.1.1" xref="S5.T1.2.2.2.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.T1.2.2.2.m1.1b"><ci id="S5.T1.2.2.2.m1.1.1.cmml" xref="S5.T1.2.2.2.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.2.2.2.m1.1c">\Delta</annotation></semantics></math>CTR</td>
+<td id="S5.T1.2.2.6" class="ltx_td ltx_align_center">Retained impressions</td>
+<td id="S5.T1.2.2.7" class="ltx_td ltx_align_center">Retained
+clicks</td>
+</tr>
+<tr id="S5.T1.3.3" class="ltx_tr">
+<th id="S5.T1.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_tt"><math id="S5.T1.3.3.1.m1.1" class="ltx_Math" alttext="\tau_{0}" display="inline"><semantics id="S5.T1.3.3.1.m1.1a"><msub id="S5.T1.3.3.1.m1.1.1" xref="S5.T1.3.3.1.m1.1.1.cmml"><mi id="S5.T1.3.3.1.m1.1.1.2" xref="S5.T1.3.3.1.m1.1.1.2.cmml">τ</mi><mn id="S5.T1.3.3.1.m1.1.1.3" xref="S5.T1.3.3.1.m1.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S5.T1.3.3.1.m1.1b"><apply id="S5.T1.3.3.1.m1.1.1.cmml" xref="S5.T1.3.3.1.m1.1.1"><csymbol cd="ambiguous" id="S5.T1.3.3.1.m1.1.1.1.cmml" xref="S5.T1.3.3.1.m1.1.1">subscript</csymbol><ci id="S5.T1.3.3.1.m1.1.1.2.cmml" xref="S5.T1.3.3.1.m1.1.1.2">𝜏</ci><cn type="integer" id="S5.T1.3.3.1.m1.1.1.3.cmml" xref="S5.T1.3.3.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.3.3.1.m1.1c">\tau_{0}</annotation></semantics></math></th>
+<td id="S5.T1.3.3.2" class="ltx_td ltx_align_center ltx_border_tt">+3.01%</td>
+<td id="S5.T1.3.3.3" class="ltx_td ltx_align_center ltx_border_tt">93.44%</td>
+<td id="S5.T1.3.3.4" class="ltx_td ltx_align_center ltx_border_tt">96.25%</td>
+<td id="S5.T1.3.3.5" class="ltx_td ltx_align_center ltx_border_tt">N/A</td>
+<td id="S5.T1.3.3.6" class="ltx_td ltx_align_center ltx_border_tt">N/A</td>
+<td id="S5.T1.3.3.7" class="ltx_td ltx_align_center ltx_border_tt">N/A</td>
+</tr>
+<tr id="S5.T1.4.4" class="ltx_tr">
+<th id="S5.T1.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row"><math id="S5.T1.4.4.1.m1.1" class="ltx_Math" alttext="\tau_{1}" display="inline"><semantics id="S5.T1.4.4.1.m1.1a"><msub id="S5.T1.4.4.1.m1.1.1" xref="S5.T1.4.4.1.m1.1.1.cmml"><mi id="S5.T1.4.4.1.m1.1.1.2" xref="S5.T1.4.4.1.m1.1.1.2.cmml">τ</mi><mn id="S5.T1.4.4.1.m1.1.1.3" xref="S5.T1.4.4.1.m1.1.1.3.cmml">1</mn></msub><annotation-xml encoding="MathML-Content" id="S5.T1.4.4.1.m1.1b"><apply id="S5.T1.4.4.1.m1.1.1.cmml" xref="S5.T1.4.4.1.m1.1.1"><csymbol cd="ambiguous" id="S5.T1.4.4.1.m1.1.1.1.cmml" xref="S5.T1.4.4.1.m1.1.1">subscript</csymbol><ci id="S5.T1.4.4.1.m1.1.1.2.cmml" xref="S5.T1.4.4.1.m1.1.1.2">𝜏</ci><cn type="integer" id="S5.T1.4.4.1.m1.1.1.3.cmml" xref="S5.T1.4.4.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.4.4.1.m1.1c">\tau_{1}</annotation></semantics></math></th>
+<td id="S5.T1.4.4.2" class="ltx_td ltx_align_center">+17.40%</td>
+<td id="S5.T1.4.4.3" class="ltx_td ltx_align_center">75.60%</td>
+<td id="S5.T1.4.4.4" class="ltx_td ltx_align_center">88.76%</td>
+<td id="S5.T1.4.4.5" class="ltx_td ltx_align_center">+14.52%</td>
+<td id="S5.T1.4.4.6" class="ltx_td ltx_align_center">67.33%</td>
+<td id="S5.T1.4.4.7" class="ltx_td ltx_align_center">77.11%</td>
+</tr>
+<tr id="S5.T1.5.5" class="ltx_tr">
+<th id="S5.T1.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb"><math id="S5.T1.5.5.1.m1.1" class="ltx_Math" alttext="\tau_{2}" display="inline"><semantics id="S5.T1.5.5.1.m1.1a"><msub id="S5.T1.5.5.1.m1.1.1" xref="S5.T1.5.5.1.m1.1.1.cmml"><mi id="S5.T1.5.5.1.m1.1.1.2" xref="S5.T1.5.5.1.m1.1.1.2.cmml">τ</mi><mn id="S5.T1.5.5.1.m1.1.1.3" xref="S5.T1.5.5.1.m1.1.1.3.cmml">2</mn></msub><annotation-xml encoding="MathML-Content" id="S5.T1.5.5.1.m1.1b"><apply id="S5.T1.5.5.1.m1.1.1.cmml" xref="S5.T1.5.5.1.m1.1.1"><csymbol cd="ambiguous" id="S5.T1.5.5.1.m1.1.1.1.cmml" xref="S5.T1.5.5.1.m1.1.1">subscript</csymbol><ci id="S5.T1.5.5.1.m1.1.1.2.cmml" xref="S5.T1.5.5.1.m1.1.1.2">𝜏</ci><cn type="integer" id="S5.T1.5.5.1.m1.1.1.3.cmml" xref="S5.T1.5.5.1.m1.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.5.5.1.m1.1c">\tau_{2}</annotation></semantics></math></th>
+<td id="S5.T1.5.5.2" class="ltx_td ltx_align_center ltx_border_bb"><span id="S5.T1.5.5.2.1" class="ltx_text ltx_font_bold">+42.19%</span></td>
+<td id="S5.T1.5.5.3" class="ltx_td ltx_align_center ltx_border_bb">28.45%</td>
+<td id="S5.T1.5.5.4" class="ltx_td ltx_align_center ltx_border_bb">40.45%</td>
+<td id="S5.T1.5.5.5" class="ltx_td ltx_align_center ltx_border_bb"><span id="S5.T1.5.5.5.1" class="ltx_text ltx_font_bold">+33.95%</span></td>
+<td id="S5.T1.5.5.6" class="ltx_td ltx_align_center ltx_border_bb">24.18%</td>
+<td id="S5.T1.5.5.7" class="ltx_td ltx_align_center ltx_border_bb">32.39%</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S5.T1.9.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Metrics during training and live model deployment, where <math id="S5.T1.7.m1.1" class="ltx_Math" alttext="\tau_{0}&lt;\tau_{1}&lt;\tau_{2}" display="inline"><semantics id="S5.T1.7.m1.1b"><mrow id="S5.T1.7.m1.1.1" xref="S5.T1.7.m1.1.1.cmml"><msub id="S5.T1.7.m1.1.1.2" xref="S5.T1.7.m1.1.1.2.cmml"><mi id="S5.T1.7.m1.1.1.2.2" xref="S5.T1.7.m1.1.1.2.2.cmml">τ</mi><mn id="S5.T1.7.m1.1.1.2.3" xref="S5.T1.7.m1.1.1.2.3.cmml">0</mn></msub><mo id="S5.T1.7.m1.1.1.3" xref="S5.T1.7.m1.1.1.3.cmml">&lt;</mo><msub id="S5.T1.7.m1.1.1.4" xref="S5.T1.7.m1.1.1.4.cmml"><mi id="S5.T1.7.m1.1.1.4.2" xref="S5.T1.7.m1.1.1.4.2.cmml">τ</mi><mn id="S5.T1.7.m1.1.1.4.3" xref="S5.T1.7.m1.1.1.4.3.cmml">1</mn></msub><mo id="S5.T1.7.m1.1.1.5" xref="S5.T1.7.m1.1.1.5.cmml">&lt;</mo><msub id="S5.T1.7.m1.1.1.6" xref="S5.T1.7.m1.1.1.6.cmml"><mi id="S5.T1.7.m1.1.1.6.2" xref="S5.T1.7.m1.1.1.6.2.cmml">τ</mi><mn id="S5.T1.7.m1.1.1.6.3" xref="S5.T1.7.m1.1.1.6.3.cmml">2</mn></msub></mrow><annotation-xml encoding="MathML-Content" id="S5.T1.7.m1.1c"><apply id="S5.T1.7.m1.1.1.cmml" xref="S5.T1.7.m1.1.1"><and id="S5.T1.7.m1.1.1a.cmml" xref="S5.T1.7.m1.1.1"></and><apply id="S5.T1.7.m1.1.1b.cmml" xref="S5.T1.7.m1.1.1"><lt id="S5.T1.7.m1.1.1.3.cmml" xref="S5.T1.7.m1.1.1.3"></lt><apply id="S5.T1.7.m1.1.1.2.cmml" xref="S5.T1.7.m1.1.1.2"><csymbol cd="ambiguous" id="S5.T1.7.m1.1.1.2.1.cmml" xref="S5.T1.7.m1.1.1.2">subscript</csymbol><ci id="S5.T1.7.m1.1.1.2.2.cmml" xref="S5.T1.7.m1.1.1.2.2">𝜏</ci><cn type="integer" id="S5.T1.7.m1.1.1.2.3.cmml" xref="S5.T1.7.m1.1.1.2.3">0</cn></apply><apply id="S5.T1.7.m1.1.1.4.cmml" xref="S5.T1.7.m1.1.1.4"><csymbol cd="ambiguous" id="S5.T1.7.m1.1.1.4.1.cmml" xref="S5.T1.7.m1.1.1.4">subscript</csymbol><ci id="S5.T1.7.m1.1.1.4.2.cmml" xref="S5.T1.7.m1.1.1.4.2">𝜏</ci><cn type="integer" id="S5.T1.7.m1.1.1.4.3.cmml" xref="S5.T1.7.m1.1.1.4.3">1</cn></apply></apply><apply id="S5.T1.7.m1.1.1c.cmml" xref="S5.T1.7.m1.1.1"><lt id="S5.T1.7.m1.1.1.5.cmml" xref="S5.T1.7.m1.1.1.5"></lt><share href="#S5.T1.7.m1.1.1.4.cmml" id="S5.T1.7.m1.1.1d.cmml" xref="S5.T1.7.m1.1.1"></share><apply id="S5.T1.7.m1.1.1.6.cmml" xref="S5.T1.7.m1.1.1.6"><csymbol cd="ambiguous" id="S5.T1.7.m1.1.1.6.1.cmml" xref="S5.T1.7.m1.1.1.6">subscript</csymbol><ci id="S5.T1.7.m1.1.1.6.2.cmml" xref="S5.T1.7.m1.1.1.6.2">𝜏</ci><cn type="integer" id="S5.T1.7.m1.1.1.6.3.cmml" xref="S5.T1.7.m1.1.1.6.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T1.7.m1.1d">\tau_{0}&lt;\tau_{1}&lt;\tau_{2}</annotation></semantics></math>, uniformly spaced. A greater threshold indicates a
+stricter quality bar for suggestions. </figcaption>
+</figure>
+<figure id="S5.T2" class="ltx_table">
+<table id="S5.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T2.1.1" class="ltx_tr">
+<th id="S5.T2.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th id="S5.T2.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Live <math id="S5.T2.1.1.1.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.T2.1.1.1.m1.1a"><mi mathvariant="normal" id="S5.T2.1.1.1.m1.1.1" xref="S5.T2.1.1.1.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.T2.1.1.1.m1.1b"><ci id="S5.T2.1.1.1.m1.1.1.cmml" xref="S5.T2.1.1.1.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.1.1.1.m1.1c">\Delta</annotation></semantics></math>CTR</th>
+<th id="S5.T2.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Live Retained Clicks</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T2.1.2.1" class="ltx_tr">
+<td id="S5.T2.1.2.1.1" class="ltx_td ltx_align_center ltx_border_tt">Model Iteration 1</td>
+<td id="S5.T2.1.2.1.2" class="ltx_td ltx_align_center ltx_border_tt">+14.52%</td>
+<td id="S5.T2.1.2.1.3" class="ltx_td ltx_align_center ltx_border_tt">77.11%</td>
+</tr>
+<tr id="S5.T2.1.3.2" class="ltx_tr">
+<td id="S5.T2.1.3.2.1" class="ltx_td ltx_align_center">Model Iteration 2</td>
+<td id="S5.T2.1.3.2.2" class="ltx_td ltx_align_center">+25.56%</td>
+<td id="S5.T2.1.3.2.3" class="ltx_td ltx_align_center">63.39%</td>
+</tr>
+<tr id="S5.T2.1.4.3" class="ltx_tr">
+<td id="S5.T2.1.4.3.1" class="ltx_td ltx_align_center ltx_border_bb">Model Iteration 3</td>
+<td id="S5.T2.1.4.3.2" class="ltx_td ltx_align_center ltx_border_bb"><span id="S5.T2.1.4.3.2.1" class="ltx_text ltx_font_bold">+51.49%</span></td>
+<td id="S5.T2.1.4.3.3" class="ltx_td ltx_align_center ltx_border_bb"><span id="S5.T2.1.4.3.3.1" class="ltx_text ltx_font_bold">82.01%</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S5.T2.5.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span>Change in CTR over several trained and deployed models. In later
+development we trained an LSTM model which performed the best in terms of
+<math id="S5.T2.3.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.T2.3.m1.1b"><mi mathvariant="normal" id="S5.T2.3.m1.1.1" xref="S5.T2.3.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.T2.3.m1.1c"><ci id="S5.T2.3.m1.1.1.cmml" xref="S5.T2.3.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.3.m1.1d">\Delta</annotation></semantics></math>CTR and Retained Clicks.</figcaption>
+</figure>
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">After training and sanity checking our logistic regression model, we deployed
+the model to live users. A model checkpoint from the server was used to build
+and deploy an on-device inference model that uses the same featurization flow
+which originally logged training examples on-device. The model outputs a score,
+which is then compared to a threshold to determine if the suggestion is shown
+or hidden. By selecting various thresholds, we experiment with different
+operating points, trading off CTR for retained impressions and clicks. We
+deployed our models on a population with the same locale restrictions as our
+training population (en-US and en-CA).</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.3" class="ltx_p">Comparing our expected <math id="S5.p2.1.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.p2.1.m1.1a"><mi mathvariant="normal" id="S5.p2.1.m1.1.1" xref="S5.p2.1.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.p2.1.m1.1b"><ci id="S5.p2.1.m1.1.1.cmml" xref="S5.p2.1.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p2.1.m1.1c">\Delta</annotation></semantics></math>CTR in training metrics to our actual
+<math id="S5.p2.2.m2.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.p2.2.m2.1a"><mi mathvariant="normal" id="S5.p2.2.m2.1.1" xref="S5.p2.2.m2.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.p2.2.m2.1b"><ci id="S5.p2.2.m2.1.1.cmml" xref="S5.p2.2.m2.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p2.2.m2.1c">\Delta</annotation></semantics></math>CTR in live experiments, our live deployments reflect a successful
+improvement in CTR (Table <a href="#S5.T1" title="Table 1 ‣ 5 Live Results and Observations ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>). However, while we capture a
+majority of the expected improvements, we do observe a slight drop between
+expected and actual <math id="S5.p2.3.m3.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.p2.3.m3.1a"><mi mathvariant="normal" id="S5.p2.3.m3.1.1" xref="S5.p2.3.m3.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.p2.3.m3.1b"><ci id="S5.p2.3.m3.1.1.cmml" xref="S5.p2.3.m3.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p2.3.m3.1c">\Delta</annotation></semantics></math>CTR.</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p">Some hypotheses for this <math id="S5.p3.1.m1.1" class="ltx_Math" alttext="\Delta" display="inline"><semantics id="S5.p3.1.m1.1a"><mi mathvariant="normal" id="S5.p3.1.m1.1.1" xref="S5.p3.1.m1.1.1.cmml">Δ</mi><annotation-xml encoding="MathML-Content" id="S5.p3.1.m1.1b"><ci id="S5.p3.1.m1.1.1.cmml" xref="S5.p3.1.m1.1.1">Δ</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p3.1.m1.1c">\Delta</annotation></semantics></math>CTR follow:</p>
+</div>
+<div id="S5.p4" class="ltx_para">
+<p id="S5.p4.1" class="ltx_p"><span id="S5.p4.1.1" class="ltx_text ltx_font_bold">Environmental Conditions</span> Since we require devices to be charging and on
+unmetered networks, this biases our training towards devices and users with
+these conditions available. In particular, many users in developing countries do
+not have reliable access to either stable power or stable unmetered
+networks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>.</p>
+</div>
+<div id="S5.p5" class="ltx_para">
+<p id="S5.p5.1" class="ltx_p"><span id="S5.p5.1.1" class="ltx_text ltx_font_bold">Device Specifications</span> We restricted device training to devices with 2GB
+of RAM, however our deployment was on all devices without a minimum RAM
+requirement. This causes skew in the training vs deployment population in terms
+of device specifications.</p>
+</div>
+<div id="S5.p6" class="ltx_para">
+<p id="S5.p6.1" class="ltx_p"><span id="S5.p6.1.1" class="ltx_text ltx_font_bold">Successful Training Clients</span> Recall that our federated training
+configuration only requires 80% of selected devices to respond in order to
+close a round. This skews our training population towards higher end devices
+with more stable networks, as lower end devices are more unstable from a device
+and network perspective.</p>
+</div>
+<div id="S5.p7" class="ltx_para">
+<p id="S5.p7.1" class="ltx_p"><span id="S5.p7.1.1" class="ltx_text ltx_font_bold">Evaluation and Training Client Overlap</span> With our federated training
+infrastructure, the client selected for training and eval rounds are not
+necessarily mutually exclusive. However, given that training and eval rounds
+only select a small subset of the overall training population, we expect the
+overlap to be <math id="S5.p7.1.m1.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S5.p7.1.m1.1a"><mo id="S5.p7.1.m1.1.1" xref="S5.p7.1.m1.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S5.p7.1.m1.1b"><lt id="S5.p7.1.m1.1.1.cmml" xref="S5.p7.1.m1.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S5.p7.1.m1.1c">&lt;</annotation></semantics></math>0.1% and have minimal impact on performance skew.</p>
+</div>
+<div id="S5.p8" class="ltx_para">
+<p id="S5.p8.1" class="ltx_p">In addition to the above hypotheses, more general sources of skew may also
+apply, such as model drift due to training and deploy time offsets. As FL
+continues to mature, we expect that the delta between expected and actual
+metrics will narrow over time.</p>
+</div>
+<div id="S5.p9" class="ltx_para">
+<p id="S5.p9.1" class="ltx_p">The results detailed here were only the first in a sequence of models trained,
+evaluated, and launched with FL. Successive iterations differed in that they
+were trained longer on more users’ data, had better tuned hyperparameters, and
+incorporated additional features. The results of these successive iterations are
+shown in Table <a href="#S5.T2" title="Table 2 ‣ 5 Live Results and Observations ‣ Applied Federated Learning: Improving Google Keyboard Query Suggestions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, but we do not describe in depth here
+all the changes made between these iterations. One noteworthy addition in the
+final model was the inclusion of an LSTM-based featurization of the typed text,
+which was co-trained with the rest of the logistic regression model, allowing
+the model to better understand the typed context. Our iterations with FL have
+demonstrated the ability to develop effective models in a privacy advantaged
+manner without direct access to the underlying user data.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusion</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this work, we applied FL to train, evaluate and deploy a logistic regression
+model without access to underlying user data to improve keyboard search
+suggestion quality. We discussed observations about federated learning including
+the cyclic nature of training, model iteration without direct access to training
+data, and sources of skew between federated training and live deployments. This
+training and deployment is one of the first end-to-end examples of FL in a
+production environment, and explores a path where FL can be used to improve user
+experience in a privacy-advantaged manner.</p>
+</div>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">7 </span>Acknowledgments</h2>
+
+<div id="S7.p1" class="ltx_para">
+<p id="S7.p1.1" class="ltx_p">The authors would like to thank colleagues on the Gboard and Google AI team for
+providing the federated learning framework and for many helpful discussions.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and
+Blaise Agüera y Arcas,
+
+</span>
+<span class="ltx_bibblock">“Communication-efficient learning of deep networks from
+decentralized data,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">Proceedings of the 20th International Conference on
+Artificial Intelligence and Statistics, AISTATS 2017, 20-22 April 2017,
+Fort Lauderdale, FL, USA</span>, 2017, pp. 1273–1282.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Jakub Konečný, H. Brendan McMahan, Felix X. Yu, Peter Richtarik,
+Ananda Theertha Suresh, and Dave Bacon,
+
+</span>
+<span class="ltx_bibblock">“Federated learning: Strategies for improving communication
+efficiency,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">NIPS Workshop on Private Multi-Party Machine Learning</span>, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Jakub Konecný, H. Brendan McMahan, Daniel Ramage, and Peter
+Richtárik,
+
+</span>
+<span class="ltx_bibblock">“Federated optimization: Distributed machine learning for on-device
+intelligence,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">CoRR</span>, vol. abs/1610.02527, 2016.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Brendan McMahan and Daniel Ramage,
+
+</span>
+<span class="ltx_bibblock">“Federated learning: Collaborative machine learning without
+centralized training data,”
+<span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://ai.googleblog.com/2017/04/federated-learning-collaborative.html</span>,
+
+</span>
+<span class="ltx_bibblock">Accessed: 2018-12-04.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Virginia Smith, Chao-Kai Chiang, Maziar Sanjabi, and Ameet S Talwalkar,
+
+</span>
+<span class="ltx_bibblock">“Federated multi-task learning,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems 30</span>,
+I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan,
+and R. Garnett, Eds., pp. 4424–4434. Curran Associates, Inc., 2017.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Blake E Woodworth, Jialei Wang, Adam Smith, Brendan McMahan, and Nati Srebro,
+
+</span>
+<span class="ltx_bibblock">“Graph oracle models, lower bounds, and gaps for parallel stochastic
+optimization,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems 31</span>,
+S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and
+R. Garnett, Eds., pp. 8504–8514. Curran Associates, Inc., 2018.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Eugene Bagdasaryan, Andreas Veit, Yiqing Hua, Deborah Estrin, and Vitaly
+Shmatikov,
+
+</span>
+<span class="ltx_bibblock">“How to backdoor federated learning,” 2018.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Andrew Hard, Kanishka Rao, Rajiv Mathews, Françoise Beaufays, Sean Augenstein,
+Hubert Eichner, Chloé Kiddon, and Daniel Ramage,
+
+</span>
+<span class="ltx_bibblock">“Federated learning for mobile keyboard prediction,” 2018.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Cynthia Dwork,
+
+</span>
+<span class="ltx_bibblock">“Differential privacy,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">33rd International Colloquium on Automata, Languages and
+Programming, part II (ICALP 2006)</span>, Venice, Italy, July 2006, vol. 4052, pp.
+1–12, Springer Verlag.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+H. Brendan McMahan, Daniel Ramage, Kunal Talwar, and Li Zhang,
+
+</span>
+<span class="ltx_bibblock">“Learning differentially private language models without losing
+accuracy,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">CoRR</span>, vol. abs/1710.06963, 2017.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Keith Bonawitz, Vladimir Ivanov, Ben Kreuter, Antonio Marcedone, H. Brendan
+McMahan, Sarvar Patel, Daniel Ramage, Aaron Segal, and Karn Seth,
+
+</span>
+<span class="ltx_bibblock">“Practical secure aggregation for privacy-preserving machine
+learning,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">Proceedings of the 2017 ACM SIGSAC Conference on Computer and
+Communications Security</span>, New York, NY, USA, 2017, CCS ’17, pp. 1175–1191,
+ACM.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Naman Agarwal, Ananda Theertha Suresh, Felix Xinnan X Yu, Sanjiv Kumar, and
+Brendan McMahan,
+
+</span>
+<span class="ltx_bibblock">“cpsgd: Communication-efficient and differentially-private
+distributed sgd,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems 31</span>,
+S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and
+R. Garnett, Eds., pp. 7574–7585. Curran Associates, Inc., 2018.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Martin Abadi, Andy Chu, Ian Goodfellow, Brendan McMahan, Ilya Mironov, Kunal
+Talwar, and Li Zhang,
+
+</span>
+<span class="ltx_bibblock">“Deep learning with differential privacy,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib13.1.1" class="ltx_text ltx_font_italic">23rd ACM Conference on Computer and Communications Security
+(ACM CCS)</span>, 2016, pp. 308–318.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Latanya Sweeney,
+
+</span>
+<span class="ltx_bibblock">“Simple demographics often identify people uniquely,”
+
+</span>
+<span class="ltx_bibblock">2000.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Martín Abadi, Paul Barham, Jianmin Chen, Zhifeng Chen, Andy Davis,
+Jeffrey Dean, Matthieu Devin, Sanjay Ghemawat, Geoffrey Irving, Michael
+Isard, Manjunath Kudlur, Josh Levenberg, Rajat Monga, Sherry Moore,
+Derek Gordon Murray, Benoit Steiner, Paul A. Tucker, Vijay Vasudevan, Pete
+Warden, Martin Wicke, Yuan Yu, and Xiaoqiang Zheng,
+
+</span>
+<span class="ltx_bibblock">“Tensorflow: A system for large-scale machine learning,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">12th USENIX Symposium on Operating Systems Design and
+Implementation, OSDI 2016, Savannah, GA, USA, November 2-4, 2016.</span>, 2016,
+pp. 265–283.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Google,
+
+</span>
+<span class="ltx_bibblock">“Tensorflow lite — tensorflow,”
+<span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://www.tensorflow.org/lite/</span>,
+
+</span>
+<span class="ltx_bibblock">Accessed: 2018-12-04.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Google,
+
+</span>
+<span class="ltx_bibblock">“Google knowledge graph search api,”
+<span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://developers.google.com/knowledge-graph/</span>,
+
+</span>
+<span class="ltx_bibblock">Accessed: 2018-12-04.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+S. Hochreiter and J. Schmidhuber,
+
+</span>
+<span class="ltx_bibblock">“Long short-term memory,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Neural Computation</span>, vol. 9, no. 8, pp. 1735–1780, Nov 1997.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Chandra Gnanasambandam, Anu Madgavkar, Noshir Kaka, James Manyika, Michael
+Chui, Jacques Bughin, and Malcolm Gomes,
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Online and upcoming: The Internet’s impact on India</span>,
+
+</span>
+<span class="ltx_bibblock">2012.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+G. Legros, World Health Organization, and United Nations Development Programme,
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">The Energy Access Situation in Developing Countries: A Review
+Focusing on the Least Developed Countries and Sub-Saharan Africa</span>,
+
+</span>
+<span class="ltx_bibblock">World Health Organization, 2009.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Udai S Mehta, Aaditeshwar Seth, Neha Tomar, and Rohit Singh,
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">Mobile Internet Services in India Quality of Service</span>,
+
+</span>
+<span class="ltx_bibblock">2016.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1812.02902" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1812.02903" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1812.02903">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1812.02903" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1812.02904" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar 16 07:24:44 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

@@ -1,0 +1,708 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1905.12008] Leveraging Medical Visual Question Answering with Supporting Facts</title><meta property="og:description" content="In this working notes paper, we describe IBM Research AI (Almaden) team’s participation in the ImageCLEF 2019 VQA-Med competition. The challenge consists of four question-answering tasks based on radiology images. The …">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Leveraging Medical Visual Question Answering with Supporting Facts">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Leveraging Medical Visual Question Answering with Supporting Facts">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1905.12008">
+
+<!--Generated on Fri Mar  1 21:35:16 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="ImageCLEF 2019 VQA-Med Visual Question Answering Supporting Facts Network Multi-Task Learning Transfer Learning">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line"><span id="id1" class="ltx_note ltx_role_institutetext"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_note_type">institutetext: </span>IBM Research AI, Almaden Research Center, San Jose, USA
+<br class="ltx_break"><span id="id1.1" class="ltx_note ltx_role_email"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_note_type">email: </span>{tkornut,drajan,cshivade,asozcan}@us.ibm.com,alexis.asseman@ibm.com</span></span></span>
+</span></span></span>
+<h1 class="ltx_title ltx_title_document">Leveraging Medical Visual Question Answering with Supporting Facts</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Tomasz Kornuta
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Deepta Rajan
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Chaitanya Shivade
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+<br class="ltx_break">Alexis Asseman
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Ahmet S. Ozcan
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">In this working notes paper, we describe IBM Research AI (Almaden) team’s participation in the ImageCLEF 2019 VQA-Med competition. The challenge consists of four question-answering tasks based on radiology images. The diversity of imaging modalities, organs and disease types combined with a small imbalanced training set made this a highly complex problem. To overcome these difficulties, we implemented a modular pipeline architecture that utilized transfer learning and multi-task learning. Our findings led to the development of a novel model called Supporting Facts Network (SFN). The main idea behind SFN is to cross-utilize information from upstream tasks to improve the accuracy on harder downstream ones. This approach significantly improved the scores achieved in the validation set (18 point improvement in F-1 score). Finally, we submitted four runs to the competition and were ranked seventh.</p>
+</div>
+<div class="ltx_keywords">
+<h6 class="ltx_title ltx_title_keywords">Keywords: </h6>ImageCLEF 2019 VQA-Med Visual Question Answering Supporting Facts Network Multi-Task Learning Transfer Learning
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">In the era of data deluge and powerful computing systems, deriving meaningful insights from heterogeneous information has shown to have tremendous value across industries.
+In particular, the promise of deep learning-based computational models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> in accurately predicting diseases has further stirred great interest in adopting automated learning systems in healthcare <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>.
+A daunting challenge within the realm of healthcare is to efficiently sieve through vast amounts of multi-modal information and reason over them to arrive at a differential diagnosis.
+Longitudinal patient records including time-series measurements, text reports and imaging volumes form the basis for doctors to draw conclusive insights.
+In practice, radiologists are tasked with reviewing thousands of imaging studies each day, with an average of about three seconds to mark them as anomalous or not, leading to severe eye fatigue <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>.
+Moreover, clinical workflows have a sequential nature tending to cause delays in triage situations, where the existence of answers to key questions about a patient’s holistic conditions can potentially expedite treatment. Thus, building effective question-answering systems for the medical domain by bringing advancements in machine learning research will be a game changer towards improving patient care.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Visual Question Answering (VQA) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> is a new exciting problem domain, where the system is expected to answer questions expressed in natural language by taking into account the content of the image.
+In this paper, we present results of our research on the VQA-Med 2019 dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>.
+The main challenge here, in comparison to the other recent VQA datasets such as TextVQA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite> or GQA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, is to deal with scattered, noisy and heavily biased data. Hence, the dataset serves as a great use-case to study challenges encountered in practical clinical scenarios.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In order to address the data issues, we designed a new model called <span id="S1.p3.1.1" class="ltx_text ltx_font_bold">Supporting Facts Network</span> (SFN) that efficiently shares knowledge between upstream and downstream tasks through the use of a pre-trained multi-task solver in combination with task-specific solvers.
+Note that posing the VQA-Med challenge as a multi-task learning problem <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> allowed the model to effectively leverage and encode relevant domain knowledge.
+Our multi-task SFN model outperforms the single task baseline by better adapting to label distribution shifts.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>The VQA-Med dataset</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">The VQA-Med 2019 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> is a Visual Question Answering (VQA) dataset embedded in the medical domain, with a focus on radiology images. It consists of:</p>
+<ul id="S2.I1" class="ltx_itemize">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p">a training set of 3,200 images with 12,792 Question-Answer (QA) pairs,</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p">a validation set of 500 images with 2,000 QA pairs, and</p>
+</div>
+</li>
+<li id="S2.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i3.p1" class="ltx_para">
+<p id="S2.I1.i3.p1.1" class="ltx_p">a test set of 500 images with 500 questions (answers were released after the end of the VQA-Med 2019 challenge).</p>
+</div>
+</li>
+</ul>
+<p id="S2.p1.2" class="ltx_p">In all splits the samples were divided into four categories, depending on the main task to be solved:</p>
+<ul id="S2.I2" class="ltx_itemize">
+<li id="S2.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i1.p1" class="ltx_para">
+<p id="S2.I2.i1.p1.1" class="ltx_p"><span id="S2.I2.i1.p1.1.1" class="ltx_text ltx_font_bold">C1</span>: determine the modality of the image,</p>
+</div>
+</li>
+<li id="S2.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i2.p1" class="ltx_para">
+<p id="S2.I2.i2.p1.1" class="ltx_p"><span id="S2.I2.i2.p1.1.1" class="ltx_text ltx_font_bold">C2</span>: determine the plane of the image,</p>
+</div>
+</li>
+<li id="S2.I2.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i3.p1" class="ltx_para">
+<p id="S2.I2.i3.p1.1" class="ltx_p"><span id="S2.I2.i3.p1.1.1" class="ltx_text ltx_font_bold">C3</span>: identify the organ/anatomy of interest in the image, and</p>
+</div>
+</li>
+<li id="S2.I2.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i4.p1" class="ltx_para">
+<p id="S2.I2.i4.p1.1" class="ltx_p"><span id="S2.I2.i4.p1.1.1" class="ltx_text ltx_font_bold">C4</span>: identify the abnormality in the image.</p>
+</div>
+</li>
+</ul>
+<p id="S2.p1.3" class="ltx_p">Our analysis of the dataset (distribution of questions, answers, word vocabularies, categories and image sizes) led to the following findings and system-design related decisions:</p>
+<ul id="S2.I3" class="ltx_itemize">
+<li id="S2.I3.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i1.p1" class="ltx_para">
+<p id="S2.I3.i1.p1.1" class="ltx_p">merge of the original training and validation sets, shuffle and re-sample new training and validation sets with a proportion of 19:1,</p>
+</div>
+</li>
+<li id="S2.I3.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i2.p1" class="ltx_para">
+<p id="S2.I3.i2.p1.1" class="ltx_p">use of weighted random sampling during batch preparation,</p>
+</div>
+</li>
+<li id="S2.I3.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i3.p1" class="ltx_para">
+<p id="S2.I3.i3.p1.1" class="ltx_p">addition of a fifth <span id="S2.I3.i3.p1.1.1" class="ltx_text ltx_font_bold">Binary</span> category for samples with Y/N type questions,</p>
+</div>
+</li>
+<li id="S2.I3.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i4.p1" class="ltx_para">
+<p id="S2.I3.i4.p1.1" class="ltx_p">focus on accuracy-related metrics instead of the BLEU score,</p>
+</div>
+</li>
+<li id="S2.I3.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i5.p1" class="ltx_para">
+<p id="S2.I3.i5.p1.1" class="ltx_p">avoid label (answer classes) unification and cleansing,</p>
+</div>
+</li>
+<li id="S2.I3.i6" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i6.p1" class="ltx_para">
+<p id="S2.I3.i6.p1.1" class="ltx_p">consider <span id="S2.I3.i6.p1.1.1" class="ltx_text ltx_font_bold">C4</span> as a downstream task and exclude it from the pre-training of input fusion modules,
+</p>
+</div>
+</li>
+<li id="S2.I3.i7" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I3.i7.p1" class="ltx_para">
+<p id="S2.I3.i7.p1.1" class="ltx_p">utilization of image size as an additional input cue to the system.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Supporting Facts Network</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">Typical VQA systems process two types of input, visual (image) and language (question), that need to undergo various transformations to produce the answer.
+Fig. <a href="#S3.F1" title="Figure 1 ‣ 3 Supporting Facts Network ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> presents a general architecture of such systems, indicating four major modules: two encoders responsible for encoding raw inputs to more useful representations, followed by a reasoning module that combines them and finally, an answer decoder that produces the answer.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure">
+<p id="S3.F1.1" class="ltx_p ltx_align_center"><span id="S3.F1.1.1" class="ltx_text"><img src="/html/1905.12008/assets/x1.png" id="S3.F1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="368" height="95" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>General architecture of Visual Question Answering systems</figcaption>
+</figure>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">In the early prototypes of VQA systems, reasoning modules were rather simple and relied mainly on multi-modal fusion mechanisms. These fusion techniques varied from concatenation of image and question representations, to more complex pooling mechanisms such as Multi-modal Compact Bilinear pooling (MCB) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> and Multi-modal Low-rank Bilinear pooling (MLB) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>. Further, diverse attention mechanisms such as question-driven attention over image features <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> were also used.
+More recently, researchers have focused on complex multi-step reasoning mechanisms such as Relational Networks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> and Memory, Attention and Composition (MAC) networks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.
+Despite that, certain empirical studies indicate early fusion of language and vision signals significantly boosts the overall performance of VQA systems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>.
+Therefore, we explored the finding of an ”optimal” module for early fusion of multi-modal inputs.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Architecture of the Input Fusion Module</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">One of our findings from analyzing the dataset was to use the image size as additional input cue to the system.
+This insight triggered an extensive architecture search that included, among others, comparison and training of models with:</p>
+<ul id="S3.I1" class="ltx_itemize">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p">different methods for question encoding, from 1-hot encoding with Bag-of-Words to different word embeddings combined with various types of recurrent neural networks,</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S3.I1.i2.p1" class="ltx_para">
+<p id="S3.I1.i2.p1.1" class="ltx_p">different image encoders, from simple networks containing few convolutional layers trained from scratch to fine-tuning of selected state-of-the-art models pre-trained on ImageNet,</p>
+</div>
+</li>
+<li id="S3.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S3.I1.i3.p1" class="ltx_para">
+<p id="S3.I1.i3.p1.1" class="ltx_p">various data fusion techniques as mentioned in the previous section.</p>
+</div>
+</li>
+</ul>
+</div>
+<figure id="S3.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S3.F2.sf1" class="ltx_figure ltx_figure_panel"><img src="/html/1905.12008/assets/x2.png" id="S3.F2.sf1.g1" class="ltx_graphics ltx_img_landscape" width="281" height="107" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(a) </span><span id="S3.F2.sf1.2.1" class="ltx_text ltx_font_bold">Input Fusion</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S3.F2.sf2" class="ltx_figure ltx_figure_panel"><img src="/html/1905.12008/assets/x3.png" id="S3.F2.sf2.g1" class="ltx_graphics ltx_img_landscape" width="216" height="72" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(b) </span><span id="S3.F2.sf2.2.1" class="ltx_text ltx_font_bold">Question Categorizer</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Architectures of two modules used in the final system</figcaption>
+</figure>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">The final architecture of our model is presented in Fig. <a href="#S3.F2.sf1" title="In Figure 2 ‣ 3.1 Architecture of the Input Fusion Module ‣ 3 Supporting Facts Network ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2a</span></a>.
+We used GloVe word embeddings <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> followed by Long Short-Term Memory (LSTM) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.
+The LSTM outputs along with feature maps extracted from images using VGG-16 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite> were passed to the <span id="S3.SS1.p2.1.1" class="ltx_text ltx_font_bold">Fusion I</span> module, implementing question-driven attention over image features <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>.
+Next, the output of that module was concatenated in the <span id="S3.SS1.p2.1.2" class="ltx_text ltx_font_bold">Fusion II</span> module with image size representation created by passing image width and height through a fully connected (FC) layer.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">Note that the green colored modules were initially pre-trained on external datasets (ImageNet and 6B tokens from Wikipedia 2014 and Gigaword 5 datasets for VGG-16 and GloVe models respectively) and later fine-tuned during training on the VQA-Med dataset.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Architectures of the Reasoning Modules</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">During the architecture search of the <span id="S3.SS2.p1.1.1" class="ltx_text ltx_font_bold">Input Fusion</span> module we used the model presented in Fig. <a href="#S3.F3" title="Figure 3 ‣ 3.2 Architectures of the Reasoning Modules ‣ 3 Supporting Facts Network ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, with a simple classifier with two FC layers.
+These models were trained and validated on <span id="S3.SS2.p1.1.2" class="ltx_text ltx_font_bold">C1</span>, <span id="S3.SS2.p1.1.3" class="ltx_text ltx_font_bold">C2</span> and <span id="S3.SS2.p1.1.4" class="ltx_text ltx_font_bold">C3</span> categories separately, while excluding <span id="S3.SS2.p1.1.5" class="ltx_text ltx_font_bold">C4</span>.
+In fact, to test our hypothesis we trained some early prototypes only on samples from <span id="S3.SS2.p1.1.6" class="ltx_text ltx_font_bold">C4</span> and the models failed to converge.</p>
+</div>
+<figure id="S3.F3" class="ltx_figure">
+<p id="S3.F3.1" class="ltx_p ltx_align_center"><span id="S3.F3.1.1" class="ltx_text"><img src="/html/1905.12008/assets/x4.png" id="S3.F3.1.1.g1" class="ltx_graphics ltx_img_landscape" width="300" height="69" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Architecture with a single classifier (IF-1C)</figcaption>
+</figure>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.2" class="ltx_p">After establishing the <span id="S3.SS2.p2.2.1" class="ltx_text ltx_font_bold">Input Fusion</span> module we trained it on samples from <span id="S3.SS2.p2.2.2" class="ltx_text ltx_font_bold">C1</span>, <span id="S3.SS2.p2.2.3" class="ltx_text ltx_font_bold">C2</span> and <span id="S3.SS2.p2.2.4" class="ltx_text ltx_font_bold">C3</span> categories.
+This served as a starting point for training more complex reasoning modules.
+At first, we worked on a model that exploited information about <math id="S3.SS2.p2.1.m1.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S3.SS2.p2.1.m1.1a"><mn id="S3.SS2.p2.1.m1.1.1" xref="S3.SS2.p2.1.m1.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.1.m1.1b"><cn type="integer" id="S3.SS2.p2.1.m1.1.1.cmml" xref="S3.SS2.p2.1.m1.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.1.m1.1c">5</annotation></semantics></math> categories of questions by employing <math id="S3.SS2.p2.2.m2.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S3.SS2.p2.2.m2.1a"><mn id="S3.SS2.p2.2.m2.1.1" xref="S3.SS2.p2.2.m2.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.2.m2.1b"><cn type="integer" id="S3.SS2.p2.2.m2.1.1.cmml" xref="S3.SS2.p2.2.m2.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.2.m2.1c">5</annotation></semantics></math> separate classifiers which used data produced by the <span id="S3.SS2.p2.2.5" class="ltx_text ltx_font_bold">Input Fusion</span> module.
+Each of these classifiers essentially specialized in one question category and had its own answer label dictionary and associated loss function.
+The predictions were then fed to the <span id="S3.SS2.p2.2.6" class="ltx_text ltx_font_bold">Answer Fusion</span> module, which selected answers from the right classifier based on the question category predicted by the <span id="S3.SS2.p2.2.7" class="ltx_text ltx_font_bold">Question Categorizer</span> module, whose architecture is shown in Fig. <a href="#S3.F2.sf2" title="In Figure 2 ‣ 3.1 Architecture of the Input Fusion Module ‣ 3 Supporting Facts Network ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2b</span></a>.
+Please note that we pre-trained the module in advance on all samples from all categories and froze its weights during the training of classifiers.</p>
+</div>
+<figure id="S3.F4" class="ltx_figure">
+<p id="S3.F4.1" class="ltx_p ltx_align_center"><span id="S3.F4.1.1" class="ltx_text"><img src="/html/1905.12008/assets/x5.png" id="S3.F4.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="142" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Final architecture of the Supporting Facts Network (SFN)</figcaption>
+</figure>
+<div id="S3.SS2.p3" class="ltx_para">
+<p id="S3.SS2.p3.1" class="ltx_p">The architecture of our final model, <span id="S3.SS2.p3.1.1" class="ltx_text ltx_font_bold">Supporting Facts Network</span> is presented in Fig. <a href="#S3.F4" title="Figure 4 ‣ 3.2 Architectures of the Reasoning Modules ‣ 3 Supporting Facts Network ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.
+The main idea here resulted from the analysis of questions about the presence of abnormalities – to answer which the system required knowledge on image modality and/or organ type.
+Therefore, we divided the classification modules into two networks: Support networks (consisting of two FC layers) and final classifiers (being single FC layers).
+We added Plane (<span id="S3.SS2.p3.1.2" class="ltx_text ltx_font_bold">C2</span>) as an additional supporting fact.
+The supporting facts were then concatenated with output from <span id="S3.SS2.p3.1.3" class="ltx_text ltx_font_bold">Input Fusion</span> module in <span id="S3.SS2.p3.1.4" class="ltx_text ltx_font_bold">Fusion III</span> and passed as input to the classifier specialized on <span id="S3.SS2.p3.1.5" class="ltx_text ltx_font_bold">C4</span> questions.
+In addition, since <span id="S3.SS2.p3.1.6" class="ltx_text ltx_font_bold">Binary</span> Y/N questions were present in both <span id="S3.SS2.p3.1.7" class="ltx_text ltx_font_bold">C1</span> and <span id="S3.SS2.p3.1.8" class="ltx_text ltx_font_bold">C4</span> categories, we followed a similar approach for that classifier.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experimental Results</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.5" class="ltx_p">All experiments were conducted using PyTorchPipe <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>, a framework that facilitates development of multi-modal pipelines built on top of PyTorch <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>.
+Our models were trained using relatively large batches (<math id="S4.p1.1.m1.1" class="ltx_Math" alttext="256" display="inline"><semantics id="S4.p1.1.m1.1a"><mn id="S4.p1.1.m1.1.1" xref="S4.p1.1.m1.1.1.cmml">256</mn><annotation-xml encoding="MathML-Content" id="S4.p1.1.m1.1b"><cn type="integer" id="S4.p1.1.m1.1.1.cmml" xref="S4.p1.1.m1.1.1">256</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.1.m1.1c">256</annotation></semantics></math>), dropout (<math id="S4.p1.2.m2.1" class="ltx_Math" alttext="0.5" display="inline"><semantics id="S4.p1.2.m2.1a"><mn id="S4.p1.2.m2.1.1" xref="S4.p1.2.m2.1.1.cmml">0.5</mn><annotation-xml encoding="MathML-Content" id="S4.p1.2.m2.1b"><cn type="float" id="S4.p1.2.m2.1.1.cmml" xref="S4.p1.2.m2.1.1">0.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.2.m2.1c">0.5</annotation></semantics></math>) and Adam optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> with a small learning rate (<math id="S4.p1.3.m3.1" class="ltx_Math" alttext="1e-4" display="inline"><semantics id="S4.p1.3.m3.1a"><mrow id="S4.p1.3.m3.1.1" xref="S4.p1.3.m3.1.1.cmml"><mrow id="S4.p1.3.m3.1.1.2" xref="S4.p1.3.m3.1.1.2.cmml"><mn id="S4.p1.3.m3.1.1.2.2" xref="S4.p1.3.m3.1.1.2.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S4.p1.3.m3.1.1.2.1" xref="S4.p1.3.m3.1.1.2.1.cmml">​</mo><mi id="S4.p1.3.m3.1.1.2.3" xref="S4.p1.3.m3.1.1.2.3.cmml">e</mi></mrow><mo id="S4.p1.3.m3.1.1.1" xref="S4.p1.3.m3.1.1.1.cmml">−</mo><mn id="S4.p1.3.m3.1.1.3" xref="S4.p1.3.m3.1.1.3.cmml">4</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.3.m3.1b"><apply id="S4.p1.3.m3.1.1.cmml" xref="S4.p1.3.m3.1.1"><minus id="S4.p1.3.m3.1.1.1.cmml" xref="S4.p1.3.m3.1.1.1"></minus><apply id="S4.p1.3.m3.1.1.2.cmml" xref="S4.p1.3.m3.1.1.2"><times id="S4.p1.3.m3.1.1.2.1.cmml" xref="S4.p1.3.m3.1.1.2.1"></times><cn type="integer" id="S4.p1.3.m3.1.1.2.2.cmml" xref="S4.p1.3.m3.1.1.2.2">1</cn><ci id="S4.p1.3.m3.1.1.2.3.cmml" xref="S4.p1.3.m3.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S4.p1.3.m3.1.1.3.cmml" xref="S4.p1.3.m3.1.1.3">4</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.3.m3.1c">1e-4</annotation></semantics></math>).
+For each experimental run, we generated a new training and validation set by combining the original sets, shuffling and sampling them in proportions of <math id="S4.p1.4.m4.1" class="ltx_Math" alttext="19:1" display="inline"><semantics id="S4.p1.4.m4.1a"><mrow id="S4.p1.4.m4.1.1" xref="S4.p1.4.m4.1.1.cmml"><mn id="S4.p1.4.m4.1.1.2" xref="S4.p1.4.m4.1.1.2.cmml">19</mn><mo lspace="0.278em" rspace="0.278em" id="S4.p1.4.m4.1.1.1" xref="S4.p1.4.m4.1.1.1.cmml">:</mo><mn id="S4.p1.4.m4.1.1.3" xref="S4.p1.4.m4.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.4.m4.1b"><apply id="S4.p1.4.m4.1.1.cmml" xref="S4.p1.4.m4.1.1"><ci id="S4.p1.4.m4.1.1.1.cmml" xref="S4.p1.4.m4.1.1.1">:</ci><cn type="integer" id="S4.p1.4.m4.1.1.2.cmml" xref="S4.p1.4.m4.1.1.2">19</cn><cn type="integer" id="S4.p1.4.m4.1.1.3.cmml" xref="S4.p1.4.m4.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.4.m4.1c">19:1</annotation></semantics></math>, thereby resulting in a validation set of size <math id="S4.p1.5.m5.1" class="ltx_Math" alttext="5\%" display="inline"><semantics id="S4.p1.5.m5.1a"><mrow id="S4.p1.5.m5.1.1" xref="S4.p1.5.m5.1.1.cmml"><mn id="S4.p1.5.m5.1.1.2" xref="S4.p1.5.m5.1.1.2.cmml">5</mn><mo id="S4.p1.5.m5.1.1.1" xref="S4.p1.5.m5.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.5.m5.1b"><apply id="S4.p1.5.m5.1.1.cmml" xref="S4.p1.5.m5.1.1"><csymbol cd="latexml" id="S4.p1.5.m5.1.1.1.cmml" xref="S4.p1.5.m5.1.1.1">percent</csymbol><cn type="integer" id="S4.p1.5.m5.1.1.2.cmml" xref="S4.p1.5.m5.1.1.2">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.5.m5.1c">5\%</annotation></semantics></math>.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<table id="S4.T1.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T1.3.1.1" class="ltx_tr">
+<td id="S4.T1.3.1.1.1" class="ltx_td ltx_nopad_r ltx_border_tt"></td>
+<th id="S4.T1.3.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3">Resampled Valid. Set</th>
+<th id="S4.T1.3.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3">Original Train. Set</th>
+<th id="S4.T1.3.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="3">Original Valid. Set</th>
+</tr>
+<tr id="S4.T1.3.2.2" class="ltx_tr">
+<th id="S4.T1.3.2.2.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Model</th>
+<th id="S4.T1.3.2.2.2" class="ltx_td ltx_nopad_l ltx_align_center ltx_th ltx_th_column ltx_border_t"> Prec.</th>
+<th id="S4.T1.3.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Recall</th>
+<th id="S4.T1.3.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">F-1</th>
+<th id="S4.T1.3.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"> Prec.</th>
+<th id="S4.T1.3.2.2.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Recall</th>
+<th id="S4.T1.3.2.2.7" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">F-1</th>
+<th id="S4.T1.3.2.2.8" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"> Prec.</th>
+<th id="S4.T1.3.2.2.9" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Recall</th>
+<th id="S4.T1.3.2.2.10" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">F-1</th>
+</tr>
+<tr id="S4.T1.3.3.3" class="ltx_tr">
+<td id="S4.T1.3.3.3.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">IF-1C</td>
+<td id="S4.T1.3.3.3.2" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t">0.630</td>
+<td id="S4.T1.3.3.3.3" class="ltx_td ltx_align_center ltx_border_t">0.435</td>
+<td id="S4.T1.3.3.3.4" class="ltx_td ltx_align_center ltx_border_t">0.481</td>
+<td id="S4.T1.3.3.3.5" class="ltx_td ltx_align_center ltx_border_t">0.683</td>
+<td id="S4.T1.3.3.3.6" class="ltx_td ltx_align_center ltx_border_t">0.497</td>
+<td id="S4.T1.3.3.3.7" class="ltx_td ltx_align_center ltx_border_t">0.545</td>
+<td id="S4.T1.3.3.3.8" class="ltx_td ltx_align_center ltx_border_t">0.690</td>
+<td id="S4.T1.3.3.3.9" class="ltx_td ltx_align_center ltx_border_t">0.499</td>
+<td id="S4.T1.3.3.3.10" class="ltx_td ltx_align_center ltx_border_t">0.548</td>
+</tr>
+<tr id="S4.T1.3.4.4" class="ltx_tr">
+<td id="S4.T1.3.4.4.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb">SFN</td>
+<td id="S4.T1.3.4.4.2" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_bb">0.759</td>
+<td id="S4.T1.3.4.4.3" class="ltx_td ltx_align_center ltx_border_bb">0.758</td>
+<td id="S4.T1.3.4.4.4" class="ltx_td ltx_align_center ltx_border_bb">0.758</td>
+<td id="S4.T1.3.4.4.5" class="ltx_td ltx_align_center ltx_border_bb">0.753</td>
+<td id="S4.T1.3.4.4.6" class="ltx_td ltx_align_center ltx_border_bb">0.692</td>
+<td id="S4.T1.3.4.4.7" class="ltx_td ltx_align_center ltx_border_bb">0.707</td>
+<td id="S4.T1.3.4.4.8" class="ltx_td ltx_align_center ltx_border_bb">0.762</td>
+<td id="S4.T1.3.4.4.9" class="ltx_td ltx_align_center ltx_border_bb">0.704</td>
+<td id="S4.T1.3.4.4.10" class="ltx_td ltx_align_center ltx_border_bb">0.717</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Summary of experimental results. All columns contain average scores achieved by <math id="S4.T1.2.m1.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S4.T1.2.m1.1b"><mn id="S4.T1.2.m1.1.1" xref="S4.T1.2.m1.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S4.T1.2.m1.1c"><cn type="integer" id="S4.T1.2.m1.1.1.cmml" xref="S4.T1.2.m1.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.2.m1.1d">5</annotation></semantics></math> separately trained models on resampled training and validation sets. We also present scores achieved by the models on original sets (in the evaluation mode).</figcaption>
+</figure>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.2" class="ltx_p">In Tab. <a href="#S4.T1" title="Table 1 ‣ 4 Experimental Results ‣ Leveraging Medical Visual Question Answering with Supporting Facts" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> we present a comparison of average scores achieved by our baseline models using single classifier (IF-1C) and the Supporting Facts Networks (SFN).
+Our results clearly indicate the advantage of using <span id="S4.p2.2.1" class="ltx_text ltx_font_italic">’supporting facts’</span> over the baseline model with a single classifier.
+The SFN model by our team achieved a best score of (<math id="S4.p2.1.m1.1" class="ltx_Math" alttext="0.558" display="inline"><semantics id="S4.p2.1.m1.1a"><mn id="S4.p2.1.m1.1.1" xref="S4.p2.1.m1.1.1.cmml">0.558</mn><annotation-xml encoding="MathML-Content" id="S4.p2.1.m1.1b"><cn type="float" id="S4.p2.1.m1.1.1.cmml" xref="S4.p2.1.m1.1.1">0.558</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.1.m1.1c">0.558</annotation></semantics></math> Accuracy, <math id="S4.p2.2.m2.1" class="ltx_Math" alttext="0.582" display="inline"><semantics id="S4.p2.2.m2.1a"><mn id="S4.p2.2.m2.1.1" xref="S4.p2.2.m2.1.1.cmml">0.582</mn><annotation-xml encoding="MathML-Content" id="S4.p2.2.m2.1b"><cn type="float" id="S4.p2.2.m2.1.1.cmml" xref="S4.p2.2.m2.1.1">0.582</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.2.m2.1c">0.582</annotation></semantics></math> BLEU score) on the test set as indicated by the CrowdAI leaderboard.
+One of the reasons for such a significant drop in performance is due to the presence of new answers classes in the test set that were not present both in the original training and validation sets.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Summary</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this work, we introduced a new model called <span id="S5.p1.1.1" class="ltx_text ltx_font_bold">Supporting Facts Network</span> (SFN), that leverages knowledge learned from combinations of upstream tasks in order to benefit additional downstream tasks.
+The model incorporates domain knowledge that we gathered from a thorough analysis of the dataset, resulting in specialized input fusion methods and five separate, category-specific classifiers.
+It comprises of two pre-trained shared modules followed by a reasoning module jointly trained with five classifiers using the multi-task learning approach.
+Our models were found to train faster and to deal much better with label distribution shifts under a small imbalanced data regime.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.2" class="ltx_p">Among the five categories of samples present in the VQA-Med dataset, <span id="S5.p2.2.1" class="ltx_text ltx_font_bold">C4</span> and <span id="S5.p2.2.2" class="ltx_text ltx_font_bold">Binary</span> turned out to be extremely difficult to learn, for several reasons.
+First, there were <math id="S5.p2.1.m1.1" class="ltx_Math" alttext="1483" display="inline"><semantics id="S5.p2.1.m1.1a"><mn id="S5.p2.1.m1.1.1" xref="S5.p2.1.m1.1.1.cmml">1483</mn><annotation-xml encoding="MathML-Content" id="S5.p2.1.m1.1b"><cn type="integer" id="S5.p2.1.m1.1.1.cmml" xref="S5.p2.1.m1.1.1">1483</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p2.1.m1.1c">1483</annotation></semantics></math> unique answer classes assigned to <math id="S5.p2.2.m2.1" class="ltx_Math" alttext="3082" display="inline"><semantics id="S5.p2.2.m2.1a"><mn id="S5.p2.2.m2.1.1" xref="S5.p2.2.m2.1.1.cmml">3082</mn><annotation-xml encoding="MathML-Content" id="S5.p2.2.m2.1b"><cn type="integer" id="S5.p2.2.m2.1.1.cmml" xref="S5.p2.2.m2.1.1">3082</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p2.2.m2.1c">3082</annotation></semantics></math> training samples related to <span id="S5.p2.2.3" class="ltx_text ltx_font_bold">C4</span>.
+Second, both <span id="S5.p2.2.4" class="ltx_text ltx_font_bold">C4</span> and <span id="S5.p2.2.5" class="ltx_text ltx_font_bold">Binary</span> required more complex reasoning and, besides, might be impossible to conclude by looking only at the question and content of the image.
+However, our observation that some of the information from simpler categories might be useful during reasoning on more complex ones, we refined the model by adding supporting networks.
+Given, modality, imaging plane and organ typically help narrow down the scope of disease conditions and/or answer whether or not an abnormality is present.
+Our empirical studies prove that this approach performs significantly better, leading to an 18 point improvement in F-1 score over the baseline model on the original validation set.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Abacha, A.B., Hasan, S.A., Datla, V.V., Liu, J., Demner-Fushman, D., Müller,
+H.: VQA-Med: Overview of the Medical Visual Question Answering Task at
+ImageCLEF 2019. In: CLEF2019 Working Notes. CEUR Workshop Proceedings
+(2019)
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Antol, S., Agrawal, A., Lu, J., Mitchell, M., Batra, D., Lawrence Zitnick, C.,
+Parikh, D.: Vqa: Visual question answering. In: Proceedings of the IEEE
+international conference on computer vision. pp. 2425–2433 (2015)
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Ardila, D., Kiraly, A.P., Bharadwaj, S., Choi, B., Reicher, J.J., Peng, L.,
+Tse, D., Etemadi, M., Ye, W., Corrado, G., Naidich, D.P., Shetty, S.:
+End-to-end lung cancer screening with three-dimensional deep learning on
+low-dose chest computed tomography. Nature Medicine (2019)
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Bojanowski, P., Grave, E., Joulin, A., Mikolov, T.: Enriching word vectors with
+subword information. Transactions of the Association for Computational
+Linguistics <span id="bib.bib4.1.1" class="ltx_text ltx_font_bold">5</span>, 135–146 (2017)
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Caruana, R.: Multitask learning. Machine learning <span id="bib.bib5.1.1" class="ltx_text ltx_font_bold">28</span>(1), 41–75
+(1997)
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Desta, M.T., Chen, L., Kornuta, T.: Object-based reasoning in VQA. In: 2018
+IEEE Winter Conference on Applications of Computer Vision (WACV). pp.
+1814–1823. IEEE (2018)
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Fukui, A., Park, D.H., Yang, D., Rohrbach, A., Darrell, T., Rohrbach, M.:
+Multimodal compact bilinear pooling for visual question answering and visual
+grounding. In: EMNLP (2016)
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Hochreiter, S., Schmidhuber, J.: Long short-term memory. Neural computation
+<span id="bib.bib8.1.1" class="ltx_text ltx_font_bold">9</span>(8), 1735–1780 (1997)
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Hudson, D.A., Manning, C.D.: Compositional attention networks for machine
+reasoning. In: CVPR (2018)
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Hudson, D.A., Manning, C.D.: Gqa: a new dataset for compositional question
+answering over real-world images. arXiv preprint arXiv:1902.09506 (2019)
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Kazemi, V., Elqursh, A.: Show, ask, attend, and answer: A strong baseline for
+visual question answering. arXiv preprint arXiv:1704.03162 (2017)
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Kim, J.H., On, K.W., Lim, W., Kim, J., Ha, J.W., Zhang, B.T.: Hadamard product
+for low-rank bilinear pooling. In: ICLR (2017)
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. arXiv
+preprint arXiv:1412.6980 (2014)
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Kornuta, T.: Pytorchpipe. <a target="_blank" href="https://github.com/ibm/pytorchpipe" title="" class="ltx_ref">https://github.com/ibm/pytorchpipe</a> (2019)
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+LeCun, Y., Bengio, Y., Hinton, G.: Deep learning. nature <span id="bib.bib15.1.1" class="ltx_text ltx_font_bold">521</span>(7553),
+ 436 (2015)
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Malinowski, M., Doersch, C.: The Visual QA devil in the details: The impact
+of early fusion and batch norm on CLEVR. In: ECCV’18 Workshop on
+Shortcomings in Vision and Language (2018)
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Malinowski, M., Fritz, M.: A multi-world approach to question answering about
+real-world scenes based on uncertain input. In: Advances in neural
+information processing systems. pp. 1682–1690 (2014)
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Marois, V., Jayram, T., Albouy, V., Kornuta, T., Bouhadjar, Y., Ozcan, A.S.: On
+transfer learning using a MAC model variant. In: NeurIPS’18
+Visually-Grounded Interaction and Language (ViGIL) Workshop (2018)
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Paszke, A., Gross, S., Chintala, S., Chanan, G., Yang, E., DeVito, Z., Lin, Z.,
+Desmaison, A., Antiga, L., Lerer, A.: Automatic differentiation in pytorch
+(2017)
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Pennington, J., Socher, R., Manning, C.: Glove: Global vectors for word
+representation. In: Proceedings of the 2014 conference on empirical methods
+in natural language processing (EMNLP). pp. 1532–1543 (2014)
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Romanov, A., Shivade, C.: Lessons from natural language inference in the
+clinical domain <a target="_blank" href="http://arxiv.org/abs/1808.06752" title="" class="ltx_ref">http://arxiv.org/abs/1808.06752</a>
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Santoro, A., Raposo, D., Barrett, D.G., Malinowski, M., Pascanu, R., Battaglia,
+P., Lillicrap, T.: A simple neural network module for relational reasoning.
+In: Advances in Neural Information Processing Systems. pp. 4967–4976 (2017)
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+Simonyan, K., Zisserman, A.: Very deep convolutional networks for large-scale
+image recognition. arXiv preprint arXiv:1409.1556 (2014)
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+Singh, A., Natarajan, V., Shah, M., Jiang, Y., Chen, X., Batra, D., Parikh, D.,
+Rohrbach, M.: Towards vqa models that can read. arXiv preprint
+arXiv:1904.08920 (2019)
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Syeda-Mahmood, T., Walach, E., Beymer, D., Gilboa-Solomon, F., Moradi, M.,
+Kisilev, P., Kakrania, D., Compas, C., Wang, H., Negahdar, R., et al.:
+Medical sieve: a cognitive assistant for radiologists and cardiologists. In:
+Medical Imaging 2016: Computer-Aided Diagnosis. vol. 9785, p. 97850A.
+International Society for Optics and Photonics (2016)
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1905.12007" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1905.12008" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1905.12008">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1905.12008" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1905.12009" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Mar  1 21:35:16 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

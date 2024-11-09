@@ -1,0 +1,951 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2402.07098] Improving Pallet Detection Using Synthetic Data</title><meta property="og:description" content="The use of synthetic data in machine learning saves a significant amount of time when implementing an effective object detector. However, there is limited research in this domain. This study aims to improve upon previo…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Improving Pallet Detection Using Synthetic Data">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Improving Pallet Detection Using Synthetic Data">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2402.07098">
+
+<!--Generated on Tue Mar  5 18:24:18 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Improving Pallet Detection Using Synthetic Data</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Henry Gann<sup id="id6.6.id1" class="ltx_sup"><span id="id6.6.id1.1" class="ltx_text ltx_font_italic">∗</span></sup>, Josiah Bull<sup id="id7.7.id2" class="ltx_sup"><span id="id7.7.id2.1" class="ltx_text ltx_font_italic">∗</span></sup>, Trevor Gee, Mahla Nejati<sup id="id8.8.id3" class="ltx_sup"><span id="id8.8.id3.1" class="ltx_text ltx_font_italic">∗∗</span></sup> 
+<br class="ltx_break">Centre for Automation and Robotic Engineering Science 
+<br class="ltx_break">The University of Auckland, New Zealand 
+<br class="ltx_break"><sup id="id9.9.id4" class="ltx_sup"><span id="id9.9.id4.1" class="ltx_text ltx_font_italic">∗</span></sup>{hgan927, jbul738}@aucklanduni.ac.nz, <sup id="id10.10.id5" class="ltx_sup"><span id="id10.10.id5.1" class="ltx_text ltx_font_italic">∗∗</span></sup>m.nejati@auckland.ac.nz
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id11.id1" class="ltx_p">The use of synthetic data in machine learning saves a significant amount of time when implementing an effective object detector. However, there is limited research in this domain. This study aims to improve upon previously applied implementations in the task of instance segmentation of pallets in a warehouse environment. This study proposes using synthetically generated domain-randomised data as well as data generated through Unity to achieve this. This study achieved performance improvements on the stacked and racked pallet categories by 69% and 50% mAP50, respectively when being evaluated on real data. Additionally, it was found that there was a considerable impact on the performance of a model when it was evaluated against images in a darker environment, dropping as low as 3% mAP50 when being evaluated on images with an 80% brightness reduction. This study also created a two-stage detector that used YOLOv8 and SAM, but this proved to have unstable performance. The use of domain-randomised data proved to have negligible performance improvements when compared to the Unity-generated data.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">The task of pallet detection is a crucial step towards enabling the use of autonomous vehicles in a warehouse environment. This is because there are currently limitations to traditional methods, such as point clouds from a lidar and camera system which struggle to handle more complex cases, such as obstructions between the object and the camera. It is for this same reason, that simple methods such as fiducials have not been largely successful - obstructions between the camera and any markers can cause the system to fail to detect the pallets. This is a very realistic problem of a true warehouse environment, where there will be many different forces that can cause these issues. It is therefore of interest to perform instance segmentation on pallet bodies and faces to provide key information to automated systems.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">However, supervised machine learning (ML) has been known to have a major pitfall - the data must be labelled. Common ML data sets range significantly between several thousand to millions of images being used to train a model. The main issue with this is the sheer scale of data that needs to be collected and then labelled. Collecting data can be somewhat cumbersome, but labelling data is significantly more so <span id="S1.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S1.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S1.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Therefore, it is of considerable interest to find an alternative method for gathering annotated data. Synthetic data can be generated using modern simulation engines, including Unity, Isaac Sim, and Unreal Engine to render photo-realistic images from manually crafted scenes such as the one shown in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. An alternative to manually crafting scenes is to use domain randomisation to reduce the cost to manually build scenes.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2402.07098/assets/images/pallet-intro.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="449" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>A synthetic image of a pallet rendered through Unity.</figcaption>
+</figure>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">This study is the continuation of a previous study that analysed the feasibility of using synthetic data to train deep-learning detectors <span id="S1.p4.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S1.p4.1.2" class="ltx_text ltx_font_bold">?<span id="S1.p4.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. <span id="S1.p4.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S1.p4.1.4" class="ltx_text ltx_font_bold">?<span id="S1.p4.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> found success in segmenting single pallets but struggled with more complex arrangements such as stacked and racked pallets. They also only considered settings with uniform lighting. The research goals for this study aim to improve upon the prior implementation and investigate how this approach holds up against a more complex scene, i.e. varied lighting conditions. Lighting is particularly of interest as the warehouse conditions can vary greatly over the natural day and night cycle as well as in different warehouses which can have different light sources and distances from the light sources.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Literature Review</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">This section reflects on a review of literature on related topics that helped guide the direction of the research. The literature can be divided into the following sections: synthetic data approaches, modern deep learning methods, previous approaches, and the impact lighting can have on a deep learning model.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Synthetic Data</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Training large and accurate deep learning models requires large labelled datasets, which can be very time-consuming, expensive and error-prone to collect and label manually <span id="S2.SS1.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. Leveraging synthetic data generation can circumvent this. The model can then be fine-tuned using a smaller number of labelled examples, or even no labelled examples at all <span id="S2.SS1.p1.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p1.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p1.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. The techniques for generating synthetic data are widely varied, ranging from simple procedural generation techniques to complex simulation environments <span id="S2.SS1.p1.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p1.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p1.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">In recent years, synthetic datasets have appeared for training networks to successfully solve geometric problems, stereo disparity estimation, and camera pose estimation <span id="S2.SS1.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p2.1.2" class="ltx_text ltx_font_bold">?</span>; <span id="S2.SS1.p2.1.3" class="ltx_text ltx_font_bold">?</span>; <span id="S2.SS1.p2.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p2.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. These are often generated with various physics or game engines, including Unity, <span id="S2.SS1.p2.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p2.1.6" class="ltx_text ltx_font_bold">?</span>; <span id="S2.SS1.p2.1.7" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p2.1.7.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> Unreal Engine <span id="S2.SS1.p2.1.8" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p2.1.9" class="ltx_text ltx_font_bold">?</span>; <span id="S2.SS1.p2.1.10" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p2.1.10.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>, and Isaac Sim <span id="S2.SS1.p2.1.11" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p2.1.12" class="ltx_text ltx_font_bold">?</span>; <span id="S2.SS1.p2.1.13" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p2.1.13.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. While these techniques have been effective in creating synthetic data, it is often at a higher cost than traditional methods, negating the benefits of synthetic data - especially when large labelled datasets are available <span id="S2.SS1.p2.1.14" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p2.1.15" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p2.1.15.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2402.07098/assets/x1.jpg" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_figure_panel ltx_img_square" width="178" height="196" alt="Refer to caption"></div>
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2402.07098/assets/x2.jpg" id="S2.F2.g2" class="ltx_graphics ltx_centering ltx_figure_panel ltx_img_square" width="178" height="196" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>An example of domain randomisation of a pallet in a warehouse environment (Left) and a randomised environment with randomised colours (Right).</figcaption>
+</figure>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.1" class="ltx_p">Domain randomisation is a budding technique that randomises the environment around a target object. An example can be seen in Figure <a href="#S2.F2" title="Figure 2 ‣ 2.1 Synthetic Data ‣ 2 Literature Review ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. This results in the model learning general features of the input data, in this case, a pallet, instead of specific characteristics <span id="S2.SS1.p3.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p3.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p3.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. Domain randomisation can include lighting, occlusions, colours, textures and other aspects of the environment. More data is generally required than when using real data, however, it has a considerably lower cost to gather this data <span id="S2.SS1.p3.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p3.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p3.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. With fine-tuning, domain randomisation can outperform traditional synthetic data techniques and achieve accuracy between 1.6% worse, to 10.2% better when compared against models trained on real data <span id="S2.SS1.p3.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p3.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p3.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. <span id="S2.SS1.p3.1.7" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS1.p3.1.8" class="ltx_text ltx_font_bold">?<span id="S2.SS1.p3.1.8.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> performed domain randomisation in a warehouse environment and they note “an accuracy of 85% in inventory tracking while varying the position and angle of the camera”.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Modern Deep Learning Techniques</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p"><span id="S2.SS2.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> designed a two-stage detector that was one of the largest convolutional neural networks (CNN) of the time. It classified the ImageNet data set and “achieved top-1 and top-5 error rates of 37.5% and 17.0%” <span id="S2.SS2.p1.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p1.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p1.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. Faster R-CNN operates with a two-stage approach to object detection. The first stage is a region proposal network (RPN), which generates a set of bounding boxes for potential objects. The second stage is a CNN, which classifies the bounding boxes generated by the RPN <span id="S2.SS2.p1.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p1.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p1.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. A different approach uses Mask R-CNN and has been shown to outperform the 2016 COCO keypoint competition winner while running at around 5 frames per second (fps) for the COCO keypoint component <span id="S2.SS2.p1.1.7" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p1.1.8" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p1.1.8.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">Faster R-CNN is an improvement on R-CNN, with Mask R-CNN adding the ability to segment objects within the bounding boxes <span id="S2.SS2.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. The R-CNN family of algorithms traditionally have a higher accuracy than YOLO, but are significantly slower <span id="S2.SS2.p2.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p2.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p2.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> - however, recent YOLOv7 benchmarks indicate that some CNNs have fallen behind, with SWIN-L Cascade-Mask R-CNN scoring lower in accuracy by 2%, and being 509% slower <span id="S2.SS2.p2.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p2.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p2.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">You Only Look Once (YOLO) is a family of single-stage object detection algorithms. It considers the entire image during training and test time, allowing consideration of the full image context <span id="S2.SS2.p3.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p3.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p3.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. As a result, “YOLO makes less than half the number of background errors compared to Fast R-CNN” <span id="S2.SS2.p3.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p3.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p3.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. The initial version of YOLO manages to achieve 57.9% mAP on the VOC 2012 test set, which is considerably lower than other implementations, but the combined Fast R-CNN + YOLO model achieves 70.7% mAP, which landed it in the top 5 detection algorithms of the time. YOLOv4 achieves 43.5%AP for the MS COCO dataset at around 65 fps on Tesla V100 <span id="S2.SS2.p3.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p3.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p3.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</p>
+</div>
+<div id="S2.SS2.p4" class="ltx_para">
+<p id="S2.SS2.p4.1" class="ltx_p">Another interesting approach is the Swin Transformer in <span id="S2.SS2.p4.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p4.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p4.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> with a linear complexity proportional to the size of the image, which means that it can easily run in real time. It manages to achieve “+2.7 box AP and +2.6 mask AP on COCO” compared to state-of-the-art models <span id="S2.SS2.p4.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p4.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p4.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. This is an improvement on the approach from <span id="S2.SS2.p4.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p4.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p4.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> which achieves “51.3% box AP for object detection, 44.4% mask AP for instance segmentation” using a recursive feature pyramid on the COCO test-dev dataset at 4 fps. <span id="S2.SS2.p4.1.7" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p4.1.8" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p4.1.8.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> achieves 55.1% AP for the COCO test-dev which improves upon this, but there is no mention of the speed.</p>
+</div>
+<div id="S2.SS2.p5" class="ltx_para">
+<p id="S2.SS2.p5.1" class="ltx_p">A very modern segmentation platform has been released by Meta’s AI research department. <span id="S2.SS2.p5.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p5.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p5.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> developed the segment anything model (SAM) which is a foundational model that can receive prompts such as bounding boxes, to perform instance segmentation. SAM produces masks of higher quality than VitDet <span id="S2.SS2.p5.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS2.p5.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS2.p5.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> but with slightly lower AP. However, it was theorised that VitDet was exploiting biases in the COCO masks.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Pallet Detection</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p"><span id="S2.SS3.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS3.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS3.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> demonstrated a deep learning approach paired with a CNN and supplied it with 4620 images of warehouse pallets taken on-site for training. The results show pallet detection reaching 92.7% when operating at 42 fps. <span id="S2.SS3.p1.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS3.p1.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS3.p1.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> used a Mask R-CNN pipeline and achieved an AP50 of 86% on the pallet detection task for individual pallets when using synthetic data from a Unity scene. However, this does not account for more complex and realistic pallet arrangements, such as stacked pallets, which only score 5% AP50. This leaves much room for improvement in their approach - though it is very promising.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p"><span id="S2.SS3.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS3.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS3.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> utilised an R-CNN based detector, with a Kalman filter to track pallets over time. They were able to achieve a detection accuracy of 99.58%; however, their experiments are limited to specific scenarios where the forklift is approaching pallet to fork. Notably, they do not discuss the resolution of their implementation, given each pixel of their camera covers an area of <math id="S2.SS3.p2.1.m1.1" class="ltx_Math" alttext="4.5cm^{2}" display="inline"><semantics id="S2.SS3.p2.1.m1.1a"><mrow id="S2.SS3.p2.1.m1.1.1" xref="S2.SS3.p2.1.m1.1.1.cmml"><mn id="S2.SS3.p2.1.m1.1.1.2" xref="S2.SS3.p2.1.m1.1.1.2.cmml">4.5</mn><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.1" xref="S2.SS3.p2.1.m1.1.1.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3" xref="S2.SS3.p2.1.m1.1.1.3.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.1a" xref="S2.SS3.p2.1.m1.1.1.1.cmml">​</mo><msup id="S2.SS3.p2.1.m1.1.1.4" xref="S2.SS3.p2.1.m1.1.1.4.cmml"><mi id="S2.SS3.p2.1.m1.1.1.4.2" xref="S2.SS3.p2.1.m1.1.1.4.2.cmml">m</mi><mn id="S2.SS3.p2.1.m1.1.1.4.3" xref="S2.SS3.p2.1.m1.1.1.4.3.cmml">2</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.1.m1.1b"><apply id="S2.SS3.p2.1.m1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1"><times id="S2.SS3.p2.1.m1.1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1.1"></times><cn type="float" id="S2.SS3.p2.1.m1.1.1.2.cmml" xref="S2.SS3.p2.1.m1.1.1.2">4.5</cn><ci id="S2.SS3.p2.1.m1.1.1.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3">𝑐</ci><apply id="S2.SS3.p2.1.m1.1.1.4.cmml" xref="S2.SS3.p2.1.m1.1.1.4"><csymbol cd="ambiguous" id="S2.SS3.p2.1.m1.1.1.4.1.cmml" xref="S2.SS3.p2.1.m1.1.1.4">superscript</csymbol><ci id="S2.SS3.p2.1.m1.1.1.4.2.cmml" xref="S2.SS3.p2.1.m1.1.1.4.2">𝑚</ci><cn type="integer" id="S2.SS3.p2.1.m1.1.1.4.3.cmml" xref="S2.SS3.p2.1.m1.1.1.4.3">2</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.1.m1.1c">4.5cm^{2}</annotation></semantics></math>, their accuracy is limited. Despite this, they were able to reliably track pallets moving at a speed of up to 1.5 m/s.</p>
+</div>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Lighting within a Machine Learning Context</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p"><span id="S2.SS4.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS4.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS4.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> specifically look at using object detection for cars in a traffic setting. They acknowledge that “lighting conditions are also challenging, in which [traffic] lights that are not very bright may be detected as the background” <span id="S2.SS4.p1.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS4.p1.1.4" class="ltx_text ltx_font_bold">?<span id="S2.SS4.p1.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. <span id="S2.SS4.p1.1.5" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS4.p1.1.6" class="ltx_text ltx_font_bold">?<span id="S2.SS4.p1.1.6.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> showed how varied lighting (from different power supply frequencies) can damage object detection with CNNs. They compare a 50hz power supply to 100hz and constant output. The results show that with an exposure time of around 40ms or less, for both the 50hz and 100hz experiments, there is damage to the confidence levels of their CNN. However, the constant output only suffers a minor decrease in confidence at the 1.25ms mark. The reason for this is due to how the fps determines the exposure time, which can cause very different lighting outcomes.</p>
+</div>
+</section>
+<section id="S2.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.5 </span>Gaps and Challenges</h3>
+
+<div id="S2.SS5.p1" class="ltx_para">
+<p id="S2.SS5.p1.1" class="ltx_p">This review of relevant literature has identified gaps in previous research. There has been a lot of development on modern machine-learning techniques, which may allow for innovation in previous approaches to pallet detection. With respect to current pallet detection methods, <span id="S2.SS5.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S2.SS5.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S2.SS5.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> showed the most promising approach when using synthetic data, but its performance seems dependent on a controlled environment and it performs poorly on more complex pallet arrangements. Domain randomisation may be helpful to improve performance on these complex pallet arrangements.</p>
+</div>
+<div id="S2.SS5.p2" class="ltx_para">
+<p id="S2.SS5.p2.1" class="ltx_p">There is also a significant lack of research into the impacts of lighting on a machine learning model’s performance. This is of interest, particularly because a warehouse environment is prone to considerable lighting variations.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Methods</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">The overarching pipeline that was used consisted of generating synthetic images of pallets with annotations in the COCO JSON format. Then this data was used to train a model. Finally, validation would be done on the real-world images to evaluate the model’s performance.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Improving Model Performance</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">The primary goal of this research was to improve upon the approach that <span id="S3.SS1.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S3.SS1.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S3.SS1.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> had to pallet detection. Their approach used mask R-CNN, which is fairly slow as a detector.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">The proposed approach applies YOLOv8 to this problem as it is more lightweight and faster <span id="S3.SS1.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S3.SS1.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S3.SS1.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. The literature has also shown that it can often perform just as well as slower CNN alternatives.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">The proposed approach to implementing YOLOv8 involved using a grid-search which would take in a series of model hyper-parameters and then find the best performing YOLOv8 model when iterating over variations of these hyper-parameters. This can then be used as a direct comparison to the research from <span id="S3.SS1.p3.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S3.SS1.p3.1.2" class="ltx_text ltx_font_bold">?<span id="S3.SS1.p3.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> to evaluate the relative performance.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Lighting</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">As mentioned previously, the lighting of a scene can impact the performance of a detection model. Particularly in a warehouse setting, the lighting can vary over the course of the day as well as between different warehouses. Therefore, it is of interest to evaluate the impact of varied lighting on the model as well as try to improve its performance in lower-light settings. Several different approaches have been applied to achieve this goal.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">The first approach was to evaluate how a pre-trained YOLOv8 model was impacted by performing a constant static brightness reduction on the output synthetic dataset. An example can be seen in Figure <a href="#S3.F3" title="Figure 3 ‣ 3.2 Lighting ‣ 3 Methods ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> This was done to simulate the scene being darkened. The second approach was to perform the same static darkening on image datasets but with a random value below a given threshold. This would provide a greater variety in the brightness of the dataset to see the effect that varied brightness could have on the model’s performance.</p>
+</div>
+<figure id="S3.F3" class="ltx_figure"><img src="/html/2402.07098/assets/x3.jpg" id="S3.F3.g1" class="ltx_graphics ltx_centering ltx_img_square" width="531" height="461" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>An example of 80% static brightness reduction on a real-world image</figcaption>
+</figure>
+<div id="S3.SS2.p3" class="ltx_para">
+<p id="S3.SS2.p3.1" class="ltx_p">The last approach was to manually change the lighting in the Unity scene to various lighting levels and train the model again on the darker synthetic dataset. This would provide a simple way of generating mass amounts of data which would have the added benefit of dynamic lighting changes, compared to the previous approaches.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>YOLO + SAM</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">At the time of the research period, YOLOv8 had been recently released and provided significant support to quickly get a model operational. However, YOLO tends to perform best at the detection task. SAM can perform instance segmentation on an image based on prompts such as bounding boxes and has shown strong performance metrics. A two-stage detector was built to test the viability of SAM in the task of pallet detection. This consisted of training a YOLOv8 model in the task of object detection to provide bounding boxes to SAM, which would then perform instance segmentation. SAM outputs a mask that needed to be converted to a series of polygons, which would then be compared against the ground truth labels to determine performance metrics. An overview of this pipeline can be seen in Figure <a href="#S3.F4" title="Figure 4 ‣ 3.3 YOLO + SAM ‣ 3 Methods ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+</div>
+<figure id="S3.F4" class="ltx_figure"><img src="/html/2402.07098/assets/x4.png" id="S3.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="45" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Overview of the YOLO + SAM two-stage detector.</figcaption>
+</figure>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Domain Randomisation</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">An alternative synthetic data generation technique was explored using NVIDIA’s Isaac Sim. Isaac Sim is specifically tailored for generating data targeted at robotics and warehouse environments. A Python script was developed to integrate with Isaac Sim to generate 50,000 randomised scenes with a variety of pallets, lighting, obstructions, materials, and textures.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Results</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">This section shows a direct comparison of the final implementation to the previous implementation by <span id="S4.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S4.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S4.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>, the performance of YOLOv8 models on various lighting datasets, as well as the performance of the YOLO + SAM detector and finally, the performance of a YOLOv8 model that was trained on domain randomised data. The training dataset consisted of 7140 images generated by Unity. This has been used in all subsections, often in conjunction with additional datasets. The primary evaluation metric was mAP50 performance across a variety of classes. mAP50, the mean average precision when intersection over union is at 50%, was chosen as it provides a reasonable estimation of accuracy, especially between models with large variations in performance.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Improving Model Performance</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">A key piece of information in this section is the categories that are being considered. Individual pallets refer to a pallet of a simple configuration where it is alone. Racked pallets refer to when the pallet is being held in warehouse racking. Stacked pallets refer to when there are multiple pallets stacked on top of each other.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">When directly comparing the YOLOv8 model’s performance against that of <span id="S4.SS1.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S4.SS1.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S4.SS1.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>, the performance has improved overall when using the nano model. This can be seen in Figure <a href="#S4.F5" title="Figure 5 ‣ 4.1 Improving Model Performance ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>
+<span id="S4.SS1.p2.1.3" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S4.SS1.p2.1.4" class="ltx_text ltx_font_bold">?<span id="S4.SS1.p2.1.4.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> showed 86% mAP50 for individual pallets which directly compares to 71% from the YOLOv8 model.
+One area where the model is performing much better is with both the stacked and racked pallet configurations. This is certainly an achievement as these represent configurations that are very likely to be seen in the real world.</p>
+</div>
+<figure id="S4.F5" class="ltx_figure"><img src="/html/2402.07098/assets/x5.png" id="S4.F5.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="238" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Comparing the performance of our proposed method compared to the previous method by <span id="S4.F5.3.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S4.F5.4.2" class="ltx_text ltx_font_bold">?<span id="S4.F5.4.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>.</figcaption>
+</figure>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">In Table <a href="#S4.T1" title="Table 1 ‣ 4.1 Improving Model Performance ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> the performance of various YOLOv8 models is shown. This is of interest as it shows the impact model size can have on the overall performance. There is an expected amount of fluctuation, however, there is no major performance increase that can be directly associated with an increase in the model size.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<table id="S4.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_l ltx_border_r ltx_border_t">Model</th>
+<th id="S4.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Individual</th>
+<th id="S4.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Stacked</th>
+<th id="S4.T1.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Racked</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.2.1" class="ltx_tr">
+<td id="S4.T1.1.2.1.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">YOLOv8 N</td>
+<td id="S4.T1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.715</td>
+<td id="S4.T1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.74</td>
+<td id="S4.T1.1.2.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.71</td>
+</tr>
+<tr id="S4.T1.1.3.2" class="ltx_tr">
+<td id="S4.T1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">YOLOv8 S</td>
+<td id="S4.T1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.805</td>
+<td id="S4.T1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.63</td>
+<td id="S4.T1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.705</td>
+</tr>
+<tr id="S4.T1.1.4.3" class="ltx_tr">
+<td id="S4.T1.1.4.3.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">YOLOv8 M</td>
+<td id="S4.T1.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.665</td>
+<td id="S4.T1.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.705</td>
+<td id="S4.T1.1.4.3.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.805</td>
+</tr>
+<tr id="S4.T1.1.5.4" class="ltx_tr">
+<td id="S4.T1.1.5.4.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">YOLOv8 L</td>
+<td id="S4.T1.1.5.4.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.725</td>
+<td id="S4.T1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.77</td>
+<td id="S4.T1.1.5.4.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.73</td>
+</tr>
+<tr id="S4.T1.1.6.5" class="ltx_tr">
+<td id="S4.T1.1.6.5.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_l ltx_border_r ltx_border_t">YOLOv8 X</td>
+<td id="S4.T1.1.6.5.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">0.725</td>
+<td id="S4.T1.1.6.5.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">0.615</td>
+<td id="S4.T1.1.6.5.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">0.78</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>mAP50 results of all YOLOv8 models on the individual, stacked, and racked pallet categories.</figcaption>
+</figure>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Lighting</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">The first experiment used a YOLOv8 model that had been trained on the Unity synthetic dataset. It was then evaluated against statically darkened versions of the validation dataset. Figure <a href="#S4.F6" title="Figure 6 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> shows that performance drops significantly between the 60% and 80% static brightness reduction mark. This warranted further investigation to reduce the performance drop.</p>
+</div>
+<figure id="S4.F6" class="ltx_figure"><img src="/html/2402.07098/assets/x6.png" id="S4.F6.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="295" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>The performance of the best model against statically darkened validation images.</figcaption>
+</figure>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">Then the model was trained from the first experiment on the same Unity synthetic dataset with a static brightness reduction of 25%. Finally, the model was evaluated before and after being trained on the synthetically darkened dataset and compared their performances which can be seen in Figure <a href="#S4.F7" title="Figure 7 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>. The results show no noteworthy improvement in performance. It should be noted that the model was also trained on a dataset that had a static brightness reduction of 50%, but performed poorly on the unaltered validation dataset and thus, was excluded from further experiments.</p>
+</div>
+<figure id="S4.F7" class="ltx_figure"><img src="/html/2402.07098/assets/x7.png" id="S4.F7.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="248" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>Comparison of two models - our best one with and without extra training on a 25% statically darkened dataset</figcaption>
+</figure>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">The second approach sought to use the output synthetic images that were darkened a random amount below a threshold. Figure <a href="#S4.F8" title="Figure 8 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a> shows an improvement over the initial model when validating against images that have been darkened.</p>
+</div>
+<figure id="S4.F8" class="ltx_figure"><img src="/html/2402.07098/assets/x8.png" id="S4.F8.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="270" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>Comparing performance of a model when being trained on randomly and statically darkened datasets.</figcaption>
+</figure>
+<div id="S4.SS2.p4" class="ltx_para">
+<p id="S4.SS2.p4.1" class="ltx_p">The final approach changed all the lighting sources in the Unity scene to lower intensity levels before outputting a new synthetic dataset as opposed to an augmented dataset in the previous approaches. The original intensity of the dataset was 10. The results can be seen in Figure <a href="#S4.F9" title="Figure 9 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a>. This uses the YOLOv8 nano model, which is the smallest YOLOv8 model. It is shown to hold a relatively stable performance until an intensity value between 7 and 6 before a sharp performance drop.</p>
+</div>
+<figure id="S4.F9" class="ltx_figure"><img src="/html/2402.07098/assets/x9.png" id="S4.F9.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="261" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 9: </span>The performance of our best model after being trained on varied lighting Unity synthetic datasets.</figcaption>
+</figure>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>YOLO + SAM</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">When evaluating the performance of the two-stage YOLOv8 + SAM detector, different pre-trained YOLOv8 models were used for object detection in the YOLO component. They were both YOLOv8 nano models that had been given the same training and validation datasets but were trained using different hyperparameters. These are represented by model A and model B and they had very similar performances for detection. This was to evaluate the stability of the detector. The results of this approach can be seen in Table <a href="#S4.T2" title="Table 2 ‣ 4.3 YOLO + SAM ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.1.1.1" class="ltx_tr">
+<th id="S4.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_l ltx_border_r ltx_border_t">Model</th>
+<th id="S4.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Bodies (mAP50)</th>
+<th id="S4.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Faces (mAP50)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.2.1" class="ltx_tr">
+<td id="S4.T2.1.2.1.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">A</td>
+<td id="S4.T2.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.2</td>
+<td id="S4.T2.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.02</td>
+</tr>
+<tr id="S4.T2.1.3.2" class="ltx_tr">
+<td id="S4.T2.1.3.2.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_l ltx_border_r ltx_border_t">B</td>
+<td id="S4.T2.1.3.2.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">0.12</td>
+<td id="S4.T2.1.3.2.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">0.08</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Comparing the performance of two slightly different YOLOv8 models with SAM performing segmentation on pallet bodies and faces.</figcaption>
+</figure>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Domain Randomisation</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">A YOLOv8 model was trained on the newly generated DR dataset and contrasted its performance against the Unity dataset. This was done to compare the performance of a model trained on domain-randomised data against a model trained on the Unity data.</p>
+</div>
+<div id="S4.SS4.p2" class="ltx_para">
+<p id="S4.SS4.p2.1" class="ltx_p">A model trained on domain randomised data typically achieves comparable results to the Unity implementation by <span id="S4.SS4.p2.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S4.SS4.p2.1.2" class="ltx_text ltx_font_bold">?<span id="S4.SS4.p2.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>, including the poor performance on stacked and racked pallets. However, DR has an advantage in that it is possible to generate significantly more data in a shorter time frame than the Unity approach. However, the results show that increasing the number of epochs only worsened performance as seen in Figure <a href="#S4.F10" title="Figure 10 ‣ 4.4 Domain Randomisation ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>.</p>
+</div>
+<figure id="S4.F10" class="ltx_figure"><img src="/html/2402.07098/assets/images/DR_map50_over_epochs.png" id="S4.F10.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="334" height="236" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 10: </span>mAP50 performance of all classes with domain randomisation over an increasing number of epochs.</figcaption>
+</figure>
+<div id="S4.SS4.p3" class="ltx_para">
+<p id="S4.SS4.p3.1" class="ltx_p">When using a realistic environment within Isaac Sim, the model was able to achieve an accuracy of 0.34 mAP50 across all classes. This is when combining the photo-realistic unity dataset with the Isaac Sim dataset.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Discussion</h2>
+
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Improving Model Performance</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">This is the most important section of the research - is it possible to improve the performance of a model using purely synthetic data? As shown in Figure <a href="#S4.F5" title="Figure 5 ‣ 4.1 Improving Model Performance ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, the grid-search implementation led to a massive performance improvement in the pallets in the stacked and racked categories.</p>
+</div>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p">One of the primary reasons for this performance improvement was simply fine-tuning the model’s hyper-parameters. The grid-search approach allows us to automatically find the optimal hyper-parameters to maximise the performance.</p>
+</div>
+<div id="S5.SS1.p3" class="ltx_para">
+<p id="S5.SS1.p3.1" class="ltx_p">Additionally, after inspecting the dataset from the previous year, there were some issues with consistency and the structure of the data. The validation dataset had inconsistent labelling of pallet bodies and faces and some of the labels were corrupt. The training dataset from Unity also had some minor issues with labelling. If any of the pallet vertices were obscured from the camera view, annotation was ignored for that pallet. Fixing both of these issues caused an overall performance improvement in the YOLOv8 implementation.</p>
+</div>
+<div id="S5.SS1.p4" class="ltx_para">
+<p id="S5.SS1.p4.1" class="ltx_p">It is also important to note that the model performance has decreased for the individual pallet category. A large amount of this can be attributed to the fixes that were made to the dataset, which caused an improvement in the other categories.</p>
+</div>
+<div id="S5.SS1.p5" class="ltx_para">
+<p id="S5.SS1.p5.1" class="ltx_p">There is also no major performance increase with larger models as shown in Table <a href="#S4.T1" title="Table 1 ‣ 4.1 Improving Model Performance ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. The main reason for this is that larger models tend to generalise worse. Generalisation is very important to this topic as the goal is to close the gap between simulated and real-world data.</p>
+</div>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Lighting</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">The performance of the model dropped when validated against the images in Figure <a href="#S4.F6" title="Figure 6 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>. This was expected as scaling an image’s brightness down effectively reduces the prominence of pallet features and the dynamic range of the image - and by extension the amount of raw information available to a model. This causes the model to have more difficulty performing feature extraction. During training, this also means that it is possible to confuse the model with variations in prominent features.</p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p">However, there was an improvement when using the random brightness reduction technique in Figure <a href="#S4.F8" title="Figure 8 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a>. This is likely due to an increase in variance in the training images resulting in a robust model, rather than focusing on one (or more) particular lighting level(s). This shows promise as a data augmentation technique to provide resilience against environments that are darker than the provided data.</p>
+</div>
+<div id="S5.SS2.p3" class="ltx_para">
+<p id="S5.SS2.p3.1" class="ltx_p">The attempt to use darker Unity datasets to improve the performance of the model on the normal validation set was unsuccessful as was shown in Figure <a href="#S4.F9" title="Figure 9 ‣ 4.2 Lighting ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a>.
+However, this approach was very simple to allow for generating large quantities of data quickly. This could hold promise if the working environment lighting level was known.</p>
+</div>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>YOLOv8 + SAM</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p">For the YOLO + SAM detector, the mAP50 was much lower for the pallet faces than the pallet bodies as seen in Table <a href="#S4.T2" title="Table 2 ‣ 4.3 YOLO + SAM ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. The reason for this is that the bounding boxes for faces often cause SAM to segment parts of the background, not the pallet face. An example of this can be seen in Figure <a href="#S5.F11" title="Figure 11 ‣ 5.3 YOLOv8 + SAM ‣ 5 Discussion ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">11</span></a> where the SAM mask is shown in the light-green shading. The cause of this is the design of SAM. SAM was intended to segment entire objects - not part of an object. This means naturally, SAM would perform poorly when segmenting parts of an object, such as a pallet face.
+Additionally, due to how new SAM is - it currently does not supply tools to perform training, so it is not possible to improve SAM with respect to the research goals.</p>
+</div>
+<figure id="S5.F11" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2402.07098/assets/x10.png" id="S5.F11.g1" class="ltx_graphics ltx_centering ltx_figure_panel ltx_img_square" width="178" height="196" alt="Refer to caption"></div>
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2402.07098/assets/x11.png" id="S5.F11.g2" class="ltx_graphics ltx_centering ltx_figure_panel ltx_img_square" width="178" height="196" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 11: </span>Demonstration of a YOLOv8 bounding box being incorrectly segmented by SAM.</figcaption>
+</figure>
+<div id="S5.SS3.p2" class="ltx_para">
+<p id="S5.SS3.p2.1" class="ltx_p">There was also a wide performance range in the YOLO + SAM detector when using different detection models for the YOLO stage. After careful investigation, it was found that there was a performance gap between the models due to variations in bounding box generation between individual models. Slight variations between bounding boxes lead to wide variations in segmentation masks generated by SAM.</p>
+</div>
+</section>
+<section id="S5.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.4 </span>Domain Randomisation</h3>
+
+<div id="S5.SS4.p1" class="ltx_para">
+<p id="S5.SS4.p1.1" class="ltx_p">The performance of 34% mAP50 was considered to be excellent performance initially. However, increasing the training time beyond 20 epochs decreased the accuracy of the model on a continual slope as can be seen in <a href="#S4.F10" title="Figure 10 ‣ 4.4 Domain Randomisation ‣ 4 Results ‣ Improving Pallet Detection Using Synthetic Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>, this was further exacerbated with larger training sets serving to migrate the inflection point earlier in training. This continues until it asymptotes at around 0.15 mAP50 after 50 epochs. This may be due to over-fitting exacerbating the real-world simulation gap by feeding it too much simulated data. This behaviour was also observed in <span id="S5.SS4.p1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S5.SS4.p1.1.2" class="ltx_text ltx_font_bold">?<span id="S5.SS4.p1.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span> with a negative correlation between epochs and performance.</p>
+</div>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusions and Future Work</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">The primary research goal was to improve the performance of a deep learning model trained on purely synthetic data in the task of pallet detection. As shown in the results, it has been proven this to be possible using various YOLOv8 models with a grid-search approach to fine-tuning hyper-parameters. The new implementation managed to achieve an increase of 69% and 50% for the stacked and racked pallet categories, respectively. However, there is a decrease in performance on individual pallets by 14%.</p>
+</div>
+<div id="S6.p2" class="ltx_para">
+<p id="S6.p2.1" class="ltx_p">During this process of improvement, a YOLOv8 + SAM two-stage detector was implemented as a prototype. This proved to be unsuccessful due to wide variation in SAMs performance when given different YOLOv8 detector models. In the future, this approach may be a more promising approach, when SAM supports more tools for training and validation.</p>
+</div>
+<div id="S6.p3" class="ltx_para">
+<p id="S6.p3.1" class="ltx_p">Another type of synthetic data was also applied. Isaac Sim was used to perform domain randomisation to generate a large synthetic dataset. After evaluating its performance against that of the Unity dataset, there was no noteworthy improvement. However, this method did allow for simple and rapid data generation which may be beneficial with fine-tuning in the future.</p>
+</div>
+<div id="S6.p4" class="ltx_para">
+<p id="S6.p4.1" class="ltx_p">Additionally, the impact that lighting can have on the performance of a model was researched. It was found that for a YOLOv8 model, this can have a large impact on performance. This varies according to the degree of the scene brightness.</p>
+</div>
+<div id="S6.p5" class="ltx_para">
+<p id="S6.p5.1" class="ltx_p">The future work will include extending the grid search approach to support the Detectron2 models implemented by <span id="S6.p5.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span><span id="S6.p5.1.2" class="ltx_text ltx_font_bold">?<span id="S6.p5.1.2.1" class="ltx_text ltx_font_medium" style="position:relative; bottom:0.9pt;">]</span></span>. This will allow for casting a wider net on model optimisation and fine-tuning. Additionally, another goal is to test the YOLOv8 detector in a real-world warehouse environment so that its performance in a real setting can be evaluated.</p>
+</div>
+<div id="S6.p6" class="ltx_para">
+<p id="S6.p6.1" class="ltx_p">More research should also be conducted into how the model’s performance in low-light settings can be improved - specifically for more models, not just for YOLO models. The research currently identifies several approaches but does not solve the problem. This should also be done in the real world to gain a more realistic indicator of the impacts that real lighting fluctuations have on the model’s performance.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Acknowledgements</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">We extend our thanks towards Crown Equipment Limited as well as their representatives, Sian Phillips and Lachlan Barnes, for sponsoring this project and supplying resources to assist with the research.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bibx1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx1.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Bochkovskiy et al., 2020<span id="bib.bibx1.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Bochkovskiy, A., Wang, C.-Y., and Liao, H.-Y. M. (2020).
+
+</span>
+<span class="ltx_bibblock">Yolov4: Optimal speed and accuracy of object detection.
+
+</span>
+</li>
+<li id="bib.bibx2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx2.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Borkman et al., 2021<span id="bib.bibx2.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Borkman, S., Crespi, A., Dhakad, S., Ganguly, S., Hogins, J., Jhang, Y.-C.,
+Kamalzadeh, M., Li, B., Leal, S., Parisi, P., Romero, C., Smith, W., Thaman,
+A., Warren, S., and Yadav, N. (2021).
+
+</span>
+<span class="ltx_bibblock">Unity perception: Generate synthetic data for computer vision.
+
+</span>
+</li>
+<li id="bib.bibx3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx3.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Butler et al., 2012<span id="bib.bibx3.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Butler, D., Wulff, J., Stanley, G., and Black, M. (2012).
+
+</span>
+<span class="ltx_bibblock">A naturalistic open source movie for optical flow evaluation.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bibx3.3.1" class="ltx_text ltx_font_italic">European Conference on Computer Vision</span>, pages 611–625.
+
+</span>
+</li>
+<li id="bib.bibx4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx4.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Carvalho et al., 2021<span id="bib.bibx4.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Carvalho, S., Humphries, J., Dunne, N., and Leahy, S. (2021).
+
+</span>
+<span class="ltx_bibblock">Impact of light flickering on object detection accuracy using
+convolutional neural networks.
+
+</span>
+<span class="ltx_bibblock">pages 1–6.
+
+</span>
+</li>
+<li id="bib.bibx5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx5.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Falcao et al., 2021<span id="bib.bibx5.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Falcao, J. D., Baweja, P. S. S., Wang, Y., Sangpetch, A., Noh, H. Y.,
+Sangpetch, O., and Zhang, P. (2021).
+
+</span>
+<span class="ltx_bibblock">Piwims: Physics informed warehouse inventory monitory via synthetic
+data generation.
+
+</span>
+<span class="ltx_bibblock">pages 613–618. ACM.
+
+</span>
+</li>
+<li id="bib.bibx6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx6.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>He et al., 2020<span id="bib.bibx6.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+He, K., Gkioxari, G., Dollár, P., and Girshick, R. (2020).
+
+</span>
+<span class="ltx_bibblock">Mask r-cnn.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx6.3.1" class="ltx_text ltx_font_italic">IEEE Transactions on Pattern Analysis and Machine Intelligence</span>,
+42.
+
+</span>
+</li>
+<li id="bib.bibx7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx7.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Kirillov et al., 2023<span id="bib.bibx7.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao,
+T., Whitehead, S., Berg, A. C., Lo, W.-Y., Dollár, P., and Girshick, R.
+(2023).
+
+</span>
+<span class="ltx_bibblock">Segment anything.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx7.3.1" class="ltx_text ltx_font_italic">arXiv:2304.02643</span>.
+
+</span>
+</li>
+<li id="bib.bibx8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx8.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Krizhevsky et al., 2012<span id="bib.bibx8.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Krizhevsky, A., Sutskever, I., and Hinton, G. E. (2012).
+
+</span>
+<span class="ltx_bibblock">Imagenet classification with deep convolutional neural networks.
+
+</span>
+<span class="ltx_bibblock">volume 2.
+
+</span>
+</li>
+<li id="bib.bibx9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx9.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Li et al., 2019<span id="bib.bibx9.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Li, T., Huang, B., Li, C., and Huang, M. (2019).
+
+</span>
+<span class="ltx_bibblock">Application of convolution neural network object detection algorithm
+in logistics warehouse.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx9.3.1" class="ltx_text ltx_font_italic">The Journal of Engineering</span>, 2019:9053–9058.
+
+</span>
+</li>
+<li id="bib.bibx10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx10.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Li et al., 2022<span id="bib.bibx10.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Li, Y., Mao, H., Girshick, R., and He, K. (2022).
+
+</span>
+<span class="ltx_bibblock">Exploring plain vision transformer backbones for object detection.
+
+</span>
+</li>
+<li id="bib.bibx11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx11.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Liu et al., 2016<span id="bib.bibx11.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Liu, W., Anguelov, D., Erhan, D., Szegedy, C., Reed, S., Fu, C.-Y., and Berg,
+A. C. (2016).
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx11.3.1" class="ltx_text ltx_font_italic">SSD: Single Shot MultiBox Detector</span>, page 21–37.
+
+</span>
+<span class="ltx_bibblock">Springer International Publishing.
+
+</span>
+</li>
+<li id="bib.bibx12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx12.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Liu et al., 2021<span id="bib.bibx12.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Liu, Z., Lin, Y., Cao, Y., Hu, H., Wei, Y., Zhang, Z., Lin, S., and Guo, B.
+(2021).
+
+</span>
+<span class="ltx_bibblock">Swin transformer: Hierarchical vision transformer using shifted
+windows.
+
+</span>
+<span class="ltx_bibblock">pages 9992–10002.
+
+</span>
+</li>
+<li id="bib.bibx13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx13.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Luo et al., 2022<span id="bib.bibx13.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Luo, X., Xiang, S., Wang, Y., Liu, Q., Yang, Y., and Wu, K. (2022).
+
+</span>
+<span class="ltx_bibblock">Dedark+detection: A hybrid scheme for object detection under
+low-light surveillance.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bibx13.3.1" class="ltx_text ltx_font_italic">ACM Multimedia Asia</span>, MMAsia ’21, New York, NY, USA.
+Association for Computing Machinery.
+
+</span>
+</li>
+<li id="bib.bibx14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx14.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Mohamed et al., 2020<span id="bib.bibx14.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Mohamed, I. S., Capitanelli, A., Mastrogiovanni, F., Rovetta, S., and Zaccaria,
+R. (2020).
+
+</span>
+<span class="ltx_bibblock">Detection, localisation and tracking of pallets using machine
+learning techniques and 2d range data.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx14.3.1" class="ltx_text ltx_font_italic">Neural Computing and Applications</span>, 32:8811–8828.
+
+</span>
+</li>
+<li id="bib.bibx15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx15.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Naidoo et al., 2023<span id="bib.bibx15.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Naidoo, J., Bates, N., Gee, T., and Nejati, M. (2023).
+
+</span>
+<span class="ltx_bibblock">Pallet detection from synthetic data using game engines.
+
+</span>
+</li>
+<li id="bib.bibx16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx16.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Nikolenko, 2019<span id="bib.bibx16.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Nikolenko, S. I. (2019).
+
+</span>
+<span class="ltx_bibblock">Synthetic data for deep learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx16.3.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1909.11512.
+
+</span>
+</li>
+<li id="bib.bibx17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx17.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Qiao et al., 2021<span id="bib.bibx17.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Qiao, S., Chen, L.-C., and Yuille, A. (2021).
+
+</span>
+<span class="ltx_bibblock">Detectors: Detecting objects with recursive feature pyramid and
+switchable atrous convolution.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bibx17.3.1" class="ltx_text ltx_font_italic">2021 IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR)</span>, pages 10208–10219.
+
+</span>
+</li>
+<li id="bib.bibx18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx18.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Qiu and Yuille, 2016<span id="bib.bibx18.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Qiu, W. and Yuille, A. L. (2016).
+
+</span>
+<span class="ltx_bibblock">Unrealcv: Connecting computer vision to unreal engine.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx18.3.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1609.01326.
+
+</span>
+</li>
+<li id="bib.bibx19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx19.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Redmon et al., 2016<span id="bib.bibx19.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Redmon, J., Divvala, S., Girshick, R., and Farhadi, A. (2016).
+
+</span>
+<span class="ltx_bibblock">You only look once: Unified, real-time object detection.
+
+</span>
+<span class="ltx_bibblock">volume 2016-December, pages 779–788. IEEE Computer Society.
+
+</span>
+</li>
+<li id="bib.bibx20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx20.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Rojas et al., 2022<span id="bib.bibx20.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Rojas, M., Hermosilla, G., Yunge, D., and Farias, G. (2022).
+
+</span>
+<span class="ltx_bibblock">An easy to use deep reinforcement learning library for ai mobile
+robots in isaac sim.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx20.3.1" class="ltx_text ltx_font_italic">Applied Sciences</span>, 12(17):8429.
+
+</span>
+</li>
+<li id="bib.bibx21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx21.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Tan et al., 2018<span id="bib.bibx21.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Tan, C., Sun, F., Kong, T., Zhang, W., Yang, C., and Liu, C. (2018).
+
+</span>
+<span class="ltx_bibblock">A survey on deep transfer learning.
+
+</span>
+<span class="ltx_bibblock">In Kůrková, V., Manolopoulos, Y., Hammer, B., Iliadis, L.,
+and Maglogiannis, I., editors, <span id="bib.bibx21.3.1" class="ltx_text ltx_font_italic">Artificial Neural Networks and Machine
+Learning – ICANN 2018</span>, pages 270–279, Cham. Springer International
+Publishing.
+
+</span>
+</li>
+<li id="bib.bibx22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx22.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Tan et al., 2019<span id="bib.bibx22.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Tan, M., Pang, R., and Le, Q. V. (2019).
+
+</span>
+<span class="ltx_bibblock">Efficientdet: Scalable and efficient object detection.
+
+</span>
+</li>
+<li id="bib.bibx23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx23.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Tobin et al., 2017<span id="bib.bibx23.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Tobin, J., Fong, R., Ray, A., Schneider, J., Zaremba, W., and Abbeel, P.
+(2017).
+
+</span>
+<span class="ltx_bibblock">Domain randomization for transferring deep neural networks from
+simulation to the real world.
+
+</span>
+</li>
+<li id="bib.bibx24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx24.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Tremblay et al., 2018<span id="bib.bibx24.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Tremblay, J., Prakash, A., Acuna, D., Brophy, M., Jampani, V., Anil, C., To,
+T., Cameracci, E., Boochoon, S., and Birchfield, S. (2018).
+
+</span>
+<span class="ltx_bibblock">Training deep networks with synthetic data: Bridging the reality gap
+by domain randomization.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bibx24.3.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR) Workshops</span>.
+
+</span>
+</li>
+<li id="bib.bibx25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx25.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Wang et al., 2023<span id="bib.bibx25.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Wang, C.-Y., Bochkovskiy, A., and Liao, H.-Y. M. (2023).
+
+</span>
+<span class="ltx_bibblock">Yolov7: Trainable bag-of-freebies sets new state-of-the-art for
+real-time object detectors.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bibx25.3.1" class="ltx_text ltx_font_italic">2023 IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR)</span>, pages 7464–7475.
+
+</span>
+</li>
+<li id="bib.bibx26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx26.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Welsh, 2023<span id="bib.bibx26.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Welsh, J. (2023).
+
+</span>
+<span class="ltx_bibblock">Developing a pallet detection model using openusd and synthetic data.
+
+</span>
+</li>
+<li id="bib.bibx27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx27.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Wu et al., 2019<span id="bib.bibx27.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Wu, Y., Kirillov, A., Massa, F., Lo, W.-Y., and Girshick, R. (2019).
+
+</span>
+<span class="ltx_bibblock">Detectron2.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://github.com/facebookresearch/detectron2" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/facebookresearch/detectron2</a>.
+
+</span>
+</li>
+<li id="bib.bibx28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx28.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Zaidi et al., 2022<span id="bib.bibx28.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Zaidi, S. S. A., Ansari, M. S., Aslam, A., Kanwal, N., Asghar, M., and Lee, B.
+(2022).
+
+</span>
+<span class="ltx_bibblock">A survey of modern deep learning based object detection models.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx28.3.1" class="ltx_text ltx_font_italic">Digital Signal Processing</span>, 126:103514.
+
+</span>
+</li>
+<li id="bib.bibx29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem"><span id="bib.bibx29.1.1.1" class="ltx_text" style="position:relative; bottom:0.9pt;">[</span>Zhang et al., 2016<span id="bib.bibx29.2.2.2" class="ltx_text" style="position:relative; bottom:0.9pt;">]</span> </span>
+<span class="ltx_bibblock">
+Zhang, Y., Qiu, W., Chen, Q., Hu, X., and Yuille, A. L. (2016).
+
+</span>
+<span class="ltx_bibblock">Unrealstereo: A synthetic dataset for analyzing stereo vision.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bibx29.3.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1612.04647.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2402.07097" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2402.07098" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2402.07098">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2402.07098" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2402.07099" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Mar  5 18:24:18 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

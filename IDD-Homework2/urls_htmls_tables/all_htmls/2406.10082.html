@@ -1,0 +1,1392 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.10082] Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation</title><meta property="og:description" content="Audio-Visual Speech Recognition (AVSR) uses lip-based video to improve performance in noise.
+Since videos are harder to obtain than audio, the video training data of AVSR models is usually limited to a few thousand hou…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.10082">
+
+<!--Generated on Sat Jul  6 01:40:25 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">[affiliation=1]AndrewRouditchenko
+<span id="p1.3.1" class="ltx_ERROR undefined">\name</span>[affiliation=1]YuanGong
+<span id="p1.3.2" class="ltx_ERROR undefined">\name</span>[affiliation=2,3]SamuelThomas
+<span id="p1.3.3" class="ltx_ERROR undefined">\name</span>[affiliation=2,3]LeonidKarlinsky
+<span id="p1.3.4" class="ltx_ERROR undefined">\name</span>[affiliation=3,4]HildeKuehne
+<span id="p1.3.5" class="ltx_ERROR undefined">\name</span>[affiliation=2,3]RogerioFeris
+<span id="p1.3.6" class="ltx_ERROR undefined">\name</span>[affiliation=1]JamesGlass</p>
+</div>
+<h1 class="ltx_title ltx_title_document">Whisper-Flamingo: Integrating Visual Features into Whisper
+<br class="ltx_break">for Audio-Visual Speech Recognition and Translation</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id9.id1" class="ltx_p">Audio-Visual Speech Recognition (AVSR) uses lip-based video to improve performance in noise.
+Since videos are harder to obtain than audio, the video training data of AVSR models is usually limited to a few thousand hours.
+In contrast, speech models such as Whisper are trained with hundreds of thousands of hours of data, and thus learn a better speech-to-text decoder.
+The huge training data difference motivates us to adapt Whisper to handle video inputs.
+Inspired by Flamingo which injects visual features into language models, we propose Whisper-Flamingo which integrates visual features into the Whisper speech recognition and translation model with gated cross attention.
+Our audio-visual Whisper-Flamingo outperforms audio-only Whisper on English speech recognition and En-X translation for 6 languages in noisy conditions.
+Moreover, Whisper-Flamingo is a versatile model and conducts all of these tasks using one set of parameters, while prior methods are trained separately on each language.
+</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>audio-visual speech recognition, noise-robust
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">In recent years, major improvements in Automatic Speech Recognition (ASR) performance have been achieved by models trained on large-scale data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, but performance still declines in noise <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>.
+To enhance performance in noise, Audio-Visual Speech Recognition (AVSR) uses lip-based video in addition to audio inputs.
+Self-Supervised Learning (SSL) methods such as AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> pre-train on large-scale datasets of unlabeled videos and fine-tune on a few hundred hours of labeled videos to perform noise-robust AVSR.
+However, due to the difficulty in collecting publicly accessible videos, these models are usually trained on only a few thousand hours of data.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">To overcome the lack of video data, recent methods fine-tune audio-only models pre-trained on hundreds of thousands of hours of audio for audio-visual speech recognition <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.
+The results show that such audio models combined with audio-visual fine-tuning on a few hundred hours of videos can approach the performance of video models pre-trained on thousands of hours of video <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>.
+However, these methods often train video models and text decoders from scratch on only a few hundred hours of data, which is suboptimal compared to training on large-scale data.
+Furthermore, only English data has been used.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In this work, we propose to integrate visual features from AV-HuBERT into Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, an audio-only model trained on 680k hours of speech with a strong <span id="S1.p3.1.1" class="ltx_text ltx_font_italic">multilingual</span> decoder.
+Compared to the prior audio-visual adaptation methods, our video model and text decoder are pre-trained with large-scale data.
+This allows our method to perform well on audio-visual speech translation, a task not explored by prior methods <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">How to fuse modalities effectively in multi-modal models is an ongoing research question.
+One recent work, Flamingo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, fuses visual features into text-only language models using gated cross attention and fine-tuning on a paired text-image dataset.
+The gated cross attention layers are initialized to the identity function and learn to attend to the visual features during fine-tuning.
+These layers have been shown to generalize to different modality pairs; Audio Flamingo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite> recently applied them for text-audio reasoning.
+Inspired by this method, we propose Whisper-Flamingo which inserts gated cross attention layers into Whisper's decoder and enables Whisper to use lip-based features for speech recognition.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Our experiments on the English (En) LRS3 video dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> show that our novel audio-visual Whisper-Flamingo significantly outperforms the audio-only Whisper baseline in noise.
+Moreover, Whisper-Flamingo achieves competitive noise-robust results compared to prior audio-visual models.
+Next, we demonstrate Whisper's multilingual capabilities by extending Whisper-Flamingo for En-X translation on the MuAViC dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>.
+Our model performs En transcription and En-X translation into 6 other languages, while the previous audio-visual SOTA requires fine-tuning on each language separately.
+Once again, Whisper-Flamingo significantly outperforms audio-only Whisper in noise for both En transcription and En-X translation.
+Code and models at <span id="S1.p5.1.1" class="ltx_text" style="font-size:80%;"> <a target="_blank" href="https://github.com/roudimit/whisper-flamingo" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/roudimit/whisper-flamingo</a> </span></p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2406.10082/assets/x1.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="438" height="148" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>
+Diagram of Whisper-Flamingo based on Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> and Flamingo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.
+We first fine-tune all of Whisper's parameters using English audio for English transcription and En-X translation.
+To train Whisper-Flamingo, we freeze the audio model, add gated cross attention layers into Whisper's decoder attending to visual features from AV-HuBERT, and train the model on audio-visual inputs.
+</figcaption>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Method</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">In this section, we review audio-visual fusion methods for AVSR, and then explain our method.
+Two common fusion methods are early and late fusion.
+In early fusion, both modalities are first separately processed by light-weight encoders and then combined with feature addition or concatenation and used as input to an audio-visual Transformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>.
+Both SSL models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> and fully-supervised models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> use this design.
+In late fusion, audio and video are processed separately by Transformer encoders, and afterwards features are fused with an MLP.
+The audio-visual features are then passed to a linear-layer or Transformer decoder.
+This approach is common for fully-supervised models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>.
+Both early and late fusion need identical audio and visual feature rates so that they can be fused at each time step; a common design is to match the video's frame rate by downsampling the audio features to 25 Hz.</p>
+</div>
+<figure id="S2.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Hyperparameter summary.
+We first train Whisper-Large FT (Fine-tune) with audio-only, then use it to initialize Whisper-Flamingo.
+A=audio, AV=audio-visual. †=per sample.</figcaption>
+<div id="S2.T1.4" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:420.6pt;height:372pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(47.5pt,-42.0pt) scale(1.29170418193871,1.29170418193871) ;">
+<table id="S2.T1.4.4" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S2.T1.4.4.5.1" class="ltx_tr">
+<th id="S2.T1.4.4.5.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<td id="S2.T1.4.4.5.1.2" class="ltx_td ltx_align_center ltx_border_tt">Whisper-</td>
+<td id="S2.T1.4.4.5.1.3" class="ltx_td ltx_align_center ltx_border_tt">Whisper-</td>
+<td id="S2.T1.4.4.5.1.4" class="ltx_td ltx_align_center ltx_border_tt">Whisper-</td>
+<td id="S2.T1.4.4.5.1.5" class="ltx_td ltx_align_center ltx_border_tt">Whisper-</td>
+</tr>
+<tr id="S2.T1.4.4.6.2" class="ltx_tr">
+<th id="S2.T1.4.4.6.2.1" class="ltx_td ltx_th ltx_th_row"></th>
+<td id="S2.T1.4.4.6.2.2" class="ltx_td ltx_align_center">Large FT</td>
+<td id="S2.T1.4.4.6.2.3" class="ltx_td ltx_align_center">Large FT</td>
+<td id="S2.T1.4.4.6.2.4" class="ltx_td ltx_align_center">Flamingo</td>
+<td id="S2.T1.4.4.6.2.5" class="ltx_td ltx_align_center">Flamingo</td>
+</tr>
+<tr id="S2.T1.4.4.7.3" class="ltx_tr">
+<th id="S2.T1.4.4.7.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Test Modalities</th>
+<td id="S2.T1.4.4.7.3.2" class="ltx_td ltx_align_center ltx_border_t">A</td>
+<td id="S2.T1.4.4.7.3.3" class="ltx_td ltx_align_center ltx_border_t">A</td>
+<td id="S2.T1.4.4.7.3.4" class="ltx_td ltx_align_center ltx_border_t">AV</td>
+<td id="S2.T1.4.4.7.3.5" class="ltx_td ltx_align_center ltx_border_t">AV</td>
+</tr>
+<tr id="S2.T1.4.4.8.4" class="ltx_tr">
+<th id="S2.T1.4.4.8.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">En Recognition</th>
+<td id="S2.T1.4.4.8.4.2" class="ltx_td ltx_align_center">✓</td>
+<td id="S2.T1.4.4.8.4.3" class="ltx_td ltx_align_center">✓</td>
+<td id="S2.T1.4.4.8.4.4" class="ltx_td ltx_align_center">✓</td>
+<td id="S2.T1.4.4.8.4.5" class="ltx_td ltx_align_center">✓</td>
+</tr>
+<tr id="S2.T1.4.4.9.5" class="ltx_tr">
+<th id="S2.T1.4.4.9.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">En-X Translation</th>
+<td id="S2.T1.4.4.9.5.2" class="ltx_td ltx_align_center">✗</td>
+<td id="S2.T1.4.4.9.5.3" class="ltx_td ltx_align_center">✓</td>
+<td id="S2.T1.4.4.9.5.4" class="ltx_td ltx_align_center">✗</td>
+<td id="S2.T1.4.4.9.5.5" class="ltx_td ltx_align_center">✓</td>
+</tr>
+<tr id="S2.T1.4.4.10.6" class="ltx_tr">
+<th id="S2.T1.4.4.10.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">GPUs</th>
+<td id="S2.T1.4.4.10.6.2" class="ltx_td ltx_align_center">1</td>
+<td id="S2.T1.4.4.10.6.3" class="ltx_td ltx_align_center">4</td>
+<td id="S2.T1.4.4.10.6.4" class="ltx_td ltx_align_center">1</td>
+<td id="S2.T1.4.4.10.6.5" class="ltx_td ltx_align_center">4</td>
+</tr>
+<tr id="S2.T1.4.4.11.7" class="ltx_tr">
+<th id="S2.T1.4.4.11.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Total Params.</th>
+<td id="S2.T1.4.4.11.7.2" class="ltx_td ltx_align_center">1.55B</td>
+<td id="S2.T1.4.4.11.7.3" class="ltx_td ltx_align_center">1.55B</td>
+<td id="S2.T1.4.4.11.7.4" class="ltx_td ltx_align_center">2.5B</td>
+<td id="S2.T1.4.4.11.7.5" class="ltx_td ltx_align_center">2.5B</td>
+</tr>
+<tr id="S2.T1.4.4.12.8" class="ltx_tr">
+<th id="S2.T1.4.4.12.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">AV-HuBERT Params.</th>
+<td id="S2.T1.4.4.12.8.2" class="ltx_td ltx_align_center">-</td>
+<td id="S2.T1.4.4.12.8.3" class="ltx_td ltx_align_center">-</td>
+<td id="S2.T1.4.4.12.8.4" class="ltx_td ltx_align_center">325M</td>
+<td id="S2.T1.4.4.12.8.5" class="ltx_td ltx_align_center">325M</td>
+</tr>
+<tr id="S2.T1.4.4.13.9" class="ltx_tr">
+<th id="S2.T1.4.4.13.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Gated X-Attn Params.</th>
+<td id="S2.T1.4.4.13.9.2" class="ltx_td ltx_align_center">-</td>
+<td id="S2.T1.4.4.13.9.3" class="ltx_td ltx_align_center">-</td>
+<td id="S2.T1.4.4.13.9.4" class="ltx_td ltx_align_center">630M</td>
+<td id="S2.T1.4.4.13.9.5" class="ltx_td ltx_align_center">630M</td>
+</tr>
+<tr id="S2.T1.4.4.14.10" class="ltx_tr">
+<th id="S2.T1.4.4.14.10.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Trainable Params.</th>
+<td id="S2.T1.4.4.14.10.2" class="ltx_td ltx_align_center">1.55B</td>
+<td id="S2.T1.4.4.14.10.3" class="ltx_td ltx_align_center">1.55B</td>
+<td id="S2.T1.4.4.14.10.4" class="ltx_td ltx_align_center">631M</td>
+<td id="S2.T1.4.4.14.10.5" class="ltx_td ltx_align_center">631M</td>
+</tr>
+<tr id="S2.T1.4.4.15.11" class="ltx_tr">
+<th id="S2.T1.4.4.15.11.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Warmup Steps</th>
+<td id="S2.T1.4.4.15.11.2" class="ltx_td ltx_align_center">1k</td>
+<td id="S2.T1.4.4.15.11.3" class="ltx_td ltx_align_center">1k</td>
+<td id="S2.T1.4.4.15.11.4" class="ltx_td ltx_align_center">5k</td>
+<td id="S2.T1.4.4.15.11.5" class="ltx_td ltx_align_center">5k</td>
+</tr>
+<tr id="S2.T1.4.4.16.12" class="ltx_tr">
+<th id="S2.T1.4.4.16.12.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Total Steps</th>
+<td id="S2.T1.4.4.16.12.2" class="ltx_td ltx_align_center">90k</td>
+<td id="S2.T1.4.4.16.12.3" class="ltx_td ltx_align_center">225k</td>
+<td id="S2.T1.4.4.16.12.4" class="ltx_td ltx_align_center">20k</td>
+<td id="S2.T1.4.4.16.12.5" class="ltx_td ltx_align_center">40k</td>
+</tr>
+<tr id="S2.T1.4.4.4" class="ltx_tr">
+<th id="S2.T1.4.4.4.5" class="ltx_td ltx_align_left ltx_th ltx_th_row">Learning Rate</th>
+<td id="S2.T1.1.1.1.1" class="ltx_td ltx_align_center"><math id="S2.T1.1.1.1.1.m1.1" class="ltx_Math" alttext="5\times 10^{-6}" display="inline"><semantics id="S2.T1.1.1.1.1.m1.1a"><mrow id="S2.T1.1.1.1.1.m1.1.1" xref="S2.T1.1.1.1.1.m1.1.1.cmml"><mn id="S2.T1.1.1.1.1.m1.1.1.2" xref="S2.T1.1.1.1.1.m1.1.1.2.cmml">5</mn><mo lspace="0.222em" rspace="0.222em" id="S2.T1.1.1.1.1.m1.1.1.1" xref="S2.T1.1.1.1.1.m1.1.1.1.cmml">×</mo><msup id="S2.T1.1.1.1.1.m1.1.1.3" xref="S2.T1.1.1.1.1.m1.1.1.3.cmml"><mn id="S2.T1.1.1.1.1.m1.1.1.3.2" xref="S2.T1.1.1.1.1.m1.1.1.3.2.cmml">10</mn><mrow id="S2.T1.1.1.1.1.m1.1.1.3.3" xref="S2.T1.1.1.1.1.m1.1.1.3.3.cmml"><mo id="S2.T1.1.1.1.1.m1.1.1.3.3a" xref="S2.T1.1.1.1.1.m1.1.1.3.3.cmml">−</mo><mn id="S2.T1.1.1.1.1.m1.1.1.3.3.2" xref="S2.T1.1.1.1.1.m1.1.1.3.3.2.cmml">6</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.T1.1.1.1.1.m1.1b"><apply id="S2.T1.1.1.1.1.m1.1.1.cmml" xref="S2.T1.1.1.1.1.m1.1.1"><times id="S2.T1.1.1.1.1.m1.1.1.1.cmml" xref="S2.T1.1.1.1.1.m1.1.1.1"></times><cn type="integer" id="S2.T1.1.1.1.1.m1.1.1.2.cmml" xref="S2.T1.1.1.1.1.m1.1.1.2">5</cn><apply id="S2.T1.1.1.1.1.m1.1.1.3.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.T1.1.1.1.1.m1.1.1.3.1.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3">superscript</csymbol><cn type="integer" id="S2.T1.1.1.1.1.m1.1.1.3.2.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3.2">10</cn><apply id="S2.T1.1.1.1.1.m1.1.1.3.3.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3.3"><minus id="S2.T1.1.1.1.1.m1.1.1.3.3.1.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3.3"></minus><cn type="integer" id="S2.T1.1.1.1.1.m1.1.1.3.3.2.cmml" xref="S2.T1.1.1.1.1.m1.1.1.3.3.2">6</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.T1.1.1.1.1.m1.1c">5\times 10^{-6}</annotation></semantics></math></td>
+<td id="S2.T1.2.2.2.2" class="ltx_td ltx_align_center"><math id="S2.T1.2.2.2.2.m1.1" class="ltx_Math" alttext="5\times 10^{-6}" display="inline"><semantics id="S2.T1.2.2.2.2.m1.1a"><mrow id="S2.T1.2.2.2.2.m1.1.1" xref="S2.T1.2.2.2.2.m1.1.1.cmml"><mn id="S2.T1.2.2.2.2.m1.1.1.2" xref="S2.T1.2.2.2.2.m1.1.1.2.cmml">5</mn><mo lspace="0.222em" rspace="0.222em" id="S2.T1.2.2.2.2.m1.1.1.1" xref="S2.T1.2.2.2.2.m1.1.1.1.cmml">×</mo><msup id="S2.T1.2.2.2.2.m1.1.1.3" xref="S2.T1.2.2.2.2.m1.1.1.3.cmml"><mn id="S2.T1.2.2.2.2.m1.1.1.3.2" xref="S2.T1.2.2.2.2.m1.1.1.3.2.cmml">10</mn><mrow id="S2.T1.2.2.2.2.m1.1.1.3.3" xref="S2.T1.2.2.2.2.m1.1.1.3.3.cmml"><mo id="S2.T1.2.2.2.2.m1.1.1.3.3a" xref="S2.T1.2.2.2.2.m1.1.1.3.3.cmml">−</mo><mn id="S2.T1.2.2.2.2.m1.1.1.3.3.2" xref="S2.T1.2.2.2.2.m1.1.1.3.3.2.cmml">6</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.T1.2.2.2.2.m1.1b"><apply id="S2.T1.2.2.2.2.m1.1.1.cmml" xref="S2.T1.2.2.2.2.m1.1.1"><times id="S2.T1.2.2.2.2.m1.1.1.1.cmml" xref="S2.T1.2.2.2.2.m1.1.1.1"></times><cn type="integer" id="S2.T1.2.2.2.2.m1.1.1.2.cmml" xref="S2.T1.2.2.2.2.m1.1.1.2">5</cn><apply id="S2.T1.2.2.2.2.m1.1.1.3.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3"><csymbol cd="ambiguous" id="S2.T1.2.2.2.2.m1.1.1.3.1.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3">superscript</csymbol><cn type="integer" id="S2.T1.2.2.2.2.m1.1.1.3.2.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3.2">10</cn><apply id="S2.T1.2.2.2.2.m1.1.1.3.3.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3.3"><minus id="S2.T1.2.2.2.2.m1.1.1.3.3.1.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3.3"></minus><cn type="integer" id="S2.T1.2.2.2.2.m1.1.1.3.3.2.cmml" xref="S2.T1.2.2.2.2.m1.1.1.3.3.2">6</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.T1.2.2.2.2.m1.1c">5\times 10^{-6}</annotation></semantics></math></td>
+<td id="S2.T1.3.3.3.3" class="ltx_td ltx_align_center"><math id="S2.T1.3.3.3.3.m1.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S2.T1.3.3.3.3.m1.1a"><mrow id="S2.T1.3.3.3.3.m1.1.1" xref="S2.T1.3.3.3.3.m1.1.1.cmml"><mn id="S2.T1.3.3.3.3.m1.1.1.2" xref="S2.T1.3.3.3.3.m1.1.1.2.cmml">1</mn><mo lspace="0.222em" rspace="0.222em" id="S2.T1.3.3.3.3.m1.1.1.1" xref="S2.T1.3.3.3.3.m1.1.1.1.cmml">×</mo><msup id="S2.T1.3.3.3.3.m1.1.1.3" xref="S2.T1.3.3.3.3.m1.1.1.3.cmml"><mn id="S2.T1.3.3.3.3.m1.1.1.3.2" xref="S2.T1.3.3.3.3.m1.1.1.3.2.cmml">10</mn><mrow id="S2.T1.3.3.3.3.m1.1.1.3.3" xref="S2.T1.3.3.3.3.m1.1.1.3.3.cmml"><mo id="S2.T1.3.3.3.3.m1.1.1.3.3a" xref="S2.T1.3.3.3.3.m1.1.1.3.3.cmml">−</mo><mn id="S2.T1.3.3.3.3.m1.1.1.3.3.2" xref="S2.T1.3.3.3.3.m1.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.T1.3.3.3.3.m1.1b"><apply id="S2.T1.3.3.3.3.m1.1.1.cmml" xref="S2.T1.3.3.3.3.m1.1.1"><times id="S2.T1.3.3.3.3.m1.1.1.1.cmml" xref="S2.T1.3.3.3.3.m1.1.1.1"></times><cn type="integer" id="S2.T1.3.3.3.3.m1.1.1.2.cmml" xref="S2.T1.3.3.3.3.m1.1.1.2">1</cn><apply id="S2.T1.3.3.3.3.m1.1.1.3.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3"><csymbol cd="ambiguous" id="S2.T1.3.3.3.3.m1.1.1.3.1.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3">superscript</csymbol><cn type="integer" id="S2.T1.3.3.3.3.m1.1.1.3.2.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3.2">10</cn><apply id="S2.T1.3.3.3.3.m1.1.1.3.3.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3.3"><minus id="S2.T1.3.3.3.3.m1.1.1.3.3.1.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3.3"></minus><cn type="integer" id="S2.T1.3.3.3.3.m1.1.1.3.3.2.cmml" xref="S2.T1.3.3.3.3.m1.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.T1.3.3.3.3.m1.1c">1\times 10^{-4}</annotation></semantics></math></td>
+<td id="S2.T1.4.4.4.4" class="ltx_td ltx_align_center"><math id="S2.T1.4.4.4.4.m1.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S2.T1.4.4.4.4.m1.1a"><mrow id="S2.T1.4.4.4.4.m1.1.1" xref="S2.T1.4.4.4.4.m1.1.1.cmml"><mn id="S2.T1.4.4.4.4.m1.1.1.2" xref="S2.T1.4.4.4.4.m1.1.1.2.cmml">1</mn><mo lspace="0.222em" rspace="0.222em" id="S2.T1.4.4.4.4.m1.1.1.1" xref="S2.T1.4.4.4.4.m1.1.1.1.cmml">×</mo><msup id="S2.T1.4.4.4.4.m1.1.1.3" xref="S2.T1.4.4.4.4.m1.1.1.3.cmml"><mn id="S2.T1.4.4.4.4.m1.1.1.3.2" xref="S2.T1.4.4.4.4.m1.1.1.3.2.cmml">10</mn><mrow id="S2.T1.4.4.4.4.m1.1.1.3.3" xref="S2.T1.4.4.4.4.m1.1.1.3.3.cmml"><mo id="S2.T1.4.4.4.4.m1.1.1.3.3a" xref="S2.T1.4.4.4.4.m1.1.1.3.3.cmml">−</mo><mn id="S2.T1.4.4.4.4.m1.1.1.3.3.2" xref="S2.T1.4.4.4.4.m1.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.T1.4.4.4.4.m1.1b"><apply id="S2.T1.4.4.4.4.m1.1.1.cmml" xref="S2.T1.4.4.4.4.m1.1.1"><times id="S2.T1.4.4.4.4.m1.1.1.1.cmml" xref="S2.T1.4.4.4.4.m1.1.1.1"></times><cn type="integer" id="S2.T1.4.4.4.4.m1.1.1.2.cmml" xref="S2.T1.4.4.4.4.m1.1.1.2">1</cn><apply id="S2.T1.4.4.4.4.m1.1.1.3.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3"><csymbol cd="ambiguous" id="S2.T1.4.4.4.4.m1.1.1.3.1.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3">superscript</csymbol><cn type="integer" id="S2.T1.4.4.4.4.m1.1.1.3.2.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3.2">10</cn><apply id="S2.T1.4.4.4.4.m1.1.1.3.3.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3.3"><minus id="S2.T1.4.4.4.4.m1.1.1.3.3.1.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3.3"></minus><cn type="integer" id="S2.T1.4.4.4.4.m1.1.1.3.3.2.cmml" xref="S2.T1.4.4.4.4.m1.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.T1.4.4.4.4.m1.1c">1\times 10^{-4}</annotation></semantics></math></td>
+</tr>
+<tr id="S2.T1.4.4.17.13" class="ltx_tr">
+<th id="S2.T1.4.4.17.13.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Batch per GPU (s)</th>
+<td id="S2.T1.4.4.17.13.2" class="ltx_td ltx_align_center">80</td>
+<td id="S2.T1.4.4.17.13.3" class="ltx_td ltx_align_center">40</td>
+<td id="S2.T1.4.4.17.13.4" class="ltx_td ltx_align_center">160</td>
+<td id="S2.T1.4.4.17.13.5" class="ltx_td ltx_align_center">30</td>
+</tr>
+<tr id="S2.T1.4.4.18.14" class="ltx_tr">
+<th id="S2.T1.4.4.18.14.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Max Length (s) †</th>
+<td id="S2.T1.4.4.18.14.2" class="ltx_td ltx_align_center">10</td>
+<td id="S2.T1.4.4.18.14.3" class="ltx_td ltx_align_center">10</td>
+<td id="S2.T1.4.4.18.14.4" class="ltx_td ltx_align_center">15</td>
+<td id="S2.T1.4.4.18.14.5" class="ltx_td ltx_align_center">15</td>
+</tr>
+<tr id="S2.T1.4.4.19.15" class="ltx_tr">
+<th id="S2.T1.4.4.19.15.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Max Characters †</th>
+<td id="S2.T1.4.4.19.15.2" class="ltx_td ltx_align_center ltx_border_bb">350</td>
+<td id="S2.T1.4.4.19.15.3" class="ltx_td ltx_align_center ltx_border_bb">300</td>
+<td id="S2.T1.4.4.19.15.4" class="ltx_td ltx_align_center ltx_border_bb">350</td>
+<td id="S2.T1.4.4.19.15.5" class="ltx_td ltx_align_center ltx_border_bb">250</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">Most methods which adapt pre-trained audio-only models for AVSR through audio-visual fine-tuning use early fusion.
+FAVA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> adapts BEST-RQ <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, an audio self-supervised model, through early fusion with a video model trained from scratch.
+Adaptive AV <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> prepends Whisper with an audio-visual Transformer to output a de-noised spectrogram, but does not use visual features directly in Whisper.
+However, we found gated cross attention with features from pre-trained AV-HuBERT worked better than early fusion.
+Note that separate research focuses on using visual features from images or instructional videos for AVSR, where the visuals provide context and are only loosely synchronized with the audio <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite>.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.5" class="ltx_p">We propose to adapt Whisper's decoder with visual features from AV-HuBERT using gated cross attention,
+as shown in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.
+Each of Whisper's decoder blocks consists of a self-attention layer, cross attention layer attending to the audio features, and a Multi-Layer Perceptron (MLP).
+Based on Flamingo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, the gated cross attention layer is defined as follows, where <math id="S2.p3.1.m1.1" class="ltx_Math" alttext="\mathbf{x}" display="inline"><semantics id="S2.p3.1.m1.1a"><mi id="S2.p3.1.m1.1.1" xref="S2.p3.1.m1.1.1.cmml">𝐱</mi><annotation-xml encoding="MathML-Content" id="S2.p3.1.m1.1b"><ci id="S2.p3.1.m1.1.1.cmml" xref="S2.p3.1.m1.1.1">𝐱</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.1.m1.1c">\mathbf{x}</annotation></semantics></math> is the input to the decoder block, <math id="S2.p3.2.m2.1" class="ltx_Math" alttext="\mathbf{v}" display="inline"><semantics id="S2.p3.2.m2.1a"><mi id="S2.p3.2.m2.1.1" xref="S2.p3.2.m2.1.1.cmml">𝐯</mi><annotation-xml encoding="MathML-Content" id="S2.p3.2.m2.1b"><ci id="S2.p3.2.m2.1.1.cmml" xref="S2.p3.2.m2.1.1">𝐯</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.2.m2.1c">\mathbf{v}</annotation></semantics></math> are the visual features, <math id="S2.p3.3.m3.1" class="ltx_Math" alttext="\mathrm{Attn}" display="inline"><semantics id="S2.p3.3.m3.1a"><mi id="S2.p3.3.m3.1.1" xref="S2.p3.3.m3.1.1.cmml">Attn</mi><annotation-xml encoding="MathML-Content" id="S2.p3.3.m3.1b"><ci id="S2.p3.3.m3.1.1.cmml" xref="S2.p3.3.m3.1.1">Attn</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.3.m3.1c">\mathrm{Attn}</annotation></semantics></math> is multi-head cross attention, <math id="S2.p3.4.m4.1" class="ltx_Math" alttext="\mathrm{LN}" display="inline"><semantics id="S2.p3.4.m4.1a"><mi id="S2.p3.4.m4.1.1" xref="S2.p3.4.m4.1.1.cmml">LN</mi><annotation-xml encoding="MathML-Content" id="S2.p3.4.m4.1b"><ci id="S2.p3.4.m4.1.1.cmml" xref="S2.p3.4.m4.1.1">LN</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.4.m4.1c">\mathrm{LN}</annotation></semantics></math> is Layernorm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>, and <math id="S2.p3.5.m5.1" class="ltx_Math" alttext="\mathrm{FFW}" display="inline"><semantics id="S2.p3.5.m5.1a"><mi id="S2.p3.5.m5.1.1" xref="S2.p3.5.m5.1.1.cmml">FFW</mi><annotation-xml encoding="MathML-Content" id="S2.p3.5.m5.1b"><ci id="S2.p3.5.m5.1.1.cmml" xref="S2.p3.5.m5.1.1">FFW</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.5.m5.1c">\mathrm{FFW}</annotation></semantics></math> is an MLP:</p>
+<table id="S5.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E1.m1.1" class="ltx_Math" alttext="\displaystyle\mathbf{x^{\prime}}" display="inline"><semantics id="S2.E1.m1.1a"><msup id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml"><mi id="S2.E1.m1.1.1.2" xref="S2.E1.m1.1.1.2.cmml">𝐱</mi><mo id="S2.E1.m1.1.1.3" xref="S2.E1.m1.1.1.3.cmml">′</mo></msup><annotation-xml encoding="MathML-Content" id="S2.E1.m1.1b"><apply id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.cmml" xref="S2.E1.m1.1.1">superscript</csymbol><ci id="S2.E1.m1.1.1.2.cmml" xref="S2.E1.m1.1.1.2">𝐱</ci><ci id="S2.E1.m1.1.1.3.cmml" xref="S2.E1.m1.1.1.3">′</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.1c">\displaystyle\mathbf{x^{\prime}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E1.m2.4" class="ltx_Math" alttext="\displaystyle=\mathbf{x}+\mathrm{tanh}(\mathrm{\alpha_{xattn}})\times\mathrm{Attn}(\mathrm{LN}(\mathbf{x}),\mathbf{v})" display="inline"><semantics id="S2.E1.m2.4a"><mrow id="S2.E1.m2.4.4" xref="S2.E1.m2.4.4.cmml"><mi id="S2.E1.m2.4.4.4" xref="S2.E1.m2.4.4.4.cmml"></mi><mo id="S2.E1.m2.4.4.3" xref="S2.E1.m2.4.4.3.cmml">=</mo><mrow id="S2.E1.m2.4.4.2" xref="S2.E1.m2.4.4.2.cmml"><mi id="S2.E1.m2.4.4.2.4" xref="S2.E1.m2.4.4.2.4.cmml">𝐱</mi><mo id="S2.E1.m2.4.4.2.3" xref="S2.E1.m2.4.4.2.3.cmml">+</mo><mrow id="S2.E1.m2.4.4.2.2" xref="S2.E1.m2.4.4.2.2.cmml"><mrow id="S2.E1.m2.3.3.1.1.1" xref="S2.E1.m2.3.3.1.1.1.cmml"><mrow id="S2.E1.m2.3.3.1.1.1.1" xref="S2.E1.m2.3.3.1.1.1.1.cmml"><mi id="S2.E1.m2.3.3.1.1.1.1.3" xref="S2.E1.m2.3.3.1.1.1.1.3.cmml">tanh</mi><mo lspace="0em" rspace="0em" id="S2.E1.m2.3.3.1.1.1.1.2" xref="S2.E1.m2.3.3.1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m2.3.3.1.1.1.1.1.1" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m2.3.3.1.1.1.1.1.1.2" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E1.m2.3.3.1.1.1.1.1.1.1" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m2.3.3.1.1.1.1.1.1.1.2" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.2.cmml">α</mi><mi id="S2.E1.m2.3.3.1.1.1.1.1.1.1.3" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.3.cmml">xattn</mi></msub><mo rspace="0.055em" stretchy="false" id="S2.E1.m2.3.3.1.1.1.1.1.1.3" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.222em" id="S2.E1.m2.3.3.1.1.1.2" xref="S2.E1.m2.3.3.1.1.1.2.cmml">×</mo><mi id="S2.E1.m2.3.3.1.1.1.3" xref="S2.E1.m2.3.3.1.1.1.3.cmml">Attn</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E1.m2.4.4.2.2.3" xref="S2.E1.m2.4.4.2.2.3.cmml">​</mo><mrow id="S2.E1.m2.4.4.2.2.2.1" xref="S2.E1.m2.4.4.2.2.2.2.cmml"><mo stretchy="false" id="S2.E1.m2.4.4.2.2.2.1.2" xref="S2.E1.m2.4.4.2.2.2.2.cmml">(</mo><mrow id="S2.E1.m2.4.4.2.2.2.1.1" xref="S2.E1.m2.4.4.2.2.2.1.1.cmml"><mi id="S2.E1.m2.4.4.2.2.2.1.1.2" xref="S2.E1.m2.4.4.2.2.2.1.1.2.cmml">LN</mi><mo lspace="0em" rspace="0em" id="S2.E1.m2.4.4.2.2.2.1.1.1" xref="S2.E1.m2.4.4.2.2.2.1.1.1.cmml">​</mo><mrow id="S2.E1.m2.4.4.2.2.2.1.1.3.2" xref="S2.E1.m2.4.4.2.2.2.1.1.cmml"><mo stretchy="false" id="S2.E1.m2.4.4.2.2.2.1.1.3.2.1" xref="S2.E1.m2.4.4.2.2.2.1.1.cmml">(</mo><mi id="S2.E1.m2.1.1" xref="S2.E1.m2.1.1.cmml">𝐱</mi><mo stretchy="false" id="S2.E1.m2.4.4.2.2.2.1.1.3.2.2" xref="S2.E1.m2.4.4.2.2.2.1.1.cmml">)</mo></mrow></mrow><mo id="S2.E1.m2.4.4.2.2.2.1.3" xref="S2.E1.m2.4.4.2.2.2.2.cmml">,</mo><mi id="S2.E1.m2.2.2" xref="S2.E1.m2.2.2.cmml">𝐯</mi><mo stretchy="false" id="S2.E1.m2.4.4.2.2.2.1.4" xref="S2.E1.m2.4.4.2.2.2.2.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m2.4b"><apply id="S2.E1.m2.4.4.cmml" xref="S2.E1.m2.4.4"><eq id="S2.E1.m2.4.4.3.cmml" xref="S2.E1.m2.4.4.3"></eq><csymbol cd="latexml" id="S2.E1.m2.4.4.4.cmml" xref="S2.E1.m2.4.4.4">absent</csymbol><apply id="S2.E1.m2.4.4.2.cmml" xref="S2.E1.m2.4.4.2"><plus id="S2.E1.m2.4.4.2.3.cmml" xref="S2.E1.m2.4.4.2.3"></plus><ci id="S2.E1.m2.4.4.2.4.cmml" xref="S2.E1.m2.4.4.2.4">𝐱</ci><apply id="S2.E1.m2.4.4.2.2.cmml" xref="S2.E1.m2.4.4.2.2"><times id="S2.E1.m2.4.4.2.2.3.cmml" xref="S2.E1.m2.4.4.2.2.3"></times><apply id="S2.E1.m2.3.3.1.1.1.cmml" xref="S2.E1.m2.3.3.1.1.1"><times id="S2.E1.m2.3.3.1.1.1.2.cmml" xref="S2.E1.m2.3.3.1.1.1.2"></times><apply id="S2.E1.m2.3.3.1.1.1.1.cmml" xref="S2.E1.m2.3.3.1.1.1.1"><times id="S2.E1.m2.3.3.1.1.1.1.2.cmml" xref="S2.E1.m2.3.3.1.1.1.1.2"></times><ci id="S2.E1.m2.3.3.1.1.1.1.3.cmml" xref="S2.E1.m2.3.3.1.1.1.1.3">tanh</ci><apply id="S2.E1.m2.3.3.1.1.1.1.1.1.1.cmml" xref="S2.E1.m2.3.3.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m2.3.3.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m2.3.3.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E1.m2.3.3.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.2">𝛼</ci><ci id="S2.E1.m2.3.3.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m2.3.3.1.1.1.1.1.1.1.3">xattn</ci></apply></apply><ci id="S2.E1.m2.3.3.1.1.1.3.cmml" xref="S2.E1.m2.3.3.1.1.1.3">Attn</ci></apply><interval closure="open" id="S2.E1.m2.4.4.2.2.2.2.cmml" xref="S2.E1.m2.4.4.2.2.2.1"><apply id="S2.E1.m2.4.4.2.2.2.1.1.cmml" xref="S2.E1.m2.4.4.2.2.2.1.1"><times id="S2.E1.m2.4.4.2.2.2.1.1.1.cmml" xref="S2.E1.m2.4.4.2.2.2.1.1.1"></times><ci id="S2.E1.m2.4.4.2.2.2.1.1.2.cmml" xref="S2.E1.m2.4.4.2.2.2.1.1.2">LN</ci><ci id="S2.E1.m2.1.1.cmml" xref="S2.E1.m2.1.1">𝐱</ci></apply><ci id="S2.E1.m2.2.2.cmml" xref="S2.E1.m2.2.2">𝐯</ci></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m2.4c">\displaystyle=\mathbf{x}+\mathrm{tanh}(\mathrm{\alpha_{xattn}})\times\mathrm{Attn}(\mathrm{LN}(\mathbf{x}),\mathbf{v})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+<tbody id="S2.E2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E2.m1.1" class="ltx_Math" alttext="\displaystyle\mathbf{y}" display="inline"><semantics id="S2.E2.m1.1a"><mi id="S2.E2.m1.1.1" xref="S2.E2.m1.1.1.cmml">𝐲</mi><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><ci id="S2.E2.m1.1.1.cmml" xref="S2.E2.m1.1.1">𝐲</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\displaystyle\mathbf{y}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E2.m2.2" class="ltx_Math" alttext="\displaystyle=\mathbf{x^{\prime}}+\mathrm{tanh}(\mathrm{\alpha_{mlp}})\times\mathrm{FFW}(\mathrm{LN}(\mathbf{x^{\prime}}))" display="inline"><semantics id="S2.E2.m2.2a"><mrow id="S2.E2.m2.2.2" xref="S2.E2.m2.2.2.cmml"><mi id="S2.E2.m2.2.2.4" xref="S2.E2.m2.2.2.4.cmml"></mi><mo id="S2.E2.m2.2.2.3" xref="S2.E2.m2.2.2.3.cmml">=</mo><mrow id="S2.E2.m2.2.2.2" xref="S2.E2.m2.2.2.2.cmml"><msup id="S2.E2.m2.2.2.2.4" xref="S2.E2.m2.2.2.2.4.cmml"><mi id="S2.E2.m2.2.2.2.4.2" xref="S2.E2.m2.2.2.2.4.2.cmml">𝐱</mi><mo id="S2.E2.m2.2.2.2.4.3" xref="S2.E2.m2.2.2.2.4.3.cmml">′</mo></msup><mo id="S2.E2.m2.2.2.2.3" xref="S2.E2.m2.2.2.2.3.cmml">+</mo><mrow id="S2.E2.m2.2.2.2.2" xref="S2.E2.m2.2.2.2.2.cmml"><mrow id="S2.E2.m2.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.cmml"><mrow id="S2.E2.m2.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.cmml"><mi id="S2.E2.m2.1.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.1.3.cmml">tanh</mi><mo lspace="0em" rspace="0em" id="S2.E2.m2.1.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E2.m2.1.1.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m2.1.1.1.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E2.m2.1.1.1.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E2.m2.1.1.1.1.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.2.cmml">α</mi><mi id="S2.E2.m2.1.1.1.1.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.3.cmml">mlp</mi></msub><mo rspace="0.055em" stretchy="false" id="S2.E2.m2.1.1.1.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.222em" id="S2.E2.m2.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.2.cmml">×</mo><mi id="S2.E2.m2.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.3.cmml">FFW</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E2.m2.2.2.2.2.3" xref="S2.E2.m2.2.2.2.2.3.cmml">​</mo><mrow id="S2.E2.m2.2.2.2.2.2.1" xref="S2.E2.m2.2.2.2.2.2.1.1.cmml"><mo stretchy="false" id="S2.E2.m2.2.2.2.2.2.1.2" xref="S2.E2.m2.2.2.2.2.2.1.1.cmml">(</mo><mrow id="S2.E2.m2.2.2.2.2.2.1.1" xref="S2.E2.m2.2.2.2.2.2.1.1.cmml"><mi id="S2.E2.m2.2.2.2.2.2.1.1.3" xref="S2.E2.m2.2.2.2.2.2.1.1.3.cmml">LN</mi><mo lspace="0em" rspace="0em" id="S2.E2.m2.2.2.2.2.2.1.1.2" xref="S2.E2.m2.2.2.2.2.2.1.1.2.cmml">​</mo><mrow id="S2.E2.m2.2.2.2.2.2.1.1.1.1" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m2.2.2.2.2.2.1.1.1.1.2" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.cmml">(</mo><msup id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.cmml"><mi id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.2" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.2.cmml">𝐱</mi><mo id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.3" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.3.cmml">′</mo></msup><mo stretchy="false" id="S2.E2.m2.2.2.2.2.2.1.1.1.1.3" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S2.E2.m2.2.2.2.2.2.1.3" xref="S2.E2.m2.2.2.2.2.2.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m2.2b"><apply id="S2.E2.m2.2.2.cmml" xref="S2.E2.m2.2.2"><eq id="S2.E2.m2.2.2.3.cmml" xref="S2.E2.m2.2.2.3"></eq><csymbol cd="latexml" id="S2.E2.m2.2.2.4.cmml" xref="S2.E2.m2.2.2.4">absent</csymbol><apply id="S2.E2.m2.2.2.2.cmml" xref="S2.E2.m2.2.2.2"><plus id="S2.E2.m2.2.2.2.3.cmml" xref="S2.E2.m2.2.2.2.3"></plus><apply id="S2.E2.m2.2.2.2.4.cmml" xref="S2.E2.m2.2.2.2.4"><csymbol cd="ambiguous" id="S2.E2.m2.2.2.2.4.1.cmml" xref="S2.E2.m2.2.2.2.4">superscript</csymbol><ci id="S2.E2.m2.2.2.2.4.2.cmml" xref="S2.E2.m2.2.2.2.4.2">𝐱</ci><ci id="S2.E2.m2.2.2.2.4.3.cmml" xref="S2.E2.m2.2.2.2.4.3">′</ci></apply><apply id="S2.E2.m2.2.2.2.2.cmml" xref="S2.E2.m2.2.2.2.2"><times id="S2.E2.m2.2.2.2.2.3.cmml" xref="S2.E2.m2.2.2.2.2.3"></times><apply id="S2.E2.m2.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1"><times id="S2.E2.m2.1.1.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1.1.1.2"></times><apply id="S2.E2.m2.1.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1"><times id="S2.E2.m2.1.1.1.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1.1.1.1.2"></times><ci id="S2.E2.m2.1.1.1.1.1.1.3.cmml" xref="S2.E2.m2.1.1.1.1.1.1.3">tanh</ci><apply id="S2.E2.m2.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E2.m2.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.2">𝛼</ci><ci id="S2.E2.m2.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.1.1.3">mlp</ci></apply></apply><ci id="S2.E2.m2.1.1.1.1.1.3.cmml" xref="S2.E2.m2.1.1.1.1.1.3">FFW</ci></apply><apply id="S2.E2.m2.2.2.2.2.2.1.1.cmml" xref="S2.E2.m2.2.2.2.2.2.1"><times id="S2.E2.m2.2.2.2.2.2.1.1.2.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.2"></times><ci id="S2.E2.m2.2.2.2.2.2.1.1.3.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.3">LN</ci><apply id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1"><csymbol cd="ambiguous" id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.1.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1">superscript</csymbol><ci id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.2.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.2">𝐱</ci><ci id="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.3.cmml" xref="S2.E2.m2.2.2.2.2.2.1.1.1.1.1.3">′</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m2.2c">\displaystyle=\mathbf{x^{\prime}}+\mathrm{tanh}(\mathrm{\alpha_{mlp}})\times\mathrm{FFW}(\mathrm{LN}(\mathbf{x^{\prime}}))</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.p3.10" class="ltx_p">The learnable parameters <math id="S2.p3.6.m1.1" class="ltx_Math" alttext="\mathrm{\alpha_{xattn}}" display="inline"><semantics id="S2.p3.6.m1.1a"><msub id="S2.p3.6.m1.1.1" xref="S2.p3.6.m1.1.1.cmml"><mi id="S2.p3.6.m1.1.1.2" xref="S2.p3.6.m1.1.1.2.cmml">α</mi><mi id="S2.p3.6.m1.1.1.3" xref="S2.p3.6.m1.1.1.3.cmml">xattn</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p3.6.m1.1b"><apply id="S2.p3.6.m1.1.1.cmml" xref="S2.p3.6.m1.1.1"><csymbol cd="ambiguous" id="S2.p3.6.m1.1.1.1.cmml" xref="S2.p3.6.m1.1.1">subscript</csymbol><ci id="S2.p3.6.m1.1.1.2.cmml" xref="S2.p3.6.m1.1.1.2">𝛼</ci><ci id="S2.p3.6.m1.1.1.3.cmml" xref="S2.p3.6.m1.1.1.3">xattn</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.6.m1.1c">\mathrm{\alpha_{xattn}}</annotation></semantics></math> and <math id="S2.p3.7.m2.1" class="ltx_Math" alttext="\mathrm{\alpha_{mlp}}" display="inline"><semantics id="S2.p3.7.m2.1a"><msub id="S2.p3.7.m2.1.1" xref="S2.p3.7.m2.1.1.cmml"><mi id="S2.p3.7.m2.1.1.2" xref="S2.p3.7.m2.1.1.2.cmml">α</mi><mi id="S2.p3.7.m2.1.1.3" xref="S2.p3.7.m2.1.1.3.cmml">mlp</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p3.7.m2.1b"><apply id="S2.p3.7.m2.1.1.cmml" xref="S2.p3.7.m2.1.1"><csymbol cd="ambiguous" id="S2.p3.7.m2.1.1.1.cmml" xref="S2.p3.7.m2.1.1">subscript</csymbol><ci id="S2.p3.7.m2.1.1.2.cmml" xref="S2.p3.7.m2.1.1.2">𝛼</ci><ci id="S2.p3.7.m2.1.1.3.cmml" xref="S2.p3.7.m2.1.1.3">mlp</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.7.m2.1c">\mathrm{\alpha_{mlp}}</annotation></semantics></math> are initialized to 0 so that the layers initially function as the identity since <math id="S2.p3.8.m3.2" class="ltx_Math" alttext="\tanh(0)=0" display="inline"><semantics id="S2.p3.8.m3.2a"><mrow id="S2.p3.8.m3.2.3" xref="S2.p3.8.m3.2.3.cmml"><mrow id="S2.p3.8.m3.2.3.2.2" xref="S2.p3.8.m3.2.3.2.1.cmml"><mi id="S2.p3.8.m3.1.1" xref="S2.p3.8.m3.1.1.cmml">tanh</mi><mo id="S2.p3.8.m3.2.3.2.2a" xref="S2.p3.8.m3.2.3.2.1.cmml">⁡</mo><mrow id="S2.p3.8.m3.2.3.2.2.1" xref="S2.p3.8.m3.2.3.2.1.cmml"><mo stretchy="false" id="S2.p3.8.m3.2.3.2.2.1.1" xref="S2.p3.8.m3.2.3.2.1.cmml">(</mo><mn id="S2.p3.8.m3.2.2" xref="S2.p3.8.m3.2.2.cmml">0</mn><mo stretchy="false" id="S2.p3.8.m3.2.3.2.2.1.2" xref="S2.p3.8.m3.2.3.2.1.cmml">)</mo></mrow></mrow><mo id="S2.p3.8.m3.2.3.1" xref="S2.p3.8.m3.2.3.1.cmml">=</mo><mn id="S2.p3.8.m3.2.3.3" xref="S2.p3.8.m3.2.3.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.p3.8.m3.2b"><apply id="S2.p3.8.m3.2.3.cmml" xref="S2.p3.8.m3.2.3"><eq id="S2.p3.8.m3.2.3.1.cmml" xref="S2.p3.8.m3.2.3.1"></eq><apply id="S2.p3.8.m3.2.3.2.1.cmml" xref="S2.p3.8.m3.2.3.2.2"><tanh id="S2.p3.8.m3.1.1.cmml" xref="S2.p3.8.m3.1.1"></tanh><cn type="integer" id="S2.p3.8.m3.2.2.cmml" xref="S2.p3.8.m3.2.2">0</cn></apply><cn type="integer" id="S2.p3.8.m3.2.3.3.cmml" xref="S2.p3.8.m3.2.3.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.8.m3.2c">\tanh(0)=0</annotation></semantics></math>.
+Through audio-visual fine-tuning, the model adjusts the weights of <math id="S2.p3.9.m4.1" class="ltx_Math" alttext="\mathrm{\alpha_{xattn}}" display="inline"><semantics id="S2.p3.9.m4.1a"><msub id="S2.p3.9.m4.1.1" xref="S2.p3.9.m4.1.1.cmml"><mi id="S2.p3.9.m4.1.1.2" xref="S2.p3.9.m4.1.1.2.cmml">α</mi><mi id="S2.p3.9.m4.1.1.3" xref="S2.p3.9.m4.1.1.3.cmml">xattn</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p3.9.m4.1b"><apply id="S2.p3.9.m4.1.1.cmml" xref="S2.p3.9.m4.1.1"><csymbol cd="ambiguous" id="S2.p3.9.m4.1.1.1.cmml" xref="S2.p3.9.m4.1.1">subscript</csymbol><ci id="S2.p3.9.m4.1.1.2.cmml" xref="S2.p3.9.m4.1.1.2">𝛼</ci><ci id="S2.p3.9.m4.1.1.3.cmml" xref="S2.p3.9.m4.1.1.3">xattn</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.9.m4.1c">\mathrm{\alpha_{xattn}}</annotation></semantics></math> and <math id="S2.p3.10.m5.1" class="ltx_Math" alttext="\mathrm{\alpha_{mlp}}" display="inline"><semantics id="S2.p3.10.m5.1a"><msub id="S2.p3.10.m5.1.1" xref="S2.p3.10.m5.1.1.cmml"><mi id="S2.p3.10.m5.1.1.2" xref="S2.p3.10.m5.1.1.2.cmml">α</mi><mi id="S2.p3.10.m5.1.1.3" xref="S2.p3.10.m5.1.1.3.cmml">mlp</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p3.10.m5.1b"><apply id="S2.p3.10.m5.1.1.cmml" xref="S2.p3.10.m5.1.1"><csymbol cd="ambiguous" id="S2.p3.10.m5.1.1.1.cmml" xref="S2.p3.10.m5.1.1">subscript</csymbol><ci id="S2.p3.10.m5.1.1.2.cmml" xref="S2.p3.10.m5.1.1.2">𝛼</ci><ci id="S2.p3.10.m5.1.1.3.cmml" xref="S2.p3.10.m5.1.1.3">mlp</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.10.m5.1c">\mathrm{\alpha_{mlp}}</annotation></semantics></math> and learns to attend to the visual features.
+We insert the gated cross attention layers in Whisper's decoder in the beginning of each block, before the self-attention layer.
+We tried to insert them in other orders within the decoder blocks, but the performance was slightly worse.
+We also tried inserting them into the encoder, but the performance was significantly worse.
+Note that since the gated cross attention separately attends to the video features, the audio and video features can have different feature rates (for example, 50 Hz and 25 Hz).</p>
+</div>
+<figure id="S2.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Fusion ablation with Whisper-Medium on LRS3.
+We report results on the original test set (Clean) and with babble noise injected at 0-SNR (Noisy).
+A=audio, AV=audio-visual.
+</figcaption>
+<div id="S2.T2.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:333.9pt;height:165.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(39.5pt,-19.5pt) scale(1.30993815651014,1.30993815651014) ;">
+<table id="S2.T2.2.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S2.T2.2.2.3.1" class="ltx_tr">
+<th id="S2.T2.2.2.3.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<th id="S2.T2.2.2.3.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_tt">Test</th>
+<td id="S2.T2.2.2.3.1.3" class="ltx_td ltx_align_center ltx_border_tt">Clean</td>
+<td id="S2.T2.2.2.3.1.4" class="ltx_td ltx_align_center ltx_border_tt">Noisy</td>
+</tr>
+<tr id="S2.T2.2.2.2" class="ltx_tr">
+<th id="S2.T2.2.2.2.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Model</th>
+<th id="S2.T2.2.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_row">Modalities</th>
+<td id="S2.T2.1.1.1.1" class="ltx_td ltx_align_center">WER<math id="S2.T2.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S2.T2.1.1.1.1.m1.1a"><mo stretchy="false" id="S2.T2.1.1.1.1.m1.1.1" xref="S2.T2.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S2.T2.1.1.1.1.m1.1b"><ci id="S2.T2.1.1.1.1.m1.1.1.cmml" xref="S2.T2.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.T2.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S2.T2.2.2.2.2" class="ltx_td ltx_align_center">WER<math id="S2.T2.2.2.2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S2.T2.2.2.2.2.m1.1a"><mo stretchy="false" id="S2.T2.2.2.2.2.m1.1.1" xref="S2.T2.2.2.2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S2.T2.2.2.2.2.m1.1b"><ci id="S2.T2.2.2.2.2.m1.1.1.cmml" xref="S2.T2.2.2.2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.T2.2.2.2.2.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S2.T2.2.2.4.2" class="ltx_tr">
+<th id="S2.T2.2.2.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Whisper, Zero-shot</th>
+<th id="S2.T2.2.2.4.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t">A</th>
+<td id="S2.T2.2.2.4.2.3" class="ltx_td ltx_align_right ltx_border_t">2.3</td>
+<td id="S2.T2.2.2.4.2.4" class="ltx_td ltx_align_right ltx_border_t">22.2</td>
+</tr>
+<tr id="S2.T2.2.2.5.3" class="ltx_tr">
+<th id="S2.T2.2.2.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Whisper, Fine-tuned</th>
+<th id="S2.T2.2.2.5.3.2" class="ltx_td ltx_align_center ltx_th ltx_th_row">A</th>
+<td id="S2.T2.2.2.5.3.3" class="ltx_td ltx_align_right"><span id="S2.T2.2.2.5.3.3.1" class="ltx_text ltx_font_bold">1.9</span></td>
+<td id="S2.T2.2.2.5.3.4" class="ltx_td ltx_align_right"><span id="S2.T2.2.2.5.3.4.1" class="ltx_text ltx_font_bold">12.6</span></td>
+</tr>
+<tr id="S2.T2.2.2.6.4" class="ltx_tr">
+<th id="S2.T2.2.2.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Whisper-Early-Fusion</th>
+<th id="S2.T2.2.2.6.4.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t">AV</th>
+<td id="S2.T2.2.2.6.4.3" class="ltx_td ltx_align_right ltx_border_t">1.7</td>
+<td id="S2.T2.2.2.6.4.4" class="ltx_td ltx_align_right ltx_border_t">10.0</td>
+</tr>
+<tr id="S2.T2.2.2.7.5" class="ltx_tr">
+<th id="S2.T2.2.2.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Whisper-Late-Fusion</th>
+<th id="S2.T2.2.2.7.5.2" class="ltx_td ltx_align_center ltx_th ltx_th_row">AV</th>
+<td id="S2.T2.2.2.7.5.3" class="ltx_td ltx_align_right">2.1</td>
+<td id="S2.T2.2.2.7.5.4" class="ltx_td ltx_align_right">16.5</td>
+</tr>
+<tr id="S2.T2.2.2.8.6" class="ltx_tr">
+<th id="S2.T2.2.2.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">Whisper-Flamingo</th>
+<th id="S2.T2.2.2.8.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb">AV</th>
+<td id="S2.T2.2.2.8.6.3" class="ltx_td ltx_align_right ltx_border_bb"><span id="S2.T2.2.2.8.6.3.1" class="ltx_text ltx_font_bold">1.5</span></td>
+<td id="S2.T2.2.2.8.6.4" class="ltx_td ltx_align_right ltx_border_bb"><span id="S2.T2.2.2.8.6.4.1" class="ltx_text ltx_font_bold">7.0</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S2.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Results for English transcription on LRS3.
+We report results on the original test set (Clean) and with babble noise added at 0-SNR (Noisy).
+A= Audio, AV= Audio-Visual.
+Noise dataset= dataset used to make babble noise.
+Hours of unlabeled / labeled data used to train each model are shown.
+Note<sup id="S2.T3.3.1" class="ltx_sup">†</sup> that u-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> and AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> use a different noise file than us.
+</figcaption>
+<div id="S2.T3.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:333.9pt;height:182.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-97.1pt,52.9pt) scale(0.632331696300441,0.632331696300441) ;">
+<table id="S2.T3.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S2.T3.1.1.1" class="ltx_tr">
+<td id="S2.T3.1.1.1.2" class="ltx_td ltx_border_tt"></td>
+<td id="S2.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">Test</td>
+<td id="S2.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_border_tt">Noise</td>
+<td id="S2.T3.1.1.1.5" class="ltx_td ltx_align_left ltx_border_tt" colspan="2">Unlabeled Hrs</td>
+<td id="S2.T3.1.1.1.6" class="ltx_td ltx_align_left ltx_border_tt" colspan="2">Labeled Hrs</td>
+<td id="S2.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt" colspan="2">WER<math id="S2.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S2.T3.1.1.1.1.m1.1a"><mo stretchy="false" id="S2.T3.1.1.1.1.m1.1.1" xref="S2.T3.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S2.T3.1.1.1.1.m1.1b"><ci id="S2.T3.1.1.1.1.m1.1.1.cmml" xref="S2.T3.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.T3.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S2.T3.1.1.2.1" class="ltx_tr">
+<td id="S2.T3.1.1.2.1.1" class="ltx_td ltx_align_left">Model</td>
+<td id="S2.T3.1.1.2.1.2" class="ltx_td ltx_align_center">Modalities</td>
+<td id="S2.T3.1.1.2.1.3" class="ltx_td ltx_align_center" style="background-color:#FFFFFF;"><span id="S2.T3.1.1.2.1.3.1" class="ltx_text" style="background-color:#FFFFFF;">Dataset</span></td>
+<td id="S2.T3.1.1.2.1.4" class="ltx_td ltx_align_right">A</td>
+<td id="S2.T3.1.1.2.1.5" class="ltx_td ltx_align_right">AV</td>
+<td id="S2.T3.1.1.2.1.6" class="ltx_td ltx_align_right">A</td>
+<td id="S2.T3.1.1.2.1.7" class="ltx_td ltx_align_left">AV</td>
+<td id="S2.T3.1.1.2.1.8" class="ltx_td ltx_align_left">Clean</td>
+<td id="S2.T3.1.1.2.1.9" class="ltx_td ltx_align_left">Noisy</td>
+</tr>
+<tr id="S2.T3.1.1.3.2" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S2.T3.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_t" colspan="9"><span id="S2.T3.1.1.3.2.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Audio-Visual SSL Methods</span></td>
+</tr>
+<tr id="S2.T3.1.1.4.3" class="ltx_tr">
+<td id="S2.T3.1.1.4.3.1" class="ltx_td ltx_align_left">AV-BEST-RQ <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>
+</td>
+<td id="S2.T3.1.1.4.3.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.4.3.3" class="ltx_td ltx_align_center">NoiseX</td>
+<td id="S2.T3.1.1.4.3.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.4.3.5" class="ltx_td ltx_align_right">1759</td>
+<td id="S2.T3.1.1.4.3.6" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.4.3.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.4.3.8" class="ltx_td ltx_align_right">2.1</td>
+<td id="S2.T3.1.1.4.3.9" class="ltx_td ltx_align_right">6.8</td>
+</tr>
+<tr id="S2.T3.1.1.5.4" class="ltx_tr">
+<td id="S2.T3.1.1.5.4.1" class="ltx_td ltx_align_left">AV2vec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>
+</td>
+<td id="S2.T3.1.1.5.4.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.5.4.3" class="ltx_td ltx_align_center">MUSAN</td>
+<td id="S2.T3.1.1.5.4.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.5.4.5" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.5.4.6" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.5.4.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.5.4.8" class="ltx_td ltx_align_right">2.5</td>
+<td id="S2.T3.1.1.5.4.9" class="ltx_td ltx_align_right">6.7</td>
+</tr>
+<tr id="S2.T3.1.1.6.5" class="ltx_tr">
+<td id="S2.T3.1.1.6.5.1" class="ltx_td ltx_align_left">AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite>
+</td>
+<td id="S2.T3.1.1.6.5.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.6.5.3" class="ltx_td ltx_align_center">LRS3†</td>
+<td id="S2.T3.1.1.6.5.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.6.5.5" class="ltx_td ltx_align_right">1759</td>
+<td id="S2.T3.1.1.6.5.6" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.6.5.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.6.5.8" class="ltx_td ltx_align_right">1.4</td>
+<td id="S2.T3.1.1.6.5.9" class="ltx_td ltx_align_right">5.8</td>
+</tr>
+<tr id="S2.T3.1.1.7.6" class="ltx_tr">
+<td id="S2.T3.1.1.7.6.1" class="ltx_td ltx_align_left">u-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>
+</td>
+<td id="S2.T3.1.1.7.6.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.7.6.3" class="ltx_td ltx_align_center">LRS3†</td>
+<td id="S2.T3.1.1.7.6.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.7.6.5" class="ltx_td ltx_align_right">1759</td>
+<td id="S2.T3.1.1.7.6.6" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.7.6.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.7.6.8" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.7.6.8.1" class="ltx_text ltx_font_bold">1.3</span></td>
+<td id="S2.T3.1.1.7.6.9" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.7.6.9.1" class="ltx_text ltx_font_bold">4.6</span></td>
+</tr>
+<tr id="S2.T3.1.1.8.7" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S2.T3.1.1.8.7.1" class="ltx_td ltx_align_center ltx_border_t" colspan="9"><span id="S2.T3.1.1.8.7.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Audio-Only Pre-train + Audio-Visual Fine-Tune Methods</span></td>
+</tr>
+<tr id="S2.T3.1.1.9.8" class="ltx_tr">
+<td id="S2.T3.1.1.9.8.1" class="ltx_td ltx_align_left">Adaptive AV <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>
+</td>
+<td id="S2.T3.1.1.9.8.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.9.8.3" class="ltx_td ltx_align_center">MUSAN</td>
+<td id="S2.T3.1.1.9.8.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.9.8.5" class="ltx_td ltx_align_right">400</td>
+<td id="S2.T3.1.1.9.8.6" class="ltx_td ltx_align_right">680k</td>
+<td id="S2.T3.1.1.9.8.7" class="ltx_td ltx_align_right">30</td>
+<td id="S2.T3.1.1.9.8.8" class="ltx_td ltx_align_right">2.3</td>
+<td id="S2.T3.1.1.9.8.9" class="ltx_td ltx_align_right">16.3</td>
+</tr>
+<tr id="S2.T3.1.1.10.9" class="ltx_tr">
+<td id="S2.T3.1.1.10.9.1" class="ltx_td ltx_align_left">FAVA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>
+</td>
+<td id="S2.T3.1.1.10.9.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.10.9.3" class="ltx_td ltx_align_center">NoiseX</td>
+<td id="S2.T3.1.1.10.9.4" class="ltx_td ltx_align_right">1759</td>
+<td id="S2.T3.1.1.10.9.5" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.10.9.6" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.10.9.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.10.9.8" class="ltx_td ltx_align_right">1.7</td>
+<td id="S2.T3.1.1.10.9.9" class="ltx_td ltx_align_right">6.6</td>
+</tr>
+<tr id="S2.T3.1.1.11.10" class="ltx_tr">
+<td id="S2.T3.1.1.11.10.1" class="ltx_td ltx_align_left">FAVA-USM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>
+</td>
+<td id="S2.T3.1.1.11.10.2" class="ltx_td ltx_align_center">AV</td>
+<td id="S2.T3.1.1.11.10.3" class="ltx_td ltx_align_center">NoiseX</td>
+<td id="S2.T3.1.1.11.10.4" class="ltx_td ltx_align_right">12M</td>
+<td id="S2.T3.1.1.11.10.5" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.11.10.6" class="ltx_td ltx_align_right">5000</td>
+<td id="S2.T3.1.1.11.10.7" class="ltx_td ltx_align_right">433</td>
+<td id="S2.T3.1.1.11.10.8" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.11.10.8.1" class="ltx_text ltx_font_bold">1.3</span></td>
+<td id="S2.T3.1.1.11.10.9" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.11.10.9.1" class="ltx_text ltx_font_bold">6.2</span></td>
+</tr>
+<tr id="S2.T3.1.1.12.11" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S2.T3.1.1.12.11.1" class="ltx_td ltx_align_center ltx_border_t" colspan="9"><span id="S2.T3.1.1.12.11.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Our Audio-Only Whisper Baselines</span></td>
+</tr>
+<tr id="S2.T3.1.1.13.12" class="ltx_tr">
+<td id="S2.T3.1.1.13.12.1" class="ltx_td ltx_align_left">Whisper-Large, Zero-shot (No Fine-Tuning)</td>
+<td id="S2.T3.1.1.13.12.2" class="ltx_td ltx_align_center">A</td>
+<td id="S2.T3.1.1.13.12.3" class="ltx_td ltx_align_center">LRS3</td>
+<td id="S2.T3.1.1.13.12.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.13.12.5" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.13.12.6" class="ltx_td ltx_align_right">680k</td>
+<td id="S2.T3.1.1.13.12.7" class="ltx_td ltx_align_left">-</td>
+<td id="S2.T3.1.1.13.12.8" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.13.12.8.1" class="ltx_text ltx_font_bold">2.1</span></td>
+<td id="S2.T3.1.1.13.12.9" class="ltx_td ltx_align_right">20.8</td>
+</tr>
+<tr id="S2.T3.1.1.14.13" class="ltx_tr">
+<td id="S2.T3.1.1.14.13.1" class="ltx_td ltx_align_left">Whisper-Large, Fine-tuned on LRS3</td>
+<td id="S2.T3.1.1.14.13.2" class="ltx_td ltx_align_center">A</td>
+<td id="S2.T3.1.1.14.13.3" class="ltx_td ltx_align_center">LRS3</td>
+<td id="S2.T3.1.1.14.13.4" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.14.13.5" class="ltx_td ltx_align_right">-</td>
+<td id="S2.T3.1.1.14.13.6" class="ltx_td ltx_align_right">680k</td>
+<td id="S2.T3.1.1.14.13.7" class="ltx_td ltx_align_left">-</td>
+<td id="S2.T3.1.1.14.13.8" class="ltx_td ltx_align_right">2.3</td>
+<td id="S2.T3.1.1.14.13.9" class="ltx_td ltx_align_right"><span id="S2.T3.1.1.14.13.9.1" class="ltx_text ltx_font_bold">11.7</span></td>
+</tr>
+<tr id="S2.T3.1.1.15.14" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S2.T3.1.1.15.14.1" class="ltx_td ltx_align_center ltx_border_t" colspan="9"><span id="S2.T3.1.1.15.14.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Proposed Audio-Visual Fine-tuning Method</span></td>
+</tr>
+<tr id="S2.T3.1.1.16.15" class="ltx_tr">
+<td id="S2.T3.1.1.16.15.1" class="ltx_td ltx_align_left ltx_border_bb">Whisper-Flamingo (<span id="S2.T3.1.1.16.15.1.1" class="ltx_text ltx_font_bold">Ours</span>)</td>
+<td id="S2.T3.1.1.16.15.2" class="ltx_td ltx_align_center ltx_border_bb">AV</td>
+<td id="S2.T3.1.1.16.15.3" class="ltx_td ltx_align_center ltx_border_bb">LRS3</td>
+<td id="S2.T3.1.1.16.15.4" class="ltx_td ltx_align_right ltx_border_bb">-</td>
+<td id="S2.T3.1.1.16.15.5" class="ltx_td ltx_align_right ltx_border_bb">1759</td>
+<td id="S2.T3.1.1.16.15.6" class="ltx_td ltx_align_right ltx_border_bb">680k</td>
+<td id="S2.T3.1.1.16.15.7" class="ltx_td ltx_align_right ltx_border_bb">433</td>
+<td id="S2.T3.1.1.16.15.8" class="ltx_td ltx_align_right ltx_border_bb"><span id="S2.T3.1.1.16.15.8.1" class="ltx_text ltx_font_bold">1.5</span></td>
+<td id="S2.T3.1.1.16.15.9" class="ltx_td ltx_align_right ltx_border_bb"><span id="S2.T3.1.1.16.15.9.1" class="ltx_text ltx_font_bold">5.6</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<div id="S2.p4" class="ltx_para ltx_noindent">
+<p id="S2.p4.1" class="ltx_p"><span id="S2.p4.1.1" class="ltx_text ltx_font_bold">Training pipeline.</span>
+Before adding gated cross attention, we first fine-tune all layers of the audio-only Whisper model to adapt it to the domain of interest (denoted as Whisper Fine-tuned).
+We also add noise during fine-tuning to increase the noise-robustness.
+We use the standard cross-entropy loss between the model's predicted transcript and the ground-truth tokens.
+To train Whisper-Flamingo, we <span id="S2.p4.1.2" class="ltx_text ltx_font_italic">freeze</span> the fine-tuned Whisper, insert the gated cross attention layers, and fine-tune the model with audio-visual inputs.
+The gated cross attention layers and a linear layer on top of the visual features are trained from scratch, while all other parameters are frozen.
+The new layers can therefore be seen as a (large) set of adaptors <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>: removing them results in the audio-only Whisper weights.</p>
+</div>
+<div id="S2.p5" class="ltx_para ltx_noindent">
+<p id="S2.p5.1" class="ltx_p"><span id="S2.p5.1.1" class="ltx_text ltx_font_bold">From English to Multilingual.</span>
+Whisper was trained for multilingual transcription and X-En translation (multilingual audio to En text).
+We tried Whisper-Flamingo on multilingual speech recognition and X-En translation using the videos in the MuAViC dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> but found several issues.
+Most languages in the dataset have less than a third of the hours of English data available, which makes training new layers from scratch difficult.
+Also, the multilingual videos are longer on average than the English videos.
+This causes increased GPU memory pressure and requires a reduced batch size, which also makes training difficult.
+Therefore we focused on <span id="S2.p5.1.2" class="ltx_text ltx_font_italic">En-X</span> translation (English audio to multilingual text) and propose to handle multilingual recognition and translation in future work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib29" title="" class="ltx_ref">29</a>, <a href="#bib.bib30" title="" class="ltx_ref">30</a>, <a href="#bib.bib31" title="" class="ltx_ref">31</a>, <a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>.</p>
+</div>
+<div id="S2.p6" class="ltx_para">
+<p id="S2.p6.1" class="ltx_p">Prior research shows that Whisper can be prompted for En-X translation, but it requires language-specific logit filtering and the performance can still be unsatisfactory <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite>.
+Since fine-tuning Whisper has been shown to enable transcription of unseen languages <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>, we propose to fine-tune Whisper for En-X translation.
+We fine-tune the audio model in a multi-task style to transcribe English audio and translate it to the other languages.
+To train Whisper-Flamingo, we freeze the fine-tuned audio model, add the gated cross attention layers and the linear layer on top of the visual features, and train the model on audio-visual inputs.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<figure id="S3.T4" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>Results for English transcription on LRS3 and En-X Translation on MuAViC.
+Babble noise is added at 0-SNR (Noisy).
+One Model= the model translates to all languages with one set of parameters.
+Test Mod.= inference modalities (Text: T, audio: A, audio-visual: AV).
+Note<sup id="S3.T4.4.1" class="ltx_sup">†</sup> that Bilingual AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> use a different noise file than us that was not publicly available.
+</figcaption>
+<div id="S3.T4.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:390.3pt;height:228.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-158.4pt,92.7pt) scale(0.5520112457961,0.5520112457961) ;">
+<table id="S3.T4.2.2" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T4.2.2.3.1" class="ltx_tr">
+<td id="S3.T4.2.2.3.1.1" class="ltx_td ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;"></td>
+<td id="S3.T4.2.2.3.1.2" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Test</td>
+<td id="S3.T4.2.2.3.1.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">One</td>
+<td id="S3.T4.2.2.3.1.4" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Noise</td>
+<td id="S3.T4.2.2.3.1.5" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">En</td>
+<td id="S3.T4.2.2.3.1.6" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">El</td>
+<td id="S3.T4.2.2.3.1.7" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Es</td>
+<td id="S3.T4.2.2.3.1.8" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Fr</td>
+<td id="S3.T4.2.2.3.1.9" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">It</td>
+<td id="S3.T4.2.2.3.1.10" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Pt</td>
+<td id="S3.T4.2.2.3.1.11" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Ru</td>
+<td id="S3.T4.2.2.3.1.12" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:8.0pt;padding-right:8.0pt;">Avg</td>
+</tr>
+<tr id="S3.T4.2.2.2" class="ltx_tr">
+<td id="S3.T4.2.2.2.3" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Model</td>
+<td id="S3.T4.2.2.2.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">Mod.</td>
+<td id="S3.T4.2.2.2.5" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">Model</td>
+<td id="S3.T4.2.2.2.6" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">Dataset</td>
+<td id="S3.T4.1.1.1.1" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">WER<math id="S3.T4.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T4.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T4.1.1.1.1.m1.1.1" xref="S3.T4.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T4.1.1.1.1.m1.1b"><ci id="S3.T4.1.1.1.1.m1.1.1.cmml" xref="S3.T4.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T4.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T4.2.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;" colspan="6">BLEU<math id="S3.T4.2.2.2.2.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T4.2.2.2.2.m1.1a"><mo stretchy="false" id="S3.T4.2.2.2.2.m1.1.1" xref="S3.T4.2.2.2.2.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T4.2.2.2.2.m1.1b"><ci id="S3.T4.2.2.2.2.m1.1.1.cmml" xref="S3.T4.2.2.2.2.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T4.2.2.2.2.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S3.T4.2.2.2.7" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">w/o En</td>
+</tr>
+<tr id="S3.T4.2.2.4.2" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S3.T4.2.2.4.2.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;" colspan="12"><span id="S3.T4.2.2.4.2.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Text-to-Text Translation</span></td>
+</tr>
+<tr id="S3.T4.2.2.5.3" class="ltx_tr">
+<td id="S3.T4.2.2.5.3.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Bilingual Transformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.5.3.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">T</td>
+<td id="S3.T4.2.2.5.3.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✗</td>
+<td id="S3.T4.2.2.5.3.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.5.3.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.5.3.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.6.1" class="ltx_text ltx_font_bold">25.8</span></td>
+<td id="S3.T4.2.2.5.3.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.7.1" class="ltx_text ltx_font_bold">29.5</span></td>
+<td id="S3.T4.2.2.5.3.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.8.1" class="ltx_text ltx_font_bold">27.0</span></td>
+<td id="S3.T4.2.2.5.3.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.9.1" class="ltx_text ltx_font_bold">22.6</span></td>
+<td id="S3.T4.2.2.5.3.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.10.1" class="ltx_text ltx_font_bold">23.9</span></td>
+<td id="S3.T4.2.2.5.3.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.11.1" class="ltx_text ltx_font_bold">17.2</span></td>
+<td id="S3.T4.2.2.5.3.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.5.3.12.1" class="ltx_text ltx_font_bold">24.3</span></td>
+</tr>
+<tr id="S3.T4.2.2.6.4" class="ltx_tr">
+<td id="S3.T4.2.2.6.4.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">M2M-100 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.6.4.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">T</td>
+<td id="S3.T4.2.2.6.4.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.6.4.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.6.4.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.6.4.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">24.5</td>
+<td id="S3.T4.2.2.6.4.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">28.7</td>
+<td id="S3.T4.2.2.6.4.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">25.6</td>
+<td id="S3.T4.2.2.6.4.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">21.8</td>
+<td id="S3.T4.2.2.6.4.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.2</td>
+<td id="S3.T4.2.2.6.4.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.8</td>
+<td id="S3.T4.2.2.6.4.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">23.1</td>
+</tr>
+<tr id="S3.T4.2.2.7.5" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S3.T4.2.2.7.5.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;" colspan="12"><span id="S3.T4.2.2.7.5.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Speech-to-Text Translation (Clean Audio)</span></td>
+</tr>
+<tr id="S3.T4.2.2.8.6" class="ltx_tr">
+<td id="S3.T4.2.2.8.6.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Bilingual AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.8.6.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.8.6.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✗</td>
+<td id="S3.T4.2.2.8.6.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.8.6.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.8.6.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.8.6.6.1" class="ltx_text ltx_framed ltx_framed_underline">23.0</span></td>
+<td id="S3.T4.2.2.8.6.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.8.6.7.1" class="ltx_text ltx_framed ltx_framed_underline">27.5</span></td>
+<td id="S3.T4.2.2.8.6.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">25.1</td>
+<td id="S3.T4.2.2.8.6.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.7</td>
+<td id="S3.T4.2.2.8.6.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.1</td>
+<td id="S3.T4.2.2.8.6.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">14.7</td>
+<td id="S3.T4.2.2.8.6.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">21.9</td>
+</tr>
+<tr id="S3.T4.2.2.9.7" class="ltx_tr">
+<td id="S3.T4.2.2.9.7.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Small, Fine-tuned</td>
+<td id="S3.T4.2.2.9.7.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.9.7.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.9.7.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.9.7.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.9.7.5.1" class="ltx_text ltx_framed ltx_framed_underline">2.0</span></td>
+<td id="S3.T4.2.2.9.7.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.4</td>
+<td id="S3.T4.2.2.9.7.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">27.1</td>
+<td id="S3.T4.2.2.9.7.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">24.9</td>
+<td id="S3.T4.2.2.9.7.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.9</td>
+<td id="S3.T4.2.2.9.7.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.9.7.10.1" class="ltx_text ltx_font_bold">21.6</span></td>
+<td id="S3.T4.2.2.9.7.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.9.7.11.1" class="ltx_text ltx_framed ltx_framed_underline">15.6</span></td>
+<td id="S3.T4.2.2.9.7.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.1</td>
+</tr>
+<tr id="S3.T4.2.2.10.8" class="ltx_tr">
+<td id="S3.T4.2.2.10.8.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Medium, Fine-tuned</td>
+<td id="S3.T4.2.2.10.8.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.10.8.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.10.8.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.10.8.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">2.1</td>
+<td id="S3.T4.2.2.10.8.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.9</td>
+<td id="S3.T4.2.2.10.8.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.10.8.7.1" class="ltx_text ltx_framed ltx_framed_underline">27.5</span></td>
+<td id="S3.T4.2.2.10.8.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.10.8.8.1" class="ltx_text ltx_font_bold">26.1</span></td>
+<td id="S3.T4.2.2.10.8.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.10.8.9.1" class="ltx_text ltx_font_bold">21.9</span></td>
+<td id="S3.T4.2.2.10.8.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.10.8.10.1" class="ltx_text ltx_framed ltx_framed_underline">21.4</span></td>
+<td id="S3.T4.2.2.10.8.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.1</td>
+<td id="S3.T4.2.2.10.8.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.10.8.12.1" class="ltx_text ltx_framed ltx_framed_underline">22.5</span></td>
+</tr>
+<tr id="S3.T4.2.2.11.9" class="ltx_tr">
+<td id="S3.T4.2.2.11.9.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Large, Fine-tuned</td>
+<td id="S3.T4.2.2.11.9.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.11.9.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.11.9.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.11.9.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.5.1" class="ltx_text ltx_font_bold">1.5</span></td>
+<td id="S3.T4.2.2.11.9.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.6.1" class="ltx_text ltx_font_bold">23.7</span></td>
+<td id="S3.T4.2.2.11.9.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.7.1" class="ltx_text ltx_font_bold">27.9</span></td>
+<td id="S3.T4.2.2.11.9.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.8.1" class="ltx_text ltx_framed ltx_framed_underline">26.0</span></td>
+<td id="S3.T4.2.2.11.9.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.9.1" class="ltx_text ltx_framed ltx_framed_underline">21.8</span></td>
+<td id="S3.T4.2.2.11.9.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.10.1" class="ltx_text ltx_framed ltx_framed_underline">21.4</span></td>
+<td id="S3.T4.2.2.11.9.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.11.1" class="ltx_text ltx_font_bold">15.7</span></td>
+<td id="S3.T4.2.2.11.9.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.11.9.12.1" class="ltx_text ltx_font_bold">22.7</span></td>
+</tr>
+<tr id="S3.T4.2.2.12.10" class="ltx_tr">
+<td id="S3.T4.2.2.12.10.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">Bilingual AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.12.10.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.12.10.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">✗</td>
+<td id="S3.T4.2.2.12.10.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.12.10.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.12.10.6" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">23.4</td>
+<td id="S3.T4.2.2.12.10.7" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">26.6</td>
+<td id="S3.T4.2.2.12.10.8" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">25.3</td>
+<td id="S3.T4.2.2.12.10.9" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">20.7</td>
+<td id="S3.T4.2.2.12.10.10" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">20.5</td>
+<td id="S3.T4.2.2.12.10.11" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">14.6</td>
+<td id="S3.T4.2.2.12.10.12" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">21.9</td>
+</tr>
+<tr id="S3.T4.2.2.13.11" class="ltx_tr">
+<td id="S3.T4.2.2.13.11.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.13.11.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Small)</td>
+<td id="S3.T4.2.2.13.11.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.13.11.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.13.11.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.13.11.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">2.0</td>
+<td id="S3.T4.2.2.13.11.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.6</td>
+<td id="S3.T4.2.2.13.11.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">27.0</td>
+<td id="S3.T4.2.2.13.11.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">24.7</td>
+<td id="S3.T4.2.2.13.11.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.7</td>
+<td id="S3.T4.2.2.13.11.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.13.11.10.1" class="ltx_text ltx_framed ltx_framed_underline">21.3</span></td>
+<td id="S3.T4.2.2.13.11.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.5</td>
+<td id="S3.T4.2.2.13.11.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.0</td>
+</tr>
+<tr id="S3.T4.2.2.14.12" class="ltx_tr">
+<td id="S3.T4.2.2.14.12.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.14.12.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Medium)</td>
+<td id="S3.T4.2.2.14.12.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.14.12.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.14.12.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.14.12.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.5.1" class="ltx_text ltx_framed ltx_framed_underline">1.6</span></td>
+<td id="S3.T4.2.2.14.12.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.6.1" class="ltx_text ltx_framed ltx_framed_underline">23.8</span></td>
+<td id="S3.T4.2.2.14.12.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.7.1" class="ltx_text ltx_font_bold">28.0</span></td>
+<td id="S3.T4.2.2.14.12.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.8.1" class="ltx_text ltx_font_bold">26.1</span></td>
+<td id="S3.T4.2.2.14.12.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.9.1" class="ltx_text ltx_font_bold">22.5</span></td>
+<td id="S3.T4.2.2.14.12.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.10.1" class="ltx_text ltx_framed ltx_framed_underline">21.3</span></td>
+<td id="S3.T4.2.2.14.12.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.11.1" class="ltx_text ltx_font_bold">16.0</span></td>
+<td id="S3.T4.2.2.14.12.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.14.12.12.1" class="ltx_text ltx_font_bold">23.0</span></td>
+</tr>
+<tr id="S3.T4.2.2.15.13" class="ltx_tr">
+<td id="S3.T4.2.2.15.13.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.15.13.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Large)</td>
+<td id="S3.T4.2.2.15.13.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.15.13.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.15.13.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.15.13.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.5.1" class="ltx_text ltx_font_bold">1.3</span></td>
+<td id="S3.T4.2.2.15.13.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.6.1" class="ltx_text ltx_font_bold">24.4</span></td>
+<td id="S3.T4.2.2.15.13.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.7.1" class="ltx_text ltx_framed ltx_framed_underline">27.9</span></td>
+<td id="S3.T4.2.2.15.13.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.8.1" class="ltx_text ltx_framed ltx_framed_underline">25.9</span></td>
+<td id="S3.T4.2.2.15.13.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.9.1" class="ltx_text ltx_framed ltx_framed_underline">22.1</span></td>
+<td id="S3.T4.2.2.15.13.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.10.1" class="ltx_text ltx_font_bold">21.8</span></td>
+<td id="S3.T4.2.2.15.13.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.11.1" class="ltx_text ltx_framed ltx_framed_underline">15.7</span></td>
+<td id="S3.T4.2.2.15.13.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.15.13.12.1" class="ltx_text ltx_framed ltx_framed_underline">22.9</span></td>
+</tr>
+<tr id="S3.T4.2.2.16.14" class="ltx_tr" style="background-color:#E6E6E6;">
+<td id="S3.T4.2.2.16.14.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;" colspan="12"><span id="S3.T4.2.2.16.14.1.1" class="ltx_text ltx_font_italic" style="background-color:#E6E6E6;">Speech-to-Text Translation (Noisy Audio from MuAViC)</span></td>
+</tr>
+<tr id="S3.T4.2.2.17.15" class="ltx_tr">
+<td id="S3.T4.2.2.17.15.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Bilingual AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.17.15.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.17.15.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✗</td>
+<td id="S3.T4.2.2.17.15.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC†</td>
+<td id="S3.T4.2.2.17.15.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.17.15.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.9</td>
+<td id="S3.T4.2.2.17.15.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">19.2</td>
+<td id="S3.T4.2.2.17.15.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">17.1</td>
+<td id="S3.T4.2.2.17.15.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">12.9</td>
+<td id="S3.T4.2.2.17.15.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">14.4</td>
+<td id="S3.T4.2.2.17.15.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">10.3</td>
+<td id="S3.T4.2.2.17.15.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.0</td>
+</tr>
+<tr id="S3.T4.2.2.18.16" class="ltx_tr">
+<td id="S3.T4.2.2.18.16.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Small, Fine-tuned</td>
+<td id="S3.T4.2.2.18.16.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.18.16.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.18.16.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.18.16.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">17.3</td>
+<td id="S3.T4.2.2.18.16.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">17.5</td>
+<td id="S3.T4.2.2.18.16.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.1</td>
+<td id="S3.T4.2.2.18.16.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">19.4</td>
+<td id="S3.T4.2.2.18.16.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">15.3</td>
+<td id="S3.T4.2.2.18.16.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">16.3</td>
+<td id="S3.T4.2.2.18.16.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">11.8</td>
+<td id="S3.T4.2.2.18.16.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">16.7</td>
+</tr>
+<tr id="S3.T4.2.2.19.17" class="ltx_tr">
+<td id="S3.T4.2.2.19.17.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Medium, Fine-tuned</td>
+<td id="S3.T4.2.2.19.17.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.19.17.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.19.17.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.19.17.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.5.1" class="ltx_text ltx_framed ltx_framed_underline">14.8</span></td>
+<td id="S3.T4.2.2.19.17.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.6.1" class="ltx_text ltx_framed ltx_framed_underline">18.1</span></td>
+<td id="S3.T4.2.2.19.17.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.7.1" class="ltx_text ltx_framed ltx_framed_underline">22.1</span></td>
+<td id="S3.T4.2.2.19.17.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.8.1" class="ltx_text ltx_framed ltx_framed_underline">19.8</span></td>
+<td id="S3.T4.2.2.19.17.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.9.1" class="ltx_text ltx_framed ltx_framed_underline">16.2</span></td>
+<td id="S3.T4.2.2.19.17.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.10.1" class="ltx_text ltx_framed ltx_framed_underline">17.3</span></td>
+<td id="S3.T4.2.2.19.17.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.11.1" class="ltx_text ltx_framed ltx_framed_underline">12.1</span></td>
+<td id="S3.T4.2.2.19.17.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.19.17.12.1" class="ltx_text ltx_framed ltx_framed_underline">17.6</span></td>
+</tr>
+<tr id="S3.T4.2.2.20.18" class="ltx_tr">
+<td id="S3.T4.2.2.20.18.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">Whisper-Large, Fine-tuned</td>
+<td id="S3.T4.2.2.20.18.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">A</td>
+<td id="S3.T4.2.2.20.18.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.20.18.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.20.18.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.5.1" class="ltx_text ltx_font_bold">13.8</span></td>
+<td id="S3.T4.2.2.20.18.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.6.1" class="ltx_text ltx_font_bold">19.7</span></td>
+<td id="S3.T4.2.2.20.18.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.7.1" class="ltx_text ltx_font_bold">23.4</span></td>
+<td id="S3.T4.2.2.20.18.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.8.1" class="ltx_text ltx_font_bold">20.4</span></td>
+<td id="S3.T4.2.2.20.18.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.9.1" class="ltx_text ltx_font_bold">17.4</span></td>
+<td id="S3.T4.2.2.20.18.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.10.1" class="ltx_text ltx_font_bold">17.7</span></td>
+<td id="S3.T4.2.2.20.18.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.11.1" class="ltx_text ltx_font_bold">13.3</span></td>
+<td id="S3.T4.2.2.20.18.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.20.18.12.1" class="ltx_text ltx_font_bold">18.6</span></td>
+</tr>
+<tr id="S3.T4.2.2.21.19" class="ltx_tr">
+<td id="S3.T4.2.2.21.19.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">Bilingual AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T4.2.2.21.19.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.21.19.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">✗</td>
+<td id="S3.T4.2.2.21.19.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC†</td>
+<td id="S3.T4.2.2.21.19.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;">-</td>
+<td id="S3.T4.2.2.21.19.6" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.6.1" class="ltx_text ltx_font_bold">22.7</span></td>
+<td id="S3.T4.2.2.21.19.7" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.7.1" class="ltx_text ltx_framed ltx_framed_underline">24.8</span></td>
+<td id="S3.T4.2.2.21.19.8" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.8.1" class="ltx_text ltx_font_bold">23.8</span></td>
+<td id="S3.T4.2.2.21.19.9" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.9.1" class="ltx_text ltx_font_bold">20.0</span></td>
+<td id="S3.T4.2.2.21.19.10" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.10.1" class="ltx_text ltx_font_bold">20.0</span></td>
+<td id="S3.T4.2.2.21.19.11" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.11.1" class="ltx_text ltx_framed ltx_framed_underline">13.7</span></td>
+<td id="S3.T4.2.2.21.19.12" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.21.19.12.1" class="ltx_text ltx_font_bold">20.8</span></td>
+</tr>
+<tr id="S3.T4.2.2.22.20" class="ltx_tr">
+<td id="S3.T4.2.2.22.20.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.22.20.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Small)</td>
+<td id="S3.T4.2.2.22.20.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.22.20.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.22.20.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.22.20.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">10.7</td>
+<td id="S3.T4.2.2.22.20.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">19.0</td>
+<td id="S3.T4.2.2.22.20.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">22.1</td>
+<td id="S3.T4.2.2.22.20.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">21.1</td>
+<td id="S3.T4.2.2.22.20.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">17.1</td>
+<td id="S3.T4.2.2.22.20.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">18.3</td>
+<td id="S3.T4.2.2.22.20.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">13.2</td>
+<td id="S3.T4.2.2.22.20.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">18.5</td>
+</tr>
+<tr id="S3.T4.2.2.23.21" class="ltx_tr">
+<td id="S3.T4.2.2.23.21.1" class="ltx_td ltx_align_left" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.23.21.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Medium)</td>
+<td id="S3.T4.2.2.23.21.2" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.23.21.3" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.23.21.4" class="ltx_td ltx_align_center" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.23.21.5" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.23.21.5.1" class="ltx_text ltx_framed ltx_framed_underline">8.3</span></td>
+<td id="S3.T4.2.2.23.21.6" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">20.7</td>
+<td id="S3.T4.2.2.23.21.7" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">24.5</td>
+<td id="S3.T4.2.2.23.21.8" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">21.6</td>
+<td id="S3.T4.2.2.23.21.9" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">18.8</td>
+<td id="S3.T4.2.2.23.21.10" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">18.6</td>
+<td id="S3.T4.2.2.23.21.11" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.23.21.11.1" class="ltx_text ltx_framed ltx_framed_underline">13.7</span></td>
+<td id="S3.T4.2.2.23.21.12" class="ltx_td ltx_align_right" style="padding-left:8.0pt;padding-right:8.0pt;">19.6</td>
+</tr>
+<tr id="S3.T4.2.2.24.22" class="ltx_tr">
+<td id="S3.T4.2.2.24.22.1" class="ltx_td ltx_align_left ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;">(<span id="S3.T4.2.2.24.22.1.1" class="ltx_text ltx_font_bold">Ours</span>) Whisper-Flamingo (Large)</td>
+<td id="S3.T4.2.2.24.22.2" class="ltx_td ltx_align_center ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;">AV</td>
+<td id="S3.T4.2.2.24.22.3" class="ltx_td ltx_align_center ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;">✓</td>
+<td id="S3.T4.2.2.24.22.4" class="ltx_td ltx_align_center ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;">MuAViC</td>
+<td id="S3.T4.2.2.24.22.5" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.5.1" class="ltx_text ltx_font_bold">7.2</span></td>
+<td id="S3.T4.2.2.24.22.6" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.6.1" class="ltx_text ltx_framed ltx_framed_underline">21.1</span></td>
+<td id="S3.T4.2.2.24.22.7" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.7.1" class="ltx_text ltx_font_bold">25.4</span></td>
+<td id="S3.T4.2.2.24.22.8" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.8.1" class="ltx_text ltx_framed ltx_framed_underline">22.4</span></td>
+<td id="S3.T4.2.2.24.22.9" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.9.1" class="ltx_text ltx_framed ltx_framed_underline">19.3</span></td>
+<td id="S3.T4.2.2.24.22.10" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.10.1" class="ltx_text ltx_framed ltx_framed_underline">19.9</span></td>
+<td id="S3.T4.2.2.24.22.11" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.11.1" class="ltx_text ltx_font_bold">14.7</span></td>
+<td id="S3.T4.2.2.24.22.12" class="ltx_td ltx_align_right ltx_border_bb" style="padding-left:8.0pt;padding-right:8.0pt;"><span id="S3.T4.2.2.24.22.12.1" class="ltx_text ltx_framed ltx_framed_underline">20.5</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Experimental Setup</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">To train our models, we use LRS3 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> - the largest, publicly-available AVSR dataset in English (En), sourced from TED talks.
+We followed AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> to create a 433h training set, 1h validation set, and 1h test set.
+For En-X translation, we use the MuAViC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> dataset which has translations of LRS3's English text into 6 languages: Greek (El), Spanish (Es), French (Fr), Italian (It), Portuguese (Pt), and Russian (Ru).</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">We use Whisper Small, Medium, and Large-v2 with 244M, 769M, and 1.55B parameters <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>.
+We extract 80-bin log-Mel spectrograms with a stride of 10ms and window size of 25ms from audio sampled at 16kHz.
+We extract video features from the AV-HuBERT Large <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> encoder fine-tuned on LRS3 with 325M parameters.
+For Whisper Large, the gated cross attention layers add 630M parameters, bringing the total number of parameters to 2.5B (including AV-HuBERT).
+We freeze AV-HuBERT but enable dropout and batch normalization updating during Whisper-Flamingo training.
+The videos have a frame rate of 25fps and are converted to grayscale.
+Dlib <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite> is used to extract 96x96 crops centered on the lips which are aligned to a reference mean face <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>.
+During training, a random 88x88 crop is used and the video is flipped horizontally with probability 0.5.
+For testing, the center 88x88 crop is used.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">Table <a href="#S2.T1" title="Table 1 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> summarizes the hyperparameters for the main experiments.
+We used A6000 GPUs with 48GB memory.
+Audio/video samples with similar lengths are batched together, and short samples are 0-padded.
+AdamW was used as the optimizer  <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib37" title="" class="ltx_ref">37</a>]</cite>.
+Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, we used SpecAugment <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib38" title="" class="ltx_ref">38</a>]</cite> (Librispeech-Basic) with Whisper-Large and did not use it with Whisper-Medium.
+Training was done with PyTorch <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib39" title="" class="ltx_ref">39</a>]</cite> and PyTorch Lightning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib40" title="" class="ltx_ref">40</a>]</cite>.
+We used the SpecAugment and batch sorter implementations from ESPnet <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib41" title="" class="ltx_ref">41</a>]</cite>.</p>
+</div>
+<div id="S3.SS1.p4" class="ltx_para">
+<p id="S3.SS1.p4.1" class="ltx_p">During training, we randomly add noise to the audio with a signal-to-noise ratio (SNR) of 0.
+Following prior work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, the ``natural'', ``music'' and ``babble'' noise are sampled from the MUSAN dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib42" title="" class="ltx_ref">42</a>]</cite>, and overlapping ``speech'' noise is sampled from LRS3 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>.
+To select the best checkpoints, we monitor the highest token prediction accuracy on the noisy validation set every 1k steps.
+We report beam search decoding results with beam size 15.
+Following prior work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, we use the Fairseq normalizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib43" title="" class="ltx_ref">43</a>]</cite> to remove punctuation and lower-case text before calculating WER.
+For translation, we use SacreBLEU <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib44" title="" class="ltx_ref">44</a>]</cite> with the default 13-a tokenizer to calculate BLEU <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib45" title="" class="ltx_ref">45</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Modality Fusion Ablation with Whisper-Medium</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">We first compared gated cross attention to early and late fusion using Whisper Medium.
+For early fusion, we duplicate AV-HuBERT's 25 Hz video features to temporally align them with Whisper's 50 Hz audio features (after the CNN layers) and use addition to fuse them before Whisper's Transformer encoder.
+For late fusion, we use an MLP to fuse the video features with Whisper's audio features after its Transformer encoder.
+In both cases, all of Whisper's parameters are fine-tuned.
+For audio-only baselines, we use Whisper zero-shot (no fine-tuning) and fine-tuned on LRS3.
+We test models in both the clean and noisy conditions with babble-noise injected at 0-SNR.
+The results are shown in Table <a href="#S2.T2" title="Table 2 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+Fine-tuning audio-only Whisper decreases the noisy WER of the zero-shot model from 22.2% to 12.6%.
+We then use the fine-tuned model as initialization to train the models with audio-visual fusion.
+Early-fusion obtained a small improvement in both the clean and noisy WERs.
+Late-fusion could not fuse the modalities well and performance became worse in both clean and noisy conditions.
+Finally, Whisper-Flamingo with gated cross attention obtained the best noisy WER, significantly improving the audio-only Whisper fine-tuned baseline from 12.6% to 7.0%, while the clean
+WER was slightly improved from 1.9% to 1.5%.
+Freezing Whisper helps retain its strong audio skills while new cross attention layers enable it to integrate the visual modality more effectively.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Whisper-Flamingo English Speech Recognition</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">For our main experiments, we scale up to Whisper-Large.
+In the 3rd section of Table <a href="#S2.T3" title="Table 3 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, we compare audio-only Whisper-Large zero-shot and fine-tuned on LRS3; the fine-tuned model outperforms the zero-shot model in noise (11.7% vs 20.8%).
+Fine-tuned Whisper-Large performs slightly worse than Whisper-Medium on clean audio (Table <a href="#S2.T2" title="Table 2 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>), but Whisper-Large performs better on noisy audio.
+The bottom part of Table <a href="#S2.T3" title="Table 3 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows our audio-visual Whisper-Flamingo initialized from fine-tuned Whisper-Large.
+Compared to the audio-only baseline, Whisper-Flamingo significantly improves the noisy performance from <span id="S3.SS3.p1.1.1" class="ltx_text ltx_font_bold">11.7% to 5.6% (52.1% relative improvement).</span>
+It also improves the clean WER from 2.3% to 1.5%.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">Table <a href="#S2.T3" title="Table 3 ‣ 2 Method ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> also shows a comparison with prior audio-visual SSL methods and audio-visual fine-tuning methods on LRS3.
+Direct comparison in noisy conditions is challenging since different noise datasets were used to generate the babble noise.
+SSL methods AV-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> and u-HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> used LRS3 to generate babble noise, but the noise file they generated was not publicly available.
+We followed their procedure to generate the noise, so our noisy conditions are similar but not identical.
+Compared with AV-HuBERT, Whisper-Flamingo achieves comparable clean performance (1.5% vs 1.4%) and slightly better noisy results (5.6% vs 5.8%), which shows that Whisper-Flamingo is effective at adapting Whisper to the visual features from AV-HuBERT.
+Moreover, a major advantage of Whisper-Flamingo over AV-HuBERT is improved translation performance (Section <a href="#S3.SS4" title="3.4 Whisper-Flamingo En-X Speech Translation ‣ 3 Experiments ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.4</span></a>).
+The best noisy performance (4.6%) is reported by u-HuBERT; we would like to try it as a visual encoder for Whisper-Flamingo, but the weights are not publicly available.
+Finally, Whisper-Flamingo outperforms other methods in noise which adapt audio-only models through audio-visual fine-tuning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, including FAVA-USM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> which was pre-trained on 12M hours of unlabeled audio <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>.
+However, the babble noise was generated from different datasets making results not strictly comparable.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Whisper-Flamingo En-X Speech Translation</h3>
+
+<div id="S3.SS4.p1" class="ltx_para ltx_noindent">
+<p id="S3.SS4.p1.1" class="ltx_p"><span id="S3.SS4.p1.1.1" class="ltx_text ltx_font_bold">Audio Results</span>.
+In Table <a href="#S3.T4" title="Table 4 ‣ 3 Experiments ‣ Whisper-Flamingo: Integrating Visual Features into Whisper for Audio-Visual Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>, we show the result of fine-tuning audio-only Whisper-Large for En-X translation using the 6 languages in the MuAViC dataset (``Whisper-Large, Fine-tuned'').
+Although Whisper was not originally trained for En-X translation, it adapts well to the new task.
+Testing with clean audio, we achieve an <span id="S3.SS4.p1.1.2" class="ltx_text ltx_font_bold">average BLEU score of 22.7</span>, which outperforms the previous SOTA of 21.9 from Bilingual AV-HuBERT.
+Moreover, our model transcribes En audio (WER of 1.5%) and translates to 6 languages with a single set of parameters, while Bilingual AV-HuBERT fine-tunes separately for each language pair and trains language-specific decoders from scratch.
+Our model nearly reaches the text-to-text performance from machine translation models using the ground-truth English text; those models achieve average BLEU scores of 23.1 from a multilingual model and 24.3 from bilingual models.</p>
+</div>
+<div id="S3.SS4.p2" class="ltx_para ltx_noindent">
+<p id="S3.SS4.p2.1" class="ltx_p"><span id="S3.SS4.p2.1.1" class="ltx_text ltx_font_bold">Audio-Visual Results</span>.
+Once we fine-tune audio-only Whisper for En-X translation, we use it to train Whisper-Flamingo by freezing the weights and adding gated cross attention layers.
+Testing with clean audio, Whisper-Flamingo slightly outperforms the audio-only model with an average BLEU score of 22.9 and En WER of 1.3%.
+In noisy conditions, we use multilingual babble noise constructed following MuAViC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> by adding audio in 9 different languages from 30 speakers.
+Note that their noise file was not publicly available, so our noisy conditions are similar but not identical.
+With multilingual babble noise, Whisper-Flamingo significantly outperforms the audio-only Whisper model in average BLEU score (<span id="S3.SS4.p2.1.2" class="ltx_text ltx_font_bold">20.5 vs 18.6)</span> and En WER (<span id="S3.SS4.p2.1.3" class="ltx_text ltx_font_bold">7.2% vs 13.8%</span>).
+Compared with the previous SOTA bilingual AV-HuBERT, our audio-only average BLEU is much better (18.6 vs 15.0), but our audio-visual performance is slightly worse (20.5 vs 20.8).
+However, our models perform <span id="S3.SS4.p2.1.4" class="ltx_text ltx_font_bold">both En-X translation and En transcription with a single model</span>, while their models fine-tune separately for each language pair.
+Finally, we show the results using Whisper-Medium and Whisper-Small: Whisper-Flamingo always does better in noise compared to the audio-only baselines, and performance tends to improve as the model size increases.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">We introduced Whisper-Flamingo, a novel audio-visual model that combines the strengths of AV-HuBERT and Whisper using gated cross attention.
+Our audio-visual Whisper-Flamingo significantly outperforms audio-only Whisper in noise.
+We showed that Whisper can be fine-tuned for the new task of X-En translation.
+Our model performs both En speech recognition and En-X speech translation using one set of parameters while previous methods fine-tune separately on each language.
+Our method is a generic way of fusing a visual encoder into the decoder of an ASR model to enable AVSR, and it could work with other models trained on more data in the future.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Acknowledgments</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We thank Alex H. Liu, Mohamed Anwar, and the reviewers for helpful discussion.
+This research was supported by the MIT-IBM Watson AI Lab and an NDSEG Fellowship to A.R.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+A. Radford <span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Robust speech recognition via large-scale weak supervision,'' in <em id="bib.bib1.2.2" class="ltx_emph ltx_font_italic">ICML</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Y. Zhang <span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Google usm: Scaling automatic speech recognition beyond 100 languages,'' <em id="bib.bib2.2.2" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Y. Gong, S. Khurana, L. Karlinsky, and J. Glass, ``Whisper-AT: Noise-Robust Automatic Speech Recognizers are Also Strong General Audio Event Taggers,'' in <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+B. Shi, W.-N. Hsu, K. Lakhotia, and A. Mohamed, ``Learning audio-visual speech representation by masked multimodal cluster prediction,'' in <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+X. Pan, P. Chen, Y. Gong, H. Zhou, X. Wang, and Z. Lin, ``Leveraging unimodal self-supervised learning for multimodal audio-visual speech recognition,'' in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">ACL</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+A. May, D. Serdyuk, A. P. Shah, O. Braga, and O. Siohan, ``Audio-visual fine-tuning of audio-only asr models,'' <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">ASRU</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+C. Simic and T. Bocklet, ``Self-supervised adaptive av fusion module for pre-trained asr models,'' in <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+J.-B. Alayrac, J. Donahue, P. Luc, A. Miech, I. Barr, Y. Hasson, K. Lenc, A. Mensch, K. Millican, M. Reynolds <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Flamingo: a visual language model for few-shot learning,'' <em id="bib.bib8.2.2" class="ltx_emph ltx_font_italic">NeurIPS</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Z. Kong <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Audio flamingo: A novel audio language model with few-shot learning and dialogue abilities,'' <em id="bib.bib9.2.2" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+T. Afouras, J. S. Chung, and A. Zisserman, ``Lrs3-ted: a large-scale dataset for visual speech recognition,'' <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+M. A. <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``MuAViC: A Multilingual Audio-Visual Corpus for Robust Speech Recognition and Robust Speech-to-Text Translation,'' in <em id="bib.bib11.2.2" class="ltx_emph ltx_font_italic">Interspeech</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, ``Attention is all you need,'' <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">NeurIPS</em>, 2017.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+T. Afouras, J. S. Chung, A. Senior, O. Vinyals, and A. Zisserman, ``Deep audio-visual speech recognition,'' <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">IEEE TPAMI</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+W.-N. Hsu and B. Shi, ``u-hubert: Unified mixed-modal speech pretraining and zero-shot transfer to unlabeled modality,'' <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">NeurIPS</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+J.-X. Zhang, G. Wan, Z.-H. Ling, J. Pan, J. Gao, and C. Liu, ``Self-supervised audio-visual speech representations learning by multimodal self-distillation,'' in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+T. Makino, H. Liao, Y. Assael, B. Shillingford, B. Garcia, O. Braga, and O. Siohan, ``Recurrent neural network transducer for audio-visual speech recognition,'' in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">ASRU</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+D. Serdyuk, O. Braga, and O. Siohan, ``Transformer-Based Video Front-Ends for Audio-Visual Speech Recognition for Single and Muti-Person Video,'' in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+A. Rouditchenko, R. Collobert, and T. Likhomanenko, ``Av-cpl: Continuous pseudo-labeling for audio-visual speech recognition,'' <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+S. Petridis, T. Stafylakis, P. Ma, F. Cai, G. Tzimiropoulos, and M. Pantic, ``End-to-end audiovisual speech recognition,'' in <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+P. Ma, S. Petridis, and M. Pantic, ``End-to-end audio-visual speech recognition with conformers,'' in <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+P. Ma, A. Haliassos, A. Fernandez-Lopez, H. Chen, S. Petridis, and M. Pantic, ``Auto-avsr: Audio-visual speech recognition with automatic labels,'' in <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+C.-C. Chiu, J. Qin, Y. Zhang, J. Yu, and Y. Wu, ``Self-supervised learning with random-projection quantizer for speech recognition,'' in <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+P. H. Seo, A. Nagrani, and C. Schmid, ``Avformer: Injecting vision into frozen speech models for zero-shot av-asr,'' in <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">CVPR</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+P. Peng, B. Yan, S. Watanabe, and D. Harwath, ``Prompting the Hidden Talent of Web-Scale Speech Models for Zero-Shot Task Generalization,'' in <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+J. L. Ba, J. R. Kiros, and G. E. Hinton, ``Layer normalization,'' <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2016.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+B. Shi, W.-N. Hsu, and A. Mohamed, ``Robust Self-Supervised Audio-Visual Speech Recognition,'' in <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+N. Houlsby, A. Giurgiu, S. Jastrzebski, B. Morrone, Q. De Laroussilhe, A. Gesmundo, M. Attariyan, and S. Gelly, ``Parameter-efficient transfer learning for nlp,'' in <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+X. Cheng <span id="bib.bib28.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Mixspeech: Cross-modality self-learning with audio-visual stream mixup for visual speech translation and recognition,'' in <em id="bib.bib28.2.2" class="ltx_emph ltx_font_italic">ICCV</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+J. Hong, S. Park, and Y. Ro, ``Intuitive multilingual audio-visual speech recognition with a single-trained model,'' in <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">Findings of EMNLP</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+Z. Li <span id="bib.bib30.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Parameter-efficient cross-language transfer learning for a language-modular audiovisual speech recognition,'' in <em id="bib.bib30.2.2" class="ltx_emph ltx_font_italic">ASRU</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+M. Burchi <span id="bib.bib31.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Multilingual audio-visual speech recognition with hybrid ctc/rnn-t fast conformer,'' in <em id="bib.bib31.2.2" class="ltx_emph ltx_font_italic">ICASSP</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+H. Han, M. Anwar, J. Pino, W.-N. Hsu, M. Carpuat, B. Shi, and C. Wang, ``Xlavs-r: Cross-lingual audio-visual speech representation learning for noise-robust speech perception,'' <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">ACL</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+A. Rouditchenko, S. Khurana, S. Thomas, R. Feris, L. Karlinsky, H. Kuehne, D. Harwath, B. Kingsbury, and J. Glass, ``Comparison of Multilingual Self-Supervised and Weakly-Supervised Speech Pre-Training for Adaptation to Unseen Languages,'' in <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+A. Fan, S. Bhosale, H. Schwenk, Z. Ma, A. El-Kishky, S. Goyal, M. Baines, O. Celebi, G. Wenzek, V. Chaudhary <em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Beyond english-centric multilingual machine translation,'' <em id="bib.bib34.2.2" class="ltx_emph ltx_font_italic">JMLR</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock">
+D. E. King, ``Dlib-ml: A machine learning toolkit,'' <em id="bib.bib35.1.1" class="ltx_emph ltx_font_italic">The Journal of Machine Learning Research</em>, 2009.
+
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock">
+B. Martinez, P. Ma, S. Petridis, and M. Pantic, ``Lipreading using temporal convolutional networks,'' in <em id="bib.bib36.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib37" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[37]</span>
+<span class="ltx_bibblock">
+I. Loshchilov and F. Hutter, ``Decoupled weight decay regularization,'' in <em id="bib.bib37.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib38" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[38]</span>
+<span class="ltx_bibblock">
+D. S. P. <span id="bib.bib38.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition,'' in <em id="bib.bib38.2.2" class="ltx_emph ltx_font_italic">Interspeech</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib39" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[39]</span>
+<span class="ltx_bibblock">
+A. Paszke <span id="bib.bib39.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``Pytorch: An imperative style, high-performance deep learning library,'' <em id="bib.bib39.2.2" class="ltx_emph ltx_font_italic">NeurIPS</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib40" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[40]</span>
+<span class="ltx_bibblock">
+W. Falcon and The PyTorch Lightning team, ``PyTorch Lightning,'' 2023.
+
+</span>
+</li>
+<li id="bib.bib41" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[41]</span>
+<span class="ltx_bibblock">
+S. W. <span id="bib.bib41.1.1" class="ltx_text ltx_font_italic">et al.</span>, ``ESPnet: End-to-End Speech Processing Toolkit,'' in <em id="bib.bib41.2.2" class="ltx_emph ltx_font_italic">Interspeech</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib42" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[42]</span>
+<span class="ltx_bibblock">
+D. Snyder, G. Chen, and D. Povey, ``Musan: A music, speech, and noise corpus,'' <em id="bib.bib42.1.1" class="ltx_emph ltx_font_italic">arXiv preprint</em>, 2015.
+
+</span>
+</li>
+<li id="bib.bib43" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[43]</span>
+<span class="ltx_bibblock">
+C. Wang, Y. Tang, X. Ma, A. Wu, D. Okhonko, and J. Pino, ``Fairseq S2T: Fast speech-to-text modeling with fairseq,'' in <em id="bib.bib43.1.1" class="ltx_emph ltx_font_italic">AACL: System Demonstrations</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib44" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[44]</span>
+<span class="ltx_bibblock">
+M. Post, ``A call for clarity in reporting BLEU scores,'' in <em id="bib.bib44.1.1" class="ltx_emph ltx_font_italic">WMT</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib45" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[45]</span>
+<span class="ltx_bibblock">
+K. Papineni, S. Roukos, T. Ward, and W.-J. Zhu, ``Bleu: a method for automatic evaluation of machine translation,'' in <em id="bib.bib45.1.1" class="ltx_emph ltx_font_italic">ACL</em>, 2002.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.10081" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.10082" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.10082">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.10082" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.10083" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Jul  6 01:40:25 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

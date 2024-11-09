@@ -1,0 +1,1027 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2407.16836] Inference Load-Aware Orchestration for Hierarchical Federated Learning</title><meta property="og:description" content="Hierarchical federated learning (HFL) designs introduce intermediate aggregator nodes between clients and the global federated learning server in order to reduce communication costs and distribute server load. One side…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Inference Load-Aware Orchestration for Hierarchical Federated Learning">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Inference Load-Aware Orchestration for Hierarchical Federated Learning">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2407.16836">
+
+<!--Generated on Mon Aug  5 15:33:32 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="
+Federated learning,  service orchestration,  continual learning,  edge computing.
+">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Inference Load-Aware Orchestration for Hierarchical Federated Learning</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+
+Anna Lackinger1,
+Pantelis A. Frangoudis1,
+Ivan Čilić2,
+Alireza Furutanpey1,
+Ilir Murturi1, 
+<br class="ltx_break">Ivana Podnar Žarko2,
+Schahram Dustdar1
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">1Distributed Systems Group, TU Wien, Vienna, Austria
+
+<br class="ltx_break">{a.lackinger, p.frangoudis, a.furutanpey, imurturi, dustdar}@dsg.tuwien.ac.at
+</span>
+<span class="ltx_contact ltx_role_affiliation">2Faculty of Electrical Engineering and Computing, University of Zagreb, Zagreb, Croatia
+
+<br class="ltx_break">{ivan.cilic, ivana.podnar}@fer.hr
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Hierarchical federated learning (HFL) designs introduce intermediate aggregator nodes between clients and the global federated learning server in order to reduce communication costs and distribute server load. One side effect is that machine learning model replication at scale comes “for free” as part of the HFL process: model replicas are hosted at the client end, intermediate nodes, and the global server level and are readily available for serving inference requests. This creates opportunities for efficient model serving but simultaneously couples the training and serving processes and calls for their joint orchestration. This is particularly important for <em id="id1.id1.1" class="ltx_emph ltx_font_italic">continual learning</em>, where serving a model while (re)training it periodically, upon specific triggers, or continuously, takes place over shared infrastructure spanning the computing continuum. Consequently, training and inference workloads can interfere with detrimental effects on performance. To address this issue, we propose an inference load-aware HFL orchestration scheme, which makes informed decisions on HFL configuration, considering knowledge about inference workloads and the respective processing capacity. Applying our scheme to a continual learning use case in the transportation domain, we demonstrate that by optimizing aggregator node placement and device-aggregator association, significant inference latency savings can be achieved while communication costs are drastically reduced compared to flat centralized federated learning.</p>
+</div>
+<div class="ltx_keywords">
+<h6 class="ltx_title ltx_title_keywords">Index Terms: </h6>
+Federated learning, service orchestration, continual learning, edge computing.
+
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">The traditional approach to machine/deep learning (ML/DL) is to train an ML model with data collected on a centralized cloud server and make it available for inference either by hosting it in the cloud or, more recently, serving it directly from end devices following the edge computing paradigm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Both training and inference are, however, challenged in different ways.
+On the one hand, data often tend to be distributed across various devices, and collecting all data to a central server raises logistical and privacy concerns <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>.
+On the other hand, and despite the proliferation of AI accelerators of different scales, serving inference requests at the same time in a timely, accurate, and private manner is a hard, multi-faceted problem that calls for sophisticated edge-cloud synergy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Federated learning (FL) has emerged as a response to some of these challenges and has gained significant popularity.
+In FL, clients train an ML model on local data and upload the result of their computation to a central server for aggregation.
+The server then produces and redistributes an updated global model, starting a new training round.
+This iterative process continues until some convergence criterion is met. FL operates under distinctly different assumptions than traditional deep learning: the number of participating nodes is often high, data are unbalanced and often not independent and identically distributed (non-IID), and performance depends on the communication capabilities of participating entities, which are often heterogeneous, resource-constrained and unreliable <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>. Moreover, even when the number of participating devices is high, each device typically only holds a relatively small data volume.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In its default centralized configuration, FL can suffer from increased network costs. Instead of uploading raw data, clients must exchange ML model copies with the FL server, which is particularly costly for long-lasting training processes and large DL models. At the same time, large-scale synchronous federated learning tasks require significant network capacity at the server end to deal with simultaneous model updates <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>.
+These limitations motivate <em id="S1.p3.1.1" class="ltx_emph ltx_font_italic">hierarchical</em> federated learning (HFL), where frequent aggregations can be enabled on the edge network, avoiding extensive cloud aggregations without sacrificing learning accuracy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In a hierarchical FL process, the key decision is how to appropriately cluster FL clients in groups and designate local aggregator nodes per cluster to optimize for specific performance criteria, such as communication cost minimization or FL convergence time. As a side effect, ML model replication at hosts in the computing continuum comes “for free” as a natural part of the HFL process: besides client devices and the cloud, model replicas are now found at local aggregation points and are usable for serving inference requests, potentially with low latency due to proximity, and provided that privacy requirements allow it. At the same time, though, this creates a coupling between training and inference and calls for their <em id="S1.p4.1.1" class="ltx_emph ltx_font_italic">joint orchestration</em>. This coupling becomes more important in <em id="S1.p4.1.2" class="ltx_emph ltx_font_italic">continual learning (CL)</em> scenarios <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, where training and inference processes overlap and compete for compute and network resources. The CL paradigm provides a realistic setting reflecting real-world learning processes, with new tasks and new data, potentially with different distributions, emerging over time. As such, CL may involve retraining an ML model while serving it, which is challenging to achieve with high performance when sharing the same resource-constrained infrastructure, as is often the case in FL. This challenge has started receiving attention only recently <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Our work focuses on continual hierarchical FL and contributes to answering the following: <em id="S1.p5.1.1" class="ltx_emph ltx_font_italic">
+How can a hierarchical FL process be orchestrated with inference workload awareness? Additionally, what are the performance benefits of this approach in terms of reducing inference latency and communication costs?</em>
+<br class="ltx_break">In summary, our main contributions are:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">Introducing an architectural framework for HFL orchestration (§ <a href="#S3" title="III System architecture ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a>), in the context of which we formulate and solve the <em id="S1.I1.i1.p1.1.1" class="ltx_emph ltx_font_italic">inference-aware HFL Orchestration Problem (HFLOP)</em>. This leads to a cost-optimal assignment of FL devices to aggregator nodes, taking into account their inference workload processing capacities (§ <a href="#S4" title="IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a>). To the best of our knowledge, this is the first work that tackles joint training-inference orchestration in the <em id="S1.I1.i1.p1.1.2" class="ltx_emph ltx_font_italic">hierarchical</em> FL setting.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">Applying and evaluating our scheme to a continual federated learning use case in the transportation domain using a real-world dataset to handle dynamic and evolving traffic patterns (§ <a href="#S5" title="V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">V</span></a>).
+Our results show that our approach can feasibly reduce inference latency and communication costs.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">Providing our code as open source<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><a target="_blank" href="https://github.com/pfrag/hflop" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/pfrag/hflop</a></span></span></span> for reproducibility and to allow other researchers to utilize it for their purposes.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Related Work</span>
+</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS1.5.1.1" class="ltx_text">II-A</span> </span><span id="S2.SS1.6.2" class="ltx_text ltx_font_italic">Continuous federated learning</span>
+</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Continuous learning, also known as lifelong learning, has been proposed by Thrun <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> and is a well-researched topic with extensive literature. It involves learning continuously from streaming data, developing a model based on previous learning, and then being able to reapply, adapt, and generalize it to new situations. Continuous learning and continual learning are often overlooked in federated learning, which is typically limited to one-time training. In practice, however, a model may need to be retrained over time to maintain its accuracy. Wang et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> present a comprehensive survey on continual learning, mainly focusing on the theoretical foundations, representative methods, and practical applications to address catastrophic forgetting <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite> and maintain model performance. Le et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite> present a federated continuous learning scheme (FCL) based on broad learning (FCL-BL), which proposes a weighted processing strategy to solve the catastrophic forgetting problem and develops a local-independent training solution for fast and accurate training. For an overview of existing FCL approaches, related challenges, and classification tasks, the reader is referred to the work of Yang et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>.
+We should note that the aforementioned studies <em id="S2.SS1.p1.1.1" class="ltx_emph ltx_font_italic">do not focus on service orchestration aspects of FCL processes and do not address resource contention between (continuous) training and inference</em>.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS2.5.1.1" class="ltx_text">II-B</span> </span><span id="S2.SS2.6.2" class="ltx_text ltx_font_italic">Joint training-inference optimization in federated learning</span>
+</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Most research on federated learning focuses on model training (e.g., model pruning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite>, gradient compression <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>, etc.) rather than the inference stage (e.g., <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>). Especially in continuous learning, where models need to be constantly updated, it can happen that inference requests and training overlap.
+One of the first papers that emphasizes the problem of joint optimization of model training and inference is by Han et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.
+To characterize the clients’ inference performance, the authors introduce the notion of the age of the model to represent how much the models on the client side differ from the global model.
+Another challenge mentioned in the paper is the close coupling between clients’ decisions, including participation probability in FL, model download probability, and service rates.
+To address these challenges, the authors offer an online problem approximation that reduces complexity and optimizes resources for model training and inference. <em id="S2.SS2.p1.1.1" class="ltx_emph ltx_font_italic">Our work shares a similar motivation but focuses on the hierarchical setting</em>. Despite the extensive literature on HFL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>, we are not aware of any works that jointly consider training and inference serving in HFL.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS3.5.1.1" class="ltx_text">II-C</span> </span><span id="S2.SS3.6.2" class="ltx_text ltx_font_italic">Applications to traffic flow prediction</span>
+</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">From a use-case perspective, one area where continuous learning and federated learning are often required is Traffic Flow Prediction (TFP), which is also the application scenario we experiment with in this work (§ <a href="#S5" title="V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">V</span></a>). Predicting traffic flow is crucial for reducing congestion and improving transportation efficiency in smart cities <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>. In TFP, distributed sensors measure traffic flow and train local models to predict how the traffic flow will evolve in the future. Due to the constantly changing traffic situation, the models have to be retrained continuously.
+Zhang et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> present CTFed, a hierarchical FL approach to train Graph Neural Networks for TFP, clustering clients based on the similarity of their local models.
+Liu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite> propose an FL-based gated recurrent unit neural network algorithm (FedGRU). Yuan et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>, on the other hand, propose an FL scheme based on the Spatial-Temporal Long and Short-Term Networks (FedSTN) algorithm for TFP.
+To integrate external factors into TFP, a Semantic Capture Network (SCN) is introduced to capture the regional flow relationship and the influence of Point of Interest (POI) on TFP. Hu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite> propose an FL-based spatial-temporal traffic demand prediction model (FedSTTDP) while ensuring data security and privacy. In contrast to the mentioned works, <em id="S2.SS3.p1.1.1" class="ltx_emph ltx_font_italic">we also target low-latency TFP serving for the hierarchical FL setup in particular.</em></p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">System architecture</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">Hierarchical federated learning aims to reduce centralized FL’s communication cost and alleviate the load of a single aggregation server. FL clients are organized in clusters based on criteria such as their network proximity and perform aggregations first on a local level with the mediation of a local aggregation server: client devices transmit their trained models to local servers after a set number of training epochs and receive updated (aggregated) models by their local servers; this process constitutes a <em id="S3.p1.1.1" class="ltx_emph ltx_font_italic">local aggregation round</em>. After a configurable number of epochs and local aggregation rounds, the derived cluster-local model is sent to the global server for global aggregation and redistribution of a new version of the global model to clusters; this constitutes a <em id="S3.p1.1.2" class="ltx_emph ltx_font_italic">global aggregation round</em>.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure">
+<p id="S3.F1.1" class="ltx_p ltx_align_center"><span id="S3.F1.1.1" class="ltx_text"><img src="/html/2407.16836/assets/x1.png" id="S3.F1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="238" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S3.F1.3.1.1" class="ltx_text" style="font-size:90%;">Figure 1</span>: </span><span id="S3.F1.4.2" class="ltx_text" style="font-size:90%;">Architectural view of our hierarchical federated learning orchestration framework. Our framework supports the joint orchestration of distributed training and inference serving.</span></figcaption>
+</figure>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">We address the challenges associated with the dynamic orchestration of such processes and put our work in the context of an HFL orchestration system. While the technical details of such a system are outside the scope of this paper, in this section, we provide its high-level overview and demonstrate how the functionality we present fits into this framework. We apply a two-level orchestration approach, depicted in Figure <a href="#S3.F1" title="Figure 1 ‣ III System architecture ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. Our design relies on two main components. The first is a <span id="S3.p2.1.1" class="ltx_text ltx_font_italic">general purpose orchestrator</span> (GPO), such as Kubernetes, to enable the collection of information about the underlying compute infrastructure, e.g., nodes capable of hosting HFL service components, and manage the deployment of these components as containerized microservices distributed over the computing continuum. The second is a special-purpose, <span id="S3.p2.1.2" class="ltx_text ltx_font_italic">HFL-specific service orchestrator</span>. This component makes decisions at the HFL level, and the mechanisms we present in this paper are within its scope.</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.1" class="ltx_p">One element of this service-specific orchestrator is the <em id="S3.p3.1.1" class="ltx_emph ltx_font_italic">learning controller</em>, which manages the HFL runtime. This controller retrieves information from the GPO on node resource states, underlying networks, and information on the clients requiring inference services. This information is provided as the input for the <em id="S3.p3.1.2" class="ltx_emph ltx_font_italic">HFL clustering</em> mechanism, whose role is to form a hierarchy of FL clients and local aggregation nodes, solving the optimization problems therein – a major focus of this paper is on this mechanism in particular (see Section <a href="#S4" title="IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a>). The output of the clustering mechanism prescribes a specific HFL configuration, which is eventually translated to (i) an actual containerized deployment implemented by the GPO at the instruction of the learning controller and, in turn, (ii) a concrete distributed HFL service instance, managed by the learning controller and implemented by microservices running on client devices, edge nodes, and the cloud. Besides assigning FL devices to aggregator nodes, and depending on the specific instantiation of our orchestration system, the clustering mechanism may decide on further FL service parameters, such as the number of local epochs and local/global aggregation frequencies.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.1" class="ltx_p">To enable model serving, the <em id="S3.p4.1.1" class="ltx_emph ltx_font_italic">inference controller</em> is triggered at the end of the deployment phase to deploy and configure an inference service and an inference request agent per node.
+In the context of hierarchical FL, an FL service can be a client that trains on local data or a server (aggregator) that provides model aggregation on a local or global level. The same model, updated during the learning process, can be used for inference. Therefore, on the same node, the orchestrator deploys an inference service, which is a server that provides an interface for interaction with the model. Also, each node hosts an inference routing agent, a proxy that decides where an inference request will be processed, implementing specific request routing logic. For example, if the node is under a heavy workload, such as when training a DL model, the routing agent forwards the requests to an inference service higher up in the hierarchy, i.e., the parent server (aggregator). Information on the load can be extracted from the GPO node controller.</p>
+</div>
+<div id="S3.p5" class="ltx_para">
+<p id="S3.p5.1" class="ltx_p">We should finally note that orchestration tasks involve deploying and managing services at runtime. Therefore, orchestration must adapt to environmental changes, such as node failures and network changes. The learning controller monitors the learning pipeline and reacts to these changes by performing re-clustering on environmental events. On the other hand, orchestration also needs to adapt to service-specific events. For example, in the continual learning settings our architecture targets, a task of the inference controller is to monitor inference services and trigger a new HFL task if inference accuracy is below a specific threshold.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">The inference-aware HFL orchestration problem</span>
+</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">We now focus on the internals of the HFL clustering component of our architecture. We introduce a model of our system that captures the co-existing and inter-dependent training and inference processes and we provide an integer linear programming formulation for the inference-aware HFL orchestration problem. A solution to this problem represents a cost-minimizing HFL cluster configuration.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS1.5.1.1" class="ltx_text">IV-A</span> </span><span id="S4.SS1.6.2" class="ltx_text ltx_font_italic">System model</span>
+</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.9" class="ltx_p">A set of <math id="S4.SS1.p1.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S4.SS1.p1.1.m1.1a"><mi id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.1b"><ci id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.1c">n</annotation></semantics></math> devices participate in an FL task, and <math id="S4.SS1.p1.2.m2.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S4.SS1.p1.2.m2.1a"><mi id="S4.SS1.p1.2.m2.1.1" xref="S4.SS1.p1.2.m2.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.2.m2.1b"><ci id="S4.SS1.p1.2.m2.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.2.m2.1c">m</annotation></semantics></math> edge host locations exist that are eligible to place an aggregator.
+The communication cost for device-edge host pair <math id="S4.SS1.p1.3.m3.2" class="ltx_Math" alttext="(i,j)" display="inline"><semantics id="S4.SS1.p1.3.m3.2a"><mrow id="S4.SS1.p1.3.m3.2.3.2" xref="S4.SS1.p1.3.m3.2.3.1.cmml"><mo stretchy="false" id="S4.SS1.p1.3.m3.2.3.2.1" xref="S4.SS1.p1.3.m3.2.3.1.cmml">(</mo><mi id="S4.SS1.p1.3.m3.1.1" xref="S4.SS1.p1.3.m3.1.1.cmml">i</mi><mo id="S4.SS1.p1.3.m3.2.3.2.2" xref="S4.SS1.p1.3.m3.2.3.1.cmml">,</mo><mi id="S4.SS1.p1.3.m3.2.2" xref="S4.SS1.p1.3.m3.2.2.cmml">j</mi><mo stretchy="false" id="S4.SS1.p1.3.m3.2.3.2.3" xref="S4.SS1.p1.3.m3.2.3.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.3.m3.2b"><interval closure="open" id="S4.SS1.p1.3.m3.2.3.1.cmml" xref="S4.SS1.p1.3.m3.2.3.2"><ci id="S4.SS1.p1.3.m3.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1">𝑖</ci><ci id="S4.SS1.p1.3.m3.2.2.cmml" xref="S4.SS1.p1.3.m3.2.2">𝑗</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.3.m3.2c">(i,j)</annotation></semantics></math> is given by <math id="S4.SS1.p1.4.m4.1" class="ltx_Math" alttext="c^{(d)}_{ij}" display="inline"><semantics id="S4.SS1.p1.4.m4.1a"><msubsup id="S4.SS1.p1.4.m4.1.2" xref="S4.SS1.p1.4.m4.1.2.cmml"><mi id="S4.SS1.p1.4.m4.1.2.2.2" xref="S4.SS1.p1.4.m4.1.2.2.2.cmml">c</mi><mrow id="S4.SS1.p1.4.m4.1.2.3" xref="S4.SS1.p1.4.m4.1.2.3.cmml"><mi id="S4.SS1.p1.4.m4.1.2.3.2" xref="S4.SS1.p1.4.m4.1.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS1.p1.4.m4.1.2.3.1" xref="S4.SS1.p1.4.m4.1.2.3.1.cmml">​</mo><mi id="S4.SS1.p1.4.m4.1.2.3.3" xref="S4.SS1.p1.4.m4.1.2.3.3.cmml">j</mi></mrow><mrow id="S4.SS1.p1.4.m4.1.1.1.3" xref="S4.SS1.p1.4.m4.1.2.cmml"><mo stretchy="false" id="S4.SS1.p1.4.m4.1.1.1.3.1" xref="S4.SS1.p1.4.m4.1.2.cmml">(</mo><mi id="S4.SS1.p1.4.m4.1.1.1.1" xref="S4.SS1.p1.4.m4.1.1.1.1.cmml">d</mi><mo stretchy="false" id="S4.SS1.p1.4.m4.1.1.1.3.2" xref="S4.SS1.p1.4.m4.1.2.cmml">)</mo></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.4.m4.1b"><apply id="S4.SS1.p1.4.m4.1.2.cmml" xref="S4.SS1.p1.4.m4.1.2"><csymbol cd="ambiguous" id="S4.SS1.p1.4.m4.1.2.1.cmml" xref="S4.SS1.p1.4.m4.1.2">subscript</csymbol><apply id="S4.SS1.p1.4.m4.1.2.2.cmml" xref="S4.SS1.p1.4.m4.1.2"><csymbol cd="ambiguous" id="S4.SS1.p1.4.m4.1.2.2.1.cmml" xref="S4.SS1.p1.4.m4.1.2">superscript</csymbol><ci id="S4.SS1.p1.4.m4.1.2.2.2.cmml" xref="S4.SS1.p1.4.m4.1.2.2.2">𝑐</ci><ci id="S4.SS1.p1.4.m4.1.1.1.1.cmml" xref="S4.SS1.p1.4.m4.1.1.1.1">𝑑</ci></apply><apply id="S4.SS1.p1.4.m4.1.2.3.cmml" xref="S4.SS1.p1.4.m4.1.2.3"><times id="S4.SS1.p1.4.m4.1.2.3.1.cmml" xref="S4.SS1.p1.4.m4.1.2.3.1"></times><ci id="S4.SS1.p1.4.m4.1.2.3.2.cmml" xref="S4.SS1.p1.4.m4.1.2.3.2">𝑖</ci><ci id="S4.SS1.p1.4.m4.1.2.3.3.cmml" xref="S4.SS1.p1.4.m4.1.2.3.3">𝑗</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.4.m4.1c">c^{(d)}_{ij}</annotation></semantics></math>. For example, <math id="S4.SS1.p1.5.m5.1" class="ltx_Math" alttext="c^{(d)}_{ij}=0" display="inline"><semantics id="S4.SS1.p1.5.m5.1a"><mrow id="S4.SS1.p1.5.m5.1.2" xref="S4.SS1.p1.5.m5.1.2.cmml"><msubsup id="S4.SS1.p1.5.m5.1.2.2" xref="S4.SS1.p1.5.m5.1.2.2.cmml"><mi id="S4.SS1.p1.5.m5.1.2.2.2.2" xref="S4.SS1.p1.5.m5.1.2.2.2.2.cmml">c</mi><mrow id="S4.SS1.p1.5.m5.1.2.2.3" xref="S4.SS1.p1.5.m5.1.2.2.3.cmml"><mi id="S4.SS1.p1.5.m5.1.2.2.3.2" xref="S4.SS1.p1.5.m5.1.2.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS1.p1.5.m5.1.2.2.3.1" xref="S4.SS1.p1.5.m5.1.2.2.3.1.cmml">​</mo><mi id="S4.SS1.p1.5.m5.1.2.2.3.3" xref="S4.SS1.p1.5.m5.1.2.2.3.3.cmml">j</mi></mrow><mrow id="S4.SS1.p1.5.m5.1.1.1.3" xref="S4.SS1.p1.5.m5.1.2.2.cmml"><mo stretchy="false" id="S4.SS1.p1.5.m5.1.1.1.3.1" xref="S4.SS1.p1.5.m5.1.2.2.cmml">(</mo><mi id="S4.SS1.p1.5.m5.1.1.1.1" xref="S4.SS1.p1.5.m5.1.1.1.1.cmml">d</mi><mo stretchy="false" id="S4.SS1.p1.5.m5.1.1.1.3.2" xref="S4.SS1.p1.5.m5.1.2.2.cmml">)</mo></mrow></msubsup><mo id="S4.SS1.p1.5.m5.1.2.1" xref="S4.SS1.p1.5.m5.1.2.1.cmml">=</mo><mn id="S4.SS1.p1.5.m5.1.2.3" xref="S4.SS1.p1.5.m5.1.2.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.5.m5.1b"><apply id="S4.SS1.p1.5.m5.1.2.cmml" xref="S4.SS1.p1.5.m5.1.2"><eq id="S4.SS1.p1.5.m5.1.2.1.cmml" xref="S4.SS1.p1.5.m5.1.2.1"></eq><apply id="S4.SS1.p1.5.m5.1.2.2.cmml" xref="S4.SS1.p1.5.m5.1.2.2"><csymbol cd="ambiguous" id="S4.SS1.p1.5.m5.1.2.2.1.cmml" xref="S4.SS1.p1.5.m5.1.2.2">subscript</csymbol><apply id="S4.SS1.p1.5.m5.1.2.2.2.cmml" xref="S4.SS1.p1.5.m5.1.2.2"><csymbol cd="ambiguous" id="S4.SS1.p1.5.m5.1.2.2.2.1.cmml" xref="S4.SS1.p1.5.m5.1.2.2">superscript</csymbol><ci id="S4.SS1.p1.5.m5.1.2.2.2.2.cmml" xref="S4.SS1.p1.5.m5.1.2.2.2.2">𝑐</ci><ci id="S4.SS1.p1.5.m5.1.1.1.1.cmml" xref="S4.SS1.p1.5.m5.1.1.1.1">𝑑</ci></apply><apply id="S4.SS1.p1.5.m5.1.2.2.3.cmml" xref="S4.SS1.p1.5.m5.1.2.2.3"><times id="S4.SS1.p1.5.m5.1.2.2.3.1.cmml" xref="S4.SS1.p1.5.m5.1.2.2.3.1"></times><ci id="S4.SS1.p1.5.m5.1.2.2.3.2.cmml" xref="S4.SS1.p1.5.m5.1.2.2.3.2">𝑖</ci><ci id="S4.SS1.p1.5.m5.1.2.2.3.3.cmml" xref="S4.SS1.p1.5.m5.1.2.2.3.3">𝑗</ci></apply></apply><cn type="integer" id="S4.SS1.p1.5.m5.1.2.3.cmml" xref="S4.SS1.p1.5.m5.1.2.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.5.m5.1c">c^{(d)}_{ij}=0</annotation></semantics></math> implies that uploading data from device <math id="S4.SS1.p1.6.m6.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S4.SS1.p1.6.m6.1a"><mi id="S4.SS1.p1.6.m6.1.1" xref="S4.SS1.p1.6.m6.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.6.m6.1b"><ci id="S4.SS1.p1.6.m6.1.1.cmml" xref="S4.SS1.p1.6.m6.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.6.m6.1c">i</annotation></semantics></math> to an aggregator placed at edge node <math id="S4.SS1.p1.7.m7.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS1.p1.7.m7.1a"><mi id="S4.SS1.p1.7.m7.1.1" xref="S4.SS1.p1.7.m7.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.7.m7.1b"><ci id="S4.SS1.p1.7.m7.1.1.cmml" xref="S4.SS1.p1.7.m7.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.7.m7.1c">j</annotation></semantics></math> incurs no cost, as would be the case for an aggregator placed inside a device’s local area network or, more generally, if the device is connected over an unmetered link. Similarly, the communication cost between the global server and edge node <math id="S4.SS1.p1.8.m8.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS1.p1.8.m8.1a"><mi id="S4.SS1.p1.8.m8.1.1" xref="S4.SS1.p1.8.m8.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.8.m8.1b"><ci id="S4.SS1.p1.8.m8.1.1.cmml" xref="S4.SS1.p1.8.m8.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.8.m8.1c">j</annotation></semantics></math> is given by <math id="S4.SS1.p1.9.m9.1" class="ltx_Math" alttext="c^{(e)}_{j}" display="inline"><semantics id="S4.SS1.p1.9.m9.1a"><msubsup id="S4.SS1.p1.9.m9.1.2" xref="S4.SS1.p1.9.m9.1.2.cmml"><mi id="S4.SS1.p1.9.m9.1.2.2.2" xref="S4.SS1.p1.9.m9.1.2.2.2.cmml">c</mi><mi id="S4.SS1.p1.9.m9.1.2.3" xref="S4.SS1.p1.9.m9.1.2.3.cmml">j</mi><mrow id="S4.SS1.p1.9.m9.1.1.1.3" xref="S4.SS1.p1.9.m9.1.2.cmml"><mo stretchy="false" id="S4.SS1.p1.9.m9.1.1.1.3.1" xref="S4.SS1.p1.9.m9.1.2.cmml">(</mo><mi id="S4.SS1.p1.9.m9.1.1.1.1" xref="S4.SS1.p1.9.m9.1.1.1.1.cmml">e</mi><mo stretchy="false" id="S4.SS1.p1.9.m9.1.1.1.3.2" xref="S4.SS1.p1.9.m9.1.2.cmml">)</mo></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.9.m9.1b"><apply id="S4.SS1.p1.9.m9.1.2.cmml" xref="S4.SS1.p1.9.m9.1.2"><csymbol cd="ambiguous" id="S4.SS1.p1.9.m9.1.2.1.cmml" xref="S4.SS1.p1.9.m9.1.2">subscript</csymbol><apply id="S4.SS1.p1.9.m9.1.2.2.cmml" xref="S4.SS1.p1.9.m9.1.2"><csymbol cd="ambiguous" id="S4.SS1.p1.9.m9.1.2.2.1.cmml" xref="S4.SS1.p1.9.m9.1.2">superscript</csymbol><ci id="S4.SS1.p1.9.m9.1.2.2.2.cmml" xref="S4.SS1.p1.9.m9.1.2.2.2">𝑐</ci><ci id="S4.SS1.p1.9.m9.1.1.1.1.cmml" xref="S4.SS1.p1.9.m9.1.1.1.1">𝑒</ci></apply><ci id="S4.SS1.p1.9.m9.1.2.3.cmml" xref="S4.SS1.p1.9.m9.1.2.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.9.m9.1c">c^{(e)}_{j}</annotation></semantics></math>.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">After several <em id="S4.SS1.p2.1.1" class="ltx_emph ltx_font_italic">epochs</em>, clients upload the result of their computation to their associated aggregator (<em id="S4.SS1.p2.1.2" class="ltx_emph ltx_font_italic">local round</em>). After a specified number of <em id="S4.SS1.p2.1.3" class="ltx_emph ltx_font_italic">local</em> rounds, all aggregators submit their models to the global server, which computes a global model and broadcasts it to the aggregators, which in turn relay it to their associated client devices (<em id="S4.SS1.p2.1.4" class="ltx_emph ltx_font_italic">global round</em>).</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.4" class="ltx_p">At the same, device <math id="S4.SS1.p3.1.m1.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S4.SS1.p3.1.m1.1a"><mi id="S4.SS1.p3.1.m1.1.1" xref="S4.SS1.p3.1.m1.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.1.m1.1b"><ci id="S4.SS1.p3.1.m1.1.1.cmml" xref="S4.SS1.p3.1.m1.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.1.m1.1c">i</annotation></semantics></math> generates inference requests at a rate of <math id="S4.SS1.p3.2.m2.1" class="ltx_Math" alttext="\lambda_{i}" display="inline"><semantics id="S4.SS1.p3.2.m2.1a"><msub id="S4.SS1.p3.2.m2.1.1" xref="S4.SS1.p3.2.m2.1.1.cmml"><mi id="S4.SS1.p3.2.m2.1.1.2" xref="S4.SS1.p3.2.m2.1.1.2.cmml">λ</mi><mi id="S4.SS1.p3.2.m2.1.1.3" xref="S4.SS1.p3.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.2.m2.1b"><apply id="S4.SS1.p3.2.m2.1.1.cmml" xref="S4.SS1.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.2.m2.1.1.1.cmml" xref="S4.SS1.p3.2.m2.1.1">subscript</csymbol><ci id="S4.SS1.p3.2.m2.1.1.2.cmml" xref="S4.SS1.p3.2.m2.1.1.2">𝜆</ci><ci id="S4.SS1.p3.2.m2.1.1.3.cmml" xref="S4.SS1.p3.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.2.m2.1c">\lambda_{i}</annotation></semantics></math>. Each inference request must be processed by a node hosting a version of the ML model under training, i.e., the device itself, its associated aggregator, or the global server. Edge node <math id="S4.SS1.p3.3.m3.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS1.p3.3.m3.1a"><mi id="S4.SS1.p3.3.m3.1.1" xref="S4.SS1.p3.3.m3.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.3.m3.1b"><ci id="S4.SS1.p3.3.m3.1.1.cmml" xref="S4.SS1.p3.3.m3.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.3.m3.1c">j</annotation></semantics></math> has a specific inference request processing capacity <math id="S4.SS1.p3.4.m4.1" class="ltx_Math" alttext="r_{j}" display="inline"><semantics id="S4.SS1.p3.4.m4.1a"><msub id="S4.SS1.p3.4.m4.1.1" xref="S4.SS1.p3.4.m4.1.1.cmml"><mi id="S4.SS1.p3.4.m4.1.1.2" xref="S4.SS1.p3.4.m4.1.1.2.cmml">r</mi><mi id="S4.SS1.p3.4.m4.1.1.3" xref="S4.SS1.p3.4.m4.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.4.m4.1b"><apply id="S4.SS1.p3.4.m4.1.1.cmml" xref="S4.SS1.p3.4.m4.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.4.m4.1.1.1.cmml" xref="S4.SS1.p3.4.m4.1.1">subscript</csymbol><ci id="S4.SS1.p3.4.m4.1.1.2.cmml" xref="S4.SS1.p3.4.m4.1.1.2">𝑟</ci><ci id="S4.SS1.p3.4.m4.1.1.3.cmml" xref="S4.SS1.p3.4.m4.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.4.m4.1c">r_{j}</annotation></semantics></math> (in requests/s), while we assume for simplicity that the capacity of the cloud-hosted global server is infinite. Requests are routed using the following rules:</p>
+<ul id="S4.I1" class="ltx_itemize">
+<li id="S4.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i1.p1" class="ltx_para">
+<p id="S4.I1.i1.p1.1" class="ltx_p"><span id="S4.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">R1:</span> If the device generating an inference request is busy training, the request is always offloaded to the device’s associated aggregator.</p>
+</div>
+</li>
+<li id="S4.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i2.p1" class="ltx_para">
+<p id="S4.I1.i2.p1.1" class="ltx_p"><span id="S4.I1.i2.p1.1.1" class="ltx_text ltx_font_bold">R2:</span> If the device is not participating in the current FL round, it independently decides to process the request locally or offload it to the closest aggregator.</p>
+</div>
+</li>
+<li id="S4.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S4.I1.i3.p1" class="ltx_para">
+<p id="S4.I1.i3.p1.1" class="ltx_p"><span id="S4.I1.i3.p1.1.1" class="ltx_text ltx_font_bold">R3:</span> The aggregator processes requests of its associated busy devices with priority and may serve requests by devices not active in the current FL round (or, more generally, requests by entities external to the FL process) only if the load generated by the former is sufficiently below its capacity. Otherwise, it will offload excess requests to the cloud; the aggregator thus operates as a device <em id="S4.I1.i3.p1.1.2" class="ltx_emph ltx_font_italic">proxy</em>.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS2.5.1.1" class="ltx_text">IV-B</span> </span><span id="S4.SS2.6.2" class="ltx_text ltx_font_italic">Problem formulation</span>
+</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">Given these inference workload processing rules, the HFL orchestrator needs to solve the following problem: <em id="S4.SS2.p1.1.1" class="ltx_emph ltx_font_italic">How to place aggregators at edge nodes and assign FL clients to them so that FL communication cost is minimized, subject to inference processing capacity constraints of edge hosts.</em></p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.10" class="ltx_p">A solution to this problem is represented by assigning values to binary variables <math id="S4.SS2.p2.1.m1.1" class="ltx_Math" alttext="x_{ij}" display="inline"><semantics id="S4.SS2.p2.1.m1.1a"><msub id="S4.SS2.p2.1.m1.1.1" xref="S4.SS2.p2.1.m1.1.1.cmml"><mi id="S4.SS2.p2.1.m1.1.1.2" xref="S4.SS2.p2.1.m1.1.1.2.cmml">x</mi><mrow id="S4.SS2.p2.1.m1.1.1.3" xref="S4.SS2.p2.1.m1.1.1.3.cmml"><mi id="S4.SS2.p2.1.m1.1.1.3.2" xref="S4.SS2.p2.1.m1.1.1.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p2.1.m1.1.1.3.1" xref="S4.SS2.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S4.SS2.p2.1.m1.1.1.3.3" xref="S4.SS2.p2.1.m1.1.1.3.3.cmml">j</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.1.m1.1b"><apply id="S4.SS2.p2.1.m1.1.1.cmml" xref="S4.SS2.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p2.1.m1.1.1.1.cmml" xref="S4.SS2.p2.1.m1.1.1">subscript</csymbol><ci id="S4.SS2.p2.1.m1.1.1.2.cmml" xref="S4.SS2.p2.1.m1.1.1.2">𝑥</ci><apply id="S4.SS2.p2.1.m1.1.1.3.cmml" xref="S4.SS2.p2.1.m1.1.1.3"><times id="S4.SS2.p2.1.m1.1.1.3.1.cmml" xref="S4.SS2.p2.1.m1.1.1.3.1"></times><ci id="S4.SS2.p2.1.m1.1.1.3.2.cmml" xref="S4.SS2.p2.1.m1.1.1.3.2">𝑖</ci><ci id="S4.SS2.p2.1.m1.1.1.3.3.cmml" xref="S4.SS2.p2.1.m1.1.1.3.3">𝑗</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.1.m1.1c">x_{ij}</annotation></semantics></math> for <math id="S4.SS2.p2.2.m2.4" class="ltx_Math" alttext="i=1,2,\cdots,n" display="inline"><semantics id="S4.SS2.p2.2.m2.4a"><mrow id="S4.SS2.p2.2.m2.4.5" xref="S4.SS2.p2.2.m2.4.5.cmml"><mi id="S4.SS2.p2.2.m2.4.5.2" xref="S4.SS2.p2.2.m2.4.5.2.cmml">i</mi><mo id="S4.SS2.p2.2.m2.4.5.1" xref="S4.SS2.p2.2.m2.4.5.1.cmml">=</mo><mrow id="S4.SS2.p2.2.m2.4.5.3.2" xref="S4.SS2.p2.2.m2.4.5.3.1.cmml"><mn id="S4.SS2.p2.2.m2.1.1" xref="S4.SS2.p2.2.m2.1.1.cmml">1</mn><mo id="S4.SS2.p2.2.m2.4.5.3.2.1" xref="S4.SS2.p2.2.m2.4.5.3.1.cmml">,</mo><mn id="S4.SS2.p2.2.m2.2.2" xref="S4.SS2.p2.2.m2.2.2.cmml">2</mn><mo id="S4.SS2.p2.2.m2.4.5.3.2.2" xref="S4.SS2.p2.2.m2.4.5.3.1.cmml">,</mo><mi mathvariant="normal" id="S4.SS2.p2.2.m2.3.3" xref="S4.SS2.p2.2.m2.3.3.cmml">⋯</mi><mo id="S4.SS2.p2.2.m2.4.5.3.2.3" xref="S4.SS2.p2.2.m2.4.5.3.1.cmml">,</mo><mi id="S4.SS2.p2.2.m2.4.4" xref="S4.SS2.p2.2.m2.4.4.cmml">n</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.2.m2.4b"><apply id="S4.SS2.p2.2.m2.4.5.cmml" xref="S4.SS2.p2.2.m2.4.5"><eq id="S4.SS2.p2.2.m2.4.5.1.cmml" xref="S4.SS2.p2.2.m2.4.5.1"></eq><ci id="S4.SS2.p2.2.m2.4.5.2.cmml" xref="S4.SS2.p2.2.m2.4.5.2">𝑖</ci><list id="S4.SS2.p2.2.m2.4.5.3.1.cmml" xref="S4.SS2.p2.2.m2.4.5.3.2"><cn type="integer" id="S4.SS2.p2.2.m2.1.1.cmml" xref="S4.SS2.p2.2.m2.1.1">1</cn><cn type="integer" id="S4.SS2.p2.2.m2.2.2.cmml" xref="S4.SS2.p2.2.m2.2.2">2</cn><ci id="S4.SS2.p2.2.m2.3.3.cmml" xref="S4.SS2.p2.2.m2.3.3">⋯</ci><ci id="S4.SS2.p2.2.m2.4.4.cmml" xref="S4.SS2.p2.2.m2.4.4">𝑛</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.2.m2.4c">i=1,2,\cdots,n</annotation></semantics></math> and <math id="S4.SS2.p2.3.m3.4" class="ltx_Math" alttext="j=1,2,\cdots,m" display="inline"><semantics id="S4.SS2.p2.3.m3.4a"><mrow id="S4.SS2.p2.3.m3.4.5" xref="S4.SS2.p2.3.m3.4.5.cmml"><mi id="S4.SS2.p2.3.m3.4.5.2" xref="S4.SS2.p2.3.m3.4.5.2.cmml">j</mi><mo id="S4.SS2.p2.3.m3.4.5.1" xref="S4.SS2.p2.3.m3.4.5.1.cmml">=</mo><mrow id="S4.SS2.p2.3.m3.4.5.3.2" xref="S4.SS2.p2.3.m3.4.5.3.1.cmml"><mn id="S4.SS2.p2.3.m3.1.1" xref="S4.SS2.p2.3.m3.1.1.cmml">1</mn><mo id="S4.SS2.p2.3.m3.4.5.3.2.1" xref="S4.SS2.p2.3.m3.4.5.3.1.cmml">,</mo><mn id="S4.SS2.p2.3.m3.2.2" xref="S4.SS2.p2.3.m3.2.2.cmml">2</mn><mo id="S4.SS2.p2.3.m3.4.5.3.2.2" xref="S4.SS2.p2.3.m3.4.5.3.1.cmml">,</mo><mi mathvariant="normal" id="S4.SS2.p2.3.m3.3.3" xref="S4.SS2.p2.3.m3.3.3.cmml">⋯</mi><mo id="S4.SS2.p2.3.m3.4.5.3.2.3" xref="S4.SS2.p2.3.m3.4.5.3.1.cmml">,</mo><mi id="S4.SS2.p2.3.m3.4.4" xref="S4.SS2.p2.3.m3.4.4.cmml">m</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.3.m3.4b"><apply id="S4.SS2.p2.3.m3.4.5.cmml" xref="S4.SS2.p2.3.m3.4.5"><eq id="S4.SS2.p2.3.m3.4.5.1.cmml" xref="S4.SS2.p2.3.m3.4.5.1"></eq><ci id="S4.SS2.p2.3.m3.4.5.2.cmml" xref="S4.SS2.p2.3.m3.4.5.2">𝑗</ci><list id="S4.SS2.p2.3.m3.4.5.3.1.cmml" xref="S4.SS2.p2.3.m3.4.5.3.2"><cn type="integer" id="S4.SS2.p2.3.m3.1.1.cmml" xref="S4.SS2.p2.3.m3.1.1">1</cn><cn type="integer" id="S4.SS2.p2.3.m3.2.2.cmml" xref="S4.SS2.p2.3.m3.2.2">2</cn><ci id="S4.SS2.p2.3.m3.3.3.cmml" xref="S4.SS2.p2.3.m3.3.3">⋯</ci><ci id="S4.SS2.p2.3.m3.4.4.cmml" xref="S4.SS2.p2.3.m3.4.4">𝑚</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.3.m3.4c">j=1,2,\cdots,m</annotation></semantics></math>. These variables encode device-edge node associations, where <math id="S4.SS2.p2.4.m4.1" class="ltx_Math" alttext="x_{ij}=1" display="inline"><semantics id="S4.SS2.p2.4.m4.1a"><mrow id="S4.SS2.p2.4.m4.1.1" xref="S4.SS2.p2.4.m4.1.1.cmml"><msub id="S4.SS2.p2.4.m4.1.1.2" xref="S4.SS2.p2.4.m4.1.1.2.cmml"><mi id="S4.SS2.p2.4.m4.1.1.2.2" xref="S4.SS2.p2.4.m4.1.1.2.2.cmml">x</mi><mrow id="S4.SS2.p2.4.m4.1.1.2.3" xref="S4.SS2.p2.4.m4.1.1.2.3.cmml"><mi id="S4.SS2.p2.4.m4.1.1.2.3.2" xref="S4.SS2.p2.4.m4.1.1.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p2.4.m4.1.1.2.3.1" xref="S4.SS2.p2.4.m4.1.1.2.3.1.cmml">​</mo><mi id="S4.SS2.p2.4.m4.1.1.2.3.3" xref="S4.SS2.p2.4.m4.1.1.2.3.3.cmml">j</mi></mrow></msub><mo id="S4.SS2.p2.4.m4.1.1.1" xref="S4.SS2.p2.4.m4.1.1.1.cmml">=</mo><mn id="S4.SS2.p2.4.m4.1.1.3" xref="S4.SS2.p2.4.m4.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.4.m4.1b"><apply id="S4.SS2.p2.4.m4.1.1.cmml" xref="S4.SS2.p2.4.m4.1.1"><eq id="S4.SS2.p2.4.m4.1.1.1.cmml" xref="S4.SS2.p2.4.m4.1.1.1"></eq><apply id="S4.SS2.p2.4.m4.1.1.2.cmml" xref="S4.SS2.p2.4.m4.1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p2.4.m4.1.1.2.1.cmml" xref="S4.SS2.p2.4.m4.1.1.2">subscript</csymbol><ci id="S4.SS2.p2.4.m4.1.1.2.2.cmml" xref="S4.SS2.p2.4.m4.1.1.2.2">𝑥</ci><apply id="S4.SS2.p2.4.m4.1.1.2.3.cmml" xref="S4.SS2.p2.4.m4.1.1.2.3"><times id="S4.SS2.p2.4.m4.1.1.2.3.1.cmml" xref="S4.SS2.p2.4.m4.1.1.2.3.1"></times><ci id="S4.SS2.p2.4.m4.1.1.2.3.2.cmml" xref="S4.SS2.p2.4.m4.1.1.2.3.2">𝑖</ci><ci id="S4.SS2.p2.4.m4.1.1.2.3.3.cmml" xref="S4.SS2.p2.4.m4.1.1.2.3.3">𝑗</ci></apply></apply><cn type="integer" id="S4.SS2.p2.4.m4.1.1.3.cmml" xref="S4.SS2.p2.4.m4.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.4.m4.1c">x_{ij}=1</annotation></semantics></math> if device <math id="S4.SS2.p2.5.m5.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S4.SS2.p2.5.m5.1a"><mi id="S4.SS2.p2.5.m5.1.1" xref="S4.SS2.p2.5.m5.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.5.m5.1b"><ci id="S4.SS2.p2.5.m5.1.1.cmml" xref="S4.SS2.p2.5.m5.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.5.m5.1c">i</annotation></semantics></math> is associated with an aggregator placed at edge node <math id="S4.SS2.p2.6.m6.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS2.p2.6.m6.1a"><mi id="S4.SS2.p2.6.m6.1.1" xref="S4.SS2.p2.6.m6.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.6.m6.1b"><ci id="S4.SS2.p2.6.m6.1.1.cmml" xref="S4.SS2.p2.6.m6.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.6.m6.1c">j</annotation></semantics></math>, and <math id="S4.SS2.p2.7.m7.1" class="ltx_Math" alttext="x_{ij}=0" display="inline"><semantics id="S4.SS2.p2.7.m7.1a"><mrow id="S4.SS2.p2.7.m7.1.1" xref="S4.SS2.p2.7.m7.1.1.cmml"><msub id="S4.SS2.p2.7.m7.1.1.2" xref="S4.SS2.p2.7.m7.1.1.2.cmml"><mi id="S4.SS2.p2.7.m7.1.1.2.2" xref="S4.SS2.p2.7.m7.1.1.2.2.cmml">x</mi><mrow id="S4.SS2.p2.7.m7.1.1.2.3" xref="S4.SS2.p2.7.m7.1.1.2.3.cmml"><mi id="S4.SS2.p2.7.m7.1.1.2.3.2" xref="S4.SS2.p2.7.m7.1.1.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p2.7.m7.1.1.2.3.1" xref="S4.SS2.p2.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S4.SS2.p2.7.m7.1.1.2.3.3" xref="S4.SS2.p2.7.m7.1.1.2.3.3.cmml">j</mi></mrow></msub><mo id="S4.SS2.p2.7.m7.1.1.1" xref="S4.SS2.p2.7.m7.1.1.1.cmml">=</mo><mn id="S4.SS2.p2.7.m7.1.1.3" xref="S4.SS2.p2.7.m7.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.7.m7.1b"><apply id="S4.SS2.p2.7.m7.1.1.cmml" xref="S4.SS2.p2.7.m7.1.1"><eq id="S4.SS2.p2.7.m7.1.1.1.cmml" xref="S4.SS2.p2.7.m7.1.1.1"></eq><apply id="S4.SS2.p2.7.m7.1.1.2.cmml" xref="S4.SS2.p2.7.m7.1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p2.7.m7.1.1.2.1.cmml" xref="S4.SS2.p2.7.m7.1.1.2">subscript</csymbol><ci id="S4.SS2.p2.7.m7.1.1.2.2.cmml" xref="S4.SS2.p2.7.m7.1.1.2.2">𝑥</ci><apply id="S4.SS2.p2.7.m7.1.1.2.3.cmml" xref="S4.SS2.p2.7.m7.1.1.2.3"><times id="S4.SS2.p2.7.m7.1.1.2.3.1.cmml" xref="S4.SS2.p2.7.m7.1.1.2.3.1"></times><ci id="S4.SS2.p2.7.m7.1.1.2.3.2.cmml" xref="S4.SS2.p2.7.m7.1.1.2.3.2">𝑖</ci><ci id="S4.SS2.p2.7.m7.1.1.2.3.3.cmml" xref="S4.SS2.p2.7.m7.1.1.2.3.3">𝑗</ci></apply></apply><cn type="integer" id="S4.SS2.p2.7.m7.1.1.3.cmml" xref="S4.SS2.p2.7.m7.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.7.m7.1c">x_{ij}=0</annotation></semantics></math> otherwise. We further introduce binary variables <math id="S4.SS2.p2.8.m8.6" class="ltx_Math" alttext="y_{j},j=1,2,\cdots,m" display="inline"><semantics id="S4.SS2.p2.8.m8.6a"><mrow id="S4.SS2.p2.8.m8.6.6.2" xref="S4.SS2.p2.8.m8.6.6.3.cmml"><mrow id="S4.SS2.p2.8.m8.5.5.1.1" xref="S4.SS2.p2.8.m8.5.5.1.1.cmml"><mrow id="S4.SS2.p2.8.m8.5.5.1.1.1.1" xref="S4.SS2.p2.8.m8.5.5.1.1.1.2.cmml"><msub id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.cmml"><mi id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.2" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.2.cmml">y</mi><mi id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.3" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.3.cmml">j</mi></msub><mo id="S4.SS2.p2.8.m8.5.5.1.1.1.1.2" xref="S4.SS2.p2.8.m8.5.5.1.1.1.2.cmml">,</mo><mi id="S4.SS2.p2.8.m8.1.1" xref="S4.SS2.p2.8.m8.1.1.cmml">j</mi></mrow><mo id="S4.SS2.p2.8.m8.5.5.1.1.2" xref="S4.SS2.p2.8.m8.5.5.1.1.2.cmml">=</mo><mn id="S4.SS2.p2.8.m8.5.5.1.1.3" xref="S4.SS2.p2.8.m8.5.5.1.1.3.cmml">1</mn></mrow><mo id="S4.SS2.p2.8.m8.6.6.2.3" xref="S4.SS2.p2.8.m8.6.6.3a.cmml">,</mo><mrow id="S4.SS2.p2.8.m8.6.6.2.2.2" xref="S4.SS2.p2.8.m8.6.6.2.2.1.cmml"><mn id="S4.SS2.p2.8.m8.2.2" xref="S4.SS2.p2.8.m8.2.2.cmml">2</mn><mo id="S4.SS2.p2.8.m8.6.6.2.2.2.1" xref="S4.SS2.p2.8.m8.6.6.2.2.1.cmml">,</mo><mi mathvariant="normal" id="S4.SS2.p2.8.m8.3.3" xref="S4.SS2.p2.8.m8.3.3.cmml">⋯</mi><mo id="S4.SS2.p2.8.m8.6.6.2.2.2.2" xref="S4.SS2.p2.8.m8.6.6.2.2.1.cmml">,</mo><mi id="S4.SS2.p2.8.m8.4.4" xref="S4.SS2.p2.8.m8.4.4.cmml">m</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.8.m8.6b"><apply id="S4.SS2.p2.8.m8.6.6.3.cmml" xref="S4.SS2.p2.8.m8.6.6.2"><csymbol cd="ambiguous" id="S4.SS2.p2.8.m8.6.6.3a.cmml" xref="S4.SS2.p2.8.m8.6.6.2.3">formulae-sequence</csymbol><apply id="S4.SS2.p2.8.m8.5.5.1.1.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1"><eq id="S4.SS2.p2.8.m8.5.5.1.1.2.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.2"></eq><list id="S4.SS2.p2.8.m8.5.5.1.1.1.2.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1"><apply id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.1.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1">subscript</csymbol><ci id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.2.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.2">𝑦</ci><ci id="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.3.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.1.1.1.3">𝑗</ci></apply><ci id="S4.SS2.p2.8.m8.1.1.cmml" xref="S4.SS2.p2.8.m8.1.1">𝑗</ci></list><cn type="integer" id="S4.SS2.p2.8.m8.5.5.1.1.3.cmml" xref="S4.SS2.p2.8.m8.5.5.1.1.3">1</cn></apply><list id="S4.SS2.p2.8.m8.6.6.2.2.1.cmml" xref="S4.SS2.p2.8.m8.6.6.2.2.2"><cn type="integer" id="S4.SS2.p2.8.m8.2.2.cmml" xref="S4.SS2.p2.8.m8.2.2">2</cn><ci id="S4.SS2.p2.8.m8.3.3.cmml" xref="S4.SS2.p2.8.m8.3.3">⋯</ci><ci id="S4.SS2.p2.8.m8.4.4.cmml" xref="S4.SS2.p2.8.m8.4.4">𝑚</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.8.m8.6c">y_{j},j=1,2,\cdots,m</annotation></semantics></math>, where <math id="S4.SS2.p2.9.m9.1" class="ltx_Math" alttext="y_{j}=1" display="inline"><semantics id="S4.SS2.p2.9.m9.1a"><mrow id="S4.SS2.p2.9.m9.1.1" xref="S4.SS2.p2.9.m9.1.1.cmml"><msub id="S4.SS2.p2.9.m9.1.1.2" xref="S4.SS2.p2.9.m9.1.1.2.cmml"><mi id="S4.SS2.p2.9.m9.1.1.2.2" xref="S4.SS2.p2.9.m9.1.1.2.2.cmml">y</mi><mi id="S4.SS2.p2.9.m9.1.1.2.3" xref="S4.SS2.p2.9.m9.1.1.2.3.cmml">j</mi></msub><mo id="S4.SS2.p2.9.m9.1.1.1" xref="S4.SS2.p2.9.m9.1.1.1.cmml">=</mo><mn id="S4.SS2.p2.9.m9.1.1.3" xref="S4.SS2.p2.9.m9.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.9.m9.1b"><apply id="S4.SS2.p2.9.m9.1.1.cmml" xref="S4.SS2.p2.9.m9.1.1"><eq id="S4.SS2.p2.9.m9.1.1.1.cmml" xref="S4.SS2.p2.9.m9.1.1.1"></eq><apply id="S4.SS2.p2.9.m9.1.1.2.cmml" xref="S4.SS2.p2.9.m9.1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p2.9.m9.1.1.2.1.cmml" xref="S4.SS2.p2.9.m9.1.1.2">subscript</csymbol><ci id="S4.SS2.p2.9.m9.1.1.2.2.cmml" xref="S4.SS2.p2.9.m9.1.1.2.2">𝑦</ci><ci id="S4.SS2.p2.9.m9.1.1.2.3.cmml" xref="S4.SS2.p2.9.m9.1.1.2.3">𝑗</ci></apply><cn type="integer" id="S4.SS2.p2.9.m9.1.1.3.cmml" xref="S4.SS2.p2.9.m9.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.9.m9.1c">y_{j}=1</annotation></semantics></math> if an aggregator is placed at edge node <math id="S4.SS2.p2.10.m10.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS2.p2.10.m10.1a"><mi id="S4.SS2.p2.10.m10.1.1" xref="S4.SS2.p2.10.m10.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.10.m10.1b"><ci id="S4.SS2.p2.10.m10.1.1.cmml" xref="S4.SS2.p2.10.m10.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.10.m10.1c">j</annotation></semantics></math> and 0 otherwise.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">We provide the following binary integer linear programming formulation for the <em id="S4.SS2.p3.1.1" class="ltx_emph ltx_font_italic">HFL Orchestration Problem (HFLOP)</em>, where the objective is to find a configuration that minimizes the communication costs of HFL:</p>
+<table id="Sx1.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S4.E1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.E1.m1.1" class="ltx_Math" alttext="\displaystyle\operatorname*{minimize}" display="inline"><semantics id="S4.E1.m1.1a"><mo id="S4.E1.m1.1.1" xref="S4.E1.m1.1.1.cmml">minimize</mo><annotation-xml encoding="MathML-Content" id="S4.E1.m1.1b"><ci id="S4.E1.m1.1.1.cmml" xref="S4.E1.m1.1.1">minimize</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.E1.m1.1c">\displaystyle\operatorname*{minimize}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E1.m2.2" class="ltx_Math" alttext="\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}\sum_{j=1}^{m}x_{ij}c^{(d)}_{ij}l+\sum_{j=1}^{n}y_{j}c^{(e)}_{j}" display="inline"><semantics id="S4.E1.m2.2a"><mrow id="S4.E1.m2.2.3" xref="S4.E1.m2.2.3.cmml"><mrow id="S4.E1.m2.2.3.2" xref="S4.E1.m2.2.3.2.cmml"><mstyle displaystyle="true" id="S4.E1.m2.2.3.2.1" xref="S4.E1.m2.2.3.2.1.cmml"><munderover id="S4.E1.m2.2.3.2.1a" xref="S4.E1.m2.2.3.2.1.cmml"><mo movablelimits="false" id="S4.E1.m2.2.3.2.1.2.2" xref="S4.E1.m2.2.3.2.1.2.2.cmml">∑</mo><mrow id="S4.E1.m2.2.3.2.1.2.3" xref="S4.E1.m2.2.3.2.1.2.3.cmml"><mi id="S4.E1.m2.2.3.2.1.2.3.2" xref="S4.E1.m2.2.3.2.1.2.3.2.cmml">i</mi><mo id="S4.E1.m2.2.3.2.1.2.3.1" xref="S4.E1.m2.2.3.2.1.2.3.1.cmml">=</mo><mn id="S4.E1.m2.2.3.2.1.2.3.3" xref="S4.E1.m2.2.3.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E1.m2.2.3.2.1.3" xref="S4.E1.m2.2.3.2.1.3.cmml">n</mi></munderover></mstyle><mrow id="S4.E1.m2.2.3.2.2" xref="S4.E1.m2.2.3.2.2.cmml"><mstyle displaystyle="true" id="S4.E1.m2.2.3.2.2.1" xref="S4.E1.m2.2.3.2.2.1.cmml"><munderover id="S4.E1.m2.2.3.2.2.1a" xref="S4.E1.m2.2.3.2.2.1.cmml"><mo movablelimits="false" id="S4.E1.m2.2.3.2.2.1.2.2" xref="S4.E1.m2.2.3.2.2.1.2.2.cmml">∑</mo><mrow id="S4.E1.m2.2.3.2.2.1.2.3" xref="S4.E1.m2.2.3.2.2.1.2.3.cmml"><mi id="S4.E1.m2.2.3.2.2.1.2.3.2" xref="S4.E1.m2.2.3.2.2.1.2.3.2.cmml">j</mi><mo id="S4.E1.m2.2.3.2.2.1.2.3.1" xref="S4.E1.m2.2.3.2.2.1.2.3.1.cmml">=</mo><mn id="S4.E1.m2.2.3.2.2.1.2.3.3" xref="S4.E1.m2.2.3.2.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E1.m2.2.3.2.2.1.3" xref="S4.E1.m2.2.3.2.2.1.3.cmml">m</mi></munderover></mstyle><mrow id="S4.E1.m2.2.3.2.2.2" xref="S4.E1.m2.2.3.2.2.2.cmml"><msub id="S4.E1.m2.2.3.2.2.2.2" xref="S4.E1.m2.2.3.2.2.2.2.cmml"><mi id="S4.E1.m2.2.3.2.2.2.2.2" xref="S4.E1.m2.2.3.2.2.2.2.2.cmml">x</mi><mrow id="S4.E1.m2.2.3.2.2.2.2.3" xref="S4.E1.m2.2.3.2.2.2.2.3.cmml"><mi id="S4.E1.m2.2.3.2.2.2.2.3.2" xref="S4.E1.m2.2.3.2.2.2.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E1.m2.2.3.2.2.2.2.3.1" xref="S4.E1.m2.2.3.2.2.2.2.3.1.cmml">​</mo><mi id="S4.E1.m2.2.3.2.2.2.2.3.3" xref="S4.E1.m2.2.3.2.2.2.2.3.3.cmml">j</mi></mrow></msub><mo lspace="0em" rspace="0em" id="S4.E1.m2.2.3.2.2.2.1" xref="S4.E1.m2.2.3.2.2.2.1.cmml">​</mo><msubsup id="S4.E1.m2.2.3.2.2.2.3" xref="S4.E1.m2.2.3.2.2.2.3.cmml"><mi id="S4.E1.m2.2.3.2.2.2.3.2.2" xref="S4.E1.m2.2.3.2.2.2.3.2.2.cmml">c</mi><mrow id="S4.E1.m2.2.3.2.2.2.3.3" xref="S4.E1.m2.2.3.2.2.2.3.3.cmml"><mi id="S4.E1.m2.2.3.2.2.2.3.3.2" xref="S4.E1.m2.2.3.2.2.2.3.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E1.m2.2.3.2.2.2.3.3.1" xref="S4.E1.m2.2.3.2.2.2.3.3.1.cmml">​</mo><mi id="S4.E1.m2.2.3.2.2.2.3.3.3" xref="S4.E1.m2.2.3.2.2.2.3.3.3.cmml">j</mi></mrow><mrow id="S4.E1.m2.1.1.1.3" xref="S4.E1.m2.2.3.2.2.2.3.cmml"><mo stretchy="false" id="S4.E1.m2.1.1.1.3.1" xref="S4.E1.m2.2.3.2.2.2.3.cmml">(</mo><mi id="S4.E1.m2.1.1.1.1" xref="S4.E1.m2.1.1.1.1.cmml">d</mi><mo stretchy="false" id="S4.E1.m2.1.1.1.3.2" xref="S4.E1.m2.2.3.2.2.2.3.cmml">)</mo></mrow></msubsup><mo lspace="0em" rspace="0em" id="S4.E1.m2.2.3.2.2.2.1a" xref="S4.E1.m2.2.3.2.2.2.1.cmml">​</mo><mi id="S4.E1.m2.2.3.2.2.2.4" xref="S4.E1.m2.2.3.2.2.2.4.cmml">l</mi></mrow></mrow></mrow><mo id="S4.E1.m2.2.3.1" xref="S4.E1.m2.2.3.1.cmml">+</mo><mrow id="S4.E1.m2.2.3.3" xref="S4.E1.m2.2.3.3.cmml"><mstyle displaystyle="true" id="S4.E1.m2.2.3.3.1" xref="S4.E1.m2.2.3.3.1.cmml"><munderover id="S4.E1.m2.2.3.3.1a" xref="S4.E1.m2.2.3.3.1.cmml"><mo movablelimits="false" id="S4.E1.m2.2.3.3.1.2.2" xref="S4.E1.m2.2.3.3.1.2.2.cmml">∑</mo><mrow id="S4.E1.m2.2.3.3.1.2.3" xref="S4.E1.m2.2.3.3.1.2.3.cmml"><mi id="S4.E1.m2.2.3.3.1.2.3.2" xref="S4.E1.m2.2.3.3.1.2.3.2.cmml">j</mi><mo id="S4.E1.m2.2.3.3.1.2.3.1" xref="S4.E1.m2.2.3.3.1.2.3.1.cmml">=</mo><mn id="S4.E1.m2.2.3.3.1.2.3.3" xref="S4.E1.m2.2.3.3.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E1.m2.2.3.3.1.3" xref="S4.E1.m2.2.3.3.1.3.cmml">n</mi></munderover></mstyle><mrow id="S4.E1.m2.2.3.3.2" xref="S4.E1.m2.2.3.3.2.cmml"><msub id="S4.E1.m2.2.3.3.2.2" xref="S4.E1.m2.2.3.3.2.2.cmml"><mi id="S4.E1.m2.2.3.3.2.2.2" xref="S4.E1.m2.2.3.3.2.2.2.cmml">y</mi><mi id="S4.E1.m2.2.3.3.2.2.3" xref="S4.E1.m2.2.3.3.2.2.3.cmml">j</mi></msub><mo lspace="0em" rspace="0em" id="S4.E1.m2.2.3.3.2.1" xref="S4.E1.m2.2.3.3.2.1.cmml">​</mo><msubsup id="S4.E1.m2.2.3.3.2.3" xref="S4.E1.m2.2.3.3.2.3.cmml"><mi id="S4.E1.m2.2.3.3.2.3.2.2" xref="S4.E1.m2.2.3.3.2.3.2.2.cmml">c</mi><mi id="S4.E1.m2.2.3.3.2.3.3" xref="S4.E1.m2.2.3.3.2.3.3.cmml">j</mi><mrow id="S4.E1.m2.2.2.1.3" xref="S4.E1.m2.2.3.3.2.3.cmml"><mo stretchy="false" id="S4.E1.m2.2.2.1.3.1" xref="S4.E1.m2.2.3.3.2.3.cmml">(</mo><mi id="S4.E1.m2.2.2.1.1" xref="S4.E1.m2.2.2.1.1.cmml">e</mi><mo stretchy="false" id="S4.E1.m2.2.2.1.3.2" xref="S4.E1.m2.2.3.3.2.3.cmml">)</mo></mrow></msubsup></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E1.m2.2b"><apply id="S4.E1.m2.2.3.cmml" xref="S4.E1.m2.2.3"><plus id="S4.E1.m2.2.3.1.cmml" xref="S4.E1.m2.2.3.1"></plus><apply id="S4.E1.m2.2.3.2.cmml" xref="S4.E1.m2.2.3.2"><apply id="S4.E1.m2.2.3.2.1.cmml" xref="S4.E1.m2.2.3.2.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.1.1.cmml" xref="S4.E1.m2.2.3.2.1">superscript</csymbol><apply id="S4.E1.m2.2.3.2.1.2.cmml" xref="S4.E1.m2.2.3.2.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.1.2.1.cmml" xref="S4.E1.m2.2.3.2.1">subscript</csymbol><sum id="S4.E1.m2.2.3.2.1.2.2.cmml" xref="S4.E1.m2.2.3.2.1.2.2"></sum><apply id="S4.E1.m2.2.3.2.1.2.3.cmml" xref="S4.E1.m2.2.3.2.1.2.3"><eq id="S4.E1.m2.2.3.2.1.2.3.1.cmml" xref="S4.E1.m2.2.3.2.1.2.3.1"></eq><ci id="S4.E1.m2.2.3.2.1.2.3.2.cmml" xref="S4.E1.m2.2.3.2.1.2.3.2">𝑖</ci><cn type="integer" id="S4.E1.m2.2.3.2.1.2.3.3.cmml" xref="S4.E1.m2.2.3.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E1.m2.2.3.2.1.3.cmml" xref="S4.E1.m2.2.3.2.1.3">𝑛</ci></apply><apply id="S4.E1.m2.2.3.2.2.cmml" xref="S4.E1.m2.2.3.2.2"><apply id="S4.E1.m2.2.3.2.2.1.cmml" xref="S4.E1.m2.2.3.2.2.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.2.1.1.cmml" xref="S4.E1.m2.2.3.2.2.1">superscript</csymbol><apply id="S4.E1.m2.2.3.2.2.1.2.cmml" xref="S4.E1.m2.2.3.2.2.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.2.1.2.1.cmml" xref="S4.E1.m2.2.3.2.2.1">subscript</csymbol><sum id="S4.E1.m2.2.3.2.2.1.2.2.cmml" xref="S4.E1.m2.2.3.2.2.1.2.2"></sum><apply id="S4.E1.m2.2.3.2.2.1.2.3.cmml" xref="S4.E1.m2.2.3.2.2.1.2.3"><eq id="S4.E1.m2.2.3.2.2.1.2.3.1.cmml" xref="S4.E1.m2.2.3.2.2.1.2.3.1"></eq><ci id="S4.E1.m2.2.3.2.2.1.2.3.2.cmml" xref="S4.E1.m2.2.3.2.2.1.2.3.2">𝑗</ci><cn type="integer" id="S4.E1.m2.2.3.2.2.1.2.3.3.cmml" xref="S4.E1.m2.2.3.2.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E1.m2.2.3.2.2.1.3.cmml" xref="S4.E1.m2.2.3.2.2.1.3">𝑚</ci></apply><apply id="S4.E1.m2.2.3.2.2.2.cmml" xref="S4.E1.m2.2.3.2.2.2"><times id="S4.E1.m2.2.3.2.2.2.1.cmml" xref="S4.E1.m2.2.3.2.2.2.1"></times><apply id="S4.E1.m2.2.3.2.2.2.2.cmml" xref="S4.E1.m2.2.3.2.2.2.2"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.2.2.2.1.cmml" xref="S4.E1.m2.2.3.2.2.2.2">subscript</csymbol><ci id="S4.E1.m2.2.3.2.2.2.2.2.cmml" xref="S4.E1.m2.2.3.2.2.2.2.2">𝑥</ci><apply id="S4.E1.m2.2.3.2.2.2.2.3.cmml" xref="S4.E1.m2.2.3.2.2.2.2.3"><times id="S4.E1.m2.2.3.2.2.2.2.3.1.cmml" xref="S4.E1.m2.2.3.2.2.2.2.3.1"></times><ci id="S4.E1.m2.2.3.2.2.2.2.3.2.cmml" xref="S4.E1.m2.2.3.2.2.2.2.3.2">𝑖</ci><ci id="S4.E1.m2.2.3.2.2.2.2.3.3.cmml" xref="S4.E1.m2.2.3.2.2.2.2.3.3">𝑗</ci></apply></apply><apply id="S4.E1.m2.2.3.2.2.2.3.cmml" xref="S4.E1.m2.2.3.2.2.2.3"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.2.2.3.1.cmml" xref="S4.E1.m2.2.3.2.2.2.3">subscript</csymbol><apply id="S4.E1.m2.2.3.2.2.2.3.2.cmml" xref="S4.E1.m2.2.3.2.2.2.3"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.2.2.2.3.2.1.cmml" xref="S4.E1.m2.2.3.2.2.2.3">superscript</csymbol><ci id="S4.E1.m2.2.3.2.2.2.3.2.2.cmml" xref="S4.E1.m2.2.3.2.2.2.3.2.2">𝑐</ci><ci id="S4.E1.m2.1.1.1.1.cmml" xref="S4.E1.m2.1.1.1.1">𝑑</ci></apply><apply id="S4.E1.m2.2.3.2.2.2.3.3.cmml" xref="S4.E1.m2.2.3.2.2.2.3.3"><times id="S4.E1.m2.2.3.2.2.2.3.3.1.cmml" xref="S4.E1.m2.2.3.2.2.2.3.3.1"></times><ci id="S4.E1.m2.2.3.2.2.2.3.3.2.cmml" xref="S4.E1.m2.2.3.2.2.2.3.3.2">𝑖</ci><ci id="S4.E1.m2.2.3.2.2.2.3.3.3.cmml" xref="S4.E1.m2.2.3.2.2.2.3.3.3">𝑗</ci></apply></apply><ci id="S4.E1.m2.2.3.2.2.2.4.cmml" xref="S4.E1.m2.2.3.2.2.2.4">𝑙</ci></apply></apply></apply><apply id="S4.E1.m2.2.3.3.cmml" xref="S4.E1.m2.2.3.3"><apply id="S4.E1.m2.2.3.3.1.cmml" xref="S4.E1.m2.2.3.3.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.3.1.1.cmml" xref="S4.E1.m2.2.3.3.1">superscript</csymbol><apply id="S4.E1.m2.2.3.3.1.2.cmml" xref="S4.E1.m2.2.3.3.1"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.3.1.2.1.cmml" xref="S4.E1.m2.2.3.3.1">subscript</csymbol><sum id="S4.E1.m2.2.3.3.1.2.2.cmml" xref="S4.E1.m2.2.3.3.1.2.2"></sum><apply id="S4.E1.m2.2.3.3.1.2.3.cmml" xref="S4.E1.m2.2.3.3.1.2.3"><eq id="S4.E1.m2.2.3.3.1.2.3.1.cmml" xref="S4.E1.m2.2.3.3.1.2.3.1"></eq><ci id="S4.E1.m2.2.3.3.1.2.3.2.cmml" xref="S4.E1.m2.2.3.3.1.2.3.2">𝑗</ci><cn type="integer" id="S4.E1.m2.2.3.3.1.2.3.3.cmml" xref="S4.E1.m2.2.3.3.1.2.3.3">1</cn></apply></apply><ci id="S4.E1.m2.2.3.3.1.3.cmml" xref="S4.E1.m2.2.3.3.1.3">𝑛</ci></apply><apply id="S4.E1.m2.2.3.3.2.cmml" xref="S4.E1.m2.2.3.3.2"><times id="S4.E1.m2.2.3.3.2.1.cmml" xref="S4.E1.m2.2.3.3.2.1"></times><apply id="S4.E1.m2.2.3.3.2.2.cmml" xref="S4.E1.m2.2.3.3.2.2"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.3.2.2.1.cmml" xref="S4.E1.m2.2.3.3.2.2">subscript</csymbol><ci id="S4.E1.m2.2.3.3.2.2.2.cmml" xref="S4.E1.m2.2.3.3.2.2.2">𝑦</ci><ci id="S4.E1.m2.2.3.3.2.2.3.cmml" xref="S4.E1.m2.2.3.3.2.2.3">𝑗</ci></apply><apply id="S4.E1.m2.2.3.3.2.3.cmml" xref="S4.E1.m2.2.3.3.2.3"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.3.2.3.1.cmml" xref="S4.E1.m2.2.3.3.2.3">subscript</csymbol><apply id="S4.E1.m2.2.3.3.2.3.2.cmml" xref="S4.E1.m2.2.3.3.2.3"><csymbol cd="ambiguous" id="S4.E1.m2.2.3.3.2.3.2.1.cmml" xref="S4.E1.m2.2.3.3.2.3">superscript</csymbol><ci id="S4.E1.m2.2.3.3.2.3.2.2.cmml" xref="S4.E1.m2.2.3.3.2.3.2.2">𝑐</ci><ci id="S4.E1.m2.2.2.1.1.cmml" xref="S4.E1.m2.2.2.1.1">𝑒</ci></apply><ci id="S4.E1.m2.2.3.3.2.3.3.cmml" xref="S4.E1.m2.2.3.3.2.3.3">𝑗</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E1.m2.2c">\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}\sum_{j=1}^{m}x_{ij}c^{(d)}_{ij}l+\sum_{j=1}^{n}y_{j}c^{(e)}_{j}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+<tbody id="S4.E2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.E2.m1.1" class="ltx_Math" alttext="\displaystyle\operatorname*{subject\,to}" display="inline"><semantics id="S4.E2.m1.1a"><mrow id="S4.E2.m1.1.1" xref="S4.E2.m1.1.1.cmml"><mi id="S4.E2.m1.1.1.2" xref="S4.E2.m1.1.1.2.cmml">subject</mi><mo lspace="0.170em" rspace="0em" id="S4.E2.m1.1.1.1" xref="S4.E2.m1.1.1.1.cmml">​</mo><mi id="S4.E2.m1.1.1.3" xref="S4.E2.m1.1.1.3.cmml">to</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.E2.m1.1b"><apply id="S4.E2.m1.1.1.cmml" xref="S4.E2.m1.1.1"><times id="S4.E2.m1.1.1.1.cmml" xref="S4.E2.m1.1.1.1"></times><ci id="S4.E2.m1.1.1.2.cmml" xref="S4.E2.m1.1.1.2">subject</ci><ci id="S4.E2.m1.1.1.3.cmml" xref="S4.E2.m1.1.1.3">to</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E2.m1.1c">\displaystyle\operatorname*{subject\,to}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E2.m2.6" class="ltx_Math" alttext="\displaystyle\hskip 14.22636ptx_{ij}\leq y_{j},\;\;\forall\;i\in\left[1,n\right],\;\forall\;j\in\left[1,m\right]" display="inline"><semantics id="S4.E2.m2.6a"><mrow id="S4.E2.m2.6.6.2" xref="S4.E2.m2.6.6.3.cmml"><mrow id="S4.E2.m2.5.5.1.1" xref="S4.E2.m2.5.5.1.1.cmml"><msub id="S4.E2.m2.5.5.1.1.2" xref="S4.E2.m2.5.5.1.1.2.cmml"><mi id="S4.E2.m2.5.5.1.1.2.2" xref="S4.E2.m2.5.5.1.1.2.2.cmml">x</mi><mrow id="S4.E2.m2.5.5.1.1.2.3" xref="S4.E2.m2.5.5.1.1.2.3.cmml"><mi id="S4.E2.m2.5.5.1.1.2.3.2" xref="S4.E2.m2.5.5.1.1.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E2.m2.5.5.1.1.2.3.1" xref="S4.E2.m2.5.5.1.1.2.3.1.cmml">​</mo><mi id="S4.E2.m2.5.5.1.1.2.3.3" xref="S4.E2.m2.5.5.1.1.2.3.3.cmml">j</mi></mrow></msub><mo id="S4.E2.m2.5.5.1.1.1" xref="S4.E2.m2.5.5.1.1.1.cmml">≤</mo><msub id="S4.E2.m2.5.5.1.1.3" xref="S4.E2.m2.5.5.1.1.3.cmml"><mi id="S4.E2.m2.5.5.1.1.3.2" xref="S4.E2.m2.5.5.1.1.3.2.cmml">y</mi><mi id="S4.E2.m2.5.5.1.1.3.3" xref="S4.E2.m2.5.5.1.1.3.3.cmml">j</mi></msub></mrow><mo rspace="0.727em" id="S4.E2.m2.6.6.2.3" xref="S4.E2.m2.6.6.3a.cmml">,</mo><mrow id="S4.E2.m2.6.6.2.2.2" xref="S4.E2.m2.6.6.2.2.3.cmml"><mrow id="S4.E2.m2.6.6.2.2.1.1" xref="S4.E2.m2.6.6.2.2.1.1.cmml"><mrow id="S4.E2.m2.6.6.2.2.1.1.2" xref="S4.E2.m2.6.6.2.2.1.1.2.cmml"><mo rspace="0.447em" id="S4.E2.m2.6.6.2.2.1.1.2.1" xref="S4.E2.m2.6.6.2.2.1.1.2.1.cmml">∀</mo><mi id="S4.E2.m2.6.6.2.2.1.1.2.2" xref="S4.E2.m2.6.6.2.2.1.1.2.2.cmml">i</mi></mrow><mo id="S4.E2.m2.6.6.2.2.1.1.1" xref="S4.E2.m2.6.6.2.2.1.1.1.cmml">∈</mo><mrow id="S4.E2.m2.6.6.2.2.1.1.3.2" xref="S4.E2.m2.6.6.2.2.1.1.3.1.cmml"><mo id="S4.E2.m2.6.6.2.2.1.1.3.2.1" xref="S4.E2.m2.6.6.2.2.1.1.3.1.cmml">[</mo><mn id="S4.E2.m2.1.1" xref="S4.E2.m2.1.1.cmml">1</mn><mo id="S4.E2.m2.6.6.2.2.1.1.3.2.2" xref="S4.E2.m2.6.6.2.2.1.1.3.1.cmml">,</mo><mi id="S4.E2.m2.2.2" xref="S4.E2.m2.2.2.cmml">n</mi><mo id="S4.E2.m2.6.6.2.2.1.1.3.2.3" xref="S4.E2.m2.6.6.2.2.1.1.3.1.cmml">]</mo></mrow></mrow><mo rspace="0.447em" id="S4.E2.m2.6.6.2.2.2.3" xref="S4.E2.m2.6.6.2.2.3a.cmml">,</mo><mrow id="S4.E2.m2.6.6.2.2.2.2" xref="S4.E2.m2.6.6.2.2.2.2.cmml"><mrow id="S4.E2.m2.6.6.2.2.2.2.2" xref="S4.E2.m2.6.6.2.2.2.2.2.cmml"><mo rspace="0.447em" id="S4.E2.m2.6.6.2.2.2.2.2.1" xref="S4.E2.m2.6.6.2.2.2.2.2.1.cmml">∀</mo><mi id="S4.E2.m2.6.6.2.2.2.2.2.2" xref="S4.E2.m2.6.6.2.2.2.2.2.2.cmml">j</mi></mrow><mo id="S4.E2.m2.6.6.2.2.2.2.1" xref="S4.E2.m2.6.6.2.2.2.2.1.cmml">∈</mo><mrow id="S4.E2.m2.6.6.2.2.2.2.3.2" xref="S4.E2.m2.6.6.2.2.2.2.3.1.cmml"><mo id="S4.E2.m2.6.6.2.2.2.2.3.2.1" xref="S4.E2.m2.6.6.2.2.2.2.3.1.cmml">[</mo><mn id="S4.E2.m2.3.3" xref="S4.E2.m2.3.3.cmml">1</mn><mo id="S4.E2.m2.6.6.2.2.2.2.3.2.2" xref="S4.E2.m2.6.6.2.2.2.2.3.1.cmml">,</mo><mi id="S4.E2.m2.4.4" xref="S4.E2.m2.4.4.cmml">m</mi><mo id="S4.E2.m2.6.6.2.2.2.2.3.2.3" xref="S4.E2.m2.6.6.2.2.2.2.3.1.cmml">]</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E2.m2.6b"><apply id="S4.E2.m2.6.6.3.cmml" xref="S4.E2.m2.6.6.2"><csymbol cd="ambiguous" id="S4.E2.m2.6.6.3a.cmml" xref="S4.E2.m2.6.6.2.3">formulae-sequence</csymbol><apply id="S4.E2.m2.5.5.1.1.cmml" xref="S4.E2.m2.5.5.1.1"><leq id="S4.E2.m2.5.5.1.1.1.cmml" xref="S4.E2.m2.5.5.1.1.1"></leq><apply id="S4.E2.m2.5.5.1.1.2.cmml" xref="S4.E2.m2.5.5.1.1.2"><csymbol cd="ambiguous" id="S4.E2.m2.5.5.1.1.2.1.cmml" xref="S4.E2.m2.5.5.1.1.2">subscript</csymbol><ci id="S4.E2.m2.5.5.1.1.2.2.cmml" xref="S4.E2.m2.5.5.1.1.2.2">𝑥</ci><apply id="S4.E2.m2.5.5.1.1.2.3.cmml" xref="S4.E2.m2.5.5.1.1.2.3"><times id="S4.E2.m2.5.5.1.1.2.3.1.cmml" xref="S4.E2.m2.5.5.1.1.2.3.1"></times><ci id="S4.E2.m2.5.5.1.1.2.3.2.cmml" xref="S4.E2.m2.5.5.1.1.2.3.2">𝑖</ci><ci id="S4.E2.m2.5.5.1.1.2.3.3.cmml" xref="S4.E2.m2.5.5.1.1.2.3.3">𝑗</ci></apply></apply><apply id="S4.E2.m2.5.5.1.1.3.cmml" xref="S4.E2.m2.5.5.1.1.3"><csymbol cd="ambiguous" id="S4.E2.m2.5.5.1.1.3.1.cmml" xref="S4.E2.m2.5.5.1.1.3">subscript</csymbol><ci id="S4.E2.m2.5.5.1.1.3.2.cmml" xref="S4.E2.m2.5.5.1.1.3.2">𝑦</ci><ci id="S4.E2.m2.5.5.1.1.3.3.cmml" xref="S4.E2.m2.5.5.1.1.3.3">𝑗</ci></apply></apply><apply id="S4.E2.m2.6.6.2.2.3.cmml" xref="S4.E2.m2.6.6.2.2.2"><csymbol cd="ambiguous" id="S4.E2.m2.6.6.2.2.3a.cmml" xref="S4.E2.m2.6.6.2.2.2.3">formulae-sequence</csymbol><apply id="S4.E2.m2.6.6.2.2.1.1.cmml" xref="S4.E2.m2.6.6.2.2.1.1"><in id="S4.E2.m2.6.6.2.2.1.1.1.cmml" xref="S4.E2.m2.6.6.2.2.1.1.1"></in><apply id="S4.E2.m2.6.6.2.2.1.1.2.cmml" xref="S4.E2.m2.6.6.2.2.1.1.2"><csymbol cd="latexml" id="S4.E2.m2.6.6.2.2.1.1.2.1.cmml" xref="S4.E2.m2.6.6.2.2.1.1.2.1">for-all</csymbol><ci id="S4.E2.m2.6.6.2.2.1.1.2.2.cmml" xref="S4.E2.m2.6.6.2.2.1.1.2.2">𝑖</ci></apply><interval closure="closed" id="S4.E2.m2.6.6.2.2.1.1.3.1.cmml" xref="S4.E2.m2.6.6.2.2.1.1.3.2"><cn type="integer" id="S4.E2.m2.1.1.cmml" xref="S4.E2.m2.1.1">1</cn><ci id="S4.E2.m2.2.2.cmml" xref="S4.E2.m2.2.2">𝑛</ci></interval></apply><apply id="S4.E2.m2.6.6.2.2.2.2.cmml" xref="S4.E2.m2.6.6.2.2.2.2"><in id="S4.E2.m2.6.6.2.2.2.2.1.cmml" xref="S4.E2.m2.6.6.2.2.2.2.1"></in><apply id="S4.E2.m2.6.6.2.2.2.2.2.cmml" xref="S4.E2.m2.6.6.2.2.2.2.2"><csymbol cd="latexml" id="S4.E2.m2.6.6.2.2.2.2.2.1.cmml" xref="S4.E2.m2.6.6.2.2.2.2.2.1">for-all</csymbol><ci id="S4.E2.m2.6.6.2.2.2.2.2.2.cmml" xref="S4.E2.m2.6.6.2.2.2.2.2.2">𝑗</ci></apply><interval closure="closed" id="S4.E2.m2.6.6.2.2.2.2.3.1.cmml" xref="S4.E2.m2.6.6.2.2.2.2.3.2"><cn type="integer" id="S4.E2.m2.3.3.cmml" xref="S4.E2.m2.3.3">1</cn><ci id="S4.E2.m2.4.4.cmml" xref="S4.E2.m2.4.4">𝑚</ci></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E2.m2.6c">\displaystyle\hskip 14.22636ptx_{ij}\leq y_{j},\;\;\forall\;i\in\left[1,n\right],\;\forall\;j\in\left[1,m\right]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+<tbody id="S4.E3"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_eqn_cell"></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E3.m1.4" class="ltx_Math" alttext="\displaystyle\hskip 14.22636pty_{j}\leq\sum_{i=1}^{n}x_{ij},\;\;\forall\;j\in\left[1,m\right]" display="inline"><semantics id="S4.E3.m1.4a"><mrow id="S4.E3.m1.4.4.2" xref="S4.E3.m1.4.4.3.cmml"><mrow id="S4.E3.m1.3.3.1.1" xref="S4.E3.m1.3.3.1.1.cmml"><msub id="S4.E3.m1.3.3.1.1.2" xref="S4.E3.m1.3.3.1.1.2.cmml"><mi id="S4.E3.m1.3.3.1.1.2.2" xref="S4.E3.m1.3.3.1.1.2.2.cmml">y</mi><mi id="S4.E3.m1.3.3.1.1.2.3" xref="S4.E3.m1.3.3.1.1.2.3.cmml">j</mi></msub><mo id="S4.E3.m1.3.3.1.1.1" xref="S4.E3.m1.3.3.1.1.1.cmml">≤</mo><mrow id="S4.E3.m1.3.3.1.1.3" xref="S4.E3.m1.3.3.1.1.3.cmml"><mstyle displaystyle="true" id="S4.E3.m1.3.3.1.1.3.1" xref="S4.E3.m1.3.3.1.1.3.1.cmml"><munderover id="S4.E3.m1.3.3.1.1.3.1a" xref="S4.E3.m1.3.3.1.1.3.1.cmml"><mo movablelimits="false" id="S4.E3.m1.3.3.1.1.3.1.2.2" xref="S4.E3.m1.3.3.1.1.3.1.2.2.cmml">∑</mo><mrow id="S4.E3.m1.3.3.1.1.3.1.2.3" xref="S4.E3.m1.3.3.1.1.3.1.2.3.cmml"><mi id="S4.E3.m1.3.3.1.1.3.1.2.3.2" xref="S4.E3.m1.3.3.1.1.3.1.2.3.2.cmml">i</mi><mo id="S4.E3.m1.3.3.1.1.3.1.2.3.1" xref="S4.E3.m1.3.3.1.1.3.1.2.3.1.cmml">=</mo><mn id="S4.E3.m1.3.3.1.1.3.1.2.3.3" xref="S4.E3.m1.3.3.1.1.3.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E3.m1.3.3.1.1.3.1.3" xref="S4.E3.m1.3.3.1.1.3.1.3.cmml">n</mi></munderover></mstyle><msub id="S4.E3.m1.3.3.1.1.3.2" xref="S4.E3.m1.3.3.1.1.3.2.cmml"><mi id="S4.E3.m1.3.3.1.1.3.2.2" xref="S4.E3.m1.3.3.1.1.3.2.2.cmml">x</mi><mrow id="S4.E3.m1.3.3.1.1.3.2.3" xref="S4.E3.m1.3.3.1.1.3.2.3.cmml"><mi id="S4.E3.m1.3.3.1.1.3.2.3.2" xref="S4.E3.m1.3.3.1.1.3.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E3.m1.3.3.1.1.3.2.3.1" xref="S4.E3.m1.3.3.1.1.3.2.3.1.cmml">​</mo><mi id="S4.E3.m1.3.3.1.1.3.2.3.3" xref="S4.E3.m1.3.3.1.1.3.2.3.3.cmml">j</mi></mrow></msub></mrow></mrow><mo rspace="0.727em" id="S4.E3.m1.4.4.2.3" xref="S4.E3.m1.4.4.3a.cmml">,</mo><mrow id="S4.E3.m1.4.4.2.2" xref="S4.E3.m1.4.4.2.2.cmml"><mrow id="S4.E3.m1.4.4.2.2.2" xref="S4.E3.m1.4.4.2.2.2.cmml"><mo rspace="0.447em" id="S4.E3.m1.4.4.2.2.2.1" xref="S4.E3.m1.4.4.2.2.2.1.cmml">∀</mo><mi id="S4.E3.m1.4.4.2.2.2.2" xref="S4.E3.m1.4.4.2.2.2.2.cmml">j</mi></mrow><mo id="S4.E3.m1.4.4.2.2.1" xref="S4.E3.m1.4.4.2.2.1.cmml">∈</mo><mrow id="S4.E3.m1.4.4.2.2.3.2" xref="S4.E3.m1.4.4.2.2.3.1.cmml"><mo id="S4.E3.m1.4.4.2.2.3.2.1" xref="S4.E3.m1.4.4.2.2.3.1.cmml">[</mo><mn id="S4.E3.m1.1.1" xref="S4.E3.m1.1.1.cmml">1</mn><mo id="S4.E3.m1.4.4.2.2.3.2.2" xref="S4.E3.m1.4.4.2.2.3.1.cmml">,</mo><mi id="S4.E3.m1.2.2" xref="S4.E3.m1.2.2.cmml">m</mi><mo id="S4.E3.m1.4.4.2.2.3.2.3" xref="S4.E3.m1.4.4.2.2.3.1.cmml">]</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E3.m1.4b"><apply id="S4.E3.m1.4.4.3.cmml" xref="S4.E3.m1.4.4.2"><csymbol cd="ambiguous" id="S4.E3.m1.4.4.3a.cmml" xref="S4.E3.m1.4.4.2.3">formulae-sequence</csymbol><apply id="S4.E3.m1.3.3.1.1.cmml" xref="S4.E3.m1.3.3.1.1"><leq id="S4.E3.m1.3.3.1.1.1.cmml" xref="S4.E3.m1.3.3.1.1.1"></leq><apply id="S4.E3.m1.3.3.1.1.2.cmml" xref="S4.E3.m1.3.3.1.1.2"><csymbol cd="ambiguous" id="S4.E3.m1.3.3.1.1.2.1.cmml" xref="S4.E3.m1.3.3.1.1.2">subscript</csymbol><ci id="S4.E3.m1.3.3.1.1.2.2.cmml" xref="S4.E3.m1.3.3.1.1.2.2">𝑦</ci><ci id="S4.E3.m1.3.3.1.1.2.3.cmml" xref="S4.E3.m1.3.3.1.1.2.3">𝑗</ci></apply><apply id="S4.E3.m1.3.3.1.1.3.cmml" xref="S4.E3.m1.3.3.1.1.3"><apply id="S4.E3.m1.3.3.1.1.3.1.cmml" xref="S4.E3.m1.3.3.1.1.3.1"><csymbol cd="ambiguous" id="S4.E3.m1.3.3.1.1.3.1.1.cmml" xref="S4.E3.m1.3.3.1.1.3.1">superscript</csymbol><apply id="S4.E3.m1.3.3.1.1.3.1.2.cmml" xref="S4.E3.m1.3.3.1.1.3.1"><csymbol cd="ambiguous" id="S4.E3.m1.3.3.1.1.3.1.2.1.cmml" xref="S4.E3.m1.3.3.1.1.3.1">subscript</csymbol><sum id="S4.E3.m1.3.3.1.1.3.1.2.2.cmml" xref="S4.E3.m1.3.3.1.1.3.1.2.2"></sum><apply id="S4.E3.m1.3.3.1.1.3.1.2.3.cmml" xref="S4.E3.m1.3.3.1.1.3.1.2.3"><eq id="S4.E3.m1.3.3.1.1.3.1.2.3.1.cmml" xref="S4.E3.m1.3.3.1.1.3.1.2.3.1"></eq><ci id="S4.E3.m1.3.3.1.1.3.1.2.3.2.cmml" xref="S4.E3.m1.3.3.1.1.3.1.2.3.2">𝑖</ci><cn type="integer" id="S4.E3.m1.3.3.1.1.3.1.2.3.3.cmml" xref="S4.E3.m1.3.3.1.1.3.1.2.3.3">1</cn></apply></apply><ci id="S4.E3.m1.3.3.1.1.3.1.3.cmml" xref="S4.E3.m1.3.3.1.1.3.1.3">𝑛</ci></apply><apply id="S4.E3.m1.3.3.1.1.3.2.cmml" xref="S4.E3.m1.3.3.1.1.3.2"><csymbol cd="ambiguous" id="S4.E3.m1.3.3.1.1.3.2.1.cmml" xref="S4.E3.m1.3.3.1.1.3.2">subscript</csymbol><ci id="S4.E3.m1.3.3.1.1.3.2.2.cmml" xref="S4.E3.m1.3.3.1.1.3.2.2">𝑥</ci><apply id="S4.E3.m1.3.3.1.1.3.2.3.cmml" xref="S4.E3.m1.3.3.1.1.3.2.3"><times id="S4.E3.m1.3.3.1.1.3.2.3.1.cmml" xref="S4.E3.m1.3.3.1.1.3.2.3.1"></times><ci id="S4.E3.m1.3.3.1.1.3.2.3.2.cmml" xref="S4.E3.m1.3.3.1.1.3.2.3.2">𝑖</ci><ci id="S4.E3.m1.3.3.1.1.3.2.3.3.cmml" xref="S4.E3.m1.3.3.1.1.3.2.3.3">𝑗</ci></apply></apply></apply></apply><apply id="S4.E3.m1.4.4.2.2.cmml" xref="S4.E3.m1.4.4.2.2"><in id="S4.E3.m1.4.4.2.2.1.cmml" xref="S4.E3.m1.4.4.2.2.1"></in><apply id="S4.E3.m1.4.4.2.2.2.cmml" xref="S4.E3.m1.4.4.2.2.2"><csymbol cd="latexml" id="S4.E3.m1.4.4.2.2.2.1.cmml" xref="S4.E3.m1.4.4.2.2.2.1">for-all</csymbol><ci id="S4.E3.m1.4.4.2.2.2.2.cmml" xref="S4.E3.m1.4.4.2.2.2.2">𝑗</ci></apply><interval closure="closed" id="S4.E3.m1.4.4.2.2.3.1.cmml" xref="S4.E3.m1.4.4.2.2.3.2"><cn type="integer" id="S4.E3.m1.1.1.cmml" xref="S4.E3.m1.1.1">1</cn><ci id="S4.E3.m1.2.2.cmml" xref="S4.E3.m1.2.2">𝑚</ci></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E3.m1.4c">\displaystyle\hskip 14.22636pty_{j}\leq\sum_{i=1}^{n}x_{ij},\;\;\forall\;j\in\left[1,m\right]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+<tbody id="S4.E4"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_eqn_cell"></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E4.m1.4" class="ltx_Math" alttext="\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}x_{ij}\lambda_{i}\leq r_{j},\;\;\forall\;j\in\left[1,m\right]" display="inline"><semantics id="S4.E4.m1.4a"><mrow id="S4.E4.m1.4.4.2" xref="S4.E4.m1.4.4.3.cmml"><mrow id="S4.E4.m1.3.3.1.1" xref="S4.E4.m1.3.3.1.1.cmml"><mrow id="S4.E4.m1.3.3.1.1.2" xref="S4.E4.m1.3.3.1.1.2.cmml"><mstyle displaystyle="true" id="S4.E4.m1.3.3.1.1.2.1" xref="S4.E4.m1.3.3.1.1.2.1.cmml"><munderover id="S4.E4.m1.3.3.1.1.2.1a" xref="S4.E4.m1.3.3.1.1.2.1.cmml"><mo movablelimits="false" id="S4.E4.m1.3.3.1.1.2.1.2.2" xref="S4.E4.m1.3.3.1.1.2.1.2.2.cmml">∑</mo><mrow id="S4.E4.m1.3.3.1.1.2.1.2.3" xref="S4.E4.m1.3.3.1.1.2.1.2.3.cmml"><mi id="S4.E4.m1.3.3.1.1.2.1.2.3.2" xref="S4.E4.m1.3.3.1.1.2.1.2.3.2.cmml">i</mi><mo id="S4.E4.m1.3.3.1.1.2.1.2.3.1" xref="S4.E4.m1.3.3.1.1.2.1.2.3.1.cmml">=</mo><mn id="S4.E4.m1.3.3.1.1.2.1.2.3.3" xref="S4.E4.m1.3.3.1.1.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E4.m1.3.3.1.1.2.1.3" xref="S4.E4.m1.3.3.1.1.2.1.3.cmml">n</mi></munderover></mstyle><mrow id="S4.E4.m1.3.3.1.1.2.2" xref="S4.E4.m1.3.3.1.1.2.2.cmml"><msub id="S4.E4.m1.3.3.1.1.2.2.2" xref="S4.E4.m1.3.3.1.1.2.2.2.cmml"><mi id="S4.E4.m1.3.3.1.1.2.2.2.2" xref="S4.E4.m1.3.3.1.1.2.2.2.2.cmml">x</mi><mrow id="S4.E4.m1.3.3.1.1.2.2.2.3" xref="S4.E4.m1.3.3.1.1.2.2.2.3.cmml"><mi id="S4.E4.m1.3.3.1.1.2.2.2.3.2" xref="S4.E4.m1.3.3.1.1.2.2.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E4.m1.3.3.1.1.2.2.2.3.1" xref="S4.E4.m1.3.3.1.1.2.2.2.3.1.cmml">​</mo><mi id="S4.E4.m1.3.3.1.1.2.2.2.3.3" xref="S4.E4.m1.3.3.1.1.2.2.2.3.3.cmml">j</mi></mrow></msub><mo lspace="0em" rspace="0em" id="S4.E4.m1.3.3.1.1.2.2.1" xref="S4.E4.m1.3.3.1.1.2.2.1.cmml">​</mo><msub id="S4.E4.m1.3.3.1.1.2.2.3" xref="S4.E4.m1.3.3.1.1.2.2.3.cmml"><mi id="S4.E4.m1.3.3.1.1.2.2.3.2" xref="S4.E4.m1.3.3.1.1.2.2.3.2.cmml">λ</mi><mi id="S4.E4.m1.3.3.1.1.2.2.3.3" xref="S4.E4.m1.3.3.1.1.2.2.3.3.cmml">i</mi></msub></mrow></mrow><mo id="S4.E4.m1.3.3.1.1.1" xref="S4.E4.m1.3.3.1.1.1.cmml">≤</mo><msub id="S4.E4.m1.3.3.1.1.3" xref="S4.E4.m1.3.3.1.1.3.cmml"><mi id="S4.E4.m1.3.3.1.1.3.2" xref="S4.E4.m1.3.3.1.1.3.2.cmml">r</mi><mi id="S4.E4.m1.3.3.1.1.3.3" xref="S4.E4.m1.3.3.1.1.3.3.cmml">j</mi></msub></mrow><mo rspace="0.727em" id="S4.E4.m1.4.4.2.3" xref="S4.E4.m1.4.4.3a.cmml">,</mo><mrow id="S4.E4.m1.4.4.2.2" xref="S4.E4.m1.4.4.2.2.cmml"><mrow id="S4.E4.m1.4.4.2.2.2" xref="S4.E4.m1.4.4.2.2.2.cmml"><mo rspace="0.447em" id="S4.E4.m1.4.4.2.2.2.1" xref="S4.E4.m1.4.4.2.2.2.1.cmml">∀</mo><mi id="S4.E4.m1.4.4.2.2.2.2" xref="S4.E4.m1.4.4.2.2.2.2.cmml">j</mi></mrow><mo id="S4.E4.m1.4.4.2.2.1" xref="S4.E4.m1.4.4.2.2.1.cmml">∈</mo><mrow id="S4.E4.m1.4.4.2.2.3.2" xref="S4.E4.m1.4.4.2.2.3.1.cmml"><mo id="S4.E4.m1.4.4.2.2.3.2.1" xref="S4.E4.m1.4.4.2.2.3.1.cmml">[</mo><mn id="S4.E4.m1.1.1" xref="S4.E4.m1.1.1.cmml">1</mn><mo id="S4.E4.m1.4.4.2.2.3.2.2" xref="S4.E4.m1.4.4.2.2.3.1.cmml">,</mo><mi id="S4.E4.m1.2.2" xref="S4.E4.m1.2.2.cmml">m</mi><mo id="S4.E4.m1.4.4.2.2.3.2.3" xref="S4.E4.m1.4.4.2.2.3.1.cmml">]</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E4.m1.4b"><apply id="S4.E4.m1.4.4.3.cmml" xref="S4.E4.m1.4.4.2"><csymbol cd="ambiguous" id="S4.E4.m1.4.4.3a.cmml" xref="S4.E4.m1.4.4.2.3">formulae-sequence</csymbol><apply id="S4.E4.m1.3.3.1.1.cmml" xref="S4.E4.m1.3.3.1.1"><leq id="S4.E4.m1.3.3.1.1.1.cmml" xref="S4.E4.m1.3.3.1.1.1"></leq><apply id="S4.E4.m1.3.3.1.1.2.cmml" xref="S4.E4.m1.3.3.1.1.2"><apply id="S4.E4.m1.3.3.1.1.2.1.cmml" xref="S4.E4.m1.3.3.1.1.2.1"><csymbol cd="ambiguous" id="S4.E4.m1.3.3.1.1.2.1.1.cmml" xref="S4.E4.m1.3.3.1.1.2.1">superscript</csymbol><apply id="S4.E4.m1.3.3.1.1.2.1.2.cmml" xref="S4.E4.m1.3.3.1.1.2.1"><csymbol cd="ambiguous" id="S4.E4.m1.3.3.1.1.2.1.2.1.cmml" xref="S4.E4.m1.3.3.1.1.2.1">subscript</csymbol><sum id="S4.E4.m1.3.3.1.1.2.1.2.2.cmml" xref="S4.E4.m1.3.3.1.1.2.1.2.2"></sum><apply id="S4.E4.m1.3.3.1.1.2.1.2.3.cmml" xref="S4.E4.m1.3.3.1.1.2.1.2.3"><eq id="S4.E4.m1.3.3.1.1.2.1.2.3.1.cmml" xref="S4.E4.m1.3.3.1.1.2.1.2.3.1"></eq><ci id="S4.E4.m1.3.3.1.1.2.1.2.3.2.cmml" xref="S4.E4.m1.3.3.1.1.2.1.2.3.2">𝑖</ci><cn type="integer" id="S4.E4.m1.3.3.1.1.2.1.2.3.3.cmml" xref="S4.E4.m1.3.3.1.1.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E4.m1.3.3.1.1.2.1.3.cmml" xref="S4.E4.m1.3.3.1.1.2.1.3">𝑛</ci></apply><apply id="S4.E4.m1.3.3.1.1.2.2.cmml" xref="S4.E4.m1.3.3.1.1.2.2"><times id="S4.E4.m1.3.3.1.1.2.2.1.cmml" xref="S4.E4.m1.3.3.1.1.2.2.1"></times><apply id="S4.E4.m1.3.3.1.1.2.2.2.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2"><csymbol cd="ambiguous" id="S4.E4.m1.3.3.1.1.2.2.2.1.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2">subscript</csymbol><ci id="S4.E4.m1.3.3.1.1.2.2.2.2.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2.2">𝑥</ci><apply id="S4.E4.m1.3.3.1.1.2.2.2.3.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2.3"><times id="S4.E4.m1.3.3.1.1.2.2.2.3.1.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2.3.1"></times><ci id="S4.E4.m1.3.3.1.1.2.2.2.3.2.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2.3.2">𝑖</ci><ci id="S4.E4.m1.3.3.1.1.2.2.2.3.3.cmml" xref="S4.E4.m1.3.3.1.1.2.2.2.3.3">𝑗</ci></apply></apply><apply id="S4.E4.m1.3.3.1.1.2.2.3.cmml" xref="S4.E4.m1.3.3.1.1.2.2.3"><csymbol cd="ambiguous" id="S4.E4.m1.3.3.1.1.2.2.3.1.cmml" xref="S4.E4.m1.3.3.1.1.2.2.3">subscript</csymbol><ci id="S4.E4.m1.3.3.1.1.2.2.3.2.cmml" xref="S4.E4.m1.3.3.1.1.2.2.3.2">𝜆</ci><ci id="S4.E4.m1.3.3.1.1.2.2.3.3.cmml" xref="S4.E4.m1.3.3.1.1.2.2.3.3">𝑖</ci></apply></apply></apply><apply id="S4.E4.m1.3.3.1.1.3.cmml" xref="S4.E4.m1.3.3.1.1.3"><csymbol cd="ambiguous" id="S4.E4.m1.3.3.1.1.3.1.cmml" xref="S4.E4.m1.3.3.1.1.3">subscript</csymbol><ci id="S4.E4.m1.3.3.1.1.3.2.cmml" xref="S4.E4.m1.3.3.1.1.3.2">𝑟</ci><ci id="S4.E4.m1.3.3.1.1.3.3.cmml" xref="S4.E4.m1.3.3.1.1.3.3">𝑗</ci></apply></apply><apply id="S4.E4.m1.4.4.2.2.cmml" xref="S4.E4.m1.4.4.2.2"><in id="S4.E4.m1.4.4.2.2.1.cmml" xref="S4.E4.m1.4.4.2.2.1"></in><apply id="S4.E4.m1.4.4.2.2.2.cmml" xref="S4.E4.m1.4.4.2.2.2"><csymbol cd="latexml" id="S4.E4.m1.4.4.2.2.2.1.cmml" xref="S4.E4.m1.4.4.2.2.2.1">for-all</csymbol><ci id="S4.E4.m1.4.4.2.2.2.2.cmml" xref="S4.E4.m1.4.4.2.2.2.2">𝑗</ci></apply><interval closure="closed" id="S4.E4.m1.4.4.2.2.3.1.cmml" xref="S4.E4.m1.4.4.2.2.3.2"><cn type="integer" id="S4.E4.m1.1.1.cmml" xref="S4.E4.m1.1.1">1</cn><ci id="S4.E4.m1.2.2.cmml" xref="S4.E4.m1.2.2">𝑚</ci></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E4.m1.4c">\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}x_{ij}\lambda_{i}\leq r_{j},\;\;\forall\;j\in\left[1,m\right]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+<tbody id="S4.E5"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_eqn_cell"></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E5.m1.4" class="ltx_Math" alttext="\displaystyle\hskip 14.22636pt\sum_{j=1}^{m}x_{ij}\leq 1,\;\;\forall\;i\in\left[1,n\right]" display="inline"><semantics id="S4.E5.m1.4a"><mrow id="S4.E5.m1.4.4.2" xref="S4.E5.m1.4.4.3.cmml"><mrow id="S4.E5.m1.3.3.1.1" xref="S4.E5.m1.3.3.1.1.cmml"><mrow id="S4.E5.m1.3.3.1.1.2" xref="S4.E5.m1.3.3.1.1.2.cmml"><mstyle displaystyle="true" id="S4.E5.m1.3.3.1.1.2.1" xref="S4.E5.m1.3.3.1.1.2.1.cmml"><munderover id="S4.E5.m1.3.3.1.1.2.1a" xref="S4.E5.m1.3.3.1.1.2.1.cmml"><mo movablelimits="false" id="S4.E5.m1.3.3.1.1.2.1.2.2" xref="S4.E5.m1.3.3.1.1.2.1.2.2.cmml">∑</mo><mrow id="S4.E5.m1.3.3.1.1.2.1.2.3" xref="S4.E5.m1.3.3.1.1.2.1.2.3.cmml"><mi id="S4.E5.m1.3.3.1.1.2.1.2.3.2" xref="S4.E5.m1.3.3.1.1.2.1.2.3.2.cmml">j</mi><mo id="S4.E5.m1.3.3.1.1.2.1.2.3.1" xref="S4.E5.m1.3.3.1.1.2.1.2.3.1.cmml">=</mo><mn id="S4.E5.m1.3.3.1.1.2.1.2.3.3" xref="S4.E5.m1.3.3.1.1.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E5.m1.3.3.1.1.2.1.3" xref="S4.E5.m1.3.3.1.1.2.1.3.cmml">m</mi></munderover></mstyle><msub id="S4.E5.m1.3.3.1.1.2.2" xref="S4.E5.m1.3.3.1.1.2.2.cmml"><mi id="S4.E5.m1.3.3.1.1.2.2.2" xref="S4.E5.m1.3.3.1.1.2.2.2.cmml">x</mi><mrow id="S4.E5.m1.3.3.1.1.2.2.3" xref="S4.E5.m1.3.3.1.1.2.2.3.cmml"><mi id="S4.E5.m1.3.3.1.1.2.2.3.2" xref="S4.E5.m1.3.3.1.1.2.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E5.m1.3.3.1.1.2.2.3.1" xref="S4.E5.m1.3.3.1.1.2.2.3.1.cmml">​</mo><mi id="S4.E5.m1.3.3.1.1.2.2.3.3" xref="S4.E5.m1.3.3.1.1.2.2.3.3.cmml">j</mi></mrow></msub></mrow><mo id="S4.E5.m1.3.3.1.1.1" xref="S4.E5.m1.3.3.1.1.1.cmml">≤</mo><mn id="S4.E5.m1.3.3.1.1.3" xref="S4.E5.m1.3.3.1.1.3.cmml">1</mn></mrow><mo rspace="0.727em" id="S4.E5.m1.4.4.2.3" xref="S4.E5.m1.4.4.3a.cmml">,</mo><mrow id="S4.E5.m1.4.4.2.2" xref="S4.E5.m1.4.4.2.2.cmml"><mrow id="S4.E5.m1.4.4.2.2.2" xref="S4.E5.m1.4.4.2.2.2.cmml"><mo rspace="0.447em" id="S4.E5.m1.4.4.2.2.2.1" xref="S4.E5.m1.4.4.2.2.2.1.cmml">∀</mo><mi id="S4.E5.m1.4.4.2.2.2.2" xref="S4.E5.m1.4.4.2.2.2.2.cmml">i</mi></mrow><mo id="S4.E5.m1.4.4.2.2.1" xref="S4.E5.m1.4.4.2.2.1.cmml">∈</mo><mrow id="S4.E5.m1.4.4.2.2.3.2" xref="S4.E5.m1.4.4.2.2.3.1.cmml"><mo id="S4.E5.m1.4.4.2.2.3.2.1" xref="S4.E5.m1.4.4.2.2.3.1.cmml">[</mo><mn id="S4.E5.m1.1.1" xref="S4.E5.m1.1.1.cmml">1</mn><mo id="S4.E5.m1.4.4.2.2.3.2.2" xref="S4.E5.m1.4.4.2.2.3.1.cmml">,</mo><mi id="S4.E5.m1.2.2" xref="S4.E5.m1.2.2.cmml">n</mi><mo id="S4.E5.m1.4.4.2.2.3.2.3" xref="S4.E5.m1.4.4.2.2.3.1.cmml">]</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E5.m1.4b"><apply id="S4.E5.m1.4.4.3.cmml" xref="S4.E5.m1.4.4.2"><csymbol cd="ambiguous" id="S4.E5.m1.4.4.3a.cmml" xref="S4.E5.m1.4.4.2.3">formulae-sequence</csymbol><apply id="S4.E5.m1.3.3.1.1.cmml" xref="S4.E5.m1.3.3.1.1"><leq id="S4.E5.m1.3.3.1.1.1.cmml" xref="S4.E5.m1.3.3.1.1.1"></leq><apply id="S4.E5.m1.3.3.1.1.2.cmml" xref="S4.E5.m1.3.3.1.1.2"><apply id="S4.E5.m1.3.3.1.1.2.1.cmml" xref="S4.E5.m1.3.3.1.1.2.1"><csymbol cd="ambiguous" id="S4.E5.m1.3.3.1.1.2.1.1.cmml" xref="S4.E5.m1.3.3.1.1.2.1">superscript</csymbol><apply id="S4.E5.m1.3.3.1.1.2.1.2.cmml" xref="S4.E5.m1.3.3.1.1.2.1"><csymbol cd="ambiguous" id="S4.E5.m1.3.3.1.1.2.1.2.1.cmml" xref="S4.E5.m1.3.3.1.1.2.1">subscript</csymbol><sum id="S4.E5.m1.3.3.1.1.2.1.2.2.cmml" xref="S4.E5.m1.3.3.1.1.2.1.2.2"></sum><apply id="S4.E5.m1.3.3.1.1.2.1.2.3.cmml" xref="S4.E5.m1.3.3.1.1.2.1.2.3"><eq id="S4.E5.m1.3.3.1.1.2.1.2.3.1.cmml" xref="S4.E5.m1.3.3.1.1.2.1.2.3.1"></eq><ci id="S4.E5.m1.3.3.1.1.2.1.2.3.2.cmml" xref="S4.E5.m1.3.3.1.1.2.1.2.3.2">𝑗</ci><cn type="integer" id="S4.E5.m1.3.3.1.1.2.1.2.3.3.cmml" xref="S4.E5.m1.3.3.1.1.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E5.m1.3.3.1.1.2.1.3.cmml" xref="S4.E5.m1.3.3.1.1.2.1.3">𝑚</ci></apply><apply id="S4.E5.m1.3.3.1.1.2.2.cmml" xref="S4.E5.m1.3.3.1.1.2.2"><csymbol cd="ambiguous" id="S4.E5.m1.3.3.1.1.2.2.1.cmml" xref="S4.E5.m1.3.3.1.1.2.2">subscript</csymbol><ci id="S4.E5.m1.3.3.1.1.2.2.2.cmml" xref="S4.E5.m1.3.3.1.1.2.2.2">𝑥</ci><apply id="S4.E5.m1.3.3.1.1.2.2.3.cmml" xref="S4.E5.m1.3.3.1.1.2.2.3"><times id="S4.E5.m1.3.3.1.1.2.2.3.1.cmml" xref="S4.E5.m1.3.3.1.1.2.2.3.1"></times><ci id="S4.E5.m1.3.3.1.1.2.2.3.2.cmml" xref="S4.E5.m1.3.3.1.1.2.2.3.2">𝑖</ci><ci id="S4.E5.m1.3.3.1.1.2.2.3.3.cmml" xref="S4.E5.m1.3.3.1.1.2.2.3.3">𝑗</ci></apply></apply></apply><cn type="integer" id="S4.E5.m1.3.3.1.1.3.cmml" xref="S4.E5.m1.3.3.1.1.3">1</cn></apply><apply id="S4.E5.m1.4.4.2.2.cmml" xref="S4.E5.m1.4.4.2.2"><in id="S4.E5.m1.4.4.2.2.1.cmml" xref="S4.E5.m1.4.4.2.2.1"></in><apply id="S4.E5.m1.4.4.2.2.2.cmml" xref="S4.E5.m1.4.4.2.2.2"><csymbol cd="latexml" id="S4.E5.m1.4.4.2.2.2.1.cmml" xref="S4.E5.m1.4.4.2.2.2.1">for-all</csymbol><ci id="S4.E5.m1.4.4.2.2.2.2.cmml" xref="S4.E5.m1.4.4.2.2.2.2">𝑖</ci></apply><interval closure="closed" id="S4.E5.m1.4.4.2.2.3.1.cmml" xref="S4.E5.m1.4.4.2.2.3.2"><cn type="integer" id="S4.E5.m1.1.1.cmml" xref="S4.E5.m1.1.1">1</cn><ci id="S4.E5.m1.2.2.cmml" xref="S4.E5.m1.2.2">𝑛</ci></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E5.m1.4c">\displaystyle\hskip 14.22636pt\sum_{j=1}^{m}x_{ij}\leq 1,\;\;\forall\;i\in\left[1,n\right]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(5)</span></td>
+</tr></tbody>
+<tbody id="S4.E6"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_eqn_cell"></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E6.m1.1" class="ltx_Math" alttext="\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}\sum_{j=1}^{m}x_{ij}\geq T" display="inline"><semantics id="S4.E6.m1.1a"><mrow id="S4.E6.m1.1.1" xref="S4.E6.m1.1.1.cmml"><mrow id="S4.E6.m1.1.1.2" xref="S4.E6.m1.1.1.2.cmml"><mstyle displaystyle="true" id="S4.E6.m1.1.1.2.1" xref="S4.E6.m1.1.1.2.1.cmml"><munderover id="S4.E6.m1.1.1.2.1a" xref="S4.E6.m1.1.1.2.1.cmml"><mo movablelimits="false" id="S4.E6.m1.1.1.2.1.2.2" xref="S4.E6.m1.1.1.2.1.2.2.cmml">∑</mo><mrow id="S4.E6.m1.1.1.2.1.2.3" xref="S4.E6.m1.1.1.2.1.2.3.cmml"><mi id="S4.E6.m1.1.1.2.1.2.3.2" xref="S4.E6.m1.1.1.2.1.2.3.2.cmml">i</mi><mo id="S4.E6.m1.1.1.2.1.2.3.1" xref="S4.E6.m1.1.1.2.1.2.3.1.cmml">=</mo><mn id="S4.E6.m1.1.1.2.1.2.3.3" xref="S4.E6.m1.1.1.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E6.m1.1.1.2.1.3" xref="S4.E6.m1.1.1.2.1.3.cmml">n</mi></munderover></mstyle><mrow id="S4.E6.m1.1.1.2.2" xref="S4.E6.m1.1.1.2.2.cmml"><mstyle displaystyle="true" id="S4.E6.m1.1.1.2.2.1" xref="S4.E6.m1.1.1.2.2.1.cmml"><munderover id="S4.E6.m1.1.1.2.2.1a" xref="S4.E6.m1.1.1.2.2.1.cmml"><mo movablelimits="false" id="S4.E6.m1.1.1.2.2.1.2.2" xref="S4.E6.m1.1.1.2.2.1.2.2.cmml">∑</mo><mrow id="S4.E6.m1.1.1.2.2.1.2.3" xref="S4.E6.m1.1.1.2.2.1.2.3.cmml"><mi id="S4.E6.m1.1.1.2.2.1.2.3.2" xref="S4.E6.m1.1.1.2.2.1.2.3.2.cmml">j</mi><mo id="S4.E6.m1.1.1.2.2.1.2.3.1" xref="S4.E6.m1.1.1.2.2.1.2.3.1.cmml">=</mo><mn id="S4.E6.m1.1.1.2.2.1.2.3.3" xref="S4.E6.m1.1.1.2.2.1.2.3.3.cmml">1</mn></mrow><mi id="S4.E6.m1.1.1.2.2.1.3" xref="S4.E6.m1.1.1.2.2.1.3.cmml">m</mi></munderover></mstyle><msub id="S4.E6.m1.1.1.2.2.2" xref="S4.E6.m1.1.1.2.2.2.cmml"><mi id="S4.E6.m1.1.1.2.2.2.2" xref="S4.E6.m1.1.1.2.2.2.2.cmml">x</mi><mrow id="S4.E6.m1.1.1.2.2.2.3" xref="S4.E6.m1.1.1.2.2.2.3.cmml"><mi id="S4.E6.m1.1.1.2.2.2.3.2" xref="S4.E6.m1.1.1.2.2.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E6.m1.1.1.2.2.2.3.1" xref="S4.E6.m1.1.1.2.2.2.3.1.cmml">​</mo><mi id="S4.E6.m1.1.1.2.2.2.3.3" xref="S4.E6.m1.1.1.2.2.2.3.3.cmml">j</mi></mrow></msub></mrow></mrow><mo id="S4.E6.m1.1.1.1" xref="S4.E6.m1.1.1.1.cmml">≥</mo><mi id="S4.E6.m1.1.1.3" xref="S4.E6.m1.1.1.3.cmml">T</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.E6.m1.1b"><apply id="S4.E6.m1.1.1.cmml" xref="S4.E6.m1.1.1"><geq id="S4.E6.m1.1.1.1.cmml" xref="S4.E6.m1.1.1.1"></geq><apply id="S4.E6.m1.1.1.2.cmml" xref="S4.E6.m1.1.1.2"><apply id="S4.E6.m1.1.1.2.1.cmml" xref="S4.E6.m1.1.1.2.1"><csymbol cd="ambiguous" id="S4.E6.m1.1.1.2.1.1.cmml" xref="S4.E6.m1.1.1.2.1">superscript</csymbol><apply id="S4.E6.m1.1.1.2.1.2.cmml" xref="S4.E6.m1.1.1.2.1"><csymbol cd="ambiguous" id="S4.E6.m1.1.1.2.1.2.1.cmml" xref="S4.E6.m1.1.1.2.1">subscript</csymbol><sum id="S4.E6.m1.1.1.2.1.2.2.cmml" xref="S4.E6.m1.1.1.2.1.2.2"></sum><apply id="S4.E6.m1.1.1.2.1.2.3.cmml" xref="S4.E6.m1.1.1.2.1.2.3"><eq id="S4.E6.m1.1.1.2.1.2.3.1.cmml" xref="S4.E6.m1.1.1.2.1.2.3.1"></eq><ci id="S4.E6.m1.1.1.2.1.2.3.2.cmml" xref="S4.E6.m1.1.1.2.1.2.3.2">𝑖</ci><cn type="integer" id="S4.E6.m1.1.1.2.1.2.3.3.cmml" xref="S4.E6.m1.1.1.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E6.m1.1.1.2.1.3.cmml" xref="S4.E6.m1.1.1.2.1.3">𝑛</ci></apply><apply id="S4.E6.m1.1.1.2.2.cmml" xref="S4.E6.m1.1.1.2.2"><apply id="S4.E6.m1.1.1.2.2.1.cmml" xref="S4.E6.m1.1.1.2.2.1"><csymbol cd="ambiguous" id="S4.E6.m1.1.1.2.2.1.1.cmml" xref="S4.E6.m1.1.1.2.2.1">superscript</csymbol><apply id="S4.E6.m1.1.1.2.2.1.2.cmml" xref="S4.E6.m1.1.1.2.2.1"><csymbol cd="ambiguous" id="S4.E6.m1.1.1.2.2.1.2.1.cmml" xref="S4.E6.m1.1.1.2.2.1">subscript</csymbol><sum id="S4.E6.m1.1.1.2.2.1.2.2.cmml" xref="S4.E6.m1.1.1.2.2.1.2.2"></sum><apply id="S4.E6.m1.1.1.2.2.1.2.3.cmml" xref="S4.E6.m1.1.1.2.2.1.2.3"><eq id="S4.E6.m1.1.1.2.2.1.2.3.1.cmml" xref="S4.E6.m1.1.1.2.2.1.2.3.1"></eq><ci id="S4.E6.m1.1.1.2.2.1.2.3.2.cmml" xref="S4.E6.m1.1.1.2.2.1.2.3.2">𝑗</ci><cn type="integer" id="S4.E6.m1.1.1.2.2.1.2.3.3.cmml" xref="S4.E6.m1.1.1.2.2.1.2.3.3">1</cn></apply></apply><ci id="S4.E6.m1.1.1.2.2.1.3.cmml" xref="S4.E6.m1.1.1.2.2.1.3">𝑚</ci></apply><apply id="S4.E6.m1.1.1.2.2.2.cmml" xref="S4.E6.m1.1.1.2.2.2"><csymbol cd="ambiguous" id="S4.E6.m1.1.1.2.2.2.1.cmml" xref="S4.E6.m1.1.1.2.2.2">subscript</csymbol><ci id="S4.E6.m1.1.1.2.2.2.2.cmml" xref="S4.E6.m1.1.1.2.2.2.2">𝑥</ci><apply id="S4.E6.m1.1.1.2.2.2.3.cmml" xref="S4.E6.m1.1.1.2.2.2.3"><times id="S4.E6.m1.1.1.2.2.2.3.1.cmml" xref="S4.E6.m1.1.1.2.2.2.3.1"></times><ci id="S4.E6.m1.1.1.2.2.2.3.2.cmml" xref="S4.E6.m1.1.1.2.2.2.3.2">𝑖</ci><ci id="S4.E6.m1.1.1.2.2.2.3.3.cmml" xref="S4.E6.m1.1.1.2.2.2.3.3">𝑗</ci></apply></apply></apply></apply><ci id="S4.E6.m1.1.1.3.cmml" xref="S4.E6.m1.1.1.3">𝑇</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E6.m1.1c">\displaystyle\hskip 14.22636pt\sum_{i=1}^{n}\sum_{j=1}^{m}x_{ij}\geq T</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(6)</span></td>
+</tr></tbody>
+<tbody id="S4.E7"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_eqn_cell"></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E7.m1.8" class="ltx_Math" alttext="\displaystyle\hskip 14.22636ptx_{ij},y_{j}\in\{0,1\},\;\forall\;i\in[1,n],\;\forall\;j\in[1,m]" display="inline"><semantics id="S4.E7.m1.8a"><mrow id="S4.E7.m1.8.8.2" xref="S4.E7.m1.8.8.3.cmml"><mrow id="S4.E7.m1.7.7.1.1" xref="S4.E7.m1.7.7.1.1.cmml"><mrow id="S4.E7.m1.7.7.1.1.2.2" xref="S4.E7.m1.7.7.1.1.2.3.cmml"><msub id="S4.E7.m1.7.7.1.1.1.1.1" xref="S4.E7.m1.7.7.1.1.1.1.1.cmml"><mi id="S4.E7.m1.7.7.1.1.1.1.1.2" xref="S4.E7.m1.7.7.1.1.1.1.1.2.cmml">x</mi><mrow id="S4.E7.m1.7.7.1.1.1.1.1.3" xref="S4.E7.m1.7.7.1.1.1.1.1.3.cmml"><mi id="S4.E7.m1.7.7.1.1.1.1.1.3.2" xref="S4.E7.m1.7.7.1.1.1.1.1.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.E7.m1.7.7.1.1.1.1.1.3.1" xref="S4.E7.m1.7.7.1.1.1.1.1.3.1.cmml">​</mo><mi id="S4.E7.m1.7.7.1.1.1.1.1.3.3" xref="S4.E7.m1.7.7.1.1.1.1.1.3.3.cmml">j</mi></mrow></msub><mo id="S4.E7.m1.7.7.1.1.2.2.3" xref="S4.E7.m1.7.7.1.1.2.3.cmml">,</mo><msub id="S4.E7.m1.7.7.1.1.2.2.2" xref="S4.E7.m1.7.7.1.1.2.2.2.cmml"><mi id="S4.E7.m1.7.7.1.1.2.2.2.2" xref="S4.E7.m1.7.7.1.1.2.2.2.2.cmml">y</mi><mi id="S4.E7.m1.7.7.1.1.2.2.2.3" xref="S4.E7.m1.7.7.1.1.2.2.2.3.cmml">j</mi></msub></mrow><mo id="S4.E7.m1.7.7.1.1.3" xref="S4.E7.m1.7.7.1.1.3.cmml">∈</mo><mrow id="S4.E7.m1.7.7.1.1.4.2" xref="S4.E7.m1.7.7.1.1.4.1.cmml"><mo stretchy="false" id="S4.E7.m1.7.7.1.1.4.2.1" xref="S4.E7.m1.7.7.1.1.4.1.cmml">{</mo><mn id="S4.E7.m1.1.1" xref="S4.E7.m1.1.1.cmml">0</mn><mo id="S4.E7.m1.7.7.1.1.4.2.2" xref="S4.E7.m1.7.7.1.1.4.1.cmml">,</mo><mn id="S4.E7.m1.2.2" xref="S4.E7.m1.2.2.cmml">1</mn><mo stretchy="false" id="S4.E7.m1.7.7.1.1.4.2.3" xref="S4.E7.m1.7.7.1.1.4.1.cmml">}</mo></mrow></mrow><mo rspace="0.447em" id="S4.E7.m1.8.8.2.3" xref="S4.E7.m1.8.8.3a.cmml">,</mo><mrow id="S4.E7.m1.8.8.2.2.2" xref="S4.E7.m1.8.8.2.2.3.cmml"><mrow id="S4.E7.m1.8.8.2.2.1.1" xref="S4.E7.m1.8.8.2.2.1.1.cmml"><mrow id="S4.E7.m1.8.8.2.2.1.1.2" xref="S4.E7.m1.8.8.2.2.1.1.2.cmml"><mo rspace="0.447em" id="S4.E7.m1.8.8.2.2.1.1.2.1" xref="S4.E7.m1.8.8.2.2.1.1.2.1.cmml">∀</mo><mi id="S4.E7.m1.8.8.2.2.1.1.2.2" xref="S4.E7.m1.8.8.2.2.1.1.2.2.cmml">i</mi></mrow><mo id="S4.E7.m1.8.8.2.2.1.1.1" xref="S4.E7.m1.8.8.2.2.1.1.1.cmml">∈</mo><mrow id="S4.E7.m1.8.8.2.2.1.1.3.2" xref="S4.E7.m1.8.8.2.2.1.1.3.1.cmml"><mo stretchy="false" id="S4.E7.m1.8.8.2.2.1.1.3.2.1" xref="S4.E7.m1.8.8.2.2.1.1.3.1.cmml">[</mo><mn id="S4.E7.m1.3.3" xref="S4.E7.m1.3.3.cmml">1</mn><mo id="S4.E7.m1.8.8.2.2.1.1.3.2.2" xref="S4.E7.m1.8.8.2.2.1.1.3.1.cmml">,</mo><mi id="S4.E7.m1.4.4" xref="S4.E7.m1.4.4.cmml">n</mi><mo stretchy="false" id="S4.E7.m1.8.8.2.2.1.1.3.2.3" xref="S4.E7.m1.8.8.2.2.1.1.3.1.cmml">]</mo></mrow></mrow><mo rspace="0.447em" id="S4.E7.m1.8.8.2.2.2.3" xref="S4.E7.m1.8.8.2.2.3a.cmml">,</mo><mrow id="S4.E7.m1.8.8.2.2.2.2" xref="S4.E7.m1.8.8.2.2.2.2.cmml"><mrow id="S4.E7.m1.8.8.2.2.2.2.2" xref="S4.E7.m1.8.8.2.2.2.2.2.cmml"><mo rspace="0.447em" id="S4.E7.m1.8.8.2.2.2.2.2.1" xref="S4.E7.m1.8.8.2.2.2.2.2.1.cmml">∀</mo><mi id="S4.E7.m1.8.8.2.2.2.2.2.2" xref="S4.E7.m1.8.8.2.2.2.2.2.2.cmml">j</mi></mrow><mo id="S4.E7.m1.8.8.2.2.2.2.1" xref="S4.E7.m1.8.8.2.2.2.2.1.cmml">∈</mo><mrow id="S4.E7.m1.8.8.2.2.2.2.3.2" xref="S4.E7.m1.8.8.2.2.2.2.3.1.cmml"><mo stretchy="false" id="S4.E7.m1.8.8.2.2.2.2.3.2.1" xref="S4.E7.m1.8.8.2.2.2.2.3.1.cmml">[</mo><mn id="S4.E7.m1.5.5" xref="S4.E7.m1.5.5.cmml">1</mn><mo id="S4.E7.m1.8.8.2.2.2.2.3.2.2" xref="S4.E7.m1.8.8.2.2.2.2.3.1.cmml">,</mo><mi id="S4.E7.m1.6.6" xref="S4.E7.m1.6.6.cmml">m</mi><mo stretchy="false" id="S4.E7.m1.8.8.2.2.2.2.3.2.3" xref="S4.E7.m1.8.8.2.2.2.2.3.1.cmml">]</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E7.m1.8b"><apply id="S4.E7.m1.8.8.3.cmml" xref="S4.E7.m1.8.8.2"><csymbol cd="ambiguous" id="S4.E7.m1.8.8.3a.cmml" xref="S4.E7.m1.8.8.2.3">formulae-sequence</csymbol><apply id="S4.E7.m1.7.7.1.1.cmml" xref="S4.E7.m1.7.7.1.1"><in id="S4.E7.m1.7.7.1.1.3.cmml" xref="S4.E7.m1.7.7.1.1.3"></in><list id="S4.E7.m1.7.7.1.1.2.3.cmml" xref="S4.E7.m1.7.7.1.1.2.2"><apply id="S4.E7.m1.7.7.1.1.1.1.1.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.E7.m1.7.7.1.1.1.1.1.1.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1">subscript</csymbol><ci id="S4.E7.m1.7.7.1.1.1.1.1.2.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1.2">𝑥</ci><apply id="S4.E7.m1.7.7.1.1.1.1.1.3.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1.3"><times id="S4.E7.m1.7.7.1.1.1.1.1.3.1.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1.3.1"></times><ci id="S4.E7.m1.7.7.1.1.1.1.1.3.2.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1.3.2">𝑖</ci><ci id="S4.E7.m1.7.7.1.1.1.1.1.3.3.cmml" xref="S4.E7.m1.7.7.1.1.1.1.1.3.3">𝑗</ci></apply></apply><apply id="S4.E7.m1.7.7.1.1.2.2.2.cmml" xref="S4.E7.m1.7.7.1.1.2.2.2"><csymbol cd="ambiguous" id="S4.E7.m1.7.7.1.1.2.2.2.1.cmml" xref="S4.E7.m1.7.7.1.1.2.2.2">subscript</csymbol><ci id="S4.E7.m1.7.7.1.1.2.2.2.2.cmml" xref="S4.E7.m1.7.7.1.1.2.2.2.2">𝑦</ci><ci id="S4.E7.m1.7.7.1.1.2.2.2.3.cmml" xref="S4.E7.m1.7.7.1.1.2.2.2.3">𝑗</ci></apply></list><set id="S4.E7.m1.7.7.1.1.4.1.cmml" xref="S4.E7.m1.7.7.1.1.4.2"><cn type="integer" id="S4.E7.m1.1.1.cmml" xref="S4.E7.m1.1.1">0</cn><cn type="integer" id="S4.E7.m1.2.2.cmml" xref="S4.E7.m1.2.2">1</cn></set></apply><apply id="S4.E7.m1.8.8.2.2.3.cmml" xref="S4.E7.m1.8.8.2.2.2"><csymbol cd="ambiguous" id="S4.E7.m1.8.8.2.2.3a.cmml" xref="S4.E7.m1.8.8.2.2.2.3">formulae-sequence</csymbol><apply id="S4.E7.m1.8.8.2.2.1.1.cmml" xref="S4.E7.m1.8.8.2.2.1.1"><in id="S4.E7.m1.8.8.2.2.1.1.1.cmml" xref="S4.E7.m1.8.8.2.2.1.1.1"></in><apply id="S4.E7.m1.8.8.2.2.1.1.2.cmml" xref="S4.E7.m1.8.8.2.2.1.1.2"><csymbol cd="latexml" id="S4.E7.m1.8.8.2.2.1.1.2.1.cmml" xref="S4.E7.m1.8.8.2.2.1.1.2.1">for-all</csymbol><ci id="S4.E7.m1.8.8.2.2.1.1.2.2.cmml" xref="S4.E7.m1.8.8.2.2.1.1.2.2">𝑖</ci></apply><interval closure="closed" id="S4.E7.m1.8.8.2.2.1.1.3.1.cmml" xref="S4.E7.m1.8.8.2.2.1.1.3.2"><cn type="integer" id="S4.E7.m1.3.3.cmml" xref="S4.E7.m1.3.3">1</cn><ci id="S4.E7.m1.4.4.cmml" xref="S4.E7.m1.4.4">𝑛</ci></interval></apply><apply id="S4.E7.m1.8.8.2.2.2.2.cmml" xref="S4.E7.m1.8.8.2.2.2.2"><in id="S4.E7.m1.8.8.2.2.2.2.1.cmml" xref="S4.E7.m1.8.8.2.2.2.2.1"></in><apply id="S4.E7.m1.8.8.2.2.2.2.2.cmml" xref="S4.E7.m1.8.8.2.2.2.2.2"><csymbol cd="latexml" id="S4.E7.m1.8.8.2.2.2.2.2.1.cmml" xref="S4.E7.m1.8.8.2.2.2.2.2.1">for-all</csymbol><ci id="S4.E7.m1.8.8.2.2.2.2.2.2.cmml" xref="S4.E7.m1.8.8.2.2.2.2.2.2">𝑗</ci></apply><interval closure="closed" id="S4.E7.m1.8.8.2.2.2.2.3.1.cmml" xref="S4.E7.m1.8.8.2.2.2.2.3.2"><cn type="integer" id="S4.E7.m1.5.5.cmml" xref="S4.E7.m1.5.5">1</cn><ci id="S4.E7.m1.6.6.cmml" xref="S4.E7.m1.6.6">𝑚</ci></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E7.m1.8c">\displaystyle\hskip 14.22636ptx_{ij},y_{j}\in\{0,1\},\;\forall\;i\in[1,n],\;\forall\;j\in[1,m]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(7)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS2.p4" class="ltx_para">
+<p id="S4.SS2.p4.1" class="ltx_p">The objective function (<a href="#S4.E1" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) consists of two terms. The LHS term expresses the cost of local aggregation rounds, where <math id="S4.SS2.p4.1.m1.1" class="ltx_Math" alttext="l" display="inline"><semantics id="S4.SS2.p4.1.m1.1a"><mi id="S4.SS2.p4.1.m1.1.1" xref="S4.SS2.p4.1.m1.1.1.cmml">l</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p4.1.m1.1b"><ci id="S4.SS2.p4.1.m1.1.1.cmml" xref="S4.SS2.p4.1.m1.1.1">𝑙</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p4.1.m1.1c">l</annotation></semantics></math> is the number of local aggregations taking place before a global aggregation round. In practical terms, <em id="S4.SS2.p4.1.1" class="ltx_emph ltx_font_italic">assigning devices to local edge aggregators</em>, to which connectivity is cheap/free, tends to reduce this cost component. The RHS term is the cost of global aggregation, which involves each edge aggregator uploading a model update to the global server and receiving the global model. <em id="S4.SS2.p4.1.2" class="ltx_emph ltx_font_italic">Reducing the number of edge aggregators</em> tends to reduce this cost (limited by edge host capacity constraints and at the expense of potentially having clients associated with remote aggregators).</p>
+</div>
+<div id="S4.SS2.p5" class="ltx_para">
+<p id="S4.SS2.p5.4" class="ltx_p">We have dropped the constants expressing the model size and that both local and global aggregation involve two communication directions; thus, in absolute terms, the cost doubles. Finally, we assume the uplink and downlink costs are the same, though our model is straightforward to extend in order to capture cost asymmetries.
+Constraint set (<a href="#S4.E2" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>) ensures that an aggregator is always placed at edge node <math id="S4.SS2.p5.1.m1.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS2.p5.1.m1.1a"><mi id="S4.SS2.p5.1.m1.1.1" xref="S4.SS2.p5.1.m1.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p5.1.m1.1b"><ci id="S4.SS2.p5.1.m1.1.1.cmml" xref="S4.SS2.p5.1.m1.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p5.1.m1.1c">j</annotation></semantics></math> if at least one edge device is associated with it.
+Conversely, constraint set (<a href="#S4.E3" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>) does not allow an aggregator to be placed at an edge node without any associated devices. This set of constraints is often redundant, as operating an aggregator at node <math id="S4.SS2.p5.2.m2.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS2.p5.2.m2.1a"><mi id="S4.SS2.p5.2.m2.1.1" xref="S4.SS2.p5.2.m2.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p5.2.m2.1b"><ci id="S4.SS2.p5.2.m2.1.1.cmml" xref="S4.SS2.p5.2.m2.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p5.2.m2.1c">j</annotation></semantics></math> typically comes at a cost; if no devices are associated with it, then <math id="S4.SS2.p5.3.m3.1" class="ltx_Math" alttext="y_{j}=1" display="inline"><semantics id="S4.SS2.p5.3.m3.1a"><mrow id="S4.SS2.p5.3.m3.1.1" xref="S4.SS2.p5.3.m3.1.1.cmml"><msub id="S4.SS2.p5.3.m3.1.1.2" xref="S4.SS2.p5.3.m3.1.1.2.cmml"><mi id="S4.SS2.p5.3.m3.1.1.2.2" xref="S4.SS2.p5.3.m3.1.1.2.2.cmml">y</mi><mi id="S4.SS2.p5.3.m3.1.1.2.3" xref="S4.SS2.p5.3.m3.1.1.2.3.cmml">j</mi></msub><mo id="S4.SS2.p5.3.m3.1.1.1" xref="S4.SS2.p5.3.m3.1.1.1.cmml">=</mo><mn id="S4.SS2.p5.3.m3.1.1.3" xref="S4.SS2.p5.3.m3.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p5.3.m3.1b"><apply id="S4.SS2.p5.3.m3.1.1.cmml" xref="S4.SS2.p5.3.m3.1.1"><eq id="S4.SS2.p5.3.m3.1.1.1.cmml" xref="S4.SS2.p5.3.m3.1.1.1"></eq><apply id="S4.SS2.p5.3.m3.1.1.2.cmml" xref="S4.SS2.p5.3.m3.1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p5.3.m3.1.1.2.1.cmml" xref="S4.SS2.p5.3.m3.1.1.2">subscript</csymbol><ci id="S4.SS2.p5.3.m3.1.1.2.2.cmml" xref="S4.SS2.p5.3.m3.1.1.2.2">𝑦</ci><ci id="S4.SS2.p5.3.m3.1.1.2.3.cmml" xref="S4.SS2.p5.3.m3.1.1.2.3">𝑗</ci></apply><cn type="integer" id="S4.SS2.p5.3.m3.1.1.3.cmml" xref="S4.SS2.p5.3.m3.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p5.3.m3.1c">y_{j}=1</annotation></semantics></math> will not be part of the optimal solution.
+Edge node capacity constraints are given by (<a href="#S4.E4" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>).
+Constraint (<a href="#S4.E5" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>) allows each device to associate with at most one aggregator.
+Additionally, constraint (<a href="#S4.E6" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>) ensures that a minimum number of devices <math id="S4.SS2.p5.4.m4.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S4.SS2.p5.4.m4.1a"><mi id="S4.SS2.p5.4.m4.1.1" xref="S4.SS2.p5.4.m4.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p5.4.m4.1b"><ci id="S4.SS2.p5.4.m4.1.1.cmml" xref="S4.SS2.p5.4.m4.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p5.4.m4.1c">T</annotation></semantics></math> participates in FL.
+Finally, (<a href="#S4.E7" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>) constrains the variables to binary values.</p>
+</div>
+<div id="S4.SS2.p6" class="ltx_para">
+<p id="S4.SS2.p6.5" class="ltx_p">Notably, HFLOP is a generalization of the <em id="S4.SS2.p6.5.1" class="ltx_emph ltx_font_italic">Capacitated Facility Location Problem (CFLP) with unsplittable flows</em>, i.e., the CFLP version where a single facility must serve the whole demand of an entity. This problem is known to be NP-hard <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>. Any instance of this CFLP version can be transformed to an instance of HFLOP by (i) creating one edge node for each potential facility location and one device for each location to be served, (ii) setting <math id="S4.SS2.p6.1.m1.1" class="ltx_Math" alttext="c^{(e)}_{j}" display="inline"><semantics id="S4.SS2.p6.1.m1.1a"><msubsup id="S4.SS2.p6.1.m1.1.2" xref="S4.SS2.p6.1.m1.1.2.cmml"><mi id="S4.SS2.p6.1.m1.1.2.2.2" xref="S4.SS2.p6.1.m1.1.2.2.2.cmml">c</mi><mi id="S4.SS2.p6.1.m1.1.2.3" xref="S4.SS2.p6.1.m1.1.2.3.cmml">j</mi><mrow id="S4.SS2.p6.1.m1.1.1.1.3" xref="S4.SS2.p6.1.m1.1.2.cmml"><mo stretchy="false" id="S4.SS2.p6.1.m1.1.1.1.3.1" xref="S4.SS2.p6.1.m1.1.2.cmml">(</mo><mi id="S4.SS2.p6.1.m1.1.1.1.1" xref="S4.SS2.p6.1.m1.1.1.1.1.cmml">e</mi><mo stretchy="false" id="S4.SS2.p6.1.m1.1.1.1.3.2" xref="S4.SS2.p6.1.m1.1.2.cmml">)</mo></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.1.m1.1b"><apply id="S4.SS2.p6.1.m1.1.2.cmml" xref="S4.SS2.p6.1.m1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p6.1.m1.1.2.1.cmml" xref="S4.SS2.p6.1.m1.1.2">subscript</csymbol><apply id="S4.SS2.p6.1.m1.1.2.2.cmml" xref="S4.SS2.p6.1.m1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p6.1.m1.1.2.2.1.cmml" xref="S4.SS2.p6.1.m1.1.2">superscript</csymbol><ci id="S4.SS2.p6.1.m1.1.2.2.2.cmml" xref="S4.SS2.p6.1.m1.1.2.2.2">𝑐</ci><ci id="S4.SS2.p6.1.m1.1.1.1.1.cmml" xref="S4.SS2.p6.1.m1.1.1.1.1">𝑒</ci></apply><ci id="S4.SS2.p6.1.m1.1.2.3.cmml" xref="S4.SS2.p6.1.m1.1.2.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.1.m1.1c">c^{(e)}_{j}</annotation></semantics></math> to the setup cost of each corresponding location, and device communication costs <math id="S4.SS2.p6.2.m2.1" class="ltx_Math" alttext="c^{(d)}_{ij}" display="inline"><semantics id="S4.SS2.p6.2.m2.1a"><msubsup id="S4.SS2.p6.2.m2.1.2" xref="S4.SS2.p6.2.m2.1.2.cmml"><mi id="S4.SS2.p6.2.m2.1.2.2.2" xref="S4.SS2.p6.2.m2.1.2.2.2.cmml">c</mi><mrow id="S4.SS2.p6.2.m2.1.2.3" xref="S4.SS2.p6.2.m2.1.2.3.cmml"><mi id="S4.SS2.p6.2.m2.1.2.3.2" xref="S4.SS2.p6.2.m2.1.2.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p6.2.m2.1.2.3.1" xref="S4.SS2.p6.2.m2.1.2.3.1.cmml">​</mo><mi id="S4.SS2.p6.2.m2.1.2.3.3" xref="S4.SS2.p6.2.m2.1.2.3.3.cmml">j</mi></mrow><mrow id="S4.SS2.p6.2.m2.1.1.1.3" xref="S4.SS2.p6.2.m2.1.2.cmml"><mo stretchy="false" id="S4.SS2.p6.2.m2.1.1.1.3.1" xref="S4.SS2.p6.2.m2.1.2.cmml">(</mo><mi id="S4.SS2.p6.2.m2.1.1.1.1" xref="S4.SS2.p6.2.m2.1.1.1.1.cmml">d</mi><mo stretchy="false" id="S4.SS2.p6.2.m2.1.1.1.3.2" xref="S4.SS2.p6.2.m2.1.2.cmml">)</mo></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.2.m2.1b"><apply id="S4.SS2.p6.2.m2.1.2.cmml" xref="S4.SS2.p6.2.m2.1.2"><csymbol cd="ambiguous" id="S4.SS2.p6.2.m2.1.2.1.cmml" xref="S4.SS2.p6.2.m2.1.2">subscript</csymbol><apply id="S4.SS2.p6.2.m2.1.2.2.cmml" xref="S4.SS2.p6.2.m2.1.2"><csymbol cd="ambiguous" id="S4.SS2.p6.2.m2.1.2.2.1.cmml" xref="S4.SS2.p6.2.m2.1.2">superscript</csymbol><ci id="S4.SS2.p6.2.m2.1.2.2.2.cmml" xref="S4.SS2.p6.2.m2.1.2.2.2">𝑐</ci><ci id="S4.SS2.p6.2.m2.1.1.1.1.cmml" xref="S4.SS2.p6.2.m2.1.1.1.1">𝑑</ci></apply><apply id="S4.SS2.p6.2.m2.1.2.3.cmml" xref="S4.SS2.p6.2.m2.1.2.3"><times id="S4.SS2.p6.2.m2.1.2.3.1.cmml" xref="S4.SS2.p6.2.m2.1.2.3.1"></times><ci id="S4.SS2.p6.2.m2.1.2.3.2.cmml" xref="S4.SS2.p6.2.m2.1.2.3.2">𝑖</ci><ci id="S4.SS2.p6.2.m2.1.2.3.3.cmml" xref="S4.SS2.p6.2.m2.1.2.3.3">𝑗</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.2.m2.1c">c^{(d)}_{ij}</annotation></semantics></math> to the transportation costs between locations <math id="S4.SS2.p6.3.m3.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S4.SS2.p6.3.m3.1a"><mi id="S4.SS2.p6.3.m3.1.1" xref="S4.SS2.p6.3.m3.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.3.m3.1b"><ci id="S4.SS2.p6.3.m3.1.1.cmml" xref="S4.SS2.p6.3.m3.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.3.m3.1c">i</annotation></semantics></math> and <math id="S4.SS2.p6.4.m4.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S4.SS2.p6.4.m4.1a"><mi id="S4.SS2.p6.4.m4.1.1" xref="S4.SS2.p6.4.m4.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.4.m4.1b"><ci id="S4.SS2.p6.4.m4.1.1.cmml" xref="S4.SS2.p6.4.m4.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.4.m4.1c">j</annotation></semantics></math>, and (iii) setting <math id="S4.SS2.p6.5.m5.1" class="ltx_Math" alttext="T=n" display="inline"><semantics id="S4.SS2.p6.5.m5.1a"><mrow id="S4.SS2.p6.5.m5.1.1" xref="S4.SS2.p6.5.m5.1.1.cmml"><mi id="S4.SS2.p6.5.m5.1.1.2" xref="S4.SS2.p6.5.m5.1.1.2.cmml">T</mi><mo id="S4.SS2.p6.5.m5.1.1.1" xref="S4.SS2.p6.5.m5.1.1.1.cmml">=</mo><mi id="S4.SS2.p6.5.m5.1.1.3" xref="S4.SS2.p6.5.m5.1.1.3.cmml">n</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.5.m5.1b"><apply id="S4.SS2.p6.5.m5.1.1.cmml" xref="S4.SS2.p6.5.m5.1.1"><eq id="S4.SS2.p6.5.m5.1.1.1.cmml" xref="S4.SS2.p6.5.m5.1.1.1"></eq><ci id="S4.SS2.p6.5.m5.1.1.2.cmml" xref="S4.SS2.p6.5.m5.1.1.2">𝑇</ci><ci id="S4.SS2.p6.5.m5.1.1.3.cmml" xref="S4.SS2.p6.5.m5.1.1.3">𝑛</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.5.m5.1c">T=n</annotation></semantics></math>, i.e., all devices (cf. locations) need to be covered.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS3.5.1.1" class="ltx_text">IV-C</span> </span><span id="S4.SS3.6.2" class="ltx_text ltx_font_italic">Performance considerations</span>
+</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Given the hardness of the problem, dealing with large instances can be challenging. Figure <a href="#S4.F2" title="Figure 2 ‣ IV-C Performance considerations ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> presents the time to derive the optimal solution to HFLOP for varying problem instance sizes using the branch and cut algorithm by CPLEX on a host with an 8-core AMD Ryzen CPU and 32  GB of RAM. For scenarios with 10.000 devices and 100 edge host locations, it takes hundreds of seconds to find an optimal assignment, while for larger instances, it can become prohibitively expensive computationally to solve the problem optimally due to severely increasing CPU and memory requirements. However, this approach is feasible for many practical cases, given that HFLOP may not need to be solved frequently. For larger-scale scenarios, adaptations of heuristics and approximation algorithms for versions of the facility location problem <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>, <a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite> can be considered.</p>
+</div>
+<figure id="S4.F2" class="ltx_figure"><img src="/html/2407.16836/assets/x2.png" id="S4.F2.g1" class="ltx_graphics ltx_img_landscape" width="415" height="290" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S4.F2.2.1.1" class="ltx_text" style="font-size:90%;">Figure 2</span>: </span><span id="S4.F2.3.2" class="ltx_text" style="font-size:90%;">Execution times of deriving the optimal solution to HFLOP using a commercial solver (CPLEX). Mean execution times are reported with 95% confidence intervals.</span></figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">V </span><span id="S5.1.1" class="ltx_text ltx_font_smallcaps">Evaluation</span>
+</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">The following experiments aim to evaluate the performance of our scheme (HFLOP) on a real-world dataset.
+We wish to quantify the effects of using HFLOP on the accuracy of federated learning clients, the communication cost of aggregation rounds, and the inference serving time.
+By examining these factors, we can determine whether HFLOP improves communication costs and inference processing time without negatively impacting training.</p>
+</div>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS1.5.1.1" class="ltx_text">V-A</span> </span><span id="S5.SS1.6.2" class="ltx_text ltx_font_italic">Methodology and use case</span>
+</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">Figure <a href="#S5.F3" title="Figure 3 ‣ V-A Methodology and use case ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> illustrates a hierarchical federated learning setup with inference requests and an overview of the use case that shapes our experiment setup.
+Federated learning clients continuously train models on their local data. After some time, they send their data to local servers that either aggregate the models and send them back to the clients or forward the aggregated models to the global server.
+While some federated learning clients are training, some entities may send inference requests to the closest server, which is a federated learning client in most cases.
+The inference request will be forwarded to the closest local server if the FL client is busy training.
+If this server is busy, the request will be forwarded to the global server.</p>
+</div>
+<figure id="S5.F3" class="ltx_figure">
+<p id="S5.F3.1" class="ltx_p ltx_align_center"><span id="S5.F3.1.1" class="ltx_text"><img src="/html/2407.16836/assets/figures/system-v2.drawio.png" id="S5.F3.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="416" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.3.1.1" class="ltx_text" style="font-size:90%;">Figure 3</span>: </span><span id="S5.F3.4.2" class="ltx_text" style="font-size:90%;">
+Different FL clients are clustered and connected to their closest local server.
+An inference request is sent to the closest server,
+which processes the request on its model or sends it to a local server if it is busy training.
+The local server processes the request or, if it reaches its processing capacity, forwards it to a cloud server, which then answers the request.</span></figcaption>
+</figure>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p">We use the traffic forecasting dataset based on Los Angeles Metropolitan traffic (METR-LA) for the experiments.
+Its sensors are depicted in Figure <a href="#S5.F4" title="Figure 4 ‣ V-A Methodology and use case ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.
+This dataset contains traffic information collected from loop detectors in the highway of Los Angeles County <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite>.
+In the dataset, there are 207 sensors and 4 months of data ranging from March 1st, 2012, to June 30th, 2012.
+Traffic information is recorded every 5 minutes for 34.272 time stamps.</p>
+</div>
+<figure id="S5.F4" class="ltx_figure"><img src="/html/2407.16836/assets/x3.png" id="S5.F4.g1" class="ltx_graphics ltx_img_landscape" width="664" height="466" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F4.2.1.1" class="ltx_text" style="font-size:90%;">Figure 4</span>: </span><span id="S5.F4.3.2" class="ltx_text" style="font-size:90%;">Sensor distribution of the METR-LA dataset.</span></figcaption>
+</figure>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS2.5.1.1" class="ltx_text">V-B</span> </span><span id="S5.SS2.6.2" class="ltx_text ltx_font_italic">Continuous learning performance</span>
+</h3>
+
+<section id="S5.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS2.SSS1.5.1.1" class="ltx_text">V-B</span>1 </span>Continuous learning</h4>
+
+<div id="S5.SS2.SSS1.p1" class="ltx_para">
+<p id="S5.SS2.SSS1.p1.1" class="ltx_p">The tests conducted in this work for continuous learning, continuous federated learning, and continuous federated learning with inference requests ran on a server that is equipped with 32 CPUs, specifically the AMD Ryzen 9 5950X 16-Core Processor, each with a maximum clock speed of 5083.3979 MHz.
+Additionally, the server incorporates 2 NVIDIA GeForce RTX 3090 GPUs, each featuring 24576 MB of memory.</p>
+</div>
+<div id="S5.SS2.SSS1.p2" class="ltx_para">
+<p id="S5.SS2.SSS1.p2.1" class="ltx_p">To test the benefits of continuous learning and whether it improves the accuracy of the model, we conducted some experiments using a Gated Recurrent Units (GRU) architecture.
+Recurrent Neural Networks (RNNs) are often used for time-series predictions, and GRUs have gating mechanisms to improve the information flow. Therefore, they are often used in federated time-series prediction <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>, <a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite>.
+The GRU was trained for 20 epochs on 4 weeks of the data, and the remaining data was used for testing.
+The best results were achieved using a batch size of 16, a hidden size of 128, 2 layers, and a learning rate of 0.0001.
+After training for 100 epochs, the Mean Squared Error (MSE) predicting the test data was 0.04470, and the MSE of the retrained model that continuously retrained on new data was 0.04284.
+These results demonstrate that continuously training the model decreased the MSE.</p>
+</div>
+</section>
+<section id="S5.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS2.SSS2.5.1.1" class="ltx_text">V-B</span>2 </span>Continuous federated learning</h4>
+
+<div id="S5.SS2.SSS2.p1" class="ltx_para">
+<p id="S5.SS2.SSS2.p1.1" class="ltx_p">After the first tests were conducted to find the best hyperparameters for the model and to show the benefits of continuous training, the next step was to evaluate continuous federated learning.
+We first clustered the clients for the hierarchical experiments based on their location.
+This ensures that when an edge aggregator is added, its network cost and latency are reduced.
+In Figure <a href="#S5.F5" title="Figure 5 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, one can see the street map after the sensors have been clustered.
+Each color represents a different cluster.
+The minimal number of participating devices given in Constraint (<a href="#S4.E6" title="In IV-B Problem formulation ‣ IV The inference-aware HFL orchestration problem ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>) is for these experiments set to 20.
+Since there are 4 clusters, 5 random sensors were chosen from each cluster for training an ML model.
+These sensors that were chosen are marked in red and are also shown in Figure <a href="#S5.F5" title="Figure 5 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>.</p>
+</div>
+<figure id="S5.F5" class="ltx_figure"><img src="/html/2407.16836/assets/x4.png" id="S5.F5.g1" class="ltx_graphics ltx_img_landscape" width="664" height="466" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F5.2.1.1" class="ltx_text" style="font-size:90%;">Figure 5</span>: </span><span id="S5.F5.3.2" class="ltx_text" style="font-size:90%;">Clustered sensors using the METR-LA dataset.</span></figcaption>
+</figure>
+<div id="S5.SS2.SSS2.p2" class="ltx_para">
+<p id="S5.SS2.SSS2.p2.1" class="ltx_p">To simulate continuous learning, we use 3 weeks of training and 1 week of validation.
+After each aggregation round, the global time shifts for some timestamps so that the number of training and test samples stays the same, but it is shifted to simulate time passing.
+The MSE results for 100 aggregation rounds, using 20 clients trained for 5 epochs and 3 different setups, are shown in Figure <a href="#S5.F6" title="Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>.</p>
+</div>
+<figure id="S5.F6" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_3">
+<figure id="S5.F6.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2407.16836/assets/x5.png" id="S5.F6.sf1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="368" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F6.sf1.2.1.1" class="ltx_text" style="font-size:90%;">(a)</span> </span><span id="S5.F6.sf1.3.2" class="ltx_text" style="font-size:90%;">Non-hierarchical setup.</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_3">
+<figure id="S5.F6.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2407.16836/assets/x6.png" id="S5.F6.sf2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="368" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F6.sf2.2.1.1" class="ltx_text" style="font-size:90%;">(b)</span> </span><span id="S5.F6.sf2.3.2" class="ltx_text" style="font-size:90%;">Hierarchical setup with 4 edge servers and 2 local aggregations before a global aggregation.</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_3">
+<figure id="S5.F6.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2407.16836/assets/x7.png" id="S5.F6.sf3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="368" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F6.sf3.2.1.1" class="ltx_text" style="font-size:90%;">(c)</span> </span><span id="S5.F6.sf3.3.2" class="ltx_text" style="font-size:90%;">HFLOP setup with 4 edge servers and 2 local aggregations before a global aggregation.</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F6.2.1.1" class="ltx_text" style="font-size:90%;">Figure 6</span>: </span><span id="S5.F6.3.2" class="ltx_text" style="font-size:90%;">MSE of 20 clients, each of them is represented in a different color. Each client tests on its local data after receiving the global model.</span></figcaption>
+</figure>
+<div id="S5.SS2.SSS2.p3" class="ltx_para">
+<p id="S5.SS2.SSS2.p3.1" class="ltx_p">In this figure, one can see the MSE that has been calculated for each client directly after receiving the global model for up to 100 aggregation rounds when having a non-hierarchical setup (Figure <a href="#S5.F6.sf1" title="In Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6(a)</span></a>), a hierarchical setup based only on the locations (Figure <a href="#S5.F6.sf2" title="In Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6(b)</span></a>) and a hierarchical setup using HFLOP (Figure <a href="#S5.F6.sf3" title="In Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6(c)</span></a>).
+Figure <a href="#S5.F6" title="Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> demonstrates that the global MSE improves after the first few aggregation rounds as the MSE significantly decreases for most clients.
+For all settings, the model converges after about 20 aggregation rounds; for the non-hierarchical setup, this means that about 20 aggregation rounds with the cloud server are needed, whereas in the hierarchical setups, 20 aggregation rounds with the local servers were required and only 10 cloud aggregations.
+The MSE slightly increases after around 50 aggregation rounds.
+One reason for this increase may be the changing data.
+However, after some time, the MSE decreases again, showing that there are some oscillations, but overall, the model indeed converges.</p>
+</div>
+</section>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS3.5.1.1" class="ltx_text">V-C</span> </span><span id="S5.SS3.6.2" class="ltx_text ltx_font_italic">Inference serving performance</span>
+</h3>
+
+<section id="S5.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS3.SSS1.5.1.1" class="ltx_text">V-C</span>1 </span>Benchmarks</h4>
+
+<div id="S5.SS3.SSS1.p1" class="ltx_para">
+<p id="S5.SS3.SSS1.p1.2" class="ltx_p">The subsequent experiments demonstrate the performance when inference requests are served while the clients continuously train.
+The clustering strategies for the hierarchical experiments remain the same.
+In addition, each of the federated learning devices is assigned a rate <math id="S5.SS3.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\lambda_{i}" display="inline"><semantics id="S5.SS3.SSS1.p1.1.m1.1a"><msub id="S5.SS3.SSS1.p1.1.m1.1.1" xref="S5.SS3.SSS1.p1.1.m1.1.1.cmml"><mi id="S5.SS3.SSS1.p1.1.m1.1.1.2" xref="S5.SS3.SSS1.p1.1.m1.1.1.2.cmml">λ</mi><mi id="S5.SS3.SSS1.p1.1.m1.1.1.3" xref="S5.SS3.SSS1.p1.1.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S5.SS3.SSS1.p1.1.m1.1b"><apply id="S5.SS3.SSS1.p1.1.m1.1.1.cmml" xref="S5.SS3.SSS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S5.SS3.SSS1.p1.1.m1.1.1.1.cmml" xref="S5.SS3.SSS1.p1.1.m1.1.1">subscript</csymbol><ci id="S5.SS3.SSS1.p1.1.m1.1.1.2.cmml" xref="S5.SS3.SSS1.p1.1.m1.1.1.2">𝜆</ci><ci id="S5.SS3.SSS1.p1.1.m1.1.1.3.cmml" xref="S5.SS3.SSS1.p1.1.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS3.SSS1.p1.1.m1.1c">\lambda_{i}</annotation></semantics></math> at which it produces inference requests.
+For the hierarchical federated learning experiments, edge servers are added, each having a certain capacity <math id="S5.SS3.SSS1.p1.2.m2.1" class="ltx_Math" alttext="r_{j}" display="inline"><semantics id="S5.SS3.SSS1.p1.2.m2.1a"><msub id="S5.SS3.SSS1.p1.2.m2.1.1" xref="S5.SS3.SSS1.p1.2.m2.1.1.cmml"><mi id="S5.SS3.SSS1.p1.2.m2.1.1.2" xref="S5.SS3.SSS1.p1.2.m2.1.1.2.cmml">r</mi><mi id="S5.SS3.SSS1.p1.2.m2.1.1.3" xref="S5.SS3.SSS1.p1.2.m2.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S5.SS3.SSS1.p1.2.m2.1b"><apply id="S5.SS3.SSS1.p1.2.m2.1.1.cmml" xref="S5.SS3.SSS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S5.SS3.SSS1.p1.2.m2.1.1.1.cmml" xref="S5.SS3.SSS1.p1.2.m2.1.1">subscript</csymbol><ci id="S5.SS3.SSS1.p1.2.m2.1.1.2.cmml" xref="S5.SS3.SSS1.p1.2.m2.1.1.2">𝑟</ci><ci id="S5.SS3.SSS1.p1.2.m2.1.1.3.cmml" xref="S5.SS3.SSS1.p1.2.m2.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS3.SSS1.p1.2.m2.1c">r_{j}</annotation></semantics></math> to handle inference requests.
+If an edge server receives more inference requests than it can handle, it forwards the additional requests to the cloud server.</p>
+</div>
+<section id="S5.SS3.SSS1.Px1" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Non-hierarchical FL benchmark</h5>
+
+<div id="S5.SS3.SSS1.Px1.p1" class="ltx_para">
+<p id="S5.SS3.SSS1.Px1.p1.1" class="ltx_p">In the non-hierarchical experiment, the federated learning clients busy with training forward their inference requests to a cloud server.</p>
+</div>
+</section>
+<section id="S5.SS3.SSS1.Px2" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Hierarchical FL benchmark</h5>
+
+<div id="S5.SS3.SSS1.Px2.p1" class="ltx_para">
+<p id="S5.SS3.SSS1.Px2.p1.1" class="ltx_p">For the hierarchical FL benchmark experiments, the clients are clustered based on their location and send their inference requests to their local aggregator.
+If the number of inference requests exceeds capacity, the local aggregator forwards the request to the global aggregator.</p>
+</div>
+</section>
+<section id="S5.SS3.SSS1.Px3" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Hierarchical FL with HFLOP</h5>
+
+<div id="S5.SS3.SSS1.Px3.p1" class="ltx_para">
+<p id="S5.SS3.SSS1.Px3.p1.1" class="ltx_p">For these experiments, the clients are clustered using HFLOP.
+Therefore, not only their location but also their inference request rate is considered when clustering.
+If the number of inference requests exceeds available capacity, the local aggregator forwards the request to the global aggregator.</p>
+</div>
+<div id="S5.SS3.SSS1.Px3.p2" class="ltx_para">
+<p id="S5.SS3.SSS1.Px3.p2.1" class="ltx_p">For the experiments, we assume that the latency for sending requests to the global server/cloud is between 50 and 100 ms.
+To make reasonable assumptions on latency, we measured HTTP response times (round-trip) to different cloud servers from other devices and networks.
+The latency cost to the local/edge servers is much lower and estimated between 8 and 10 ms.</p>
+</div>
+</section>
+</section>
+<section id="S5.SS3.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS3.SSS2.5.1.1" class="ltx_text">V-C</span>2 </span>Inference serving latency</h4>
+
+<div id="S5.SS3.SSS2.p1" class="ltx_para">
+<p id="S5.SS3.SSS2.p1.1" class="ltx_p">Figure <a href="#S5.F7" title="Figure 7 ‣ V-C2 Inference serving latency ‣ V-C Inference serving performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> depicts the time in seconds it took until a client received a response to an inference request.
+This figure shows that inference serving latency using the vanilla/non-hierarchical architecture is much higher than the other methods.
+The higher response times are because it takes much more time to send the requests to the cloud server than to edge servers.
+In these tests, we assumed that the edge servers had comparable processing power for the inference requests.</p>
+</div>
+<figure id="S5.F7" class="ltx_figure"><img src="/html/2407.16836/assets/x8.png" id="S5.F7.g1" class="ltx_graphics ltx_centering ltx_img_square" width="531" height="615" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F7.2.1.1" class="ltx_text" style="font-size:90%;">Figure 7</span>: </span><span id="S5.F7.3.2" class="ltx_text" style="font-size:90%;">Response times of inference requests.</span></figcaption>
+</figure>
+<div id="S5.SS3.SSS2.p2" class="ltx_para">
+<p id="S5.SS3.SSS2.p2.3" class="ltx_p">The average response times were for the non-hierarchical benchmark 79.07 ms <math id="S5.SS3.SSS2.p2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.SS3.SSS2.p2.1.m1.1a"><mo id="S5.SS3.SSS2.p2.1.m1.1.1" xref="S5.SS3.SSS2.p2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.SS3.SSS2.p2.1.m1.1b"><csymbol cd="latexml" id="S5.SS3.SSS2.p2.1.m1.1.1.cmml" xref="S5.SS3.SSS2.p2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.SS3.SSS2.p2.1.m1.1c">\pm</annotation></semantics></math> 15.94, for the hierarchical benchmark 17.72 ms <math id="S5.SS3.SSS2.p2.2.m2.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.SS3.SSS2.p2.2.m2.1a"><mo id="S5.SS3.SSS2.p2.2.m2.1.1" xref="S5.SS3.SSS2.p2.2.m2.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.SS3.SSS2.p2.2.m2.1b"><csymbol cd="latexml" id="S5.SS3.SSS2.p2.2.m2.1.1.cmml" xref="S5.SS3.SSS2.p2.2.m2.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.SS3.SSS2.p2.2.m2.1c">\pm</annotation></semantics></math> 24.26, and for HFLOP 9.89 ms <math id="S5.SS3.SSS2.p2.3.m3.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.SS3.SSS2.p2.3.m3.1a"><mo id="S5.SS3.SSS2.p2.3.m3.1.1" xref="S5.SS3.SSS2.p2.3.m3.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.SS3.SSS2.p2.3.m3.1b"><csymbol cd="latexml" id="S5.SS3.SSS2.p2.3.m3.1.1.cmml" xref="S5.SS3.SSS2.p2.3.m3.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.SS3.SSS2.p2.3.m3.1c">\pm</annotation></semantics></math> 4.63.</p>
+</div>
+</section>
+<section id="S5.SS3.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS3.SSS3.5.1.1" class="ltx_text">V-C</span>3 </span>End-to-end latency across different computing capacities</h4>
+
+<div id="S5.SS3.SSS3.p1" class="ltx_para">
+<p id="S5.SS3.SSS3.p1.1" class="ltx_p">This section compares the end-to-end latency when assuming different computing capacities on edge and cloud servers.
+In the previous section, the assumption was made that the servers placed on edge nodes are as powerful as cloud servers.
+Since this is often not the case, we compare the methods, considering a theoretical speedup of up to 95%.</p>
+</div>
+<figure id="S5.F8" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F8.sf1" class="ltx_figure ltx_figure_panel"><img src="/html/2407.16836/assets/figures/speedups_1.png" id="S5.F8.sf1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="449" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F8.sf1.4.2.1" class="ltx_text" style="font-size:90%;">(a)</span> </span><span id="S5.F8.sf1.2.1" class="ltx_text" style="font-size:90%;">End-to-end latency with speedup and inference request rates <math id="S5.F8.sf1.2.1.m1.4" class="ltx_Math" alttext="\lambda_{i},\;\forall\;i\in[1,n]" display="inline"><semantics id="S5.F8.sf1.2.1.m1.4b"><mrow id="S5.F8.sf1.2.1.m1.4.4" xref="S5.F8.sf1.2.1.m1.4.4.cmml"><mrow id="S5.F8.sf1.2.1.m1.4.4.2.2" xref="S5.F8.sf1.2.1.m1.4.4.2.3.cmml"><msub id="S5.F8.sf1.2.1.m1.3.3.1.1.1" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1.cmml"><mi id="S5.F8.sf1.2.1.m1.3.3.1.1.1.2" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1.2.cmml">λ</mi><mi id="S5.F8.sf1.2.1.m1.3.3.1.1.1.3" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1.3.cmml">i</mi></msub><mo rspace="0.447em" id="S5.F8.sf1.2.1.m1.4.4.2.2.3" xref="S5.F8.sf1.2.1.m1.4.4.2.3.cmml">,</mo><mrow id="S5.F8.sf1.2.1.m1.4.4.2.2.2" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2.cmml"><mo rspace="0.447em" id="S5.F8.sf1.2.1.m1.4.4.2.2.2.1" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2.1.cmml">∀</mo><mi id="S5.F8.sf1.2.1.m1.4.4.2.2.2.2" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2.2.cmml">i</mi></mrow></mrow><mo id="S5.F8.sf1.2.1.m1.4.4.3" xref="S5.F8.sf1.2.1.m1.4.4.3.cmml">∈</mo><mrow id="S5.F8.sf1.2.1.m1.4.4.4.2" xref="S5.F8.sf1.2.1.m1.4.4.4.1.cmml"><mo stretchy="false" id="S5.F8.sf1.2.1.m1.4.4.4.2.1" xref="S5.F8.sf1.2.1.m1.4.4.4.1.cmml">[</mo><mn id="S5.F8.sf1.2.1.m1.1.1" xref="S5.F8.sf1.2.1.m1.1.1.cmml">1</mn><mo id="S5.F8.sf1.2.1.m1.4.4.4.2.2" xref="S5.F8.sf1.2.1.m1.4.4.4.1.cmml">,</mo><mi id="S5.F8.sf1.2.1.m1.2.2" xref="S5.F8.sf1.2.1.m1.2.2.cmml">n</mi><mo stretchy="false" id="S5.F8.sf1.2.1.m1.4.4.4.2.3" xref="S5.F8.sf1.2.1.m1.4.4.4.1.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F8.sf1.2.1.m1.4c"><apply id="S5.F8.sf1.2.1.m1.4.4.cmml" xref="S5.F8.sf1.2.1.m1.4.4"><in id="S5.F8.sf1.2.1.m1.4.4.3.cmml" xref="S5.F8.sf1.2.1.m1.4.4.3"></in><list id="S5.F8.sf1.2.1.m1.4.4.2.3.cmml" xref="S5.F8.sf1.2.1.m1.4.4.2.2"><apply id="S5.F8.sf1.2.1.m1.3.3.1.1.1.cmml" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1"><csymbol cd="ambiguous" id="S5.F8.sf1.2.1.m1.3.3.1.1.1.1.cmml" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1">subscript</csymbol><ci id="S5.F8.sf1.2.1.m1.3.3.1.1.1.2.cmml" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1.2">𝜆</ci><ci id="S5.F8.sf1.2.1.m1.3.3.1.1.1.3.cmml" xref="S5.F8.sf1.2.1.m1.3.3.1.1.1.3">𝑖</ci></apply><apply id="S5.F8.sf1.2.1.m1.4.4.2.2.2.cmml" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2"><csymbol cd="latexml" id="S5.F8.sf1.2.1.m1.4.4.2.2.2.1.cmml" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2.1">for-all</csymbol><ci id="S5.F8.sf1.2.1.m1.4.4.2.2.2.2.cmml" xref="S5.F8.sf1.2.1.m1.4.4.2.2.2.2">𝑖</ci></apply></list><interval closure="closed" id="S5.F8.sf1.2.1.m1.4.4.4.1.cmml" xref="S5.F8.sf1.2.1.m1.4.4.4.2"><cn type="integer" id="S5.F8.sf1.2.1.m1.1.1.cmml" xref="S5.F8.sf1.2.1.m1.1.1">1</cn><ci id="S5.F8.sf1.2.1.m1.2.2.cmml" xref="S5.F8.sf1.2.1.m1.2.2">𝑛</ci></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F8.sf1.2.1.m1.4d">\lambda_{i},\;\forall\;i\in[1,n]</annotation></semantics></math>.</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F8.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2407.16836/assets/figures/speedups_10.png" id="S5.F8.sf2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="449" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F8.sf2.4.2.1" class="ltx_text" style="font-size:90%;">(b)</span> </span><span id="S5.F8.sf2.2.1" class="ltx_text" style="font-size:90%;">End-to-end latency with speedup and inference request rates <math id="S5.F8.sf2.2.1.m1.4" class="ltx_Math" alttext="\lambda_{i}\times 10,\;\forall\;i\in[1,n]" display="inline"><semantics id="S5.F8.sf2.2.1.m1.4b"><mrow id="S5.F8.sf2.2.1.m1.4.4" xref="S5.F8.sf2.2.1.m1.4.4.cmml"><mrow id="S5.F8.sf2.2.1.m1.4.4.2.2" xref="S5.F8.sf2.2.1.m1.4.4.2.3.cmml"><mrow id="S5.F8.sf2.2.1.m1.3.3.1.1.1" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.cmml"><msub id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.cmml"><mi id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.2" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.2.cmml">λ</mi><mi id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.3" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.3.cmml">i</mi></msub><mo lspace="0.222em" rspace="0.222em" id="S5.F8.sf2.2.1.m1.3.3.1.1.1.1" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.1.cmml">×</mo><mn id="S5.F8.sf2.2.1.m1.3.3.1.1.1.3" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.3.cmml">10</mn></mrow><mo rspace="0.447em" id="S5.F8.sf2.2.1.m1.4.4.2.2.3" xref="S5.F8.sf2.2.1.m1.4.4.2.3.cmml">,</mo><mrow id="S5.F8.sf2.2.1.m1.4.4.2.2.2" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2.cmml"><mo rspace="0.447em" id="S5.F8.sf2.2.1.m1.4.4.2.2.2.1" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2.1.cmml">∀</mo><mi id="S5.F8.sf2.2.1.m1.4.4.2.2.2.2" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2.2.cmml">i</mi></mrow></mrow><mo id="S5.F8.sf2.2.1.m1.4.4.3" xref="S5.F8.sf2.2.1.m1.4.4.3.cmml">∈</mo><mrow id="S5.F8.sf2.2.1.m1.4.4.4.2" xref="S5.F8.sf2.2.1.m1.4.4.4.1.cmml"><mo stretchy="false" id="S5.F8.sf2.2.1.m1.4.4.4.2.1" xref="S5.F8.sf2.2.1.m1.4.4.4.1.cmml">[</mo><mn id="S5.F8.sf2.2.1.m1.1.1" xref="S5.F8.sf2.2.1.m1.1.1.cmml">1</mn><mo id="S5.F8.sf2.2.1.m1.4.4.4.2.2" xref="S5.F8.sf2.2.1.m1.4.4.4.1.cmml">,</mo><mi id="S5.F8.sf2.2.1.m1.2.2" xref="S5.F8.sf2.2.1.m1.2.2.cmml">n</mi><mo stretchy="false" id="S5.F8.sf2.2.1.m1.4.4.4.2.3" xref="S5.F8.sf2.2.1.m1.4.4.4.1.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F8.sf2.2.1.m1.4c"><apply id="S5.F8.sf2.2.1.m1.4.4.cmml" xref="S5.F8.sf2.2.1.m1.4.4"><in id="S5.F8.sf2.2.1.m1.4.4.3.cmml" xref="S5.F8.sf2.2.1.m1.4.4.3"></in><list id="S5.F8.sf2.2.1.m1.4.4.2.3.cmml" xref="S5.F8.sf2.2.1.m1.4.4.2.2"><apply id="S5.F8.sf2.2.1.m1.3.3.1.1.1.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1"><times id="S5.F8.sf2.2.1.m1.3.3.1.1.1.1.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.1"></times><apply id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2"><csymbol cd="ambiguous" id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.1.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2">subscript</csymbol><ci id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.2.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.2">𝜆</ci><ci id="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.3.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.2.3">𝑖</ci></apply><cn type="integer" id="S5.F8.sf2.2.1.m1.3.3.1.1.1.3.cmml" xref="S5.F8.sf2.2.1.m1.3.3.1.1.1.3">10</cn></apply><apply id="S5.F8.sf2.2.1.m1.4.4.2.2.2.cmml" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2"><csymbol cd="latexml" id="S5.F8.sf2.2.1.m1.4.4.2.2.2.1.cmml" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2.1">for-all</csymbol><ci id="S5.F8.sf2.2.1.m1.4.4.2.2.2.2.cmml" xref="S5.F8.sf2.2.1.m1.4.4.2.2.2.2">𝑖</ci></apply></list><interval closure="closed" id="S5.F8.sf2.2.1.m1.4.4.4.1.cmml" xref="S5.F8.sf2.2.1.m1.4.4.4.2"><cn type="integer" id="S5.F8.sf2.2.1.m1.1.1.cmml" xref="S5.F8.sf2.2.1.m1.1.1">1</cn><ci id="S5.F8.sf2.2.1.m1.2.2.cmml" xref="S5.F8.sf2.2.1.m1.2.2">𝑛</ci></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F8.sf2.2.1.m1.4d">\lambda_{i}\times 10,\;\forall\;i\in[1,n]</annotation></semantics></math>.</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F8.2.1.1" class="ltx_text" style="font-size:90%;">Figure 8</span>: </span><span id="S5.F8.3.2" class="ltx_text" style="font-size:90%;">End-to-end latency with different speedups and inference request rates.</span></figcaption>
+</figure>
+<div id="S5.SS3.SSS3.p2" class="ltx_para">
+<p id="S5.SS3.SSS3.p2.1" class="ltx_p">In Figure <a href="#S5.F8" title="Figure 8 ‣ V-C3 End-to-end latency across different computing capacities ‣ V-C Inference serving performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a>, one can see the end-to-end latency of the three methods.
+The non-hierarchical benchmark is depicted in orange, the hierarchical benchmark is visualized in blue, and HFLOP is visualized in green.
+Since the inference time is much lower than network-induced latency, there is almost no difference when increasing the speedup in Figure <a href="#S5.F8.sf1" title="In Figure 8 ‣ V-C3 End-to-end latency across different computing capacities ‣ V-C Inference serving performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8(a)</span></a>.
+When the inference request rate is increased 10 times (Figure <a href="#S5.F8.sf2" title="In Figure 8 ‣ V-C3 End-to-end latency across different computing capacities ‣ V-C Inference serving performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8(b)</span></a>), the non-hierarchical method has a lower average latency than the other methods when the speedup is above 14.25.</p>
+</div>
+</section>
+</section>
+<section id="S5.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS4.5.1.1" class="ltx_text">V-D</span> </span><span id="S5.SS4.6.2" class="ltx_text ltx_font_italic">Cost savings</span>
+</h3>
+
+<div id="S5.SS4.p1" class="ltx_para">
+<p id="S5.SS4.p1.1" class="ltx_p">We then turn our attention to communication costs.
+We simulate a scenario with <math id="S5.SS4.p1.1.m1.1" class="ltx_Math" alttext="n=500" display="inline"><semantics id="S5.SS4.p1.1.m1.1a"><mrow id="S5.SS4.p1.1.m1.1.1" xref="S5.SS4.p1.1.m1.1.1.cmml"><mi id="S5.SS4.p1.1.m1.1.1.2" xref="S5.SS4.p1.1.m1.1.1.2.cmml">n</mi><mo id="S5.SS4.p1.1.m1.1.1.1" xref="S5.SS4.p1.1.m1.1.1.1.cmml">=</mo><mn id="S5.SS4.p1.1.m1.1.1.3" xref="S5.SS4.p1.1.m1.1.1.3.cmml">500</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.SS4.p1.1.m1.1b"><apply id="S5.SS4.p1.1.m1.1.1.cmml" xref="S5.SS4.p1.1.m1.1.1"><eq id="S5.SS4.p1.1.m1.1.1.1.cmml" xref="S5.SS4.p1.1.m1.1.1.1"></eq><ci id="S5.SS4.p1.1.m1.1.1.2.cmml" xref="S5.SS4.p1.1.m1.1.1.2">𝑛</ci><cn type="integer" id="S5.SS4.p1.1.m1.1.1.3.cmml" xref="S5.SS4.p1.1.m1.1.1.3">500</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS4.p1.1.m1.1c">n=500</annotation></semantics></math> devices and increasing edge node densities with the following setup: For each device, there is a single edge node accessible at zero cost (e.g., a host in the same local area network), while the rest are accessible at unit cost.
+All edge hosts communicate with the global server at unit cost, and we force all clients to participate in training. Inference workloads and capacities are drawn uniformly at random. We compare the following three mechanisms: (i) vanilla FL, (ii) HFLOP, and (iii) the uncapacitated variant of HFLOP, where each edge host is assumed to have infinite request processing capacity.
+The ML model under training is the one applied in our use case, whose size in serialized format is 594 KB. This is the payload uploaded/downloaded by an entity that submits a model update and receives a new model version. We configure HFL so that one global aggregation round takes place every two local ones; this is a rather conservative approach from a cost perspective, as it leads to a larger number of costly global aggregations. We compare the three approaches in terms of their communication cost <em id="S5.SS4.p1.1.1" class="ltx_emph ltx_font_italic">until convergence</em>, expressed as <em id="S5.SS4.p1.1.2" class="ltx_emph ltx_font_italic">the volume of traffic exchanged over metered links</em>, i.e., excluding the traffic exchanged over zero-cost connections. In the experiments presented in Figure <a href="#S5.F6" title="Figure 6 ‣ V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>, convergence is ensured after approximately 100 aggregation rounds in all scenarios, which is what we also assume for this experiment. (If we assume convergence after 20 rounds instead, as discussed in Section <a href="#S5.SS2.SSS2" title="V-B2 Continuous federated learning ‣ V-B Continuous learning performance ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">V-B</span>2</span></a>, the results in absolute traffic volume terms we report below are scaled down accordingly.) Given our configuration, this corresponds to 50 global aggregation rounds for the hierarchical FL experiments. The uncapacitated HFLOP variant serves as the lower bound in terms of communication cost: since inference workloads of devices and the inference processing capacity of individual edge nodes are ignored, the derived solution is the best one could expect from a cost perspective.</p>
+</div>
+<figure id="S5.F9" class="ltx_figure"><img src="/html/2407.16836/assets/x9.png" id="S5.F9.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="322" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S5.F9.4.2.1" class="ltx_text" style="font-size:90%;">Figure 9</span>: </span><span id="S5.F9.2.1" class="ltx_text" style="font-size:90%;">Cost savings relative to standard FL for increasing edge node densities and a fixed number of <math id="S5.F9.2.1.m1.1" class="ltx_Math" alttext="n=200" display="inline"><semantics id="S5.F9.2.1.m1.1b"><mrow id="S5.F9.2.1.m1.1.1" xref="S5.F9.2.1.m1.1.1.cmml"><mi id="S5.F9.2.1.m1.1.1.2" xref="S5.F9.2.1.m1.1.1.2.cmml">n</mi><mo id="S5.F9.2.1.m1.1.1.1" xref="S5.F9.2.1.m1.1.1.1.cmml">=</mo><mn id="S5.F9.2.1.m1.1.1.3" xref="S5.F9.2.1.m1.1.1.3.cmml">200</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.F9.2.1.m1.1c"><apply id="S5.F9.2.1.m1.1.1.cmml" xref="S5.F9.2.1.m1.1.1"><eq id="S5.F9.2.1.m1.1.1.1.cmml" xref="S5.F9.2.1.m1.1.1.1"></eq><ci id="S5.F9.2.1.m1.1.1.2.cmml" xref="S5.F9.2.1.m1.1.1.2">𝑛</ci><cn type="integer" id="S5.F9.2.1.m1.1.1.3.cmml" xref="S5.F9.2.1.m1.1.1.3">200</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F9.2.1.m1.1d">n=200</annotation></semantics></math> devices. Mean values are reported with 95% confidence intervals.</span></figcaption>
+</figure>
+<div id="S5.SS4.p2" class="ltx_para">
+<p id="S5.SS4.p2.1" class="ltx_p">Figure <a href="#S5.F9" title="Figure 9 ‣ V-D Cost savings ‣ V Evaluation ‣ Inference Load-Aware Orchestration for Hierarchical Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a> reports the communication cost reduction (%) the two HFL variants achieve against standard FL. In our setup, these savings are more drastic when edge host density is low: devices always have an edge host reachable at zero cost, which may be used if capacity constraints (if any) allow it and costly aggregator-cloud links are only a few. In practice, though, this would necessitate a few very high-capacity <em id="S5.SS4.p2.1.1" class="ltx_emph ltx_font_italic">and</em> cheaply reachable edge nodes.
+In more general settings (i.e., where devices and edge nodes have diverse communication costs and not unit ones), the cost gap between the two HFL variants is much more narrow.
+Also, this cost gap gets narrower the more the overall available capacity; the capacity configurations we selected for this experiment favor the uncapacitated version of HFLOP.
+Finally, in absolute traffic volume terms and for the clustered topology we experimented with in our use case (4 edge nodes, 20 devices), approximately 2.37 GB, 0.53 GB, and 0.24 GB was transmitted over metered links until GRU model training convergence using FL, HFLOP, and its uncapacitated version, respectively.</p>
+</div>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VI </span><span id="S6.1.1" class="ltx_text ltx_font_smallcaps">Discussion</span>
+</h2>
+
+<div id="S6.p1" class="ltx_para ltx_noindent">
+<p id="S6.p1.1" class="ltx_p"><span id="S6.p1.1.1" class="ltx_text ltx_font_bold">Variants of the orchestration problem.</span>
+HFLOP can be extended in various ways to capture different operational requirements. Straightforward extensions include enforcing privacy-related constraints, where a device is allowed to associate only with edge nodes that it trusts, and considering device reliability in assignment decisions as long as such per-device information exists. These can be implemented with modified or additional HFLOP constraints. More importantly, current hierarchical federated learning designs often consider the effects of differences in client data distributions on learning performance, adding this dimension in their configuration decisions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>. Solving HFLOP while ensuring balanced data distributions among device clusters is an interesting and challenging problem.</p>
+</div>
+<div id="S6.p2" class="ltx_para ltx_noindent">
+<p id="S6.p2.1" class="ltx_p"><span id="S6.p2.1.1" class="ltx_text ltx_font_bold">Alternatives for inference serving.</span>
+In our problem settings, we assume that a device that is busy training can offload all its inference workload to its associated edge node. Other inference-serving schemes, however, can be considered. For instance, trading inference quality for fast local execution, a device whose GPU is busy with an FL task can use a lower-complexity ML model for the same inference task suitable for CPU execution, such as a quantized version of the global model. Furthermore, more intelligent request routing strategies could be implemented at the device and the edge host (aggregator) end.</p>
+</div>
+<div id="S6.p3" class="ltx_para ltx_noindent">
+<p id="S6.p3.1" class="ltx_p"><span id="S6.p3.1.1" class="ltx_text ltx_font_bold">Dealing with environment dynamics.</span>
+In practical FL settings, it is reasonable to expect that the device population fluctuates and that the conditions at edge nodes may change, e.g., in the presence of other application workloads that may affect the request processing capacity of edge nodes. Such changes may imply that a solution to HFLOP is not optimal anymore, and the question of what conditions should trigger its re-execution remains open. Adapting an HFL configuration in response to such changes requires considering reconfiguration costs and potentially applying heuristic schemes to deal with the complexity of HFLOP. This is the subject of our ongoing work on <em id="S6.p3.1.2" class="ltx_emph ltx_font_italic">adaptive FL orchestration</em>.</p>
+</div>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VII </span><span id="S7.1.1" class="ltx_text ltx_font_smallcaps">Conclusion</span>
+</h2>
+
+<div id="S7.p1" class="ltx_para">
+<p id="S7.p1.1" class="ltx_p">This work addressed the challenge of inference serving during training in a federated learning environment. This challenge is particularly evident in continuous learning settings, where models must be retrained while serving inference requests. To this end, we introduced the inference-aware Hierarchical Federated Learning Orchestration Problem (HFLOP), which clusters federated learning clients considering their individual inference request workload and network costs, ensuring that inference requests are served as close to the clients as possible, lowering communication costs and response times.
+Our systematic experiments show that our orchestration scheme decreases the communication cost without affecting the continuous training of the federated learning clients.
+Our experiments also demonstrated significantly reduced end-to-end inference latency, achieving better results by processing inference requests on nearby edge servers. These performance benefits were sustained even for inference processing workloads that exceeded edge infrastructure capacity and in the presence of highly asymmetric compute resource capabilities between edge and cloud hosts.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_font_smallcaps ltx_title_section">Acknowledgment</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">This work has been supported by the European Union’s Horizon Europe research and innovation program under grant agreements No. 101079214 (AIoTwin) and No. 101135576 (INTEND).</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+S. Deng, H. Zhao, W. Fang, J. Yin, S. Dustdar, and A. Y. Zomaya, “Edge
+intelligence: The confluence of edge computing and artificial intelligence,”
+<em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">IEEE Internet Things J.</em>, vol. 7, no. 8, pp. 7457–7469, 2020.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+W. Y. B. Lim, J. S. Ng, Z. Xiong, J. Jin, Y. Zhang, D. Niyato, C. Leung, and
+C. Miao, “Decentralized edge intelligence: A dynamic resource allocation
+framework for hierarchical federated learning,” <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Parallel
+Distrib. Syst.</em>, vol. 33, no. 3, pp. 536–550, 2022.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+A. Furtuanpey, P. Raith, and S. Dustdar, “Frankensplit: Efficient neural
+feature compression with shallow variational bottleneck injection for mobile
+edge computing,” <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Mobile Comput.</em>, pp. 1–17, 2024.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+J. Wang, Y. Hong, J. Wang, J. Xu, Y. Tang, Q.-L. Han, and J. Kurths,
+“Cooperative and competitive multi-agent systems: From optimization to
+games,” <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">IEEE/CAA J. Autom. Sinica</em>, vol. 9, no. 5, pp. 763–783,
+2022.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+K. Wong, M. Nguyen-Duc, K. Le-Huy, L. Ho-Tuan, C. Do-Danh, and D. L.
+Phuoc, “An empirical study of federated learning on iot-edge devices:
+Resource allocation and heterogeneity,” <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2305.19831,
+2023. [Online]. Available: <a target="_blank" href="https://doi.org/10.48550/arXiv.2305.19831" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.48550/arXiv.2305.19831</a>
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+L. Liu, J. Zhang, S. Song, and K. B. Letaief, “Client-edge-cloud hierarchical
+federated learning,” in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proc. IEEE ICC</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+M. S. H. Abad, E. Ozfatura, D. Gündüz, and Ö. Erçetin,
+“Hierarchical federated learning ACROSS heterogeneous cellular networks,”
+in <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Proc. IEEE ICASSP</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Z. Wang, H. Xu, J. Liu, H. Huang, C. Qiao, and Y. Zhao, “Resource-efficient
+federated learning with hierarchical aggregation in edge computing,” in
+<em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">Proc. IEEE INFOCOM</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Z. Xu, D. Zhao, W. Liang, O. F. Rana, P. Zhou, M. Li, W. Xu, H. Li, and Q. Xia,
+“HierFedML: Aggregator placement and UE assignment for hierarchical
+federated learning in mobile edge computing,” <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Parallel
+Distributed Syst.</em>, vol. 34, no. 1, pp. 328–345, 2023.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Q. Wu, X. Chen, T. Ouyang, Z. Zhou, X. Zhang, S. Yang, and J. Zhang,
+“HiFlash: Communication-efficient hierarchical federated learning with
+adaptive staleness control and heterogeneity-aware client-edge association,”
+<em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Parallel Distributed Syst.</em>, vol. 34, no. 5, pp.
+1560–1579, 2023.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Y. Guo, F. Liu, T. Zhou, Z. Cai, and N. Xiao, “Privacy vs. efficiency:
+Achieving both through adaptive hierarchical federated learning,”
+<em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Parallel Distributed Syst.</em>, vol. 34, no. 4, pp.
+1331–1342, 2023.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Y. Sai, X. Wu, J. Jiang, Y. Huang, Q. Yan, Z. Li, and H. Huang, “Optimizing
+hierarchical federated learning: A reinforcement learning approach,”
+<em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Consum. Electron.</em>, 2024, early access.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+M. F. Pervej, R. Jin, and H. Dai, “Hierarchical federated learning in wireless
+networks: Pruning tackles bandwidth scarcity and system heterogeneity,”
+<em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Wireless Commun.</em>, 2024, early access.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+S. Trindade and N. L. S. da Fonseca, “Client selection in hierarchical
+federated learning,” <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">IEEE Internet Things J.</em>, 2024, early access.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Y. Deng, F. Lyu, T. Xia, Y. Zhou, Y. Zhang, J. Ren, and Y. Yang, “A
+communication-efficient hierarchical federated learning framework via shaping
+data distribution at edge,” <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Trans. Netw.</em>, vol. 32, no. 3,
+pp. 2600–2615, 2024.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+D. Shenaj, M. Toldo, A. Rigon, and P. Zanuttigh, “Asynchronous federated
+continual learning,” in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Proc IEEE/CVF CVPR Workshops</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+M. F. Criado, F. E. Casado, R. Iglesias, C. V. Regueiro, and S. Barro,
+“Non-iid data and continual learning processes in federated learning: A long
+road ahead,” <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Information Fusion</em>, vol. 88, pp. 263–280, 2022.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+P. Han, S. Wang, Y. Jiao, and J. Huang, “Federated learning while providing
+model as a service: Joint training and inference optimization,” in
+<em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">Proc. IEEE INFOCOM</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+S. Thrun, “A lifelong learning perspective for mobile robot control,” in
+<em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Intelligent robots and systems</em>.   Elsevier, 1995, pp. 201–214.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+L. Wang, X. Zhang, H. Su, and J. Zhu, “A comprehensive survey of continual
+learning: Theory, method and application,” <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Pattern Anal.
+Mach. Intell.</em>, vol. 46, no. 8, pp. 5362–5383, 2024.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+M. McCloskey and N. J. Cohen, “Catastrophic interference in connectionist
+networks: The sequential learning problem,” in <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">Psychology of learning
+and motivation</em>.   Elsevier, 1989,
+vol. 24, pp. 109–165.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Z. Li and D. Hoiem, “Learning without forgetting,” <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">IEEE Trans.
+Pattern Anal. Mach. Intell.</em>, vol. 40, no. 12, pp. 2935–2947, 2017.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins, A. A.
+Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">et al.</em>,
+“Overcoming catastrophic forgetting in neural networks,” <em id="bib.bib23.2.2" class="ltx_emph ltx_font_italic">Proceedings
+of the National Academy of Sciences</em>, vol. 114, no. 13, pp. 3521–3526, 2017.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+J. Le, X. Lei, N. Mu, H. Zhang, K. Zeng, and X. Liao, “Federated continuous
+learning with broad network architecture,” <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Cybern.</em>,
+vol. 51, no. 8, pp. 3874–3888, 2021.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+X. Yang, H. Yu, X. Gao, H. Wang, J. Zhang, and T. Li, “Federated continual
+learning via knowledge fusion: A survey,” <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Knowl. Data
+Eng.</em>, vol. 36, no. 8, pp. 3832–3850, 2024.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+D. Wen, K.-J. Jeon, and K. Huang, “Federated dropout—a simple approach for
+enabling federated learning on resource constrained devices,” <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">IEEE
+Wirel. Commun. Lett.</em>, vol. 11, no. 5, pp. 923–927, 2022.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Z. Jiang, Y. Xu, H. Xu, Z. Wang, and C. Qian, “Heterogeneity-aware federated
+learning with adaptive client selection and gradient compression,” in
+<em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">Proc. IEEE INFOCOM</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+Q. Zhang, Y. Li, D. Zhang, I. Murturi, V. C. Pujol, S. Dustdar, and S. Wang,
+“Intelligence inference on IoT devices,” in <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">Learning Techniques for
+the Internet of Things</em>, P. K. Donta, A. Hazra, and L. Lovén, Eds.   Cham: Springer Nature Switzerland, 2024, pp.
+171–195.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+X. Yuan, J. Chen, J. Yang, N. Zhang, T. Yang, T. Han, and A. Taherkordi,
+“FedSTN: graph representation driven federated learning for edge computing
+enabled urban traffic flow prediction,” <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Intell. Transp.
+Syst.</em>, vol. 24, no. 8, pp. 8738–8748, 2023.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+C. Zhang, L. Cui, S. Yu, and J. James, “A communication-efficient federated
+learning scheme for iot-based traffic forecasting,” <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">IEEE Internet
+Things J.</em>, vol. 9, no. 14, pp. 11 918–11 931, 2021.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+Y. Liu, J. James, J. Kang, D. Niyato, and S. Zhang, “Privacy-preserving
+traffic flow prediction: A federated learning approach,” <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">IEEE
+Internet Things J.</em>, vol. 7, no. 8, pp. 7751–7763, 2020.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+S. Hu, Y. Ye, Q. Hu, X. Liu, S. Cao, H. H. Yang, Y. Shen, P. Angeloudis,
+L. Parada, and C. Wu, “A federated learning-based framework for
+ride-sourcing traffic demand prediction,” <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">IEEE Trans. Veh.
+Technol.</em>, vol. 72, no. 11, pp. 14 002–14 015, 2023.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+D. B. Shmoys, É. Tardos, and K. I. Aardal, “Approximation algorithms for
+facility location problems,” in <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">Proc. ACM STOC</em>, 1997.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+V. Arya, N. Garg, R. Khandekar, A. Meyerson, K. Munagala, and V. Pandit,
+“Local search heuristic for k-median and facility location problems,” in
+<em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">Proc. ACM STOC</em>, 2001.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock">
+Y. Li, R. Yu, C. Shahabi, and Y. Liu, “Diffusion convolutional recurrent
+neural network: Data-driven traffic forecasting,” <em id="bib.bib35.1.1" class="ltx_emph ltx_font_italic">Proc. International
+Conference on Learning Representations (ICLR)</em>, 2018.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2407.16835" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2407.16836" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2407.16836">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2407.16836" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2407.16837" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Mon Aug  5 15:33:32 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

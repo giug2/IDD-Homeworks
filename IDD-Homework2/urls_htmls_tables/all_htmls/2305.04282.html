@@ -1,0 +1,973 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2305.04282] Learning from synthetic data generated with GRADE</title><meta property="og:description" content="Recently, synthetic data generation and realistic rendering has advanced tasks like target tracking and human pose estimation. Simulations for most robotics applications are obtained in (semi)static environments, with …">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Learning from synthetic data generated with GRADE">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Learning from synthetic data generated with GRADE">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2305.04282">
+
+<!--Generated on Thu Feb 29 09:11:20 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_font_bold ltx_title_document" style="font-size:173%;">Learning from synthetic data generated with GRADE</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Elia Bonetto<sup id="id7.7.id1" class="ltx_sup"><span id="id7.7.id1.1" class="ltx_text ltx_font_italic">∗,†</span></sup>   Chenghao Xu<sup id="id8.8.id2" class="ltx_sup"><span id="id8.8.id2.1" class="ltx_text ltx_font_italic">‡,∗</span></sup>, and Aamir Ahmad<sup id="id9.9.id3" class="ltx_sup"><span id="id9.9.id3.1" class="ltx_text ltx_font_italic">†,∗</span></sup>
+</span><span class="ltx_author_notes"><sup id="id10.10.id1" class="ltx_sup">∗</sup>Max Planck Institute for Intelligent Systems, Tübingen, Germany. <span id="id11.11.id2" class="ltx_text ltx_font_typewriter" style="font-size:80%;">firstname.lastname@tuebingen.mpg.de</span><sup id="id12.12.id1" class="ltx_sup">†</sup>Institute of Flight Mechanics and Controls, University of Stuttgart, Stuttgart, Germany. <span id="id13.13.id2" class="ltx_text ltx_font_typewriter" style="font-size:80%;">firstname.lastname@ifr.uni-stuttgart.de</span><sup id="id14.14.id1" class="ltx_sup">‡</sup>Faculty of Mechanical, Maritime and Materials Engineering, Department of Cognitive Robotics, Delft University of Technology, Delft, Netherlands.The authors thank the International Max Planck Research School for Intelligent Systems (IMPRS-IS) for supporting Elia Bonetto.</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id15.id1" class="ltx_p">Recently, synthetic data generation and realistic rendering has advanced tasks like target tracking and human pose estimation. Simulations for most robotics applications are obtained in (semi)static environments, with specific sensors and low visual fidelity. To solve this, we present a fully customizable framework for generating realistic animated dynamic environments (GRADE) for robotics research, first introduced in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. GRADE supports full simulation control, ROS integration, realistic physics, while being in an engine that produces high visual fidelity images and ground truth data. We use GRADE to generate a dataset focused on indoor dynamic scenes with people and flying objects. Using this, we evaluate the performance of YOLO and Mask R-CNN on the tasks of segmenting and detecting people. Our results provide evidence that using data generated with GRADE can improve the model performance when used for a pre-training step. We also show that, even training using only synthetic data, can generalize well to real-world images in the same application domain such as the ones from the TUM-RGBD dataset. The code, results, trained models, and the generated data are provided as open-source at <a target="_blank" href="https://eliabntt.github.io/grade-rr" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://eliabntt.github.io/grade-rr</a>.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">INTRODUCTION</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">An ideal simulation for developing, testing and validating intelligent robotics systems should have four main characteristics: i) physical realism, ii) photorealism, iii) full controllability, and iv) the ability to simulate dynamic entities.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Addressing all these issues, we developed a solution for Generating Realistic Animated Dynamic Environments — GRADE <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. GRADE is a flexible, fully controllable, customizable, photorealistic, ROS-integrated framework to simulate and advance robotics research. We employ tools from the computer vision community, such as path-tracing rendering and material reflections, while keeping robotics in our focus. We employ NVIDIA Isaac Sim<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><a target="_blank" href="https://developer.nvidia.com/isaac-sim" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://developer.nvidia.com/isaac-sim</a></span></span></span> and the Omniverse<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span><a target="_blank" href="https://www.nvidia.com/en-us/omniverse/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://www.nvidia.com/en-us/omniverse/</a></span></span></span> suite. With these tools, we sought to solve all of the above issues by i) creating a general pipeline that can produce visually realistic data for general and <span id="S1.p2.1.1" class="ltx_text ltx_font_italic">custom</span> robotics research, ii) developing and making available a set of functions, tools, and easy-to-understand examples, that can be easily expanded and adapted, to allow broad adoption and ease the learning curve of the Isaac Sim software.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2305.04282/assets/fig/PromImg.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="211" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S1.F1.2.1.1" class="ltx_text" style="font-size:90%;">Figure 1</span>: </span><span id="S1.F1.3.2" class="ltx_text" style="font-size:90%;">An example of one of the generated environments with overlays of the robots used in our experiments.</span></figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">To demonstrate the effectiveness of the method, we: i) generated an <span id="S1.p3.1.1" class="ltx_text ltx_font_bold">indoor</span> dynamic environment dataset by using only freely available assets. To demonstrate the visual realism of the simulation, we ii) perform various tests with YOLOv5 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> and Mask R-CNN <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> by evaluating their performances after training and fine-tuning with our synthetic data. We then evaluate these models with the COCO dataset and some popular dynamic sequences of the TUM RGBD dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> that we manually labelled on the tasks of segmenting and detecting people. With this, we show that pre-training with our synthetic data can outperform the baseline models on the COCO dataset. By evaluating our models with the TUM dataset, we show how our <span id="S1.p3.1.2" class="ltx_text ltx_font_italic">synthetic</span> data obtain comparable performance even without <span id="S1.p3.1.3" class="ltx_text ltx_font_italic">any</span> fine-tuning on real images.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Related Work</span>
+</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">In this section, we focus on two components: dynamic content of the scene, and the simulation engines.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">The majority of the dynamic content on a scene comes from humans and objects.
+<span id="S2.p2.1.1" class="ltx_text ltx_font_bold">Humans.</span> The most widely adopted method to describe a human body pose and shape is SMPL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>. Using that, any motion, synthetic or real, can be seen as a deformable and untextured mesh. Real-world SMPL fittings are obtainable only in controlled environments, e.g. through a VICON or MOCAP systems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>. These are limited in the number of subjects, clothing variety, and scenarios. Synthetic data is being used to solve these problems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. However, such data does not include either the full camera’s state, IMU readings, scene depth, LiDAR data, or offers the possibility to easily extend it after the experiment has been recorded (e.g. with additional cameras or sensors), thus is generally unusable for any robotics application. Indeed, synthetic datasets are usually developed by stitching people over image backgrounds <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, statically placing them in some limited environment <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> and often recorded with static monocular cameras that take single pictures <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>. Furthermore, many of those are generated without any clothing information <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>. Few datasets, like Cloth3D <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, provide simulated clothed humans with SMPL fittings usable in other simulations. Commercial solutions like RenderPeople<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><a target="_blank" href="https://renderpeople.com/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://renderpeople.com/</a></span></span></span> or clo<math id="S2.p2.1.m1.1" class="ltx_Math" alttext="|" display="inline"><semantics id="S2.p2.1.m1.1a"><mo fence="false" stretchy="false" id="S2.p2.1.m1.1.1" xref="S2.p2.1.m1.1.1.cmml">|</mo><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.1b"><ci id="S2.p2.1.m1.1.1.cmml" xref="S2.p2.1.m1.1.1">|</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.1c">|</annotation></semantics></math>3d<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span><a target="_blank" href="https://www.clo3d.com/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://www.clo3d.com/</a></span></span></span> exist and would be applicable. However, using such assets limits the possibility of reproduction and re-distributing data.
+<span id="S2.p2.1.2" class="ltx_text ltx_font_bold">Dynamic objects.</span> There are several datasets about objects <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, being those scanned or actual CAD models/meshes. Among those, Google Scanned Objects <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, with its realistically looking household objects, and ShapeNet <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>, with its variety, are two good and popular examples of datasets that represent these two categories.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p"><span id="S2.p3.1.1" class="ltx_text ltx_font_bold">Simulation engines.</span> Gazebo is currently the standard for robotic simulation. High reliable physics and tight integration with ROS are its key advantages. However, the lack of visual realism and customization possibility greatly limits its usability for problems which require more flexibility, personalization, and photorealism. Indeed, alternatives emerged in the latest years, such as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.
+AirSim is one of the first that sought to bridge this gap by working with Unreal Engine. With that, synthetic datasets like TartanAir <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> and AirPose <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> have been developed. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> is a challenging dataset for visual odometry. However, the generation pipeline and the assets are not publicly available. BenchBot is based on Isaac Sim. However, it has been developed as a benchmarking tool for existing algorithms, and while it is expandable with add-ons those are limited by their own exposed APIs.
+GRADE <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> is also built directly upon Isaac Sim. However, when compared to BenchBot, it presents a broader focus including both data generation and general robotic testing while exposing how researchers can easily adapt the simulation to their needs, including interactions with objects, visual settings (e.g. fog, time of day) and others.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Approach</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">Using the system introduced in our previous work GRADE <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, we generate an indoor dynamic environment dataset with flying objects and dynamic humans. The details about the GRADE framework and of the simulation management are thoroughly described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS1.5.1.1" class="ltx_text">III-A</span> </span><span id="S3.SS1.6.2" class="ltx_text ltx_font_italic">Environments</span>
+</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">There exist only a few publicly available indoor environment datasets that have realistic lighting and textured meshes. The only <span id="S3.SS1.p1.1.1" class="ltx_text ltx_font_italic">free</span> viable solution we found is the 3D-Front <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> dataset. The environments are randomized with <span id="S3.SS1.p1.1.2" class="ltx_text ltx_font_italic">ambientCG<span id="footnote5" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">5</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">5</sup><span class="ltx_tag ltx_tag_note"><span id="footnote5.1.1.1" class="ltx_text ltx_font_upright">5</span></span><a target="_blank" href="https://ambientcg.com/" title="" class="ltx_ref ltx_url ltx_font_typewriter ltx_font_upright">https://ambientcg.com/</a></span></span></span></span> textures, and with random light colors and intensity.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS2.5.1.1" class="ltx_text">III-B</span> </span><span id="S3.SS2.6.2" class="ltx_text ltx_font_italic">Dynamic assets</span>
+</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><span id="S3.SS2.p1.1.1" class="ltx_text ltx_font_bold">Humans:</span> In our work, we decided to employ human animations from two main datasets. The first one, Cloth3D, comprises various animated sequences with clothed SMPL models. The second one is AMASS’s SMPL <span id="S3.SS2.p1.1.2" class="ltx_text ltx_font_italic">unclothed</span> fittings over the CMU dataset. We randomize the appearance of the assets by using Surreal’s SMPL textures, which are, although low-resolution, also freely available. We then load the animation sequence in Blender and export it as a USD file with a tool that we developed.
+<span id="S3.SS2.p1.1.3" class="ltx_text ltx_font_bold">Objects:</span> We use two sources of additional objects in our simulation, namely Google Scanned Objects and ShapeNet. This increases variability in the simulation and more difficult scenarios. Those objects are treated as random flying objects. For simplicity, we do <span id="S3.SS2.p1.1.4" class="ltx_text ltx_font_italic">not</span> restrict those objects to not collide with other parts of the environment.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS3.5.1.1" class="ltx_text">III-C</span> </span><span id="S3.SS3.6.2" class="ltx_text ltx_font_italic">Placement of dynamic assets</span>
+</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">To place the humans, we utilize the STLs of the environment and of each animation sequence to check if there is a collision between any given couple of STL meshes. Animated humans are, in this way, randomly placed within the environment. Flying objects are loaded and randomly rigidly animated, without considering any possible collision.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS4.5.1.1" class="ltx_text">III-D</span> </span><span id="S3.SS4.6.2" class="ltx_text ltx_font_italic">Data collection strategy</span>
+</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">The number of humans and dynamic objects are randomized once for each experiment, as described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. We simulate a freely moving camera that automatically explores the environments by using a drone model controlled by six independent joints and an active SLAM framework <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>. The initial location of the robot is randomized within the environment. Each experiment lasts 60 seconds, yielding 1800 frames (30 FPS). For each frame we have, among other things, ground-truth instance segmentation and bounding boxes information for each human instance.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_4"><img src="/html/2305.04282/assets/fig/rgb_conv.jpg" id="S3.F2.g1" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="147" height="110" alt="Refer to caption"></div>
+<div class="ltx_flex_cell ltx_flex_size_4"><img src="/html/2305.04282/assets/fig/bbox2d_conv.jpg" id="S3.F2.g2" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="147" height="110" alt="Refer to caption"></div>
+<div class="ltx_flex_cell ltx_flex_size_4"><img src="/html/2305.04282/assets/fig/instance_conv.jpg" id="S3.F2.g3" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="147" height="110" alt="Refer to caption"></div>
+<div class="ltx_flex_cell ltx_flex_size_4"><img src="/html/2305.04282/assets/fig/sem_conv.jpg" id="S3.F2.g4" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="147" height="110" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S3.F2.2.1.1" class="ltx_text" style="font-size:90%;">Figure 2</span>: </span><span id="S3.F2.3.2" class="ltx_text" style="font-size:90%;">An example of the generated data following the pipeline described in Sec. <a href="#S3" title="III Approach ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a>, using one of the 3D-Front environments and dynamic humans. From the left, we can see the rendered RGB image, 2D bounding boxes, semantic instances, and semantic segmentation. Best viewed in color.</span></figcaption>
+</figure>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">EVALUATIONS</span>
+</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS1.5.1.1" class="ltx_text">IV-A</span> </span><span id="S4.SS1.6.2" class="ltx_text ltx_font_italic">Human detection</span>
+</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.5" class="ltx_p">To train YOLO and Mask R-CNN we use both a subset of GRADE, which we call S-GRADE, and the full GRADE dataset (A-GRADE). Images with a high probability of being occluded by flying objects are automatically discarded by using their depth and color information <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. S-GRADE has 18K frames, of which 16.2K have humans in them and 1.8K are background. The train set has 16K images while the validation set 2K. S-GRADE contains only sequences without flying objects and the additionally generated scenarios (see <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>), with added blur (based on the IMU information), random rolling shutter noise (<math id="S4.SS1.p1.1.m1.1" class="ltx_Math" alttext="\mu=0.015" display="inline"><semantics id="S4.SS1.p1.1.m1.1a"><mrow id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml"><mi id="S4.SS1.p1.1.m1.1.1.2" xref="S4.SS1.p1.1.m1.1.1.2.cmml">μ</mi><mo id="S4.SS1.p1.1.m1.1.1.1" xref="S4.SS1.p1.1.m1.1.1.1.cmml">=</mo><mn id="S4.SS1.p1.1.m1.1.1.3" xref="S4.SS1.p1.1.m1.1.1.3.cmml">0.015</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.1b"><apply id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1"><eq id="S4.SS1.p1.1.m1.1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1.1"></eq><ci id="S4.SS1.p1.1.m1.1.1.2.cmml" xref="S4.SS1.p1.1.m1.1.1.2">𝜇</ci><cn type="float" id="S4.SS1.p1.1.m1.1.1.3.cmml" xref="S4.SS1.p1.1.m1.1.1.3">0.015</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.1c">\mu=0.015</annotation></semantics></math>, <math id="S4.SS1.p1.2.m2.1" class="ltx_Math" alttext="\sigma=0.006" display="inline"><semantics id="S4.SS1.p1.2.m2.1a"><mrow id="S4.SS1.p1.2.m2.1.1" xref="S4.SS1.p1.2.m2.1.1.cmml"><mi id="S4.SS1.p1.2.m2.1.1.2" xref="S4.SS1.p1.2.m2.1.1.2.cmml">σ</mi><mo id="S4.SS1.p1.2.m2.1.1.1" xref="S4.SS1.p1.2.m2.1.1.1.cmml">=</mo><mn id="S4.SS1.p1.2.m2.1.1.3" xref="S4.SS1.p1.2.m2.1.1.3.cmml">0.006</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.2.m2.1b"><apply id="S4.SS1.p1.2.m2.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1"><eq id="S4.SS1.p1.2.m2.1.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1.1"></eq><ci id="S4.SS1.p1.2.m2.1.1.2.cmml" xref="S4.SS1.p1.2.m2.1.1.2">𝜎</ci><cn type="float" id="S4.SS1.p1.2.m2.1.1.3.cmml" xref="S4.SS1.p1.2.m2.1.1.3">0.006</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.2.m2.1c">\sigma=0.006</annotation></semantics></math>), and a fixed exposure time of <math id="S4.SS1.p1.3.m3.1" class="ltx_Math" alttext="0.02" display="inline"><semantics id="S4.SS1.p1.3.m3.1a"><mn id="S4.SS1.p1.3.m3.1.1" xref="S4.SS1.p1.3.m3.1.1.cmml">0.02</mn><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.3.m3.1b"><cn type="float" id="S4.SS1.p1.3.m3.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1">0.02</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.3.m3.1c">0.02</annotation></semantics></math> s to the RGB data. A-GRADE consists of all available data, with images containing flying objects and the additional scenarios (incl. the <span id="S4.SS1.p1.5.1" class="ltx_text ltx_font_italic">single</span> outdoor sequence). To A-GRADE we add noise with the same parameters as in S-GRADE but with a random exposure time between <math id="S4.SS1.p1.4.m4.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S4.SS1.p1.4.m4.1a"><mn id="S4.SS1.p1.4.m4.1.1" xref="S4.SS1.p1.4.m4.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.4.m4.1b"><cn type="integer" id="S4.SS1.p1.4.m4.1.1.cmml" xref="S4.SS1.p1.4.m4.1.1">0</cn></annotation-xml></semantics></math> and <math id="S4.SS1.p1.5.m5.1" class="ltx_Math" alttext="0.1" display="inline"><semantics id="S4.SS1.p1.5.m5.1a"><mn id="S4.SS1.p1.5.m5.1.1" xref="S4.SS1.p1.5.m5.1.1.cmml">0.1</mn><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.5.m5.1b"><cn type="float" id="S4.SS1.p1.5.m5.1.1.cmml" xref="S4.SS1.p1.5.m5.1.1">0.1</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.5.m5.1c">0.1</annotation></semantics></math> seconds. For A-GRADE we also correct the segmentation masks and bounding boxes to account for the additional blur. This is not necessary in the case of S-GRADE data. A-GRADE is made of 591K images (80/20 train/val split) out of which 362K have humans.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.2" class="ltx_p">We took a random subset of the COCO dataset, which we call <span id="S4.SS1.p2.2.1" class="ltx_text ltx_font_bold">S-COCO</span>, counting 1256 training and 120 validation images, totalling for <math id="S4.SS1.p2.1.m1.1" class="ltx_Math" alttext="\sim 2\%" display="inline"><semantics id="S4.SS1.p2.1.m1.1a"><mrow id="S4.SS1.p2.1.m1.1.1" xref="S4.SS1.p2.1.m1.1.1.cmml"><mi id="S4.SS1.p2.1.m1.1.1.2" xref="S4.SS1.p2.1.m1.1.1.2.cmml"></mi><mo id="S4.SS1.p2.1.m1.1.1.1" xref="S4.SS1.p2.1.m1.1.1.1.cmml">∼</mo><mrow id="S4.SS1.p2.1.m1.1.1.3" xref="S4.SS1.p2.1.m1.1.1.3.cmml"><mn id="S4.SS1.p2.1.m1.1.1.3.2" xref="S4.SS1.p2.1.m1.1.1.3.2.cmml">2</mn><mo id="S4.SS1.p2.1.m1.1.1.3.1" xref="S4.SS1.p2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.1.m1.1b"><apply id="S4.SS1.p2.1.m1.1.1.cmml" xref="S4.SS1.p2.1.m1.1.1"><csymbol cd="latexml" id="S4.SS1.p2.1.m1.1.1.1.cmml" xref="S4.SS1.p2.1.m1.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.p2.1.m1.1.1.2.cmml" xref="S4.SS1.p2.1.m1.1.1.2">absent</csymbol><apply id="S4.SS1.p2.1.m1.1.1.3.cmml" xref="S4.SS1.p2.1.m1.1.1.3"><csymbol cd="latexml" id="S4.SS1.p2.1.m1.1.1.3.1.cmml" xref="S4.SS1.p2.1.m1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.p2.1.m1.1.1.3.2.cmml" xref="S4.SS1.p2.1.m1.1.1.3.2">2</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.1.m1.1c">\sim 2\%</annotation></semantics></math> and <math id="S4.SS1.p2.2.m2.1" class="ltx_Math" alttext="\sim 4\%" display="inline"><semantics id="S4.SS1.p2.2.m2.1a"><mrow id="S4.SS1.p2.2.m2.1.1" xref="S4.SS1.p2.2.m2.1.1.cmml"><mi id="S4.SS1.p2.2.m2.1.1.2" xref="S4.SS1.p2.2.m2.1.1.2.cmml"></mi><mo id="S4.SS1.p2.2.m2.1.1.1" xref="S4.SS1.p2.2.m2.1.1.1.cmml">∼</mo><mrow id="S4.SS1.p2.2.m2.1.1.3" xref="S4.SS1.p2.2.m2.1.1.3.cmml"><mn id="S4.SS1.p2.2.m2.1.1.3.2" xref="S4.SS1.p2.2.m2.1.1.3.2.cmml">4</mn><mo id="S4.SS1.p2.2.m2.1.1.3.1" xref="S4.SS1.p2.2.m2.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.2.m2.1b"><apply id="S4.SS1.p2.2.m2.1.1.cmml" xref="S4.SS1.p2.2.m2.1.1"><csymbol cd="latexml" id="S4.SS1.p2.2.m2.1.1.1.cmml" xref="S4.SS1.p2.2.m2.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.p2.2.m2.1.1.2.cmml" xref="S4.SS1.p2.2.m2.1.1.2">absent</csymbol><apply id="S4.SS1.p2.2.m2.1.1.3.cmml" xref="S4.SS1.p2.2.m2.1.1.3"><csymbol cd="latexml" id="S4.SS1.p2.2.m2.1.1.3.1.cmml" xref="S4.SS1.p2.2.m2.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.p2.2.m2.1.1.3.2.cmml" xref="S4.SS1.p2.2.m2.1.1.3.2">4</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.2.m2.1c">\sim 4\%</annotation></semantics></math> of COCO, used to understand how the networks perform with limited real data.
+For evaluation, we use both the subset of COCO which contains humans in the frame (called COCO from now on), and the <span id="S4.SS1.p2.2.2" class="ltx_text ltx_font_italic">fr3_walking</span> sequences of the TUM dataset. Those sequences are related to a scenario that has a high similarity to our dataset, thus making them a good testing metric. Our BASELINEs are the models of networks <span id="S4.SS1.p2.2.3" class="ltx_text ltx_font_italic">pre-trained</span> with the COCO dataset. We evaluate the performance with the COCO standard metric (mAP@[.5, .95], AP in this work) and the PASCAL VOC’s metric (mAP@.5, AP50 in this work). Both networks are trained from scratch with S-GRADE and A-GRADE, without using any pre-trained weight or real-world data, and S-COCO. We then fine-tune S-GRADE and A-GRADE by using both S-COCO and COCO using their <span id="S4.SS1.p2.2.4" class="ltx_text ltx_font_italic">corresponding</span> validation sets, unlike <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.</p>
+</div>
+<section id="S4.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S4.SS1.SSS1.5.1.1" class="ltx_text">IV-A</span>1 </span>YOLOv5</h4>
+
+<div id="S4.SS1.SSS1.p1" class="ltx_para">
+<p id="S4.SS1.SSS1.p1.7" class="ltx_p">was trained for a maximum of 300 epochs with random initial weights and no hyperparameters tuning. The results can be seen in Tab. <a href="#S4.T1" title="TABLE I ‣ IV-A1 YOLOv5 ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>. As expected, when we evaluate the performance on COCO with the network trained from scratch using S-GRADE we obtain much lower precision when compared even to the model trained only on S-COCO. However, when the model trained on S-GRADE is then fine-tuned on S-COCO, we see an increased AP for both metrics of around 6%. Interestingly, when tested with the TUM data, we can see how S-GRADE performs similarly to the S-COCO, resulting in a <math id="S4.SS1.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\sim 5\%" display="inline"><semantics id="S4.SS1.SSS1.p1.1.m1.1a"><mrow id="S4.SS1.SSS1.p1.1.m1.1.1" xref="S4.SS1.SSS1.p1.1.m1.1.1.cmml"><mi id="S4.SS1.SSS1.p1.1.m1.1.1.2" xref="S4.SS1.SSS1.p1.1.m1.1.1.2.cmml"></mi><mo id="S4.SS1.SSS1.p1.1.m1.1.1.1" xref="S4.SS1.SSS1.p1.1.m1.1.1.1.cmml">∼</mo><mrow id="S4.SS1.SSS1.p1.1.m1.1.1.3" xref="S4.SS1.SSS1.p1.1.m1.1.1.3.cmml"><mn id="S4.SS1.SSS1.p1.1.m1.1.1.3.2" xref="S4.SS1.SSS1.p1.1.m1.1.1.3.2.cmml">5</mn><mo id="S4.SS1.SSS1.p1.1.m1.1.1.3.1" xref="S4.SS1.SSS1.p1.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.1.m1.1b"><apply id="S4.SS1.SSS1.p1.1.m1.1.1.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.1.m1.1.1.1.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.SSS1.p1.1.m1.1.1.2.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1.2">absent</csymbol><apply id="S4.SS1.SSS1.p1.1.m1.1.1.3.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.1.m1.1.1.3.1.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.1.m1.1.1.3.2.cmml" xref="S4.SS1.SSS1.p1.1.m1.1.1.3.2">5</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.1.m1.1c">\sim 5\%</annotation></semantics></math> lower AP50 but in a <math id="S4.SS1.SSS1.p1.2.m2.1" class="ltx_Math" alttext="6\%" display="inline"><semantics id="S4.SS1.SSS1.p1.2.m2.1a"><mrow id="S4.SS1.SSS1.p1.2.m2.1.1" xref="S4.SS1.SSS1.p1.2.m2.1.1.cmml"><mn id="S4.SS1.SSS1.p1.2.m2.1.1.2" xref="S4.SS1.SSS1.p1.2.m2.1.1.2.cmml">6</mn><mo id="S4.SS1.SSS1.p1.2.m2.1.1.1" xref="S4.SS1.SSS1.p1.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.2.m2.1b"><apply id="S4.SS1.SSS1.p1.2.m2.1.1.cmml" xref="S4.SS1.SSS1.p1.2.m2.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.2.m2.1.1.1.cmml" xref="S4.SS1.SSS1.p1.2.m2.1.1.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.2.m2.1.1.2.cmml" xref="S4.SS1.SSS1.p1.2.m2.1.1.2">6</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.2.m2.1c">6\%</annotation></semantics></math> higher AP. Once fine-tuned, AP increases <math id="S4.SS1.SSS1.p1.3.m3.1" class="ltx_Math" alttext="\sim 6\%" display="inline"><semantics id="S4.SS1.SSS1.p1.3.m3.1a"><mrow id="S4.SS1.SSS1.p1.3.m3.1.1" xref="S4.SS1.SSS1.p1.3.m3.1.1.cmml"><mi id="S4.SS1.SSS1.p1.3.m3.1.1.2" xref="S4.SS1.SSS1.p1.3.m3.1.1.2.cmml"></mi><mo id="S4.SS1.SSS1.p1.3.m3.1.1.1" xref="S4.SS1.SSS1.p1.3.m3.1.1.1.cmml">∼</mo><mrow id="S4.SS1.SSS1.p1.3.m3.1.1.3" xref="S4.SS1.SSS1.p1.3.m3.1.1.3.cmml"><mn id="S4.SS1.SSS1.p1.3.m3.1.1.3.2" xref="S4.SS1.SSS1.p1.3.m3.1.1.3.2.cmml">6</mn><mo id="S4.SS1.SSS1.p1.3.m3.1.1.3.1" xref="S4.SS1.SSS1.p1.3.m3.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.3.m3.1b"><apply id="S4.SS1.SSS1.p1.3.m3.1.1.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.3.m3.1.1.1.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.SSS1.p1.3.m3.1.1.2.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1.2">absent</csymbol><apply id="S4.SS1.SSS1.p1.3.m3.1.1.3.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.3.m3.1.1.3.1.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.3.m3.1.1.3.2.cmml" xref="S4.SS1.SSS1.p1.3.m3.1.1.3.2">6</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.3.m3.1c">\sim 6\%</annotation></semantics></math> and AP50 <math id="S4.SS1.SSS1.p1.4.m4.1" class="ltx_Math" alttext="\sim 7\%" display="inline"><semantics id="S4.SS1.SSS1.p1.4.m4.1a"><mrow id="S4.SS1.SSS1.p1.4.m4.1.1" xref="S4.SS1.SSS1.p1.4.m4.1.1.cmml"><mi id="S4.SS1.SSS1.p1.4.m4.1.1.2" xref="S4.SS1.SSS1.p1.4.m4.1.1.2.cmml"></mi><mo id="S4.SS1.SSS1.p1.4.m4.1.1.1" xref="S4.SS1.SSS1.p1.4.m4.1.1.1.cmml">∼</mo><mrow id="S4.SS1.SSS1.p1.4.m4.1.1.3" xref="S4.SS1.SSS1.p1.4.m4.1.1.3.cmml"><mn id="S4.SS1.SSS1.p1.4.m4.1.1.3.2" xref="S4.SS1.SSS1.p1.4.m4.1.1.3.2.cmml">7</mn><mo id="S4.SS1.SSS1.p1.4.m4.1.1.3.1" xref="S4.SS1.SSS1.p1.4.m4.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.4.m4.1b"><apply id="S4.SS1.SSS1.p1.4.m4.1.1.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.4.m4.1.1.1.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.SSS1.p1.4.m4.1.1.2.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1.2">absent</csymbol><apply id="S4.SS1.SSS1.p1.4.m4.1.1.3.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.4.m4.1.1.3.1.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.4.m4.1.1.3.2.cmml" xref="S4.SS1.SSS1.p1.4.m4.1.1.3.2">7</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.4.m4.1c">\sim 7\%</annotation></semantics></math> compared to S-COCO when tested against COCO itself, and <math id="S4.SS1.SSS1.p1.5.m5.1" class="ltx_Math" alttext="8\%" display="inline"><semantics id="S4.SS1.SSS1.p1.5.m5.1a"><mrow id="S4.SS1.SSS1.p1.5.m5.1.1" xref="S4.SS1.SSS1.p1.5.m5.1.1.cmml"><mn id="S4.SS1.SSS1.p1.5.m5.1.1.2" xref="S4.SS1.SSS1.p1.5.m5.1.1.2.cmml">8</mn><mo id="S4.SS1.SSS1.p1.5.m5.1.1.1" xref="S4.SS1.SSS1.p1.5.m5.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.5.m5.1b"><apply id="S4.SS1.SSS1.p1.5.m5.1.1.cmml" xref="S4.SS1.SSS1.p1.5.m5.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.5.m5.1.1.1.cmml" xref="S4.SS1.SSS1.p1.5.m5.1.1.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.5.m5.1.1.2.cmml" xref="S4.SS1.SSS1.p1.5.m5.1.1.2">8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.5.m5.1c">8\%</annotation></semantics></math> in AP50 and <math id="S4.SS1.SSS1.p1.6.m6.1" class="ltx_Math" alttext="12\%" display="inline"><semantics id="S4.SS1.SSS1.p1.6.m6.1a"><mrow id="S4.SS1.SSS1.p1.6.m6.1.1" xref="S4.SS1.SSS1.p1.6.m6.1.1.cmml"><mn id="S4.SS1.SSS1.p1.6.m6.1.1.2" xref="S4.SS1.SSS1.p1.6.m6.1.1.2.cmml">12</mn><mo id="S4.SS1.SSS1.p1.6.m6.1.1.1" xref="S4.SS1.SSS1.p1.6.m6.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.6.m6.1b"><apply id="S4.SS1.SSS1.p1.6.m6.1.1.cmml" xref="S4.SS1.SSS1.p1.6.m6.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.6.m6.1.1.1.cmml" xref="S4.SS1.SSS1.p1.6.m6.1.1.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.6.m6.1.1.2.cmml" xref="S4.SS1.SSS1.p1.6.m6.1.1.2">12</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.6.m6.1c">12\%</annotation></semantics></math> in AP when tested with TUM. In both cases, when fine-tuned on the full COCO, the performances overcome the ones of the original pre-trained network. This is more noticeable when considering the COCO dataset (<math id="S4.SS1.SSS1.p1.7.m7.1" class="ltx_Math" alttext="\sim 5\%" display="inline"><semantics id="S4.SS1.SSS1.p1.7.m7.1a"><mrow id="S4.SS1.SSS1.p1.7.m7.1.1" xref="S4.SS1.SSS1.p1.7.m7.1.1.cmml"><mi id="S4.SS1.SSS1.p1.7.m7.1.1.2" xref="S4.SS1.SSS1.p1.7.m7.1.1.2.cmml"></mi><mo id="S4.SS1.SSS1.p1.7.m7.1.1.1" xref="S4.SS1.SSS1.p1.7.m7.1.1.1.cmml">∼</mo><mrow id="S4.SS1.SSS1.p1.7.m7.1.1.3" xref="S4.SS1.SSS1.p1.7.m7.1.1.3.cmml"><mn id="S4.SS1.SSS1.p1.7.m7.1.1.3.2" xref="S4.SS1.SSS1.p1.7.m7.1.1.3.2.cmml">5</mn><mo id="S4.SS1.SSS1.p1.7.m7.1.1.3.1" xref="S4.SS1.SSS1.p1.7.m7.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS1.p1.7.m7.1b"><apply id="S4.SS1.SSS1.p1.7.m7.1.1.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.7.m7.1.1.1.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.SSS1.p1.7.m7.1.1.2.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1.2">absent</csymbol><apply id="S4.SS1.SSS1.p1.7.m7.1.1.3.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS1.p1.7.m7.1.1.3.1.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS1.p1.7.m7.1.1.3.2.cmml" xref="S4.SS1.SSS1.p1.7.m7.1.1.3.2">5</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS1.p1.7.m7.1c">\sim 5\%</annotation></semantics></math>).
+Comparing now A-GRADE and S-GRADE we can notice how YOLO overfit on the task of indoor human detection. Indeed, while networks (pre)trained on A-GRADE perform better when evaluated on the TUM dataset, they exhibit comparable or worse performance when tested with COCO. In our opinion, this may also be linked to the huge amount of specialized data of A-GRADE. This is also suggested by the tests we performed using the 50th training epoch checkpoint, identified as E50 in Tab. <a href="#S4.T1" title="TABLE I ‣ IV-A1 YOLOv5 ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>. We can see how A-GRADE-E50 performs consistently better than A-GRADE, S-GRADE and S-GRADE-E50 in all metrics and dataset. Moreover, A-GRADE-E50, when tested on TUM data, performs better than models trained from scratch on both synthetic and real data, as well as models fine-tuned on S-COCO. However, using this checkpoint as pre-training starting point, yields performance improvements only when used with S-COCO.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<div id="S4.T1.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:391.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(77.3pt,-69.9pt) scale(1.55442315088255,1.55442315088255) ;">
+<table id="S4.T1.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.2.1.1.1" class="ltx_tr">
+<th id="S4.T1.2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T1.2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" colspan="2">COCO</th>
+<th id="S4.T1.2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column" colspan="2">TUM</th>
+</tr>
+<tr id="S4.T1.2.1.2.2" class="ltx_tr">
+<th id="S4.T1.2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T1.2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+<th id="S4.T1.2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">AP</th>
+<th id="S4.T1.2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+<th id="S4.T1.2.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.2.1.3.1" class="ltx_tr">
+<th id="S4.T1.2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">BASELINE</th>
+<td id="S4.T1.2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_t">0.753</td>
+<td id="S4.T1.2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.492</td>
+<td id="S4.T1.2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t">0.916</td>
+<td id="S4.T1.2.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t">0.722</td>
+</tr>
+<tr id="S4.T1.2.1.4.2" class="ltx_tr">
+<th id="S4.T1.2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-COCO</th>
+<td id="S4.T1.2.1.4.2.2" class="ltx_td ltx_align_center">0.492</td>
+<td id="S4.T1.2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">0.242</td>
+<td id="S4.T1.2.1.4.2.4" class="ltx_td ltx_align_center">0.661</td>
+<td id="S4.T1.2.1.4.2.5" class="ltx_td ltx_align_center">0.365</td>
+</tr>
+<tr id="S4.T1.2.1.5.3" class="ltx_tr">
+<th id="S4.T1.2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE</th>
+<td id="S4.T1.2.1.5.3.2" class="ltx_td ltx_align_center">0.206</td>
+<td id="S4.T1.2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">0.109</td>
+<td id="S4.T1.2.1.5.3.4" class="ltx_td ltx_align_center">0.616</td>
+<td id="S4.T1.2.1.5.3.5" class="ltx_td ltx_align_center">0.425</td>
+</tr>
+<tr id="S4.T1.2.1.6.4" class="ltx_tr">
+<th id="S4.T1.2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE-E50</th>
+<td id="S4.T1.2.1.6.4.2" class="ltx_td ltx_align_center">0.234</td>
+<td id="S4.T1.2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">0.116</td>
+<td id="S4.T1.2.1.6.4.4" class="ltx_td ltx_align_center">0.683</td>
+<td id="S4.T1.2.1.6.4.5" class="ltx_td ltx_align_center">0.431</td>
+</tr>
+<tr id="S4.T1.2.1.7.5" class="ltx_tr">
+<th id="S4.T1.2.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE</th>
+<td id="S4.T1.2.1.7.5.2" class="ltx_td ltx_align_center">0.176</td>
+<td id="S4.T1.2.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">0.093</td>
+<td id="S4.T1.2.1.7.5.4" class="ltx_td ltx_align_center">0.637</td>
+<td id="S4.T1.2.1.7.5.5" class="ltx_td ltx_align_center">0.459</td>
+</tr>
+<tr id="S4.T1.2.1.8.6" class="ltx_tr">
+<th id="S4.T1.2.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE-E50</th>
+<td id="S4.T1.2.1.8.6.2" class="ltx_td ltx_align_center">0.282</td>
+<td id="S4.T1.2.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">0.154</td>
+<td id="S4.T1.2.1.8.6.4" class="ltx_td ltx_align_center">0.798</td>
+<td id="S4.T1.2.1.8.6.5" class="ltx_td ltx_align_center">0.613</td>
+</tr>
+<tr id="S4.T1.2.1.9.7" class="ltx_tr">
+<th id="S4.T1.2.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + S-COCO</th>
+<td id="S4.T1.2.1.9.7.2" class="ltx_td ltx_align_center">0.561</td>
+<td id="S4.T1.2.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">0.302</td>
+<td id="S4.T1.2.1.9.7.4" class="ltx_td ltx_align_center">0.744</td>
+<td id="S4.T1.2.1.9.7.5" class="ltx_td ltx_align_center">0.488</td>
+</tr>
+<tr id="S4.T1.2.1.10.8" class="ltx_tr">
+<th id="S4.T1.2.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + S-COCO</th>
+<td id="S4.T1.2.1.10.8.2" class="ltx_td ltx_align_center">0.540</td>
+<td id="S4.T1.2.1.10.8.3" class="ltx_td ltx_align_center ltx_border_r">0.299</td>
+<td id="S4.T1.2.1.10.8.4" class="ltx_td ltx_align_center">0.762</td>
+<td id="S4.T1.2.1.10.8.5" class="ltx_td ltx_align_center">0.514</td>
+</tr>
+<tr id="S4.T1.2.1.11.9" class="ltx_tr">
+<th id="S4.T1.2.1.11.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE-E50 + S-COCO</th>
+<td id="S4.T1.2.1.11.9.2" class="ltx_td ltx_align_center">0.558</td>
+<td id="S4.T1.2.1.11.9.3" class="ltx_td ltx_align_center ltx_border_r">0.314</td>
+<td id="S4.T1.2.1.11.9.4" class="ltx_td ltx_align_center">0.808</td>
+<td id="S4.T1.2.1.11.9.5" class="ltx_td ltx_align_center">0.565</td>
+</tr>
+<tr id="S4.T1.2.1.12.10" class="ltx_tr">
+<th id="S4.T1.2.1.12.10.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + COCO</th>
+<td id="S4.T1.2.1.12.10.2" class="ltx_td ltx_align_center">0.801</td>
+<td id="S4.T1.2.1.12.10.3" class="ltx_td ltx_align_center ltx_border_r">0.544</td>
+<td id="S4.T1.2.1.12.10.4" class="ltx_td ltx_align_center">0.931</td>
+<td id="S4.T1.2.1.12.10.5" class="ltx_td ltx_align_center">0.778</td>
+</tr>
+<tr id="S4.T1.2.1.13.11" class="ltx_tr">
+<th id="S4.T1.2.1.13.11.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + COCO</th>
+<td id="S4.T1.2.1.13.11.2" class="ltx_td ltx_align_center">0.797</td>
+<td id="S4.T1.2.1.13.11.3" class="ltx_td ltx_align_center ltx_border_r">0.542</td>
+<td id="S4.T1.2.1.13.11.4" class="ltx_td ltx_align_center">0.932</td>
+<td id="S4.T1.2.1.13.11.5" class="ltx_td ltx_align_center">0.786</td>
+</tr>
+<tr id="S4.T1.2.1.14.12" class="ltx_tr">
+<th id="S4.T1.2.1.14.12.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE-E50 + COCO</th>
+<td id="S4.T1.2.1.14.12.2" class="ltx_td ltx_align_center">0.797</td>
+<td id="S4.T1.2.1.14.12.3" class="ltx_td ltx_align_center ltx_border_r">0.543</td>
+<td id="S4.T1.2.1.14.12.4" class="ltx_td ltx_align_center">0.932</td>
+<td id="S4.T1.2.1.14.12.5" class="ltx_td ltx_align_center">0.777</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T1.3.1.1" class="ltx_text" style="font-size:90%;">TABLE I</span>: </span><span id="S4.T1.4.2" class="ltx_text" style="font-size:90%;">YOLOv5 bounding box evaluation results.</span></figcaption>
+</figure>
+</section>
+<section id="S4.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S4.SS1.SSS2.5.1.1" class="ltx_text">IV-A</span>2 </span>Mask R-CNN</h4>
+
+<div id="S4.SS1.SSS2.p1" class="ltx_para">
+<p id="S4.SS1.SSS2.p1.1" class="ltx_p">We use the <span id="S4.SS1.SSS2.p1.1.1" class="ltx_text ltx_font_italic">detectron2</span> implementation of Mask R-CNN, using a 3x training schedule<span id="footnote6" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">6</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">6</sup><span class="ltx_tag ltx_tag_note">6</span><a target="_blank" href="https://github.com/facebookresearch/detectron2/blob/main/configs/Misc/scratch_mask_rcnn_R_50_FPN_3x_gn.yaml" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/facebookresearch/detectron2/blob/main/configs/Misc/scratch_mask_rcnn_R_50_FPN_3x_gn.yaml</a></span></span></span> and a ResNet50 backbone. We used the default steps (210K and 250K) and maximum iterations (270K) parameters when training A-GRADE and COCO, while reducing them respectively to 60K, 80K and 90K when training S-GRADE and to 80K, 108K and 120K for S-COCO. We evaluate the models every 2K iterations and save the best one by comparing the AP50 metric on the given task. Due to the size of A-GRADE, we opted to evaluate the model trained from scratch on this data every 3k iterations and that this may be a sub-optimal training schedule considering the size of the dataset. Note that by default, and differently from YOLO, Mask R-CNN does not use images without segmentation targets. We then test both the bounding box and the instance segmentation accuracy using those models with a confidence threshold of both 0.70. The results, depicted in Tab. <a href="#S4.T2" title="TABLE II ‣ IV-A2 Mask R-CNN ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a> and Tab. <a href="#S4.T3" title="TABLE III ‣ IV-A2 Mask R-CNN ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a>, allow us to make similar considerations to the ones that we have done above. The main difference is that, in this case, we are not able to surpass the baseline results. However, we argue that this may be related to the training and the evaluation schedule, which greatly impacts the results on this network<span id="footnote7" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">7</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">7</sup><span class="ltx_tag ltx_tag_note">7</span><a target="_blank" href="https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md</a></span></span></span>. These specify the frequencies of the evaluations on the validation set, the learning rate value and its decay, and are tied to both the size of the dataset and the number of GPUs used. Indeed, when we trained from scratch the model with the COCO data, C-BASELINE in the table, we obtained lower performance with respect to both the released baseline model and our fine-tuned models, successfully showing the usefulness of our synthetic data.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<div id="S4.T2.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:331.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(87.4pt,-66.9pt) scale(1.67537376743734,1.67537376743734) ;">
+<table id="S4.T2.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.2.1.1.1" class="ltx_tr">
+<th id="S4.T2.2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T2.2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" colspan="2">COCO</th>
+<th id="S4.T2.2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column" colspan="2">TUM</th>
+</tr>
+<tr id="S4.T2.2.1.2.2" class="ltx_tr">
+<th id="S4.T2.2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T2.2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T2.2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">AP50</th>
+<th id="S4.T2.2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T2.2.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.2.1.3.1" class="ltx_tr">
+<th id="S4.T2.2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">BASELINE</th>
+<td id="S4.T2.2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_t">0.495</td>
+<td id="S4.T2.2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.716</td>
+<td id="S4.T2.2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t">0.716</td>
+<td id="S4.T2.2.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t">0.886</td>
+</tr>
+<tr id="S4.T2.2.1.4.2" class="ltx_tr">
+<th id="S4.T2.2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-COCO</th>
+<td id="S4.T2.2.1.4.2.2" class="ltx_td ltx_align_center">0.161</td>
+<td id="S4.T2.2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">0.340</td>
+<td id="S4.T2.2.1.4.2.4" class="ltx_td ltx_align_center">0.250</td>
+<td id="S4.T2.2.1.4.2.5" class="ltx_td ltx_align_center">0.526</td>
+</tr>
+<tr id="S4.T2.2.1.5.3" class="ltx_tr">
+<th id="S4.T2.2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE</th>
+<td id="S4.T2.2.1.5.3.2" class="ltx_td ltx_align_center">0.064</td>
+<td id="S4.T2.2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">0.128</td>
+<td id="S4.T2.2.1.5.3.4" class="ltx_td ltx_align_center">0.312</td>
+<td id="S4.T2.2.1.5.3.5" class="ltx_td ltx_align_center">0.563</td>
+</tr>
+<tr id="S4.T2.2.1.6.4" class="ltx_tr">
+<th id="S4.T2.2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE</th>
+<td id="S4.T2.2.1.6.4.2" class="ltx_td ltx_align_center">0.115</td>
+<td id="S4.T2.2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">0.202</td>
+<td id="S4.T2.2.1.6.4.4" class="ltx_td ltx_align_center">0.502</td>
+<td id="S4.T2.2.1.6.4.5" class="ltx_td ltx_align_center">0.727</td>
+</tr>
+<tr id="S4.T2.2.1.7.5" class="ltx_tr">
+<th id="S4.T2.2.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + S-COCO</th>
+<td id="S4.T2.2.1.7.5.2" class="ltx_td ltx_align_center">0.232</td>
+<td id="S4.T2.2.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">0.428</td>
+<td id="S4.T2.2.1.7.5.4" class="ltx_td ltx_align_center">0.412</td>
+<td id="S4.T2.2.1.7.5.5" class="ltx_td ltx_align_center">0.708</td>
+</tr>
+<tr id="S4.T2.2.1.8.6" class="ltx_tr">
+<th id="S4.T2.2.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + S-COCO</th>
+<td id="S4.T2.2.1.8.6.2" class="ltx_td ltx_align_center">0.262</td>
+<td id="S4.T2.2.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">0.450</td>
+<td id="S4.T2.2.1.8.6.4" class="ltx_td ltx_align_center">0.489</td>
+<td id="S4.T2.2.1.8.6.5" class="ltx_td ltx_align_center">0.736</td>
+</tr>
+<tr id="S4.T2.2.1.9.7" class="ltx_tr">
+<th id="S4.T2.2.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + COCO</th>
+<td id="S4.T2.2.1.9.7.2" class="ltx_td ltx_align_center">0.474</td>
+<td id="S4.T2.2.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">0.693</td>
+<td id="S4.T2.2.1.9.7.4" class="ltx_td ltx_align_center">0.679</td>
+<td id="S4.T2.2.1.9.7.5" class="ltx_td ltx_align_center">0.858</td>
+</tr>
+<tr id="S4.T2.2.1.10.8" class="ltx_tr">
+<th id="S4.T2.2.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + COCO</th>
+<td id="S4.T2.2.1.10.8.2" class="ltx_td ltx_align_center">0.489</td>
+<td id="S4.T2.2.1.10.8.3" class="ltx_td ltx_align_center ltx_border_r">0.714</td>
+<td id="S4.T2.2.1.10.8.4" class="ltx_td ltx_align_center">0.696</td>
+<td id="S4.T2.2.1.10.8.5" class="ltx_td ltx_align_center">0.869</td>
+</tr>
+<tr id="S4.T2.2.1.11.9" class="ltx_tr">
+<th id="S4.T2.2.1.11.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">C-BASELINE</th>
+<td id="S4.T2.2.1.11.9.2" class="ltx_td ltx_align_center">0.471</td>
+<td id="S4.T2.2.1.11.9.3" class="ltx_td ltx_align_center ltx_border_r">0.693</td>
+<td id="S4.T2.2.1.11.9.4" class="ltx_td ltx_align_center">0.653</td>
+<td id="S4.T2.2.1.11.9.5" class="ltx_td ltx_align_center">0.829</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T2.4.1.1" class="ltx_text" style="font-size:90%;">TABLE II</span>: </span><span id="S4.T2.5.2" class="ltx_text" style="font-size:90%;">Mask R-CNN bounding boxes evaluation results. Thr. <span id="S4.T2.5.2.1" class="ltx_text ltx_font_bold">0.7</span></span></figcaption>
+</figure>
+<figure id="S4.T3" class="ltx_table">
+<div id="S4.T3.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:331.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(87.4pt,-66.9pt) scale(1.67537376743734,1.67537376743734) ;">
+<table id="S4.T3.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.2.1.1.1" class="ltx_tr">
+<th id="S4.T3.2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T3.2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" colspan="2">COCO</th>
+<th id="S4.T3.2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column" colspan="2">TUM</th>
+</tr>
+<tr id="S4.T3.2.1.2.2" class="ltx_tr">
+<th id="S4.T3.2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T3.2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T3.2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">AP50</th>
+<th id="S4.T3.2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T3.2.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.2.1.3.1" class="ltx_tr">
+<th id="S4.T3.2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">BASELINE</th>
+<td id="S4.T3.2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_t">0.432</td>
+<td id="S4.T3.2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.705</td>
+<td id="S4.T3.2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t">0.674</td>
+<td id="S4.T3.2.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t">0.887</td>
+</tr>
+<tr id="S4.T3.2.1.4.2" class="ltx_tr">
+<th id="S4.T3.2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-COCO</th>
+<td id="S4.T3.2.1.4.2.2" class="ltx_td ltx_align_center">0.155</td>
+<td id="S4.T3.2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">0.351</td>
+<td id="S4.T3.2.1.4.2.4" class="ltx_td ltx_align_center">0.231</td>
+<td id="S4.T3.2.1.4.2.5" class="ltx_td ltx_align_center">0.543</td>
+</tr>
+<tr id="S4.T3.2.1.5.3" class="ltx_tr">
+<th id="S4.T3.2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE</th>
+<td id="S4.T3.2.1.5.3.2" class="ltx_td ltx_align_center">0.043</td>
+<td id="S4.T3.2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">0.100</td>
+<td id="S4.T3.2.1.5.3.4" class="ltx_td ltx_align_center">0.264</td>
+<td id="S4.T3.2.1.5.3.5" class="ltx_td ltx_align_center">0.509</td>
+</tr>
+<tr id="S4.T3.2.1.6.4" class="ltx_tr">
+<th id="S4.T3.2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE</th>
+<td id="S4.T3.2.1.6.4.2" class="ltx_td ltx_align_center">0.088</td>
+<td id="S4.T3.2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">0.178</td>
+<td id="S4.T3.2.1.6.4.4" class="ltx_td ltx_align_center">0.408</td>
+<td id="S4.T3.2.1.6.4.5" class="ltx_td ltx_align_center">0.709</td>
+</tr>
+<tr id="S4.T3.2.1.7.5" class="ltx_tr">
+<th id="S4.T3.2.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + S-COCO</th>
+<td id="S4.T3.2.1.7.5.2" class="ltx_td ltx_align_center">0.195</td>
+<td id="S4.T3.2.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">0.401</td>
+<td id="S4.T3.2.1.7.5.4" class="ltx_td ltx_align_center">0.374</td>
+<td id="S4.T3.2.1.7.5.5" class="ltx_td ltx_align_center">0.665</td>
+</tr>
+<tr id="S4.T3.2.1.8.6" class="ltx_tr">
+<th id="S4.T3.2.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + S-COCO</th>
+<td id="S4.T3.2.1.8.6.2" class="ltx_td ltx_align_center">0.231</td>
+<td id="S4.T3.2.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">0.460</td>
+<td id="S4.T3.2.1.8.6.4" class="ltx_td ltx_align_center">0.449</td>
+<td id="S4.T3.2.1.8.6.5" class="ltx_td ltx_align_center">0.758</td>
+</tr>
+<tr id="S4.T3.2.1.9.7" class="ltx_tr">
+<th id="S4.T3.2.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + COCO</th>
+<td id="S4.T3.2.1.9.7.2" class="ltx_td ltx_align_center">0.415</td>
+<td id="S4.T3.2.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">0.682</td>
+<td id="S4.T3.2.1.9.7.4" class="ltx_td ltx_align_center">0.611</td>
+<td id="S4.T3.2.1.9.7.5" class="ltx_td ltx_align_center">0.858</td>
+</tr>
+<tr id="S4.T3.2.1.10.8" class="ltx_tr">
+<th id="S4.T3.2.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + COCO</th>
+<td id="S4.T3.2.1.10.8.2" class="ltx_td ltx_align_center">0.430</td>
+<td id="S4.T3.2.1.10.8.3" class="ltx_td ltx_align_center ltx_border_r">0.710</td>
+<td id="S4.T3.2.1.10.8.4" class="ltx_td ltx_align_center">0.638</td>
+<td id="S4.T3.2.1.10.8.5" class="ltx_td ltx_align_center">0.869</td>
+</tr>
+<tr id="S4.T3.2.1.11.9" class="ltx_tr">
+<th id="S4.T3.2.1.11.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">C-BASELINE</th>
+<td id="S4.T3.2.1.11.9.2" class="ltx_td ltx_align_center">0.410</td>
+<td id="S4.T3.2.1.11.9.3" class="ltx_td ltx_align_center ltx_border_r">0.681</td>
+<td id="S4.T3.2.1.11.9.4" class="ltx_td ltx_align_center">0.584</td>
+<td id="S4.T3.2.1.11.9.5" class="ltx_td ltx_align_center">0.838</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T3.4.1.1" class="ltx_text" style="font-size:90%;">TABLE III</span>: </span><span id="S4.T3.5.2" class="ltx_text" style="font-size:90%;">Mask R-CNN instance segmentation evaluation results. Thr. <span id="S4.T3.5.2.1" class="ltx_text ltx_font_bold">0.7</span></span></figcaption>
+</figure>
+<div id="S4.SS1.SSS2.p2" class="ltx_para">
+<p id="S4.SS1.SSS2.p2.2" class="ltx_p">Another difference is that, when using A-GRADE, we are consistently better than the corresponding model (pre)trained on S-GRADE in both datasets. In the tasks of people detection A-GRADE shows similar performance to S-COCO on the COCO dataset and way better results on the TUM dataset. Indeed, the performance is <math id="S4.SS1.SSS2.p2.1.m1.1" class="ltx_Math" alttext="\sim 2\%" display="inline"><semantics id="S4.SS1.SSS2.p2.1.m1.1a"><mrow id="S4.SS1.SSS2.p2.1.m1.1.1" xref="S4.SS1.SSS2.p2.1.m1.1.1.cmml"><mi id="S4.SS1.SSS2.p2.1.m1.1.1.2" xref="S4.SS1.SSS2.p2.1.m1.1.1.2.cmml"></mi><mo id="S4.SS1.SSS2.p2.1.m1.1.1.1" xref="S4.SS1.SSS2.p2.1.m1.1.1.1.cmml">∼</mo><mrow id="S4.SS1.SSS2.p2.1.m1.1.1.3" xref="S4.SS1.SSS2.p2.1.m1.1.1.3.cmml"><mn id="S4.SS1.SSS2.p2.1.m1.1.1.3.2" xref="S4.SS1.SSS2.p2.1.m1.1.1.3.2.cmml">2</mn><mo id="S4.SS1.SSS2.p2.1.m1.1.1.3.1" xref="S4.SS1.SSS2.p2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS2.p2.1.m1.1b"><apply id="S4.SS1.SSS2.p2.1.m1.1.1.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1"><csymbol cd="latexml" id="S4.SS1.SSS2.p2.1.m1.1.1.1.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1.1">similar-to</csymbol><csymbol cd="latexml" id="S4.SS1.SSS2.p2.1.m1.1.1.2.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1.2">absent</csymbol><apply id="S4.SS1.SSS2.p2.1.m1.1.1.3.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS2.p2.1.m1.1.1.3.1.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS2.p2.1.m1.1.1.3.2.cmml" xref="S4.SS1.SSS2.p2.1.m1.1.1.3.2">2</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS2.p2.1.m1.1c">\sim 2\%</annotation></semantics></math> better on COCO and <math id="S4.SS1.SSS2.p2.2.m2.1" class="ltx_Math" alttext="3-5\%" display="inline"><semantics id="S4.SS1.SSS2.p2.2.m2.1a"><mrow id="S4.SS1.SSS2.p2.2.m2.1.1" xref="S4.SS1.SSS2.p2.2.m2.1.1.cmml"><mn id="S4.SS1.SSS2.p2.2.m2.1.1.2" xref="S4.SS1.SSS2.p2.2.m2.1.1.2.cmml">3</mn><mo id="S4.SS1.SSS2.p2.2.m2.1.1.1" xref="S4.SS1.SSS2.p2.2.m2.1.1.1.cmml">−</mo><mrow id="S4.SS1.SSS2.p2.2.m2.1.1.3" xref="S4.SS1.SSS2.p2.2.m2.1.1.3.cmml"><mn id="S4.SS1.SSS2.p2.2.m2.1.1.3.2" xref="S4.SS1.SSS2.p2.2.m2.1.1.3.2.cmml">5</mn><mo id="S4.SS1.SSS2.p2.2.m2.1.1.3.1" xref="S4.SS1.SSS2.p2.2.m2.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.SSS2.p2.2.m2.1b"><apply id="S4.SS1.SSS2.p2.2.m2.1.1.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1"><minus id="S4.SS1.SSS2.p2.2.m2.1.1.1.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1.1"></minus><cn type="integer" id="S4.SS1.SSS2.p2.2.m2.1.1.2.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1.2">3</cn><apply id="S4.SS1.SSS2.p2.2.m2.1.1.3.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1.3"><csymbol cd="latexml" id="S4.SS1.SSS2.p2.2.m2.1.1.3.1.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1.3.1">percent</csymbol><cn type="integer" id="S4.SS1.SSS2.p2.2.m2.1.1.3.2.cmml" xref="S4.SS1.SSS2.p2.2.m2.1.1.3.2">5</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.SSS2.p2.2.m2.1c">3-5\%</annotation></semantics></math> better on TUM when compared to C-BASELINE.</p>
+</div>
+<div id="S4.SS1.SSS2.p3" class="ltx_para">
+<p id="S4.SS1.SSS2.p3.1" class="ltx_p">In Tab. <a href="#S4.T4" title="TABLE IV ‣ IV-A2 Mask R-CNN ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a> and Tab. <a href="#S4.T5" title="TABLE V ‣ IV-A2 Mask R-CNN ‣ IV-A Human detection ‣ IV EVALUATIONS ‣ Learning from synthetic data generated with GRADE" class="ltx_ref"><span class="ltx_text ltx_ref_tag">V</span></a> we report the results of the same models with a threshold value of 0.05 as done in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Although they report only bounding boxes results and use a slightly different network model, we can still draw some conclusions. Indeed, notice how our training results on S-COCO and COCO (C-BASELINE on the tables) are comparable to theirs in terms of AP and AP50. The differences are most probably linked to the difference between the dataset size when comparing S-COCO and the number of training steps when considering COCO. However, we can see that both S-GRADE and A-GRADE greatly outperform PeopleSansPeople synthetic data, obtaining a remarkable +3-8% in the small version of the dataset and a +7-12%, despite the fact that our data is solely focused on indoor environments. This, with much shorter training procedures, i.e. 270K iterations for A-GRADE as opposed to 4M of the biggest synthetic set of <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Furthermore, while it is true that their increment when using a subset of COCO as fine-tuning dataset is noticeable (around 30%), and much greater than ours, the improvement they exhibit when using both the full dataset and full COCO is just 0.7%, almost half of our 1.3%. However, in addition to the longer training procedure, we must also account for the fact that the validation set used in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> is the <span id="S4.SS1.SSS2.p3.1.1" class="ltx_text ltx_font_italic">full</span> validation set. Thus, their saved model, i.e. the best-performing model on the validation set on the given metric, is saved according to the full COCO validation set, while ours are saved based on the reduced validation set of just 120 images.</p>
+</div>
+<figure id="S4.T4" class="ltx_table">
+<div id="S4.T4.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:331.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(87.4pt,-66.9pt) scale(1.67537376743734,1.67537376743734) ;">
+<table id="S4.T4.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T4.2.1.1.1" class="ltx_tr">
+<th id="S4.T4.2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T4.2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" colspan="2">COCO</th>
+<th id="S4.T4.2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column" colspan="2">TUM</th>
+</tr>
+<tr id="S4.T4.2.1.2.2" class="ltx_tr">
+<th id="S4.T4.2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T4.2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T4.2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">AP50</th>
+<th id="S4.T4.2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T4.2.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T4.2.1.3.1" class="ltx_tr">
+<th id="S4.T4.2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">BASELINE</th>
+<td id="S4.T4.2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_t">0.556</td>
+<td id="S4.T4.2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.841</td>
+<td id="S4.T4.2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t">0.736</td>
+<td id="S4.T4.2.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t">0.920</td>
+</tr>
+<tr id="S4.T4.2.1.4.2" class="ltx_tr">
+<th id="S4.T4.2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-COCO</th>
+<td id="S4.T4.2.1.4.2.2" class="ltx_td ltx_align_center">0.195</td>
+<td id="S4.T4.2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">0.439</td>
+<td id="S4.T4.2.1.4.2.4" class="ltx_td ltx_align_center">0.282</td>
+<td id="S4.T4.2.1.4.2.5" class="ltx_td ltx_align_center">0.610</td>
+</tr>
+<tr id="S4.T4.2.1.5.3" class="ltx_tr">
+<th id="S4.T4.2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE</th>
+<td id="S4.T4.2.1.5.3.2" class="ltx_td ltx_align_center">0.077</td>
+<td id="S4.T4.2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">0.167</td>
+<td id="S4.T4.2.1.5.3.4" class="ltx_td ltx_align_center">0.343</td>
+<td id="S4.T4.2.1.5.3.5" class="ltx_td ltx_align_center">0.637</td>
+</tr>
+<tr id="S4.T4.2.1.6.4" class="ltx_tr">
+<th id="S4.T4.2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE</th>
+<td id="S4.T4.2.1.6.4.2" class="ltx_td ltx_align_center">0.140</td>
+<td id="S4.T4.2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">0.269</td>
+<td id="S4.T4.2.1.6.4.4" class="ltx_td ltx_align_center">0.531</td>
+<td id="S4.T4.2.1.6.4.5" class="ltx_td ltx_align_center">0.784</td>
+</tr>
+<tr id="S4.T4.2.1.7.5" class="ltx_tr">
+<th id="S4.T4.2.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + S-COCO</th>
+<td id="S4.T4.2.1.7.5.2" class="ltx_td ltx_align_center">0.265</td>
+<td id="S4.T4.2.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">0.518</td>
+<td id="S4.T4.2.1.7.5.4" class="ltx_td ltx_align_center">0.432</td>
+<td id="S4.T4.2.1.7.5.5" class="ltx_td ltx_align_center">0.748</td>
+</tr>
+<tr id="S4.T4.2.1.8.6" class="ltx_tr">
+<th id="S4.T4.2.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + S-COCO</th>
+<td id="S4.T4.2.1.8.6.2" class="ltx_td ltx_align_center">0.303</td>
+<td id="S4.T4.2.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">0.560</td>
+<td id="S4.T4.2.1.8.6.4" class="ltx_td ltx_align_center">0.515</td>
+<td id="S4.T4.2.1.8.6.5" class="ltx_td ltx_align_center">0.788</td>
+</tr>
+<tr id="S4.T4.2.1.9.7" class="ltx_tr">
+<th id="S4.T4.2.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + COCO</th>
+<td id="S4.T4.2.1.9.7.2" class="ltx_td ltx_align_center">0.539</td>
+<td id="S4.T4.2.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">0.833</td>
+<td id="S4.T4.2.1.9.7.4" class="ltx_td ltx_align_center">0.713</td>
+<td id="S4.T4.2.1.9.7.5" class="ltx_td ltx_align_center">0.916</td>
+</tr>
+<tr id="S4.T4.2.1.10.8" class="ltx_tr">
+<th id="S4.T4.2.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + COCO</th>
+<td id="S4.T4.2.1.10.8.2" class="ltx_td ltx_align_center">0.550</td>
+<td id="S4.T4.2.1.10.8.3" class="ltx_td ltx_align_center ltx_border_r">0.843</td>
+<td id="S4.T4.2.1.10.8.4" class="ltx_td ltx_align_center">0.728</td>
+<td id="S4.T4.2.1.10.8.5" class="ltx_td ltx_align_center">0.916</td>
+</tr>
+<tr id="S4.T4.2.1.11.9" class="ltx_tr">
+<th id="S4.T4.2.1.11.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">C-BASELINE</th>
+<td id="S4.T4.2.1.11.9.2" class="ltx_td ltx_align_center">0.537</td>
+<td id="S4.T4.2.1.11.9.3" class="ltx_td ltx_align_center ltx_border_r">0.829</td>
+<td id="S4.T4.2.1.11.9.4" class="ltx_td ltx_align_center">0.692</td>
+<td id="S4.T4.2.1.11.9.5" class="ltx_td ltx_align_center">0.898</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T4.4.1.1" class="ltx_text" style="font-size:90%;">TABLE IV</span>: </span><span id="S4.T4.5.2" class="ltx_text" style="font-size:90%;">Mask R-CNN bounding boxes evaluation results. Thr. <span id="S4.T4.5.2.1" class="ltx_text ltx_font_bold">0.05</span></span></figcaption>
+</figure>
+<figure id="S4.T5" class="ltx_table">
+<div id="S4.T5.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:331.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(87.4pt,-66.9pt) scale(1.67537376743734,1.67537376743734) ;">
+<table id="S4.T5.2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T5.2.1.1.1" class="ltx_tr">
+<th id="S4.T5.2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T5.2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r" colspan="2">COCO</th>
+<th id="S4.T5.2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column" colspan="2">TUM</th>
+</tr>
+<tr id="S4.T5.2.1.2.2" class="ltx_tr">
+<th id="S4.T5.2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r"></th>
+<th id="S4.T5.2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T5.2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r">AP50</th>
+<th id="S4.T5.2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP</th>
+<th id="S4.T5.2.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">AP50</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T5.2.1.3.1" class="ltx_tr">
+<th id="S4.T5.2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">BASELINE</th>
+<td id="S4.T5.2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_t">0.479</td>
+<td id="S4.T5.2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">0.817</td>
+<td id="S4.T5.2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t">0.692</td>
+<td id="S4.T5.2.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t">0.922</td>
+</tr>
+<tr id="S4.T5.2.1.4.2" class="ltx_tr">
+<th id="S4.T5.2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-COCO</th>
+<td id="S4.T5.2.1.4.2.2" class="ltx_td ltx_align_center">0.168</td>
+<td id="S4.T5.2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">0.392</td>
+<td id="S4.T5.2.1.4.2.4" class="ltx_td ltx_align_center">0.241</td>
+<td id="S4.T5.2.1.4.2.5" class="ltx_td ltx_align_center">0.568</td>
+</tr>
+<tr id="S4.T5.2.1.5.3" class="ltx_tr">
+<th id="S4.T5.2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE</th>
+<td id="S4.T5.2.1.5.3.2" class="ltx_td ltx_align_center">0.048</td>
+<td id="S4.T5.2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">0.117</td>
+<td id="S4.T5.2.1.5.3.4" class="ltx_td ltx_align_center">0.283</td>
+<td id="S4.T5.2.1.5.3.5" class="ltx_td ltx_align_center">0.561</td>
+</tr>
+<tr id="S4.T5.2.1.6.4" class="ltx_tr">
+<th id="S4.T5.2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE</th>
+<td id="S4.T5.2.1.6.4.2" class="ltx_td ltx_align_center">0.100</td>
+<td id="S4.T5.2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">0.214</td>
+<td id="S4.T5.2.1.6.4.4" class="ltx_td ltx_align_center">0.425</td>
+<td id="S4.T5.2.1.6.4.5" class="ltx_td ltx_align_center">0.749</td>
+</tr>
+<tr id="S4.T5.2.1.7.5" class="ltx_tr">
+<th id="S4.T5.2.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + S-COCO</th>
+<td id="S4.T5.2.1.7.5.2" class="ltx_td ltx_align_center">0.216</td>
+<td id="S4.T5.2.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">0.465</td>
+<td id="S4.T5.2.1.7.5.4" class="ltx_td ltx_align_center">0.387</td>
+<td id="S4.T5.2.1.7.5.5" class="ltx_td ltx_align_center">0.694</td>
+</tr>
+<tr id="S4.T5.2.1.8.6" class="ltx_tr">
+<th id="S4.T5.2.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + S-COCO</th>
+<td id="S4.T5.2.1.8.6.2" class="ltx_td ltx_align_center">0.247</td>
+<td id="S4.T5.2.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">0.515</td>
+<td id="S4.T5.2.1.8.6.4" class="ltx_td ltx_align_center">0.458</td>
+<td id="S4.T5.2.1.8.6.5" class="ltx_td ltx_align_center">0.780</td>
+</tr>
+<tr id="S4.T5.2.1.9.7" class="ltx_tr">
+<th id="S4.T5.2.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">S-GRADE + COCO</th>
+<td id="S4.T5.2.1.9.7.2" class="ltx_td ltx_align_center">0.467</td>
+<td id="S4.T5.2.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">0.805</td>
+<td id="S4.T5.2.1.9.7.4" class="ltx_td ltx_align_center">0.633</td>
+<td id="S4.T5.2.1.9.7.5" class="ltx_td ltx_align_center">0.905</td>
+</tr>
+<tr id="S4.T5.2.1.10.8" class="ltx_tr">
+<th id="S4.T5.2.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">A-GRADE + COCO</th>
+<td id="S4.T5.2.1.10.8.2" class="ltx_td ltx_align_center">0.476</td>
+<td id="S4.T5.2.1.10.8.3" class="ltx_td ltx_align_center ltx_border_r">0.813</td>
+<td id="S4.T5.2.1.10.8.4" class="ltx_td ltx_align_center">0.660</td>
+<td id="S4.T5.2.1.10.8.5" class="ltx_td ltx_align_center">0.908</td>
+</tr>
+<tr id="S4.T5.2.1.11.9" class="ltx_tr">
+<th id="S4.T5.2.1.11.9.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">C-BASELINE</th>
+<td id="S4.T5.2.1.11.9.2" class="ltx_td ltx_align_center">0.461</td>
+<td id="S4.T5.2.1.11.9.3" class="ltx_td ltx_align_center ltx_border_r">0.801</td>
+<td id="S4.T5.2.1.11.9.4" class="ltx_td ltx_align_center">0.611</td>
+<td id="S4.T5.2.1.11.9.5" class="ltx_td ltx_align_center">0.890</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S4.T5.4.1.1" class="ltx_text" style="font-size:90%;">TABLE V</span>: </span><span id="S4.T5.5.2" class="ltx_text" style="font-size:90%;">Mask R-CNN instance segmentation evaluation results. Thr. <span id="S4.T5.5.2.1" class="ltx_text ltx_font_bold">0.05</span></span></figcaption>
+</figure>
+</section>
+<section id="S4.SS1.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S4.SS1.SSS3.5.1.1" class="ltx_text">IV-A</span>3 </span>Considerations</h4>
+
+<div id="S4.SS1.SSS3.p1" class="ltx_para">
+<p id="S4.SS1.SSS3.p1.1" class="ltx_p">Testing over COCO is, in our opinion, not fair since we lack crowded scenes, outdoor scenarios with humans placed in the background, and diversified clothing in the assets we use (i.e. we do not have humans wearing ski suits or helmets). Thus, when testing against COCO, we are using a model trained on an indoor dataset to evaluate its performance on not comparable data. Indeed, we see how our synthetic data generalize well to the real world if we consider the TUM dataset, which instead consists of sequences more related to the one that we generate.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">V </span><span id="S5.1.1" class="ltx_text ltx_font_smallcaps">CONCLUSIONS</span>
+</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this work, we presented a novel framework, named GRADE, to simulate multiple robots in realistically looking dynamic environments. GRADE is a flexible system that covers all the steps necessary to do that, from the generation of the single assets to fine simulation management, from placement of said assets to post-processing of the data. With GRADE we generated a dataset of indoor dynamic environments and used that to i) show how our synthetic data alone can be used for training a good indoor human detection model, and ii) to improve the performance of both YOLO and Mask R-CNN when used for pre-training. This holds even though the current quality of the assets is not optimal due to the choice of using only freely available ones. We believe that adopting commercial solutions for environments and/or dynamic humans will greatly increase the quality of the generated data. Finally, we demonstrate how our data is, in principle, better than the one introduced by PeopleSansPeople, both when used as pre-training data and when adopted as-is, despite being focused solely on indoor scenarios. This is by yielding performance improvements that range between 1.3% to 12% while using up to 10 times shorter training procedures. Finally, all our work is available as open source and based solely on open-source assets.
+
+</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+E. Bonetto, C. Xu, and A. Ahmad, “GRADE: Generating realistic animated
+dynamic environments for robotics research,” <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2303.04466</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+G. Jocher, A. Chaurasia, A. Stoken, J. Borovec, NanoCode012, Y. Kwon,
+K. Michael, TaoXie, J. Fang, imyhxy, Lorna, Z. Yifu, C. Wong, A. V,
+D. Montes, Z. Wang, C. Fati, J. Nadar, Laughing, UnglvKitDe, V. Sonck,
+tkianai, yxNONG, P. Skalski, A. Hogan, D. Nair, M. Strobel, and M. Jain,
+“ultralytics/yolov5: v7.0 - YOLOv5 SOTA Realtime Instance Segmentation,”
+Nov. 2022. [Online]. Available: <a target="_blank" href="https://doi.org/10.5281/zenodo.7347926" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.5281/zenodo.7347926</a>
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+K. He, G. Gkioxari, P. Dollar, and R. Girshick, “Mask r-cnn,” in
+<em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE International Conference on Computer Vision
+(ICCV)</em>, Oct 2017.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+J. Sturm, N. Engelhard, F. Endres, W. Burgard, and D. Cremers, “A benchmark
+for the evaluation of rgb-d slam systems,” in <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Proc. of the
+International Conference on Intelligent Robot Systems (IROS)</em>, Oct. 2012.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+M. Loper, N. Mahmood, J. Romero, G. Pons-Moll, and M. J. Black, “Smpl: A
+skinned multi-person linear model,” <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">ACM Trans. Graph.</em>, vol. 34,
+no. 6, nov 2015. [Online]. Available:
+<a target="_blank" href="https://doi.org/10.1145/2816795.2818013" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.1145/2816795.2818013</a>
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+N. Mahmood, N. Ghorbani, N. F. Troje, G. Pons-Moll, and M. J. Black, “AMASS:
+Archive of motion capture as surface shapes,” in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">International
+Conference on Computer Vision</em>, Oct. 2019, pp. 5442–5451.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+N. Saini, E. Bonetto, E. Price, A. Ahmad, and M. J. Black, “Airpose:
+Multi-view fusion network for aerial 3d human pose and shape estimation,”
+<em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">IEEE Robotics and Automation Letters</em>, vol. 7, no. 2, pp. 4805–4812,
+2022.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+S. E. Ebadi, S. Dhakad, S. Vishwakarma, C. Wang, Y.-C. Jhang, M. Chociej,
+A. Crespi, A. Thaman, and S. Ganguly, “Psp-hdri+: A synthetic dataset
+generator for pre-training of human-centric computer vision models,” in
+<em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">First Workshop on Pre-training: Perspectives, Pitfalls, and Paths
+Forward at ICML 2022</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+G. Varol, J. Romero, X. Martin, N. Mahmood, M. J. Black, I. Laptev, and
+C. Schmid, “Learning from synthetic humans,” in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">CVPR</em>, 2017.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+H. Bertiche, M. Madadi, and S. Escalera, “Cloth3d: Clothed 3d humans,” in
+<em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">European Conference on Computer Vision</em>.   Springer, 2020, pp. 344–359.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+L. Downs, A. Francis, N. Koenig, B. Kinman, R. Hickman, K. Reymann, T. B.
+McHugh, and V. Vanhoucke, “Google scanned objects: A high-quality dataset of
+3d scanned household items,” in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">2022 International Conference on
+Robotics and Automation (ICRA)</em>, 2022, pp. 2553–2560.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+A. X. Chang, T. Funkhouser, L. Guibas, P. Hanrahan, Q. Huang, Z. Li,
+S. Savarese, M. Savva, S. Song, H. Su, J. Xiao, L. Yi, and F. Yu,
+“ShapeNet: An Information-Rich 3D Model Repository,” Stanford University
+— Princeton University — Toyota Technological Institute at Chicago, Tech.
+Rep. arXiv:1512.03012 [cs.GR], 2015.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+B. Talbot, D. Hall, H. Zhang, S. R. Bista, R. Smith, F. Dayoub, and
+N. Sünderhauf, “Benchbot: Evaluating robotics research in photorealistic 3d
+simulation and on real robots,” 2020.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+S. Shah, D. Dey, C. Lovett, and A. Kapoor, “Airsim: High-fidelity visual and
+physical simulation for autonomous vehicles,” in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Field and Service
+Robotics</em>, 2017. [Online]. Available: <a target="_blank" href="https://arxiv.org/abs/1705.05065" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/1705.05065</a>
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+E. Kolve, R. Mottaghi, W. Han, E. VanderBilt, L. Weihs, A. Herrasti, M. Deitke,
+K. Ehsani, D. Gordon, Y. Zhu, A. Kembhavi, A. Gupta, and A. Farhadi,
+“AI2-THOR: An Interactive 3D Environment for Visual AI,” <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">ArXiv</em>,
+vol. abs/1712.05474, 2017.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+B. Shen, F. Xia, C. Li, R. Martín-Martín, L. Fan, G. Wang,
+C. Pérez-D’Arpino, S. Buch, S. Srivastava, L. P. Tchapmi, M. E. Tchapmi,
+K. Vainio, J. Wong, L. Fei-Fei, and S. Savarese, “igibson 1.0: a simulation
+environment for interactive tasks in large realistic scenes,” in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">2021
+IEEE/RSJ International Conference on Intelligent Robots and Systems
+(IROS)</em>.   IEEE, 2021, p. accepted.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Manolis Savva*, Abhishek Kadian*, Oleksandr Maksymets*, Y. Zhao,
+E. Wijmans, B. Jain, J. Straub, J. Liu, V. Koltun, J. Malik, D. Parikh, and
+D. Batra, “Habitat: A Platform for Embodied AI Research,” in
+<em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF International Conference on Computer Vision
+(ICCV)</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+M. Müller, V. Casser, J. Lahoud, N. Smith, and B. Ghanem, “Sim4cv: A
+photo-realistic simulator for computer vision applications,”
+<em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">International Journal of Computer Vision</em>, vol. 126, no. 9, pp.
+902–919, Mar. 2018. [Online]. Available:
+<a target="_blank" href="https://doi.org/10.1007/s11263-018-1073-7" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.1007/s11263-018-1073-7</a>
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+W. Wang, D. Zhu, X. Wang, Y. Hu, Y. Qiu, C. Wang, Y. Hu, A. Kapoor, and
+S. Scherer, “Tartanair: A dataset to push the limits of visual slam,” in
+<em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">2020 IEEE/RSJ International Conference on Intelligent Robots and
+Systems (IROS)</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+H. Fu, B. Cai, L. Gao, L.-X. Zhang, J. Wang, C. Li, Q. Zeng, C. Sun, R. Jia,
+B. Zhao <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “3d-front: 3d furnished rooms with layouts and
+semantics,” in <em id="bib.bib20.2.2" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF International Conference on
+Computer Vision</em>, 2021, pp. 10 933–10 942.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+B. Zhou, Y. Zhang, X. Chen, and S. Shen, “Fuel: Fast uav exploration using
+incremental frontier structure and hierarchical planning,” <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">IEEE
+Robotics and Automation Letters</em>, vol. 6, no. 2, pp. 779–786, 2021.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:creator" content="Bonetto et al."></div>
+<div class="ltx_rdf" about="" property="dcterms:subject" content="slam"></div>
+<div class="ltx_rdf" about="" property="dcterms:subject" content="Dynamic environments generation pipeline"></div>
+<div class="ltx_rdf" about="" property="dcterms:title"></div>
+
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2305.04281" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2305.04282" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2305.04282">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2305.04282" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2305.04283" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Feb 29 09:11:20 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

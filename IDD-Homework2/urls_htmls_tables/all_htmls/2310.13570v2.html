@@ -1,0 +1,906 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2310.13570] A Simple Baseline for Knowledge-Based Visual Question Answering</title><meta property="og:description" content="This paper is on the problem of Knowledge-Based Visual Question Answering (KB-VQA). Recent works have emphasized the significance of incorporating both explicit (through external databases) and implicit (through LLMs) …">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="A Simple Baseline for Knowledge-Based Visual Question Answering">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="A Simple Baseline for Knowledge-Based Visual Question Answering">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2310.13570">
+
+<!--Generated on Tue Feb 27 21:06:16 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">A Simple Baseline for Knowledge-Based Visual Question Answering</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">  Alexandros Xenos<sup id="id8.8.id1" class="ltx_sup">1</sup>   Themos Stafylakis<sup id="id9.9.id2" class="ltx_sup"><span id="id9.9.id2.1" class="ltx_text ltx_font_italic">2,3</span></sup>   Ioannis Patras<sup id="id10.10.id3" class="ltx_sup"><span id="id10.10.id3.1" class="ltx_text ltx_font_italic">1</span></sup>   Georgios Tzimiropoulos<sup id="id11.11.id4" class="ltx_sup"><span id="id11.11.id4.1" class="ltx_text ltx_font_italic">1</span></sup>
+ 
+<br class="ltx_break"><sup id="id12.12.id5" class="ltx_sup">1</sup>Queen Mary University of London     <sup id="id13.13.id6" class="ltx_sup">2</sup>Athens University of Economics and Business     
+<br class="ltx_break"><sup id="id14.14.id7" class="ltx_sup">3</sup>Omilia - Conversational Intelligence, Athens, Greece 
+<br class="ltx_break"><span id="id15.15.id8" class="ltx_text ltx_font_typewriter">{a.xenos,i.patras,g.tzimiropoulos}@qmul.ac.uk</span>,
+<span id="id16.16.id9" class="ltx_text ltx_font_typewriter">tstafylakis@aueb.gr</span>
+</span><span class="ltx_author_notes">  Corresponding author.</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id17.id1" class="ltx_p">This paper is on the problem of Knowledge-Based Visual Question Answering (KB-VQA). Recent works have emphasized the significance of incorporating both explicit (through external databases) and implicit (through LLMs) knowledge to answer questions requiring external knowledge effectively. A common limitation of such approaches is that they consist of relatively complicated pipelines and often heavily rely on accessing GPT-3 API. Our main contribution in this paper is to propose a much simpler and readily reproducible pipeline which, in a nutshell, is based on efficient in-context learning by prompting LLaMA (1 and 2) using question-informative captions as contextual information. Contrary to recent approaches, our method is training-free, does not require access to external databases or APIs, and yet achieves state-of-the-art accuracy on the OK-VQA and A-OK-VQA datasets. Finally, we perform several ablation studies to understand important aspects of our method. Our code is publicly available at <span id="id17.id1.1" class="ltx_text ltx_font_italic">https://github.com/alexandrosXe/A-Simple-Baseline-For-Knowledge-Based-VQA</span></p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Knowledge-based VQA (KB-VQA) is a recently introduced VQA task <cite class="ltx_cite ltx_citemacro_cite">Wang et al. (<a href="#bib.bib19" title="" class="ltx_ref">2017</a>, <a href="#bib.bib20" title="" class="ltx_ref">2018</a>); Marino et al. (<a href="#bib.bib10" title="" class="ltx_ref">2019</a>); Shah et al. (<a href="#bib.bib14" title="" class="ltx_ref">2019</a>)</cite> where the image alone is not sufficient to answer the given question, but effective utilization of external knowledge resources is additionally required. To solve such a task, a model would need not only strong visual perception but also reasoning capabilities while also being able to effectively incorporate world knowledge from external KBs (e.g. Wikipedia, etc) and LLMs. Systems capable of answering general and diverse questions about the visual world find a wide range of applications: from personal assistants to aids for the visually impaired and robotics <span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>https://www.adelaide.edu.au/aiml/our-research/machine-learning/vqa-vision-and-language</span></span></span>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Recently, several works on KB-VQA <cite class="ltx_cite ltx_citemacro_cite">Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>); Lin et al. (<a href="#bib.bib7" title="" class="ltx_ref">2022</a>)</cite> have emphasized the significance of incorporating both explicit and implicit knowledge. However, such approaches usually require complicated pipelines. Firstly, a KB (e.g. wikidata) covering world knowledge needs to be maintained and used for knowledge retrieval which is time-consuming and very sensitive to noise. Secondly, powerful LLMs such as GPT-3 <cite class="ltx_cite ltx_citemacro_cite">Brown et al. (<a href="#bib.bib1" title="" class="ltx_ref">2020</a>)</cite> or OPT-175B <cite class="ltx_cite ltx_citemacro_cite">Zhang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2022</a>)</cite> are leveraged due to the huge amount of implicit knowledge stored in their parameters and their powerful reasoning capabilities through few-shot in-context learning. However, the computational or even actual monetary cost (e.g. cost for API access) associated with accessing such models renders them unaffordable for many researchers. Thirdly, it is crucial to train a fusion mechanism that can effectively reason by combining the retrieved explicit and implicit knowledge.</p>
+</div>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.1" class="ltx_p"><span id="S1.p3.1.1" class="ltx_text ltx_font_bold">Main contributions:</span> We present a simple yet powerful pipeline for KB-VQA which by-passes the need for using most of the components of the above-mentioned systems. Specifically, the proposed system is simply based on few-shot prompting of LLaMA-13B <cite class="ltx_cite ltx_citemacro_cite">Touvron et al. (<a href="#bib.bib17" title="" class="ltx_ref">2023a</a>, <a href="#bib.bib18" title="" class="ltx_ref">b</a>)</cite>. The <span id="S1.p3.1.2" class="ltx_text ltx_font_italic">key component</span> of our method is the implementation of effective in-context learning using <span id="S1.p3.1.3" class="ltx_text ltx_font_italic">question-informative captions as contextual information</span> which, as we show, results in large accuracy boosts.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">The proposed system features several advantages: (1) it is entirely training-free, requiring only a few examples for in-context learning; (2) it is based on the open-source LLaMA-13B <cite class="ltx_cite ltx_citemacro_cite">Touvron et al. (<a href="#bib.bib17" title="" class="ltx_ref">2023a</a>, <a href="#bib.bib18" title="" class="ltx_ref">b</a>)</cite> (considerably smaller than the widely-used GPT-3); (3) it is straightforward to reproduce; and (4) achieves state-of-the-art (SOTA) accuracy on the widely-used OK-VQA <cite class="ltx_cite ltx_citemacro_cite">Marino et al. (<a href="#bib.bib10" title="" class="ltx_ref">2019</a>)</cite> and A-OK-VQA datasets <cite class="ltx_cite ltx_citemacro_cite">Schwenk et al. (<a href="#bib.bib13" title="" class="ltx_ref">2022</a>)</cite>.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Work on KB-VQA</h2>
+
+<div id="S2.p1" class="ltx_para ltx_noindent">
+<p id="S2.p1.1" class="ltx_p"><span id="S2.p1.1.1" class="ltx_text ltx_font_bold">Methods Without LLMs:</span> Several methods have been proposed including KRISP <cite class="ltx_cite ltx_citemacro_cite">Marino et al. (<a href="#bib.bib9" title="" class="ltx_ref">2021</a>)</cite> which uses a multi-modal pretrained BERT <cite class="ltx_cite ltx_citemacro_cite">Devlin et al. (<a href="#bib.bib2" title="" class="ltx_ref">2019</a>)</cite>, MAVEx <cite class="ltx_cite ltx_citemacro_cite">Wu et al. (<a href="#bib.bib21" title="" class="ltx_ref">2022</a>)</cite> which proposes to validate promising answer candidates based on answer-specific knowledge retrieval, and DPR which uses pseudo-relevance labels integrated with answer generation for end-to-end training. Typically, these systems are not as competitive as the ones based on LLMs.</p>
+</div>
+<div id="S2.p2" class="ltx_para ltx_noindent">
+<p id="S2.p2.1" class="ltx_p"><span id="S2.p2.1.1" class="ltx_text ltx_font_bold">Methods based on LLMs:</span> PICa <cite class="ltx_cite ltx_citemacro_cite">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite> is the first method to adopt GPT-3 for solving the KB-VQA task in a few-shot manner by just providing a few in-context VQA examples. <cite class="ltx_cite ltx_citemacro_citet">Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>)</cite> proposed to use both implicit (i.e. GPT-3) and explicit (i.e. KBs) knowledge based on CLIP retrieval <cite class="ltx_cite ltx_citemacro_cite">Radford et al. (<a href="#bib.bib11" title="" class="ltx_ref">2021</a>)</cite> which are combined by a novel fusion module called KAT (based on T5 or Bart). <cite class="ltx_cite ltx_citemacro_citet">Lin et al. (<a href="#bib.bib7" title="" class="ltx_ref">2022</a>)</cite> proposed to integrate local visual features and positional information (bounding box coordinates), retrieved external and implicit knowledge (using a GPT-3) into a transformer-based question-answering model. <cite class="ltx_cite ltx_citemacro_citet">Hu et al. (<a href="#bib.bib5" title="" class="ltx_ref">2023</a>)</cite> proposed PromptCap, a novel task-aware captioning model that uses a natural language prompt to control the generation of the visual content that can be used in conjunction with GPT-3 in-context learning. Img2Prompt <cite class="ltx_cite ltx_citemacro_citet">Guo et al. (<a href="#bib.bib4" title="" class="ltx_ref">2023</a>)</cite> is a zero-shot VQA method that generates image-relevant exemplar prompts for the LLM. Their key insight is that synthetic question-answer pairs can be generated using image captioning and question-generation techniques as in-context exemplars from the provided image. Prophet <cite class="ltx_cite ltx_citemacro_citet">Shao et al. (<a href="#bib.bib15" title="" class="ltx_ref">2023</a>)</cite> proposes to prompt GPT-3 with answer heuristics (answer candidates and answer-aware examples) that are encoded into the prompts to enable GPT-3 to better comprehend the task, thus enhancing its capacity.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Methodology</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">While explicit knowledge retrieval focuses on semantic matching between an image and knowledge entries, it lacks implicit commonsense knowledge (e.g. Lemons are sour) which can be found in LLMs <cite class="ltx_cite ltx_citemacro_cite">Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>)</cite>. LLMs are critical in extracting implicit knowledge due to the vast amount of implicit information embedded in their parameters, and their powerful reasoning capacity through few-shot in-context learning. Different from previous work <cite class="ltx_cite ltx_citemacro_cite">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>); Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>); Lin et al. (<a href="#bib.bib7" title="" class="ltx_ref">2022</a>)</cite> we leverage the open-source LLM LLaMA-13B <cite class="ltx_cite ltx_citemacro_cite">Touvron et al. (<a href="#bib.bib17" title="" class="ltx_ref">2023a</a>, <a href="#bib.bib18" title="" class="ltx_ref">b</a>)</cite> instead of GPT-3 as an implicit language knowledge base and treat VQA as an open-ended text generation task.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.16" class="ltx_p">Our method builds upon the pipeline of PICa, which is the pioneering work that utilizes GPT-3 for few-shot in-context learning in order to address the KB-VQA task. GPT-3 is a decoder-only autoregressive LLM of 175B parameters, trained on a diverse range of data sources, including Common Crawl, webtexts, books, and Wikipedia <cite class="ltx_cite ltx_citemacro_cite">Brown et al. (<a href="#bib.bib1" title="" class="ltx_ref">2020</a>)</cite>. During inference, in-context few-shot learning involves formulating a novel downstream task as a text sequence generation task using the frozen GPT-3 model. When provided with a testing input <math id="S3.p2.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.p2.1.m1.1a"><mi id="S3.p2.1.m1.1.1" xref="S3.p2.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.p2.1.m1.1b"><ci id="S3.p2.1.m1.1.1.cmml" xref="S3.p2.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.1.m1.1c">x</annotation></semantics></math>, the target <math id="S3.p2.2.m2.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S3.p2.2.m2.1a"><mi id="S3.p2.2.m2.1.1" xref="S3.p2.2.m2.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S3.p2.2.m2.1b"><ci id="S3.p2.2.m2.1.1.cmml" xref="S3.p2.2.m2.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.2.m2.1c">y</annotation></semantics></math> is predicted based on a formatted prompt <math id="S3.p2.3.m3.5" class="ltx_Math" alttext="p(h,C,E,c,x)" display="inline"><semantics id="S3.p2.3.m3.5a"><mrow id="S3.p2.3.m3.5.6" xref="S3.p2.3.m3.5.6.cmml"><mi id="S3.p2.3.m3.5.6.2" xref="S3.p2.3.m3.5.6.2.cmml">p</mi><mo lspace="0em" rspace="0em" id="S3.p2.3.m3.5.6.1" xref="S3.p2.3.m3.5.6.1.cmml">​</mo><mrow id="S3.p2.3.m3.5.6.3.2" xref="S3.p2.3.m3.5.6.3.1.cmml"><mo stretchy="false" id="S3.p2.3.m3.5.6.3.2.1" xref="S3.p2.3.m3.5.6.3.1.cmml">(</mo><mi id="S3.p2.3.m3.1.1" xref="S3.p2.3.m3.1.1.cmml">h</mi><mo id="S3.p2.3.m3.5.6.3.2.2" xref="S3.p2.3.m3.5.6.3.1.cmml">,</mo><mi id="S3.p2.3.m3.2.2" xref="S3.p2.3.m3.2.2.cmml">C</mi><mo id="S3.p2.3.m3.5.6.3.2.3" xref="S3.p2.3.m3.5.6.3.1.cmml">,</mo><mi id="S3.p2.3.m3.3.3" xref="S3.p2.3.m3.3.3.cmml">E</mi><mo id="S3.p2.3.m3.5.6.3.2.4" xref="S3.p2.3.m3.5.6.3.1.cmml">,</mo><mi id="S3.p2.3.m3.4.4" xref="S3.p2.3.m3.4.4.cmml">c</mi><mo id="S3.p2.3.m3.5.6.3.2.5" xref="S3.p2.3.m3.5.6.3.1.cmml">,</mo><mi id="S3.p2.3.m3.5.5" xref="S3.p2.3.m3.5.5.cmml">x</mi><mo stretchy="false" id="S3.p2.3.m3.5.6.3.2.6" xref="S3.p2.3.m3.5.6.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p2.3.m3.5b"><apply id="S3.p2.3.m3.5.6.cmml" xref="S3.p2.3.m3.5.6"><times id="S3.p2.3.m3.5.6.1.cmml" xref="S3.p2.3.m3.5.6.1"></times><ci id="S3.p2.3.m3.5.6.2.cmml" xref="S3.p2.3.m3.5.6.2">𝑝</ci><vector id="S3.p2.3.m3.5.6.3.1.cmml" xref="S3.p2.3.m3.5.6.3.2"><ci id="S3.p2.3.m3.1.1.cmml" xref="S3.p2.3.m3.1.1">ℎ</ci><ci id="S3.p2.3.m3.2.2.cmml" xref="S3.p2.3.m3.2.2">𝐶</ci><ci id="S3.p2.3.m3.3.3.cmml" xref="S3.p2.3.m3.3.3">𝐸</ci><ci id="S3.p2.3.m3.4.4.cmml" xref="S3.p2.3.m3.4.4">𝑐</ci><ci id="S3.p2.3.m3.5.5.cmml" xref="S3.p2.3.m3.5.5">𝑥</ci></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.3.m3.5c">p(h,C,E,c,x)</annotation></semantics></math>. In this prompt, <math id="S3.p2.4.m4.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S3.p2.4.m4.1a"><mi id="S3.p2.4.m4.1.1" xref="S3.p2.4.m4.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S3.p2.4.m4.1b"><ci id="S3.p2.4.m4.1.1.cmml" xref="S3.p2.4.m4.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.4.m4.1c">h</annotation></semantics></math> represents a prompt head or instruction that describes the task, while <math id="S3.p2.5.m5.4" class="ltx_Math" alttext="E=\{e_{1},e_{2},...,e_{n}\}" display="inline"><semantics id="S3.p2.5.m5.4a"><mrow id="S3.p2.5.m5.4.4" xref="S3.p2.5.m5.4.4.cmml"><mi id="S3.p2.5.m5.4.4.5" xref="S3.p2.5.m5.4.4.5.cmml">E</mi><mo id="S3.p2.5.m5.4.4.4" xref="S3.p2.5.m5.4.4.4.cmml">=</mo><mrow id="S3.p2.5.m5.4.4.3.3" xref="S3.p2.5.m5.4.4.3.4.cmml"><mo stretchy="false" id="S3.p2.5.m5.4.4.3.3.4" xref="S3.p2.5.m5.4.4.3.4.cmml">{</mo><msub id="S3.p2.5.m5.2.2.1.1.1" xref="S3.p2.5.m5.2.2.1.1.1.cmml"><mi id="S3.p2.5.m5.2.2.1.1.1.2" xref="S3.p2.5.m5.2.2.1.1.1.2.cmml">e</mi><mn id="S3.p2.5.m5.2.2.1.1.1.3" xref="S3.p2.5.m5.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S3.p2.5.m5.4.4.3.3.5" xref="S3.p2.5.m5.4.4.3.4.cmml">,</mo><msub id="S3.p2.5.m5.3.3.2.2.2" xref="S3.p2.5.m5.3.3.2.2.2.cmml"><mi id="S3.p2.5.m5.3.3.2.2.2.2" xref="S3.p2.5.m5.3.3.2.2.2.2.cmml">e</mi><mn id="S3.p2.5.m5.3.3.2.2.2.3" xref="S3.p2.5.m5.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S3.p2.5.m5.4.4.3.3.6" xref="S3.p2.5.m5.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.p2.5.m5.1.1" xref="S3.p2.5.m5.1.1.cmml">…</mi><mo id="S3.p2.5.m5.4.4.3.3.7" xref="S3.p2.5.m5.4.4.3.4.cmml">,</mo><msub id="S3.p2.5.m5.4.4.3.3.3" xref="S3.p2.5.m5.4.4.3.3.3.cmml"><mi id="S3.p2.5.m5.4.4.3.3.3.2" xref="S3.p2.5.m5.4.4.3.3.3.2.cmml">e</mi><mi id="S3.p2.5.m5.4.4.3.3.3.3" xref="S3.p2.5.m5.4.4.3.3.3.3.cmml">n</mi></msub><mo stretchy="false" id="S3.p2.5.m5.4.4.3.3.8" xref="S3.p2.5.m5.4.4.3.4.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p2.5.m5.4b"><apply id="S3.p2.5.m5.4.4.cmml" xref="S3.p2.5.m5.4.4"><eq id="S3.p2.5.m5.4.4.4.cmml" xref="S3.p2.5.m5.4.4.4"></eq><ci id="S3.p2.5.m5.4.4.5.cmml" xref="S3.p2.5.m5.4.4.5">𝐸</ci><set id="S3.p2.5.m5.4.4.3.4.cmml" xref="S3.p2.5.m5.4.4.3.3"><apply id="S3.p2.5.m5.2.2.1.1.1.cmml" xref="S3.p2.5.m5.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.p2.5.m5.2.2.1.1.1.1.cmml" xref="S3.p2.5.m5.2.2.1.1.1">subscript</csymbol><ci id="S3.p2.5.m5.2.2.1.1.1.2.cmml" xref="S3.p2.5.m5.2.2.1.1.1.2">𝑒</ci><cn type="integer" id="S3.p2.5.m5.2.2.1.1.1.3.cmml" xref="S3.p2.5.m5.2.2.1.1.1.3">1</cn></apply><apply id="S3.p2.5.m5.3.3.2.2.2.cmml" xref="S3.p2.5.m5.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.p2.5.m5.3.3.2.2.2.1.cmml" xref="S3.p2.5.m5.3.3.2.2.2">subscript</csymbol><ci id="S3.p2.5.m5.3.3.2.2.2.2.cmml" xref="S3.p2.5.m5.3.3.2.2.2.2">𝑒</ci><cn type="integer" id="S3.p2.5.m5.3.3.2.2.2.3.cmml" xref="S3.p2.5.m5.3.3.2.2.2.3">2</cn></apply><ci id="S3.p2.5.m5.1.1.cmml" xref="S3.p2.5.m5.1.1">…</ci><apply id="S3.p2.5.m5.4.4.3.3.3.cmml" xref="S3.p2.5.m5.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.p2.5.m5.4.4.3.3.3.1.cmml" xref="S3.p2.5.m5.4.4.3.3.3">subscript</csymbol><ci id="S3.p2.5.m5.4.4.3.3.3.2.cmml" xref="S3.p2.5.m5.4.4.3.3.3.2">𝑒</ci><ci id="S3.p2.5.m5.4.4.3.3.3.3.cmml" xref="S3.p2.5.m5.4.4.3.3.3.3">𝑛</ci></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.5.m5.4c">E=\{e_{1},e_{2},...,e_{n}\}</annotation></semantics></math> represents a set of <math id="S3.p2.6.m6.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.p2.6.m6.1a"><mi id="S3.p2.6.m6.1.1" xref="S3.p2.6.m6.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.p2.6.m6.1b"><ci id="S3.p2.6.m6.1.1.cmml" xref="S3.p2.6.m6.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.6.m6.1c">n</annotation></semantics></math> in-context examples (shots), where <math id="S3.p2.7.m7.2" class="ltx_Math" alttext="e_{i}=(x_{i},y_{i})" display="inline"><semantics id="S3.p2.7.m7.2a"><mrow id="S3.p2.7.m7.2.2" xref="S3.p2.7.m7.2.2.cmml"><msub id="S3.p2.7.m7.2.2.4" xref="S3.p2.7.m7.2.2.4.cmml"><mi id="S3.p2.7.m7.2.2.4.2" xref="S3.p2.7.m7.2.2.4.2.cmml">e</mi><mi id="S3.p2.7.m7.2.2.4.3" xref="S3.p2.7.m7.2.2.4.3.cmml">i</mi></msub><mo id="S3.p2.7.m7.2.2.3" xref="S3.p2.7.m7.2.2.3.cmml">=</mo><mrow id="S3.p2.7.m7.2.2.2.2" xref="S3.p2.7.m7.2.2.2.3.cmml"><mo stretchy="false" id="S3.p2.7.m7.2.2.2.2.3" xref="S3.p2.7.m7.2.2.2.3.cmml">(</mo><msub id="S3.p2.7.m7.1.1.1.1.1" xref="S3.p2.7.m7.1.1.1.1.1.cmml"><mi id="S3.p2.7.m7.1.1.1.1.1.2" xref="S3.p2.7.m7.1.1.1.1.1.2.cmml">x</mi><mi id="S3.p2.7.m7.1.1.1.1.1.3" xref="S3.p2.7.m7.1.1.1.1.1.3.cmml">i</mi></msub><mo id="S3.p2.7.m7.2.2.2.2.4" xref="S3.p2.7.m7.2.2.2.3.cmml">,</mo><msub id="S3.p2.7.m7.2.2.2.2.2" xref="S3.p2.7.m7.2.2.2.2.2.cmml"><mi id="S3.p2.7.m7.2.2.2.2.2.2" xref="S3.p2.7.m7.2.2.2.2.2.2.cmml">y</mi><mi id="S3.p2.7.m7.2.2.2.2.2.3" xref="S3.p2.7.m7.2.2.2.2.2.3.cmml">i</mi></msub><mo stretchy="false" id="S3.p2.7.m7.2.2.2.2.5" xref="S3.p2.7.m7.2.2.2.3.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p2.7.m7.2b"><apply id="S3.p2.7.m7.2.2.cmml" xref="S3.p2.7.m7.2.2"><eq id="S3.p2.7.m7.2.2.3.cmml" xref="S3.p2.7.m7.2.2.3"></eq><apply id="S3.p2.7.m7.2.2.4.cmml" xref="S3.p2.7.m7.2.2.4"><csymbol cd="ambiguous" id="S3.p2.7.m7.2.2.4.1.cmml" xref="S3.p2.7.m7.2.2.4">subscript</csymbol><ci id="S3.p2.7.m7.2.2.4.2.cmml" xref="S3.p2.7.m7.2.2.4.2">𝑒</ci><ci id="S3.p2.7.m7.2.2.4.3.cmml" xref="S3.p2.7.m7.2.2.4.3">𝑖</ci></apply><interval closure="open" id="S3.p2.7.m7.2.2.2.3.cmml" xref="S3.p2.7.m7.2.2.2.2"><apply id="S3.p2.7.m7.1.1.1.1.1.cmml" xref="S3.p2.7.m7.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.p2.7.m7.1.1.1.1.1.1.cmml" xref="S3.p2.7.m7.1.1.1.1.1">subscript</csymbol><ci id="S3.p2.7.m7.1.1.1.1.1.2.cmml" xref="S3.p2.7.m7.1.1.1.1.1.2">𝑥</ci><ci id="S3.p2.7.m7.1.1.1.1.1.3.cmml" xref="S3.p2.7.m7.1.1.1.1.1.3">𝑖</ci></apply><apply id="S3.p2.7.m7.2.2.2.2.2.cmml" xref="S3.p2.7.m7.2.2.2.2.2"><csymbol cd="ambiguous" id="S3.p2.7.m7.2.2.2.2.2.1.cmml" xref="S3.p2.7.m7.2.2.2.2.2">subscript</csymbol><ci id="S3.p2.7.m7.2.2.2.2.2.2.cmml" xref="S3.p2.7.m7.2.2.2.2.2.2">𝑦</ci><ci id="S3.p2.7.m7.2.2.2.2.2.3.cmml" xref="S3.p2.7.m7.2.2.2.2.2.3">𝑖</ci></apply></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.7.m7.2c">e_{i}=(x_{i},y_{i})</annotation></semantics></math> represents an input-target pair of the task, where <math id="S3.p2.8.m8.1" class="ltx_Math" alttext="x_{i}" display="inline"><semantics id="S3.p2.8.m8.1a"><msub id="S3.p2.8.m8.1.1" xref="S3.p2.8.m8.1.1.cmml"><mi id="S3.p2.8.m8.1.1.2" xref="S3.p2.8.m8.1.1.2.cmml">x</mi><mi id="S3.p2.8.m8.1.1.3" xref="S3.p2.8.m8.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p2.8.m8.1b"><apply id="S3.p2.8.m8.1.1.cmml" xref="S3.p2.8.m8.1.1"><csymbol cd="ambiguous" id="S3.p2.8.m8.1.1.1.cmml" xref="S3.p2.8.m8.1.1">subscript</csymbol><ci id="S3.p2.8.m8.1.1.2.cmml" xref="S3.p2.8.m8.1.1.2">𝑥</ci><ci id="S3.p2.8.m8.1.1.3.cmml" xref="S3.p2.8.m8.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.8.m8.1c">x_{i}</annotation></semantics></math> and <math id="S3.p2.9.m9.1" class="ltx_Math" alttext="y_{i}" display="inline"><semantics id="S3.p2.9.m9.1a"><msub id="S3.p2.9.m9.1.1" xref="S3.p2.9.m9.1.1.cmml"><mi id="S3.p2.9.m9.1.1.2" xref="S3.p2.9.m9.1.1.2.cmml">y</mi><mi id="S3.p2.9.m9.1.1.3" xref="S3.p2.9.m9.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p2.9.m9.1b"><apply id="S3.p2.9.m9.1.1.cmml" xref="S3.p2.9.m9.1.1"><csymbol cd="ambiguous" id="S3.p2.9.m9.1.1.1.cmml" xref="S3.p2.9.m9.1.1">subscript</csymbol><ci id="S3.p2.9.m9.1.1.2.cmml" xref="S3.p2.9.m9.1.1.2">𝑦</ci><ci id="S3.p2.9.m9.1.1.3.cmml" xref="S3.p2.9.m9.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.9.m9.1c">y_{i}</annotation></semantics></math> are the input and target, respectively. These pairs are constructed manually or sampled from the training set. <math id="S3.p2.10.m10.4" class="ltx_Math" alttext="C=\{c_{1},c_{2},...,c_{n}\}" display="inline"><semantics id="S3.p2.10.m10.4a"><mrow id="S3.p2.10.m10.4.4" xref="S3.p2.10.m10.4.4.cmml"><mi id="S3.p2.10.m10.4.4.5" xref="S3.p2.10.m10.4.4.5.cmml">C</mi><mo id="S3.p2.10.m10.4.4.4" xref="S3.p2.10.m10.4.4.4.cmml">=</mo><mrow id="S3.p2.10.m10.4.4.3.3" xref="S3.p2.10.m10.4.4.3.4.cmml"><mo stretchy="false" id="S3.p2.10.m10.4.4.3.3.4" xref="S3.p2.10.m10.4.4.3.4.cmml">{</mo><msub id="S3.p2.10.m10.2.2.1.1.1" xref="S3.p2.10.m10.2.2.1.1.1.cmml"><mi id="S3.p2.10.m10.2.2.1.1.1.2" xref="S3.p2.10.m10.2.2.1.1.1.2.cmml">c</mi><mn id="S3.p2.10.m10.2.2.1.1.1.3" xref="S3.p2.10.m10.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S3.p2.10.m10.4.4.3.3.5" xref="S3.p2.10.m10.4.4.3.4.cmml">,</mo><msub id="S3.p2.10.m10.3.3.2.2.2" xref="S3.p2.10.m10.3.3.2.2.2.cmml"><mi id="S3.p2.10.m10.3.3.2.2.2.2" xref="S3.p2.10.m10.3.3.2.2.2.2.cmml">c</mi><mn id="S3.p2.10.m10.3.3.2.2.2.3" xref="S3.p2.10.m10.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S3.p2.10.m10.4.4.3.3.6" xref="S3.p2.10.m10.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.p2.10.m10.1.1" xref="S3.p2.10.m10.1.1.cmml">…</mi><mo id="S3.p2.10.m10.4.4.3.3.7" xref="S3.p2.10.m10.4.4.3.4.cmml">,</mo><msub id="S3.p2.10.m10.4.4.3.3.3" xref="S3.p2.10.m10.4.4.3.3.3.cmml"><mi id="S3.p2.10.m10.4.4.3.3.3.2" xref="S3.p2.10.m10.4.4.3.3.3.2.cmml">c</mi><mi id="S3.p2.10.m10.4.4.3.3.3.3" xref="S3.p2.10.m10.4.4.3.3.3.3.cmml">n</mi></msub><mo stretchy="false" id="S3.p2.10.m10.4.4.3.3.8" xref="S3.p2.10.m10.4.4.3.4.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p2.10.m10.4b"><apply id="S3.p2.10.m10.4.4.cmml" xref="S3.p2.10.m10.4.4"><eq id="S3.p2.10.m10.4.4.4.cmml" xref="S3.p2.10.m10.4.4.4"></eq><ci id="S3.p2.10.m10.4.4.5.cmml" xref="S3.p2.10.m10.4.4.5">𝐶</ci><set id="S3.p2.10.m10.4.4.3.4.cmml" xref="S3.p2.10.m10.4.4.3.3"><apply id="S3.p2.10.m10.2.2.1.1.1.cmml" xref="S3.p2.10.m10.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.p2.10.m10.2.2.1.1.1.1.cmml" xref="S3.p2.10.m10.2.2.1.1.1">subscript</csymbol><ci id="S3.p2.10.m10.2.2.1.1.1.2.cmml" xref="S3.p2.10.m10.2.2.1.1.1.2">𝑐</ci><cn type="integer" id="S3.p2.10.m10.2.2.1.1.1.3.cmml" xref="S3.p2.10.m10.2.2.1.1.1.3">1</cn></apply><apply id="S3.p2.10.m10.3.3.2.2.2.cmml" xref="S3.p2.10.m10.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.p2.10.m10.3.3.2.2.2.1.cmml" xref="S3.p2.10.m10.3.3.2.2.2">subscript</csymbol><ci id="S3.p2.10.m10.3.3.2.2.2.2.cmml" xref="S3.p2.10.m10.3.3.2.2.2.2">𝑐</ci><cn type="integer" id="S3.p2.10.m10.3.3.2.2.2.3.cmml" xref="S3.p2.10.m10.3.3.2.2.2.3">2</cn></apply><ci id="S3.p2.10.m10.1.1.cmml" xref="S3.p2.10.m10.1.1">…</ci><apply id="S3.p2.10.m10.4.4.3.3.3.cmml" xref="S3.p2.10.m10.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.p2.10.m10.4.4.3.3.3.1.cmml" xref="S3.p2.10.m10.4.4.3.3.3">subscript</csymbol><ci id="S3.p2.10.m10.4.4.3.3.3.2.cmml" xref="S3.p2.10.m10.4.4.3.3.3.2">𝑐</ci><ci id="S3.p2.10.m10.4.4.3.3.3.3.cmml" xref="S3.p2.10.m10.4.4.3.3.3.3">𝑛</ci></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.10.m10.4c">C=\{c_{1},c_{2},...,c_{n}\}</annotation></semantics></math> represents a set of generic image captions describing each <math id="S3.p2.11.m11.1" class="ltx_Math" alttext="x_{i}" display="inline"><semantics id="S3.p2.11.m11.1a"><msub id="S3.p2.11.m11.1.1" xref="S3.p2.11.m11.1.1.cmml"><mi id="S3.p2.11.m11.1.1.2" xref="S3.p2.11.m11.1.1.2.cmml">x</mi><mi id="S3.p2.11.m11.1.1.3" xref="S3.p2.11.m11.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p2.11.m11.1b"><apply id="S3.p2.11.m11.1.1.cmml" xref="S3.p2.11.m11.1.1"><csymbol cd="ambiguous" id="S3.p2.11.m11.1.1.1.cmml" xref="S3.p2.11.m11.1.1">subscript</csymbol><ci id="S3.p2.11.m11.1.1.2.cmml" xref="S3.p2.11.m11.1.1.2">𝑥</ci><ci id="S3.p2.11.m11.1.1.3.cmml" xref="S3.p2.11.m11.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.11.m11.1c">x_{i}</annotation></semantics></math> since images cannot be inputted to GPT-3. The caption for the test input is labeled as <math id="S3.p2.12.m12.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S3.p2.12.m12.1a"><mi id="S3.p2.12.m12.1.1" xref="S3.p2.12.m12.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S3.p2.12.m12.1b"><ci id="S3.p2.12.m12.1.1.cmml" xref="S3.p2.12.m12.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.12.m12.1c">c</annotation></semantics></math>. The target <math id="S3.p2.13.m13.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S3.p2.13.m13.1a"><mi id="S3.p2.13.m13.1.1" xref="S3.p2.13.m13.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S3.p2.13.m13.1b"><ci id="S3.p2.13.m13.1.1.cmml" xref="S3.p2.13.m13.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.13.m13.1c">y</annotation></semantics></math> is denoted as a text sequence consisting of <math id="S3.p2.14.m14.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S3.p2.14.m14.1a"><mi id="S3.p2.14.m14.1.1" xref="S3.p2.14.m14.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S3.p2.14.m14.1b"><ci id="S3.p2.14.m14.1.1.cmml" xref="S3.p2.14.m14.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.14.m14.1c">L</annotation></semantics></math> tokens, expressed as <math id="S3.p2.15.m15.4" class="ltx_Math" alttext="y=(y^{1},y^{2},...,y^{L})" display="inline"><semantics id="S3.p2.15.m15.4a"><mrow id="S3.p2.15.m15.4.4" xref="S3.p2.15.m15.4.4.cmml"><mi id="S3.p2.15.m15.4.4.5" xref="S3.p2.15.m15.4.4.5.cmml">y</mi><mo id="S3.p2.15.m15.4.4.4" xref="S3.p2.15.m15.4.4.4.cmml">=</mo><mrow id="S3.p2.15.m15.4.4.3.3" xref="S3.p2.15.m15.4.4.3.4.cmml"><mo stretchy="false" id="S3.p2.15.m15.4.4.3.3.4" xref="S3.p2.15.m15.4.4.3.4.cmml">(</mo><msup id="S3.p2.15.m15.2.2.1.1.1" xref="S3.p2.15.m15.2.2.1.1.1.cmml"><mi id="S3.p2.15.m15.2.2.1.1.1.2" xref="S3.p2.15.m15.2.2.1.1.1.2.cmml">y</mi><mn id="S3.p2.15.m15.2.2.1.1.1.3" xref="S3.p2.15.m15.2.2.1.1.1.3.cmml">1</mn></msup><mo id="S3.p2.15.m15.4.4.3.3.5" xref="S3.p2.15.m15.4.4.3.4.cmml">,</mo><msup id="S3.p2.15.m15.3.3.2.2.2" xref="S3.p2.15.m15.3.3.2.2.2.cmml"><mi id="S3.p2.15.m15.3.3.2.2.2.2" xref="S3.p2.15.m15.3.3.2.2.2.2.cmml">y</mi><mn id="S3.p2.15.m15.3.3.2.2.2.3" xref="S3.p2.15.m15.3.3.2.2.2.3.cmml">2</mn></msup><mo id="S3.p2.15.m15.4.4.3.3.6" xref="S3.p2.15.m15.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.p2.15.m15.1.1" xref="S3.p2.15.m15.1.1.cmml">…</mi><mo id="S3.p2.15.m15.4.4.3.3.7" xref="S3.p2.15.m15.4.4.3.4.cmml">,</mo><msup id="S3.p2.15.m15.4.4.3.3.3" xref="S3.p2.15.m15.4.4.3.3.3.cmml"><mi id="S3.p2.15.m15.4.4.3.3.3.2" xref="S3.p2.15.m15.4.4.3.3.3.2.cmml">y</mi><mi id="S3.p2.15.m15.4.4.3.3.3.3" xref="S3.p2.15.m15.4.4.3.3.3.3.cmml">L</mi></msup><mo stretchy="false" id="S3.p2.15.m15.4.4.3.3.8" xref="S3.p2.15.m15.4.4.3.4.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p2.15.m15.4b"><apply id="S3.p2.15.m15.4.4.cmml" xref="S3.p2.15.m15.4.4"><eq id="S3.p2.15.m15.4.4.4.cmml" xref="S3.p2.15.m15.4.4.4"></eq><ci id="S3.p2.15.m15.4.4.5.cmml" xref="S3.p2.15.m15.4.4.5">𝑦</ci><vector id="S3.p2.15.m15.4.4.3.4.cmml" xref="S3.p2.15.m15.4.4.3.3"><apply id="S3.p2.15.m15.2.2.1.1.1.cmml" xref="S3.p2.15.m15.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.p2.15.m15.2.2.1.1.1.1.cmml" xref="S3.p2.15.m15.2.2.1.1.1">superscript</csymbol><ci id="S3.p2.15.m15.2.2.1.1.1.2.cmml" xref="S3.p2.15.m15.2.2.1.1.1.2">𝑦</ci><cn type="integer" id="S3.p2.15.m15.2.2.1.1.1.3.cmml" xref="S3.p2.15.m15.2.2.1.1.1.3">1</cn></apply><apply id="S3.p2.15.m15.3.3.2.2.2.cmml" xref="S3.p2.15.m15.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.p2.15.m15.3.3.2.2.2.1.cmml" xref="S3.p2.15.m15.3.3.2.2.2">superscript</csymbol><ci id="S3.p2.15.m15.3.3.2.2.2.2.cmml" xref="S3.p2.15.m15.3.3.2.2.2.2">𝑦</ci><cn type="integer" id="S3.p2.15.m15.3.3.2.2.2.3.cmml" xref="S3.p2.15.m15.3.3.2.2.2.3">2</cn></apply><ci id="S3.p2.15.m15.1.1.cmml" xref="S3.p2.15.m15.1.1">…</ci><apply id="S3.p2.15.m15.4.4.3.3.3.cmml" xref="S3.p2.15.m15.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.p2.15.m15.4.4.3.3.3.1.cmml" xref="S3.p2.15.m15.4.4.3.3.3">superscript</csymbol><ci id="S3.p2.15.m15.4.4.3.3.3.2.cmml" xref="S3.p2.15.m15.4.4.3.3.3.2">𝑦</ci><ci id="S3.p2.15.m15.4.4.3.3.3.3.cmml" xref="S3.p2.15.m15.4.4.3.3.3.3">𝐿</ci></apply></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.15.m15.4c">y=(y^{1},y^{2},...,y^{L})</annotation></semantics></math>. At each decoding step <math id="S3.p2.16.m16.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.p2.16.m16.1a"><mi id="S3.p2.16.m16.1.1" xref="S3.p2.16.m16.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.p2.16.m16.1b"><ci id="S3.p2.16.m16.1.1.cmml" xref="S3.p2.16.m16.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.16.m16.1c">t</annotation></semantics></math>, the following conditions apply:</p>
+<table id="S3.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.E1.m1.2" class="ltx_Math" alttext="\hat{y}^{t}=\operatorname*{argmax}_{y^{t}}p_{LLM}(y^{t}|p,\hat{y}^{&lt;t})" display="block"><semantics id="S3.E1.m1.2a"><mrow id="S3.E1.m1.2.2" xref="S3.E1.m1.2.2.cmml"><msup id="S3.E1.m1.2.2.3" xref="S3.E1.m1.2.2.3.cmml"><mover accent="true" id="S3.E1.m1.2.2.3.2" xref="S3.E1.m1.2.2.3.2.cmml"><mi id="S3.E1.m1.2.2.3.2.2" xref="S3.E1.m1.2.2.3.2.2.cmml">y</mi><mo id="S3.E1.m1.2.2.3.2.1" xref="S3.E1.m1.2.2.3.2.1.cmml">^</mo></mover><mi id="S3.E1.m1.2.2.3.3" xref="S3.E1.m1.2.2.3.3.cmml">t</mi></msup><mo rspace="0.1389em" id="S3.E1.m1.2.2.2" xref="S3.E1.m1.2.2.2.cmml">=</mo><mrow id="S3.E1.m1.2.2.1" xref="S3.E1.m1.2.2.1.cmml"><mrow id="S3.E1.m1.2.2.1.3" xref="S3.E1.m1.2.2.1.3.cmml"><munder id="S3.E1.m1.2.2.1.3.1" xref="S3.E1.m1.2.2.1.3.1.cmml"><mo lspace="0.1389em" rspace="0.167em" id="S3.E1.m1.2.2.1.3.1.2" xref="S3.E1.m1.2.2.1.3.1.2.cmml">argmax</mo><msup id="S3.E1.m1.2.2.1.3.1.3" xref="S3.E1.m1.2.2.1.3.1.3.cmml"><mi id="S3.E1.m1.2.2.1.3.1.3.2" xref="S3.E1.m1.2.2.1.3.1.3.2.cmml">y</mi><mi id="S3.E1.m1.2.2.1.3.1.3.3" xref="S3.E1.m1.2.2.1.3.1.3.3.cmml">t</mi></msup></munder><msub id="S3.E1.m1.2.2.1.3.2" xref="S3.E1.m1.2.2.1.3.2.cmml"><mi id="S3.E1.m1.2.2.1.3.2.2" xref="S3.E1.m1.2.2.1.3.2.2.cmml">p</mi><mrow id="S3.E1.m1.2.2.1.3.2.3" xref="S3.E1.m1.2.2.1.3.2.3.cmml"><mi id="S3.E1.m1.2.2.1.3.2.3.2" xref="S3.E1.m1.2.2.1.3.2.3.2.cmml">L</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.2.2.1.3.2.3.1" xref="S3.E1.m1.2.2.1.3.2.3.1.cmml">​</mo><mi id="S3.E1.m1.2.2.1.3.2.3.3" xref="S3.E1.m1.2.2.1.3.2.3.3.cmml">L</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.2.2.1.3.2.3.1a" xref="S3.E1.m1.2.2.1.3.2.3.1.cmml">​</mo><mi id="S3.E1.m1.2.2.1.3.2.3.4" xref="S3.E1.m1.2.2.1.3.2.3.4.cmml">M</mi></mrow></msub></mrow><mo lspace="0em" rspace="0em" id="S3.E1.m1.2.2.1.2" xref="S3.E1.m1.2.2.1.2.cmml">​</mo><mrow id="S3.E1.m1.2.2.1.1.1" xref="S3.E1.m1.2.2.1.1.1.1.cmml"><mo stretchy="false" id="S3.E1.m1.2.2.1.1.1.2" xref="S3.E1.m1.2.2.1.1.1.1.cmml">(</mo><mrow id="S3.E1.m1.2.2.1.1.1.1" xref="S3.E1.m1.2.2.1.1.1.1.cmml"><msup id="S3.E1.m1.2.2.1.1.1.1.3" xref="S3.E1.m1.2.2.1.1.1.1.3.cmml"><mi id="S3.E1.m1.2.2.1.1.1.1.3.2" xref="S3.E1.m1.2.2.1.1.1.1.3.2.cmml">y</mi><mi id="S3.E1.m1.2.2.1.1.1.1.3.3" xref="S3.E1.m1.2.2.1.1.1.1.3.3.cmml">t</mi></msup><mo fence="false" id="S3.E1.m1.2.2.1.1.1.1.2" xref="S3.E1.m1.2.2.1.1.1.1.2.cmml">|</mo><mrow id="S3.E1.m1.2.2.1.1.1.1.1.1" xref="S3.E1.m1.2.2.1.1.1.1.1.2.cmml"><mi id="S3.E1.m1.1.1" xref="S3.E1.m1.1.1.cmml">p</mi><mo id="S3.E1.m1.2.2.1.1.1.1.1.1.2" xref="S3.E1.m1.2.2.1.1.1.1.1.2.cmml">,</mo><msup id="S3.E1.m1.2.2.1.1.1.1.1.1.1" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.cmml"><mover accent="true" id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.cmml"><mi id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.2" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.2.cmml">y</mi><mo id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.1" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.1.cmml">^</mo></mover><mrow id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.cmml"><mi id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.2" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.2.cmml"></mi><mo id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.1" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.1.cmml">&lt;</mo><mi id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.3" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.3.cmml">t</mi></mrow></msup></mrow></mrow><mo stretchy="false" id="S3.E1.m1.2.2.1.1.1.3" xref="S3.E1.m1.2.2.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.E1.m1.2b"><apply id="S3.E1.m1.2.2.cmml" xref="S3.E1.m1.2.2"><eq id="S3.E1.m1.2.2.2.cmml" xref="S3.E1.m1.2.2.2"></eq><apply id="S3.E1.m1.2.2.3.cmml" xref="S3.E1.m1.2.2.3"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.3.1.cmml" xref="S3.E1.m1.2.2.3">superscript</csymbol><apply id="S3.E1.m1.2.2.3.2.cmml" xref="S3.E1.m1.2.2.3.2"><ci id="S3.E1.m1.2.2.3.2.1.cmml" xref="S3.E1.m1.2.2.3.2.1">^</ci><ci id="S3.E1.m1.2.2.3.2.2.cmml" xref="S3.E1.m1.2.2.3.2.2">𝑦</ci></apply><ci id="S3.E1.m1.2.2.3.3.cmml" xref="S3.E1.m1.2.2.3.3">𝑡</ci></apply><apply id="S3.E1.m1.2.2.1.cmml" xref="S3.E1.m1.2.2.1"><times id="S3.E1.m1.2.2.1.2.cmml" xref="S3.E1.m1.2.2.1.2"></times><apply id="S3.E1.m1.2.2.1.3.cmml" xref="S3.E1.m1.2.2.1.3"><apply id="S3.E1.m1.2.2.1.3.1.cmml" xref="S3.E1.m1.2.2.1.3.1"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.1.3.1.1.cmml" xref="S3.E1.m1.2.2.1.3.1">subscript</csymbol><ci id="S3.E1.m1.2.2.1.3.1.2.cmml" xref="S3.E1.m1.2.2.1.3.1.2">argmax</ci><apply id="S3.E1.m1.2.2.1.3.1.3.cmml" xref="S3.E1.m1.2.2.1.3.1.3"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.1.3.1.3.1.cmml" xref="S3.E1.m1.2.2.1.3.1.3">superscript</csymbol><ci id="S3.E1.m1.2.2.1.3.1.3.2.cmml" xref="S3.E1.m1.2.2.1.3.1.3.2">𝑦</ci><ci id="S3.E1.m1.2.2.1.3.1.3.3.cmml" xref="S3.E1.m1.2.2.1.3.1.3.3">𝑡</ci></apply></apply><apply id="S3.E1.m1.2.2.1.3.2.cmml" xref="S3.E1.m1.2.2.1.3.2"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.1.3.2.1.cmml" xref="S3.E1.m1.2.2.1.3.2">subscript</csymbol><ci id="S3.E1.m1.2.2.1.3.2.2.cmml" xref="S3.E1.m1.2.2.1.3.2.2">𝑝</ci><apply id="S3.E1.m1.2.2.1.3.2.3.cmml" xref="S3.E1.m1.2.2.1.3.2.3"><times id="S3.E1.m1.2.2.1.3.2.3.1.cmml" xref="S3.E1.m1.2.2.1.3.2.3.1"></times><ci id="S3.E1.m1.2.2.1.3.2.3.2.cmml" xref="S3.E1.m1.2.2.1.3.2.3.2">𝐿</ci><ci id="S3.E1.m1.2.2.1.3.2.3.3.cmml" xref="S3.E1.m1.2.2.1.3.2.3.3">𝐿</ci><ci id="S3.E1.m1.2.2.1.3.2.3.4.cmml" xref="S3.E1.m1.2.2.1.3.2.3.4">𝑀</ci></apply></apply></apply><apply id="S3.E1.m1.2.2.1.1.1.1.cmml" xref="S3.E1.m1.2.2.1.1.1"><csymbol cd="latexml" id="S3.E1.m1.2.2.1.1.1.1.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.2">conditional</csymbol><apply id="S3.E1.m1.2.2.1.1.1.1.3.cmml" xref="S3.E1.m1.2.2.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.1.1.1.1.3.1.cmml" xref="S3.E1.m1.2.2.1.1.1.1.3">superscript</csymbol><ci id="S3.E1.m1.2.2.1.1.1.1.3.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.3.2">𝑦</ci><ci id="S3.E1.m1.2.2.1.1.1.1.3.3.cmml" xref="S3.E1.m1.2.2.1.1.1.1.3.3">𝑡</ci></apply><list id="S3.E1.m1.2.2.1.1.1.1.1.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1"><ci id="S3.E1.m1.1.1.cmml" xref="S3.E1.m1.1.1">𝑝</ci><apply id="S3.E1.m1.2.2.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1">superscript</csymbol><apply id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2"><ci id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.1.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.1">^</ci><ci id="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.2.2">𝑦</ci></apply><apply id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3"><lt id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.1.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.1"></lt><csymbol cd="latexml" id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.2.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.2">absent</csymbol><ci id="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.3.cmml" xref="S3.E1.m1.2.2.1.1.1.1.1.1.1.3.3">𝑡</ci></apply></apply></list></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E1.m1.2c">\hat{y}^{t}=\operatorname*{argmax}_{y^{t}}p_{LLM}(y^{t}|p,\hat{y}^{&lt;t})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.4" class="ltx_p">In order to utilize any LLM for the knowledge-based VQA task, the crucial step is to design suitable prompts. When given a question <math id="S3.p3.1.m1.1" class="ltx_Math" alttext="q_{i}" display="inline"><semantics id="S3.p3.1.m1.1a"><msub id="S3.p3.1.m1.1.1" xref="S3.p3.1.m1.1.1.cmml"><mi id="S3.p3.1.m1.1.1.2" xref="S3.p3.1.m1.1.1.2.cmml">q</mi><mi id="S3.p3.1.m1.1.1.3" xref="S3.p3.1.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.1.m1.1b"><apply id="S3.p3.1.m1.1.1.cmml" xref="S3.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p3.1.m1.1.1.1.cmml" xref="S3.p3.1.m1.1.1">subscript</csymbol><ci id="S3.p3.1.m1.1.1.2.cmml" xref="S3.p3.1.m1.1.1.2">𝑞</ci><ci id="S3.p3.1.m1.1.1.3.cmml" xref="S3.p3.1.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.1.m1.1c">q_{i}</annotation></semantics></math> and an image <math id="S3.p3.2.m2.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p3.2.m2.1a"><msub id="S3.p3.2.m2.1.1" xref="S3.p3.2.m2.1.1.cmml"><mi id="S3.p3.2.m2.1.1.2" xref="S3.p3.2.m2.1.1.2.cmml">v</mi><mi id="S3.p3.2.m2.1.1.3" xref="S3.p3.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.2.m2.1b"><apply id="S3.p3.2.m2.1.1.cmml" xref="S3.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S3.p3.2.m2.1.1.1.cmml" xref="S3.p3.2.m2.1.1">subscript</csymbol><ci id="S3.p3.2.m2.1.1.2.cmml" xref="S3.p3.2.m2.1.1.2">𝑣</ci><ci id="S3.p3.2.m2.1.1.3.cmml" xref="S3.p3.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.2.m2.1c">v_{i}</annotation></semantics></math> as inputs, the VQA task’s objective is to predict the corresponding answer <math id="S3.p3.3.m3.1" class="ltx_Math" alttext="a_{i}" display="inline"><semantics id="S3.p3.3.m3.1a"><msub id="S3.p3.3.m3.1.1" xref="S3.p3.3.m3.1.1.cmml"><mi id="S3.p3.3.m3.1.1.2" xref="S3.p3.3.m3.1.1.2.cmml">a</mi><mi id="S3.p3.3.m3.1.1.3" xref="S3.p3.3.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.3.m3.1b"><apply id="S3.p3.3.m3.1.1.cmml" xref="S3.p3.3.m3.1.1"><csymbol cd="ambiguous" id="S3.p3.3.m3.1.1.1.cmml" xref="S3.p3.3.m3.1.1">subscript</csymbol><ci id="S3.p3.3.m3.1.1.2.cmml" xref="S3.p3.3.m3.1.1.2">𝑎</ci><ci id="S3.p3.3.m3.1.1.3.cmml" xref="S3.p3.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.3.m3.1c">a_{i}</annotation></semantics></math>. However, since LLMs do not inherently comprehend images, it becomes necessary to convert the image into a caption <math id="S3.p3.4.m4.1" class="ltx_Math" alttext="c_{i}" display="inline"><semantics id="S3.p3.4.m4.1a"><msub id="S3.p3.4.m4.1.1" xref="S3.p3.4.m4.1.1.cmml"><mi id="S3.p3.4.m4.1.1.2" xref="S3.p3.4.m4.1.1.2.cmml">c</mi><mi id="S3.p3.4.m4.1.1.3" xref="S3.p3.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.4.m4.1b"><apply id="S3.p3.4.m4.1.1.cmml" xref="S3.p3.4.m4.1.1"><csymbol cd="ambiguous" id="S3.p3.4.m4.1.1.1.cmml" xref="S3.p3.4.m4.1.1">subscript</csymbol><ci id="S3.p3.4.m4.1.1.2.cmml" xref="S3.p3.4.m4.1.1.2">𝑐</ci><ci id="S3.p3.4.m4.1.1.3.cmml" xref="S3.p3.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.4.m4.1c">c_{i}</annotation></semantics></math> using a pre-existing captioning model. While SOTA pretrained captioning models have demonstrated impressive performance, they are primarily optimized to generate generic image captions. Unfortunately, these captions often fail to capture all the specific details required to accurately answer a given question about the image. In this work, instead of generic captions, we generate question-guided informative image captions using the Plug-and-Play VQA (PNPVQA) framework <cite class="ltx_cite ltx_citemacro_cite">Tiong et al. (<a href="#bib.bib16" title="" class="ltx_ref">2022</a>)</cite> which identifies the most related image patches to the question with a saliency map-based interpretability technique and generates captions from these patches only.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure"><img src="/html/2310.13570/assets/images/llama_icl_example_cropped.png" id="S3.F1.g1" class="ltx_graphics ltx_img_landscape" width="287" height="132" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Inference-time of our method for n-shot VQA. The input prompt to LLaMA consists of a prompt head <math id="S3.F1.6.m1.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S3.F1.6.m1.1b"><mi id="S3.F1.6.m1.1.1" xref="S3.F1.6.m1.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S3.F1.6.m1.1c"><ci id="S3.F1.6.m1.1.1.cmml" xref="S3.F1.6.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.F1.6.m1.1d">h</annotation></semantics></math> (blue box), <math id="S3.F1.7.m2.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.F1.7.m2.1b"><mi id="S3.F1.7.m2.1.1" xref="S3.F1.7.m2.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.F1.7.m2.1c"><ci id="S3.F1.7.m2.1.1.cmml" xref="S3.F1.7.m2.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.F1.7.m2.1d">n</annotation></semantics></math> in-context examples (<math id="S3.F1.8.m3.3" class="ltx_Math" alttext="\{c_{i},x_{i},y_{i}\}^{n}_{i=1}" display="inline"><semantics id="S3.F1.8.m3.3b"><msubsup id="S3.F1.8.m3.3.3" xref="S3.F1.8.m3.3.3.cmml"><mrow id="S3.F1.8.m3.3.3.3.3.3" xref="S3.F1.8.m3.3.3.3.3.4.cmml"><mo stretchy="false" id="S3.F1.8.m3.3.3.3.3.3.4" xref="S3.F1.8.m3.3.3.3.3.4.cmml">{</mo><msub id="S3.F1.8.m3.1.1.1.1.1.1" xref="S3.F1.8.m3.1.1.1.1.1.1.cmml"><mi id="S3.F1.8.m3.1.1.1.1.1.1.2" xref="S3.F1.8.m3.1.1.1.1.1.1.2.cmml">c</mi><mi id="S3.F1.8.m3.1.1.1.1.1.1.3" xref="S3.F1.8.m3.1.1.1.1.1.1.3.cmml">i</mi></msub><mo id="S3.F1.8.m3.3.3.3.3.3.5" xref="S3.F1.8.m3.3.3.3.3.4.cmml">,</mo><msub id="S3.F1.8.m3.2.2.2.2.2.2" xref="S3.F1.8.m3.2.2.2.2.2.2.cmml"><mi id="S3.F1.8.m3.2.2.2.2.2.2.2" xref="S3.F1.8.m3.2.2.2.2.2.2.2.cmml">x</mi><mi id="S3.F1.8.m3.2.2.2.2.2.2.3" xref="S3.F1.8.m3.2.2.2.2.2.2.3.cmml">i</mi></msub><mo id="S3.F1.8.m3.3.3.3.3.3.6" xref="S3.F1.8.m3.3.3.3.3.4.cmml">,</mo><msub id="S3.F1.8.m3.3.3.3.3.3.3" xref="S3.F1.8.m3.3.3.3.3.3.3.cmml"><mi id="S3.F1.8.m3.3.3.3.3.3.3.2" xref="S3.F1.8.m3.3.3.3.3.3.3.2.cmml">y</mi><mi id="S3.F1.8.m3.3.3.3.3.3.3.3" xref="S3.F1.8.m3.3.3.3.3.3.3.3.cmml">i</mi></msub><mo stretchy="false" id="S3.F1.8.m3.3.3.3.3.3.7" xref="S3.F1.8.m3.3.3.3.3.4.cmml">}</mo></mrow><mrow id="S3.F1.8.m3.3.3.5" xref="S3.F1.8.m3.3.3.5.cmml"><mi id="S3.F1.8.m3.3.3.5.2" xref="S3.F1.8.m3.3.3.5.2.cmml">i</mi><mo id="S3.F1.8.m3.3.3.5.1" xref="S3.F1.8.m3.3.3.5.1.cmml">=</mo><mn id="S3.F1.8.m3.3.3.5.3" xref="S3.F1.8.m3.3.3.5.3.cmml">1</mn></mrow><mi id="S3.F1.8.m3.3.3.3.5" xref="S3.F1.8.m3.3.3.3.5.cmml">n</mi></msubsup><annotation-xml encoding="MathML-Content" id="S3.F1.8.m3.3c"><apply id="S3.F1.8.m3.3.3.cmml" xref="S3.F1.8.m3.3.3"><csymbol cd="ambiguous" id="S3.F1.8.m3.3.3.4.cmml" xref="S3.F1.8.m3.3.3">subscript</csymbol><apply id="S3.F1.8.m3.3.3.3.cmml" xref="S3.F1.8.m3.3.3"><csymbol cd="ambiguous" id="S3.F1.8.m3.3.3.3.4.cmml" xref="S3.F1.8.m3.3.3">superscript</csymbol><set id="S3.F1.8.m3.3.3.3.3.4.cmml" xref="S3.F1.8.m3.3.3.3.3.3"><apply id="S3.F1.8.m3.1.1.1.1.1.1.cmml" xref="S3.F1.8.m3.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.F1.8.m3.1.1.1.1.1.1.1.cmml" xref="S3.F1.8.m3.1.1.1.1.1.1">subscript</csymbol><ci id="S3.F1.8.m3.1.1.1.1.1.1.2.cmml" xref="S3.F1.8.m3.1.1.1.1.1.1.2">𝑐</ci><ci id="S3.F1.8.m3.1.1.1.1.1.1.3.cmml" xref="S3.F1.8.m3.1.1.1.1.1.1.3">𝑖</ci></apply><apply id="S3.F1.8.m3.2.2.2.2.2.2.cmml" xref="S3.F1.8.m3.2.2.2.2.2.2"><csymbol cd="ambiguous" id="S3.F1.8.m3.2.2.2.2.2.2.1.cmml" xref="S3.F1.8.m3.2.2.2.2.2.2">subscript</csymbol><ci id="S3.F1.8.m3.2.2.2.2.2.2.2.cmml" xref="S3.F1.8.m3.2.2.2.2.2.2.2">𝑥</ci><ci id="S3.F1.8.m3.2.2.2.2.2.2.3.cmml" xref="S3.F1.8.m3.2.2.2.2.2.2.3">𝑖</ci></apply><apply id="S3.F1.8.m3.3.3.3.3.3.3.cmml" xref="S3.F1.8.m3.3.3.3.3.3.3"><csymbol cd="ambiguous" id="S3.F1.8.m3.3.3.3.3.3.3.1.cmml" xref="S3.F1.8.m3.3.3.3.3.3.3">subscript</csymbol><ci id="S3.F1.8.m3.3.3.3.3.3.3.2.cmml" xref="S3.F1.8.m3.3.3.3.3.3.3.2">𝑦</ci><ci id="S3.F1.8.m3.3.3.3.3.3.3.3.cmml" xref="S3.F1.8.m3.3.3.3.3.3.3.3">𝑖</ci></apply></set><ci id="S3.F1.8.m3.3.3.3.5.cmml" xref="S3.F1.8.m3.3.3.3.5">𝑛</ci></apply><apply id="S3.F1.8.m3.3.3.5.cmml" xref="S3.F1.8.m3.3.3.5"><eq id="S3.F1.8.m3.3.3.5.1.cmml" xref="S3.F1.8.m3.3.3.5.1"></eq><ci id="S3.F1.8.m3.3.3.5.2.cmml" xref="S3.F1.8.m3.3.3.5.2">𝑖</ci><cn type="integer" id="S3.F1.8.m3.3.3.5.3.cmml" xref="S3.F1.8.m3.3.3.5.3">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.F1.8.m3.3d">\{c_{i},x_{i},y_{i}\}^{n}_{i=1}</annotation></semantics></math>) (red boxes), and the VQA input <math id="S3.F1.9.m4.2" class="ltx_Math" alttext="\{c,x\}" display="inline"><semantics id="S3.F1.9.m4.2b"><mrow id="S3.F1.9.m4.2.3.2" xref="S3.F1.9.m4.2.3.1.cmml"><mo stretchy="false" id="S3.F1.9.m4.2.3.2.1" xref="S3.F1.9.m4.2.3.1.cmml">{</mo><mi id="S3.F1.9.m4.1.1" xref="S3.F1.9.m4.1.1.cmml">c</mi><mo id="S3.F1.9.m4.2.3.2.2" xref="S3.F1.9.m4.2.3.1.cmml">,</mo><mi id="S3.F1.9.m4.2.2" xref="S3.F1.9.m4.2.2.cmml">x</mi><mo stretchy="false" id="S3.F1.9.m4.2.3.2.3" xref="S3.F1.9.m4.2.3.1.cmml">}</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.F1.9.m4.2c"><set id="S3.F1.9.m4.2.3.1.cmml" xref="S3.F1.9.m4.2.3.2"><ci id="S3.F1.9.m4.1.1.cmml" xref="S3.F1.9.m4.1.1">𝑐</ci><ci id="S3.F1.9.m4.2.2.cmml" xref="S3.F1.9.m4.2.2">𝑥</ci></set></annotation-xml><annotation encoding="application/x-tex" id="S3.F1.9.m4.2d">\{c,x\}</annotation></semantics></math> (green box). The answer <math id="S3.F1.10.m5.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S3.F1.10.m5.1b"><mi id="S3.F1.10.m5.1.1" xref="S3.F1.10.m5.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S3.F1.10.m5.1c"><ci id="S3.F1.10.m5.1.1.cmml" xref="S3.F1.10.m5.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.F1.10.m5.1d">y</annotation></semantics></math> is produced in an open-ended text generation manner. In this example we use two question-informative captions per example (separated by commas).</figcaption>
+</figure>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.10" class="ltx_p">For each image-question pair, we first generate 50 question-guided informative image captions from the image <math id="S3.p4.1.m1.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p4.1.m1.1a"><msub id="S3.p4.1.m1.1.1" xref="S3.p4.1.m1.1.1.cmml"><mi id="S3.p4.1.m1.1.1.2" xref="S3.p4.1.m1.1.1.2.cmml">v</mi><mi id="S3.p4.1.m1.1.1.3" xref="S3.p4.1.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.1.m1.1b"><apply id="S3.p4.1.m1.1.1.cmml" xref="S3.p4.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p4.1.m1.1.1.1.cmml" xref="S3.p4.1.m1.1.1">subscript</csymbol><ci id="S3.p4.1.m1.1.1.2.cmml" xref="S3.p4.1.m1.1.1.2">𝑣</ci><ci id="S3.p4.1.m1.1.1.3.cmml" xref="S3.p4.1.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.1.m1.1c">v_{i}</annotation></semantics></math> using PNPVQA. We then employ BLIP’s <cite class="ltx_cite ltx_citemacro_cite">Li et al. (<a href="#bib.bib6" title="" class="ltx_ref">2022</a>)</cite> text encoder to encode all the image captions and BLIP’s image encoder to encode the image <math id="S3.p4.2.m2.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p4.2.m2.1a"><msub id="S3.p4.2.m2.1.1" xref="S3.p4.2.m2.1.1.cmml"><mi id="S3.p4.2.m2.1.1.2" xref="S3.p4.2.m2.1.1.2.cmml">v</mi><mi id="S3.p4.2.m2.1.1.3" xref="S3.p4.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.2.m2.1b"><apply id="S3.p4.2.m2.1.1.cmml" xref="S3.p4.2.m2.1.1"><csymbol cd="ambiguous" id="S3.p4.2.m2.1.1.1.cmml" xref="S3.p4.2.m2.1.1">subscript</csymbol><ci id="S3.p4.2.m2.1.1.2.cmml" xref="S3.p4.2.m2.1.1.2">𝑣</ci><ci id="S3.p4.2.m2.1.1.3.cmml" xref="S3.p4.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.2.m2.1c">v_{i}</annotation></semantics></math>. We rank the image captions per image <math id="S3.p4.3.m3.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p4.3.m3.1a"><msub id="S3.p4.3.m3.1.1" xref="S3.p4.3.m3.1.1.cmml"><mi id="S3.p4.3.m3.1.1.2" xref="S3.p4.3.m3.1.1.2.cmml">v</mi><mi id="S3.p4.3.m3.1.1.3" xref="S3.p4.3.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.3.m3.1b"><apply id="S3.p4.3.m3.1.1.cmml" xref="S3.p4.3.m3.1.1"><csymbol cd="ambiguous" id="S3.p4.3.m3.1.1.1.cmml" xref="S3.p4.3.m3.1.1">subscript</csymbol><ci id="S3.p4.3.m3.1.1.2.cmml" xref="S3.p4.3.m3.1.1.2">𝑣</ci><ci id="S3.p4.3.m3.1.1.3.cmml" xref="S3.p4.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.3.m3.1c">v_{i}</annotation></semantics></math> according to their cosine similarity with the image <math id="S3.p4.4.m4.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p4.4.m4.1a"><msub id="S3.p4.4.m4.1.1" xref="S3.p4.4.m4.1.1.cmml"><mi id="S3.p4.4.m4.1.1.2" xref="S3.p4.4.m4.1.1.2.cmml">v</mi><mi id="S3.p4.4.m4.1.1.3" xref="S3.p4.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.4.m4.1b"><apply id="S3.p4.4.m4.1.1.cmml" xref="S3.p4.4.m4.1.1"><csymbol cd="ambiguous" id="S3.p4.4.m4.1.1.1.cmml" xref="S3.p4.4.m4.1.1">subscript</csymbol><ci id="S3.p4.4.m4.1.1.2.cmml" xref="S3.p4.4.m4.1.1.2">𝑣</ci><ci id="S3.p4.4.m4.1.1.3.cmml" xref="S3.p4.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.4.m4.1c">v_{i}</annotation></semantics></math> and keep the top-<math id="S3.p4.5.m5.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.p4.5.m5.1a"><mi id="S3.p4.5.m5.1.1" xref="S3.p4.5.m5.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.p4.5.m5.1b"><ci id="S3.p4.5.m5.1.1.cmml" xref="S3.p4.5.m5.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.5.m5.1c">m</annotation></semantics></math> most similar captions <math id="S3.p4.6.m6.1" class="ltx_Math" alttext="c_{i}" display="inline"><semantics id="S3.p4.6.m6.1a"><msub id="S3.p4.6.m6.1.1" xref="S3.p4.6.m6.1.1.cmml"><mi id="S3.p4.6.m6.1.1.2" xref="S3.p4.6.m6.1.1.2.cmml">c</mi><mi id="S3.p4.6.m6.1.1.3" xref="S3.p4.6.m6.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.6.m6.1b"><apply id="S3.p4.6.m6.1.1.cmml" xref="S3.p4.6.m6.1.1"><csymbol cd="ambiguous" id="S3.p4.6.m6.1.1.1.cmml" xref="S3.p4.6.m6.1.1">subscript</csymbol><ci id="S3.p4.6.m6.1.1.2.cmml" xref="S3.p4.6.m6.1.1.2">𝑐</ci><ci id="S3.p4.6.m6.1.1.3.cmml" xref="S3.p4.6.m6.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.6.m6.1c">c_{i}</annotation></semantics></math> per example. After extracting the top-<math id="S3.p4.7.m7.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.p4.7.m7.1a"><mi id="S3.p4.7.m7.1.1" xref="S3.p4.7.m7.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.p4.7.m7.1b"><ci id="S3.p4.7.m7.1.1.cmml" xref="S3.p4.7.m7.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.7.m7.1c">m</annotation></semantics></math> most similar captions per image <math id="S3.p4.8.m8.1" class="ltx_Math" alttext="v_{i}" display="inline"><semantics id="S3.p4.8.m8.1a"><msub id="S3.p4.8.m8.1.1" xref="S3.p4.8.m8.1.1.cmml"><mi id="S3.p4.8.m8.1.1.2" xref="S3.p4.8.m8.1.1.2.cmml">v</mi><mi id="S3.p4.8.m8.1.1.3" xref="S3.p4.8.m8.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.8.m8.1b"><apply id="S3.p4.8.m8.1.1.cmml" xref="S3.p4.8.m8.1.1"><csymbol cd="ambiguous" id="S3.p4.8.m8.1.1.1.cmml" xref="S3.p4.8.m8.1.1">subscript</csymbol><ci id="S3.p4.8.m8.1.1.2.cmml" xref="S3.p4.8.m8.1.1.2">𝑣</ci><ci id="S3.p4.8.m8.1.1.3.cmml" xref="S3.p4.8.m8.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.8.m8.1c">v_{i}</annotation></semantics></math> we construct a carefully designed text prompt consisting of a general instruction sentence, the captions <math id="S3.p4.9.m9.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S3.p4.9.m9.1a"><mi id="S3.p4.9.m9.1.1" xref="S3.p4.9.m9.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S3.p4.9.m9.1b"><ci id="S3.p4.9.m9.1.1.cmml" xref="S3.p4.9.m9.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.9.m9.1c">C</annotation></semantics></math>, the question, the test input’s captions <math id="S3.p4.10.m10.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S3.p4.10.m10.1a"><mi id="S3.p4.10.m10.1.1" xref="S3.p4.10.m10.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S3.p4.10.m10.1b"><ci id="S3.p4.10.m10.1.1.cmml" xref="S3.p4.10.m10.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.10.m10.1c">c</annotation></semantics></math>, and a set of context-question-answer triplets (shots) taken from the training dataset that are semantically most similar to the current image-question pair (see Fig. <a href="#S3.F1" title="Figure 1 ‣ 3 Methodology ‣ A Simple Baseline for Knowledge-Based Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>). Then this text prompt is passed to a frozen LLaMA-13B model and in-context few-shot learning is performed in order to obtain its output as a promising answer candidate to the current image-question pair.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Selecting Informing Examples For Few-Shot In-Context Learning</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">As <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite> notes, feeding more in-context examples to GPT-3 yields better few-shot performance. However, the maximum input length of the model constrains the maximum number of examples <math id="S3.SS1.p1.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.SS1.p1.1.m1.1a"><mi id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.1b"><ci id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.1c">n</annotation></semantics></math> in the prompt. To better use these available examples we: (i) improve the example quality by careful in-context example selection <cite class="ltx_cite ltx_citemacro_cite">Liu et al. (<a href="#bib.bib8" title="" class="ltx_ref">2022</a>); Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>); Shao et al. (<a href="#bib.bib15" title="" class="ltx_ref">2023</a>)</cite>, and (ii) use more examples via multi-query ensemble.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p2.3" class="ltx_p"><span id="S3.SS1.p2.3.1" class="ltx_text ltx_font_bold">In-context Example Selection</span> tries to search for the best examples
+for each inference-time input <math id="S3.SS1.p2.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS1.p2.1.m1.1a"><mi id="S3.SS1.p2.1.m1.1.1" xref="S3.SS1.p2.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.1.m1.1b"><ci id="S3.SS1.p2.1.m1.1.1.cmml" xref="S3.SS1.p2.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.1.m1.1c">x</annotation></semantics></math> among all available examples <cite class="ltx_cite ltx_citemacro_cite">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite>. We consider in-context examples that have similar question features as <math id="S3.SS1.p2.2.m2.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS1.p2.2.m2.1a"><mi id="S3.SS1.p2.2.m2.1.1" xref="S3.SS1.p2.2.m2.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.2.m2.1b"><ci id="S3.SS1.p2.2.m2.1.1.cmml" xref="S3.SS1.p2.2.m2.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.2.m2.1c">x</annotation></semantics></math>. More specifically, given an inference-time question, we use BLIP’s text encoder to obtain its textual feature and compute its cosine similarity with the questions in all available in-context examples. We then average the question text similarity with the image visual similarity to guide the example selection similarly to <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite>. We select the top-<math id="S3.SS1.p2.3.m3.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.SS1.p2.3.m3.1a"><mi id="S3.SS1.p2.3.m3.1.1" xref="S3.SS1.p2.3.m3.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.3.m3.1b"><ci id="S3.SS1.p2.3.m3.1.1.cmml" xref="S3.SS1.p2.3.m3.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.3.m3.1c">n</annotation></semantics></math> questions with the highest similarity and use the corresponding examples as the in-context examples.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p3.7" class="ltx_p"><span id="S3.SS1.p3.7.1" class="ltx_text ltx_font_bold">Multi-query ensemble:</span> Given an inference-time example <math id="S3.SS1.p3.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS1.p3.1.m1.1a"><mi id="S3.SS1.p3.1.m1.1.1" xref="S3.SS1.p3.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.1.m1.1b"><ci id="S3.SS1.p3.1.m1.1.1.cmml" xref="S3.SS1.p3.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.1.m1.1c">x</annotation></semantics></math>, we use <math id="S3.SS1.p3.2.m2.1" class="ltx_Math" alttext="k\times n" display="inline"><semantics id="S3.SS1.p3.2.m2.1a"><mrow id="S3.SS1.p3.2.m2.1.1" xref="S3.SS1.p3.2.m2.1.1.cmml"><mi id="S3.SS1.p3.2.m2.1.1.2" xref="S3.SS1.p3.2.m2.1.1.2.cmml">k</mi><mo lspace="0.222em" rspace="0.222em" id="S3.SS1.p3.2.m2.1.1.1" xref="S3.SS1.p3.2.m2.1.1.1.cmml">×</mo><mi id="S3.SS1.p3.2.m2.1.1.3" xref="S3.SS1.p3.2.m2.1.1.3.cmml">n</mi></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.2.m2.1b"><apply id="S3.SS1.p3.2.m2.1.1.cmml" xref="S3.SS1.p3.2.m2.1.1"><times id="S3.SS1.p3.2.m2.1.1.1.cmml" xref="S3.SS1.p3.2.m2.1.1.1"></times><ci id="S3.SS1.p3.2.m2.1.1.2.cmml" xref="S3.SS1.p3.2.m2.1.1.2">𝑘</ci><ci id="S3.SS1.p3.2.m2.1.1.3.cmml" xref="S3.SS1.p3.2.m2.1.1.3">𝑛</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.2.m2.1c">k\times n</annotation></semantics></math> in-context examples to generate <math id="S3.SS1.p3.3.m3.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.SS1.p3.3.m3.1a"><mi id="S3.SS1.p3.3.m3.1.1" xref="S3.SS1.p3.3.m3.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.3.m3.1b"><ci id="S3.SS1.p3.3.m3.1.1.cmml" xref="S3.SS1.p3.3.m3.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.3.m3.1c">k</annotation></semantics></math> prompts. This way, we prompt LLaMA-13B for <math id="S3.SS1.p3.4.m4.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.SS1.p3.4.m4.1a"><mi id="S3.SS1.p3.4.m4.1.1" xref="S3.SS1.p3.4.m4.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.4.m4.1b"><ci id="S3.SS1.p3.4.m4.1.1.cmml" xref="S3.SS1.p3.4.m4.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.4.m4.1c">k</annotation></semantics></math> times and obtain <math id="S3.SS1.p3.5.m5.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.SS1.p3.5.m5.1a"><mi id="S3.SS1.p3.5.m5.1.1" xref="S3.SS1.p3.5.m5.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.5.m5.1b"><ci id="S3.SS1.p3.5.m5.1.1.cmml" xref="S3.SS1.p3.5.m5.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.5.m5.1c">k</annotation></semantics></math> answer predictions instead of 1 similar to <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite>, where <math id="S3.SS1.p3.6.m6.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.SS1.p3.6.m6.1a"><mi id="S3.SS1.p3.6.m6.1.1" xref="S3.SS1.p3.6.m6.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.6.m6.1b"><ci id="S3.SS1.p3.6.m6.1.1.cmml" xref="S3.SS1.p3.6.m6.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.6.m6.1c">k</annotation></semantics></math> is the number of queries to ensemble. Finally, among the <math id="S3.SS1.p3.7.m7.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.SS1.p3.7.m7.1a"><mi id="S3.SS1.p3.7.m7.1.1" xref="S3.SS1.p3.7.m7.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p3.7.m7.1b"><ci id="S3.SS1.p3.7.m7.1.1.cmml" xref="S3.SS1.p3.7.m7.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p3.7.m7.1c">k</annotation></semantics></math> answer predictions, we select the one with the most occurrences (majority vote).</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experimental Results</h2>
+
+<figure id="S4.T1" class="ltx_table">
+<div id="S4.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:334.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(30.2pt,-23.3pt) scale(1.16160985882855,1.16160985882855) ;">
+<table id="S4.T1.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column">Method</th>
+<th id="S4.T1.1.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column">Knowledge Resources</th>
+<th id="S4.T1.1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column">Acc (%)</th>
+</tr>
+<tr id="S4.T1.1.1.2.2" class="ltx_tr">
+<th id="S4.T1.1.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_column">KRISP</th>
+<th id="S4.T1.1.1.2.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_column">Wikipedia+ConceptNet</th>
+<th id="S4.T1.1.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column">38.35</th>
+</tr>
+<tr id="S4.T1.1.1.3.3" class="ltx_tr">
+<th id="S4.T1.1.1.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_column">MAVEx</th>
+<th id="S4.T1.1.1.3.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_column">Wikipedia+ConceptNet+Google Images</th>
+<th id="S4.T1.1.1.3.3.3" class="ltx_td ltx_align_center ltx_th ltx_th_column">39.4</th>
+</tr>
+<tr id="S4.T1.1.1.4.4" class="ltx_tr">
+<th id="S4.T1.1.1.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_column">Unified-IO (2.8B)</th>
+<th id="S4.T1.1.1.4.4.2" class="ltx_td ltx_align_left ltx_th ltx_th_column">Multimodal Pretraining</th>
+<th id="S4.T1.1.1.4.4.3" class="ltx_td ltx_align_center ltx_th ltx_th_column">54</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.1.5.1" class="ltx_tr">
+<td id="S4.T1.1.1.5.1.1" class="ltx_td ltx_align_center">Flamingo (80B)</td>
+<td id="S4.T1.1.1.5.1.2" class="ltx_td ltx_align_left">Multimodal Pretraining</td>
+<td id="S4.T1.1.1.5.1.3" class="ltx_td ltx_align_center">57.8</td>
+</tr>
+<tr id="S4.T1.1.1.6.2" class="ltx_tr">
+<td id="S4.T1.1.1.6.2.1" class="ltx_td ltx_align_center">PICa-Full</td>
+<td id="S4.T1.1.1.6.2.2" class="ltx_td ltx_align_left">Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.6.2.3" class="ltx_td ltx_align_center">48.0</td>
+</tr>
+<tr id="S4.T1.1.1.7.3" class="ltx_tr">
+<td id="S4.T1.1.1.7.3.1" class="ltx_td ltx_align_center">KAT_base (single)</td>
+<td id="S4.T1.1.1.7.3.2" class="ltx_td ltx_align_left">Wikidata+Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.7.3.3" class="ltx_td ltx_align_center">50.58</td>
+</tr>
+<tr id="S4.T1.1.1.8.4" class="ltx_tr">
+<td id="S4.T1.1.1.8.4.1" class="ltx_td ltx_align_center">KAT_large (single)</td>
+<td id="S4.T1.1.1.8.4.2" class="ltx_td ltx_align_left">Wikidata+Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.8.4.3" class="ltx_td ltx_align_center">53.09</td>
+</tr>
+<tr id="S4.T1.1.1.9.5" class="ltx_tr">
+<td id="S4.T1.1.1.9.5.1" class="ltx_td ltx_align_center">KAT_large (ensemble)</td>
+<td id="S4.T1.1.1.9.5.2" class="ltx_td ltx_align_left">Wikidata+Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.9.5.3" class="ltx_td ltx_align_center">54.41</td>
+</tr>
+<tr id="S4.T1.1.1.10.6" class="ltx_tr">
+<td id="S4.T1.1.1.10.6.1" class="ltx_td ltx_align_center">REVIVE_large (single)</td>
+<td id="S4.T1.1.1.10.6.2" class="ltx_td ltx_align_left">Wikidata+Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.10.6.3" class="ltx_td ltx_align_center">56.6</td>
+</tr>
+<tr id="S4.T1.1.1.11.7" class="ltx_tr">
+<td id="S4.T1.1.1.11.7.1" class="ltx_td ltx_align_center">REVIVE_large (ensemble)</td>
+<td id="S4.T1.1.1.11.7.2" class="ltx_td ltx_align_left">Wikidata+Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.11.7.3" class="ltx_td ltx_align_center">58.0</td>
+</tr>
+<tr id="S4.T1.1.1.12.8" class="ltx_tr">
+<td id="S4.T1.1.1.12.8.1" class="ltx_td ltx_align_center">Prophet</td>
+<td id="S4.T1.1.1.12.8.2" class="ltx_td ltx_align_left">Frozen GPT-3 (175B)</td>
+<td id="S4.T1.1.1.12.8.3" class="ltx_td ltx_align_center">61.1</td>
+</tr>
+<tr id="S4.T1.1.1.13.9" class="ltx_tr">
+<td id="S4.T1.1.1.13.9.1" class="ltx_td ltx_align_center">Ours</td>
+<td id="S4.T1.1.1.13.9.2" class="ltx_td ltx_align_left">Frozen LLaMA (13B)</td>
+<td id="S4.T1.1.1.13.9.3" class="ltx_td ltx_align_center">58.69</td>
+</tr>
+<tr id="S4.T1.1.1.14.10" class="ltx_tr">
+<td id="S4.T1.1.1.14.10.1" class="ltx_td ltx_align_center">Ours + MCAN</td>
+<td id="S4.T1.1.1.14.10.2" class="ltx_td ltx_align_left">Frozen LLaMA (13B)</td>
+<td id="S4.T1.1.1.14.10.3" class="ltx_td ltx_align_center">60.02</td>
+</tr>
+<tr id="S4.T1.1.1.15.11" class="ltx_tr">
+<td id="S4.T1.1.1.15.11.1" class="ltx_td ltx_align_center">Ours</td>
+<td id="S4.T1.1.1.15.11.2" class="ltx_td ltx_align_left">Frozen LLaMA 2 (13B)</td>
+<td id="S4.T1.1.1.15.11.3" class="ltx_td ltx_align_center">59.07</td>
+</tr>
+<tr id="S4.T1.1.1.16.12" class="ltx_tr">
+<td id="S4.T1.1.1.16.12.1" class="ltx_td ltx_align_center"><span id="S4.T1.1.1.16.12.1.1" class="ltx_text ltx_font_bold">Ours + MCAN</span></td>
+<td id="S4.T1.1.1.16.12.2" class="ltx_td ltx_align_left"><span id="S4.T1.1.1.16.12.2.1" class="ltx_text ltx_font_bold">Frozen LLaMA 2 (13B)</span></td>
+<td id="S4.T1.1.1.16.12.3" class="ltx_td ltx_align_center"><span id="S4.T1.1.1.16.12.3.1" class="ltx_text ltx_font_bold">61.2</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Comparison with other methods on the OK-VQA dataset: Our method with 9 question-informative captions achieves state-of-the-art performance.</figcaption>
+</figure>
+<div id="S4.p1" class="ltx_para ltx_noindent">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text ltx_font_bold">Comparative results on OK-VQA:</span> Table <a href="#S4.T1" title="Table 1 ‣ 4 Experimental Results ‣ A Simple Baseline for Knowledge-Based Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> summarizes the results of various methods on OK-VQA including our best method (last row) which uses 9 question-informative captions and 5 query ensembles. When using LLaMA our approach outperforms all methods and achieves comparable results with Prophet especially when using the same shot selection strategy based on MCAN <cite class="ltx_cite ltx_citemacro_cite">Yu et al. (<a href="#bib.bib23" title="" class="ltx_ref">2019</a>)</cite>. Moreover, it performs better than Unified-IO and the 80B Flamingo which have been pre-trained with multimodal objectives. When compared to methods that rely on GPT-3 for implicit knowledge extraction, our approach outperforms PICa-Full which only uses generic image captions by 12.02% while outperforming the SOTA supervised methods KAT and REVIVE by 5.61% and 2.02% respectively. Finally, when using LLaMA 2 and MCAN-based shot selection strategy, our method achieves state-of-the-art accuracy of 61.2%.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<div id="S4.T2.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:390pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(86.7pt,-78.0pt) scale(1.66652074154981,1.66652074154981) ;">
+<table id="S4.T2.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.1.1.1" class="ltx_tr">
+<td id="S4.T2.1.1.1.1.1" class="ltx_td ltx_align_center">Method</td>
+<td id="S4.T2.1.1.1.1.2" class="ltx_td ltx_align_left">DA</td>
+<td id="S4.T2.1.1.1.1.3" class="ltx_td"></td>
+<td id="S4.T2.1.1.1.1.4" class="ltx_td ltx_align_center">MC</td>
+<td id="S4.T2.1.1.1.1.5" class="ltx_td"></td>
+</tr>
+<tr id="S4.T2.1.1.2.2" class="ltx_tr">
+<td id="S4.T2.1.1.2.2.1" class="ltx_td"></td>
+<td id="S4.T2.1.1.2.2.2" class="ltx_td ltx_align_left">Val</td>
+<td id="S4.T2.1.1.2.2.3" class="ltx_td ltx_align_center">Test</td>
+<td id="S4.T2.1.1.2.2.4" class="ltx_td ltx_align_center">Val</td>
+<td id="S4.T2.1.1.2.2.5" class="ltx_td ltx_align_left">Test</td>
+</tr>
+<tr id="S4.T2.1.1.3.3" class="ltx_tr">
+<td id="S4.T2.1.1.3.3.1" class="ltx_td ltx_align_center">ClipCap</td>
+<td id="S4.T2.1.1.3.3.2" class="ltx_td ltx_align_left">30.9</td>
+<td id="S4.T2.1.1.3.3.3" class="ltx_td ltx_align_center">25.9</td>
+<td id="S4.T2.1.1.3.3.4" class="ltx_td ltx_align_center">56.9</td>
+<td id="S4.T2.1.1.3.3.5" class="ltx_td ltx_align_left">51.4</td>
+</tr>
+<tr id="S4.T2.1.1.4.4" class="ltx_tr">
+<td id="S4.T2.1.1.4.4.1" class="ltx_td ltx_align_center">ViLBERT</td>
+<td id="S4.T2.1.1.4.4.2" class="ltx_td ltx_align_left">30.6</td>
+<td id="S4.T2.1.1.4.4.3" class="ltx_td ltx_align_center">25.9</td>
+<td id="S4.T2.1.1.4.4.4" class="ltx_td ltx_align_center">49.1</td>
+<td id="S4.T2.1.1.4.4.5" class="ltx_td ltx_align_left">41.5</td>
+</tr>
+<tr id="S4.T2.1.1.5.5" class="ltx_tr">
+<td id="S4.T2.1.1.5.5.1" class="ltx_td ltx_align_center">LXMERT</td>
+<td id="S4.T2.1.1.5.5.2" class="ltx_td ltx_align_left">30.7</td>
+<td id="S4.T2.1.1.5.5.3" class="ltx_td ltx_align_center">25.9</td>
+<td id="S4.T2.1.1.5.5.4" class="ltx_td ltx_align_center">51.4</td>
+<td id="S4.T2.1.1.5.5.5" class="ltx_td ltx_align_left">41.6</td>
+</tr>
+<tr id="S4.T2.1.1.6.6" class="ltx_tr">
+<td id="S4.T2.1.1.6.6.1" class="ltx_td ltx_align_center">KRISP</td>
+<td id="S4.T2.1.1.6.6.2" class="ltx_td ltx_align_left">33.7</td>
+<td id="S4.T2.1.1.6.6.3" class="ltx_td ltx_align_center">27.1</td>
+<td id="S4.T2.1.1.6.6.4" class="ltx_td ltx_align_center">51.9</td>
+<td id="S4.T2.1.1.6.6.5" class="ltx_td ltx_align_left">42.2</td>
+</tr>
+<tr id="S4.T2.1.1.7.7" class="ltx_tr">
+<td id="S4.T2.1.1.7.7.1" class="ltx_td ltx_align_center">GPV-2</td>
+<td id="S4.T2.1.1.7.7.2" class="ltx_td ltx_align_left">48.6</td>
+<td id="S4.T2.1.1.7.7.3" class="ltx_td ltx_align_center">40.7</td>
+<td id="S4.T2.1.1.7.7.4" class="ltx_td ltx_align_center">60.3</td>
+<td id="S4.T2.1.1.7.7.5" class="ltx_td ltx_align_left">53.7</td>
+</tr>
+<tr id="S4.T2.1.1.8.8" class="ltx_tr">
+<td id="S4.T2.1.1.8.8.1" class="ltx_td ltx_align_center">Unified-IO</td>
+<td id="S4.T2.1.1.8.8.2" class="ltx_td ltx_align_left">-</td>
+<td id="S4.T2.1.1.8.8.3" class="ltx_td ltx_align_center">45.2</td>
+<td id="S4.T2.1.1.8.8.4" class="ltx_td ltx_align_center">-</td>
+<td id="S4.T2.1.1.8.8.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="S4.T2.1.1.9.9" class="ltx_tr">
+<td id="S4.T2.1.1.9.9.1" class="ltx_td ltx_align_center">Prophet</td>
+<td id="S4.T2.1.1.9.9.2" class="ltx_td ltx_align_left">58.2</td>
+<td id="S4.T2.1.1.9.9.3" class="ltx_td ltx_align_center">55.7</td>
+<td id="S4.T2.1.1.9.9.4" class="ltx_td ltx_align_center">59.3</td>
+<td id="S4.T2.1.1.9.9.5" class="ltx_td ltx_align_left">57.3</td>
+</tr>
+<tr id="S4.T2.1.1.10.10" class="ltx_tr">
+<td id="S4.T2.1.1.10.10.1" class="ltx_td ltx_align_center">Ours (LLaMA)</td>
+<td id="S4.T2.1.1.10.10.2" class="ltx_td ltx_align_left">54.4</td>
+<td id="S4.T2.1.1.10.10.3" class="ltx_td ltx_align_center">53.8</td>
+<td id="S4.T2.1.1.10.10.4" class="ltx_td ltx_align_center">-</td>
+<td id="S4.T2.1.1.10.10.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="S4.T2.1.1.11.11" class="ltx_tr">
+<td id="S4.T2.1.1.11.11.1" class="ltx_td ltx_align_center">Ours + MCAN (LLaMA)</td>
+<td id="S4.T2.1.1.11.11.2" class="ltx_td ltx_align_left">57.4</td>
+<td id="S4.T2.1.1.11.11.3" class="ltx_td ltx_align_center">55.0</td>
+<td id="S4.T2.1.1.11.11.4" class="ltx_td ltx_align_center">-</td>
+<td id="S4.T2.1.1.11.11.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="S4.T2.1.1.12.12" class="ltx_tr">
+<td id="S4.T2.1.1.12.12.1" class="ltx_td ltx_align_center">Ours (LLaMA 2)</td>
+<td id="S4.T2.1.1.12.12.2" class="ltx_td ltx_align_left">57.1</td>
+<td id="S4.T2.1.1.12.12.3" class="ltx_td ltx_align_center">55.4</td>
+<td id="S4.T2.1.1.12.12.4" class="ltx_td ltx_align_center">-</td>
+<td id="S4.T2.1.1.12.12.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="S4.T2.1.1.13.13" class="ltx_tr">
+<td id="S4.T2.1.1.13.13.1" class="ltx_td ltx_align_center"><span id="S4.T2.1.1.13.13.1.1" class="ltx_text ltx_font_bold">Ours + MCAN (LLaMA 2)</span></td>
+<td id="S4.T2.1.1.13.13.2" class="ltx_td ltx_align_left"><span id="S4.T2.1.1.13.13.2.1" class="ltx_text ltx_font_bold">58.6</span></td>
+<td id="S4.T2.1.1.13.13.3" class="ltx_td ltx_align_center"><span id="S4.T2.1.1.13.13.3.1" class="ltx_text ltx_font_bold">57.5</span></td>
+<td id="S4.T2.1.1.13.13.4" class="ltx_td ltx_align_center">-</td>
+<td id="S4.T2.1.1.13.13.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Comparison with other methods on the A-OK-VQA dataset: Our method with 9 question-informative captions achieves state-of-the-art performance at the direct answer (DA) setting. Note that our method does not support multiple-choice (MC).</figcaption>
+</figure>
+<div id="S4.p2" class="ltx_para ltx_noindent">
+<p id="S4.p2.1" class="ltx_p"><span id="S4.p2.1.1" class="ltx_text ltx_font_bold">Comparative results on A-OK-VQA:</span> Table <a href="#S4.T2" title="Table 2 ‣ 4 Experimental Results ‣ A Simple Baseline for Knowledge-Based Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> summarizes the results of various methods on A-OK-VQA including our best method (last row) which uses 9 question-informative captions and 5 query ensembles. We compare our method to the strong baselines
+in <cite class="ltx_cite ltx_citemacro_cite">Schwenk et al. (<a href="#bib.bib13" title="" class="ltx_ref">2022</a>)</cite> and the current state-of-the-art method Prophet <cite class="ltx_cite ltx_citemacro_cite">Shao et al. (<a href="#bib.bib15" title="" class="ltx_ref">2023</a>)</cite>. When employing LLaMA, our approach surpasses all other methods on the DA setting and achieves comparable results to Prophet, particularly when employing the same shot selection strategy based on MCAN. Finally, with LLaMA 2 and MCAN our method attains state-of-the-art performance on both the validation and test sets, achieving 58.6% and 57.5% accuracy respectively, demonstrating the effectiveness and robust generalization of our proposed method.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Ablation Studies</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We conduct several ablations on OK-VQA to better understand the key components of our method. 
+<br class="ltx_break"></p>
+</div>
+<figure id="S5.T3" class="ltx_table">
+<div id="S5.T3.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:128.2pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(125.5pt,-37.1pt) scale(2.37319646189983,2.37319646189983) ;">
+<table id="S5.T3.2.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T3.2.2.2" class="ltx_tr">
+<th id="S5.T3.2.2.2.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Captions</th>
+<th id="S5.T3.2.2.2.4" class="ltx_td ltx_nopad_r ltx_th ltx_th_column"></th>
+<th id="S5.T3.2.2.2.5" class="ltx_td ltx_nopad_r ltx_th ltx_th_column"></th>
+<th id="S5.T3.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><math id="S5.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S5.T3.1.1.1.1.m1.1a"><mi id="S5.T3.1.1.1.1.m1.1.1" xref="S5.T3.1.1.1.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S5.T3.1.1.1.1.m1.1b"><ci id="S5.T3.1.1.1.1.m1.1.1.cmml" xref="S5.T3.1.1.1.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.1.1.1.1.m1.1c">n</annotation></semantics></math></th>
+<th id="S5.T3.2.2.2.2" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><math id="S5.T3.2.2.2.2.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S5.T3.2.2.2.2.m1.1a"><mi id="S5.T3.2.2.2.2.m1.1.1" xref="S5.T3.2.2.2.2.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S5.T3.2.2.2.2.m1.1b"><ci id="S5.T3.2.2.2.2.m1.1.1.cmml" xref="S5.T3.2.2.2.2.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.2.2.2.2.m1.1c">k</annotation></semantics></math></th>
+<th id="S5.T3.2.2.2.6" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Acc (%)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T3.2.2.3.1" class="ltx_tr">
+<td id="S5.T3.2.2.3.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">Generic</td>
+<td id="S5.T3.2.2.3.1.2" class="ltx_td ltx_nopad_r"></td>
+<td id="S5.T3.2.2.3.1.3" class="ltx_td ltx_nopad_r"></td>
+<td id="S5.T3.2.2.3.1.4" class="ltx_td ltx_nopad_r ltx_align_center">14</td>
+<td id="S5.T3.2.2.3.1.5" class="ltx_td ltx_nopad_r ltx_align_center">5</td>
+<td id="S5.T3.2.2.3.1.6" class="ltx_td ltx_nopad_r ltx_align_center">43.35</td>
+</tr>
+<tr id="S5.T3.2.2.4.2" class="ltx_tr">
+<td id="S5.T3.2.2.4.2.1" class="ltx_td ltx_nopad_r ltx_align_center">Question-informative</td>
+<td id="S5.T3.2.2.4.2.2" class="ltx_td ltx_nopad_r"></td>
+<td id="S5.T3.2.2.4.2.3" class="ltx_td ltx_nopad_r"></td>
+<td id="S5.T3.2.2.4.2.4" class="ltx_td ltx_nopad_r ltx_align_center">14</td>
+<td id="S5.T3.2.2.4.2.5" class="ltx_td ltx_nopad_r ltx_align_center">5</td>
+<td id="S5.T3.2.2.4.2.6" class="ltx_td ltx_nopad_r ltx_align_center">57.56</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Generic vs. question-informative captions.</figcaption>
+</figure>
+<div id="S5.p2" class="ltx_para ltx_noindent">
+<p id="S5.p2.1" class="ltx_p"><span id="S5.p2.1.1" class="ltx_text ltx_font_bold">Effect of question-informative captions:</span>
+Table <a href="#S5.T3" title="Table 3 ‣ 5 Ablation Studies ‣ A Simple Baseline for Knowledge-Based Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows the performance of our method when using generic captions vs question-informative captions for in-context learning which is the key component of our system. Following <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>); Shao et al. (<a href="#bib.bib15" title="" class="ltx_ref">2023</a>)</cite> we leverage the OSCAR+ <cite class="ltx_cite ltx_citemacro_cite">Zhang et al. (<a href="#bib.bib24" title="" class="ltx_ref">2021</a>)</cite> as the captioning model. The results suggest using question-informative captions results in huge accuracy boosts (43.35% vs 57.56%). 
+<br class="ltx_break"></p>
+</div>
+<figure id="S5.T4" class="ltx_table">
+<div id="S5.T4.3" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:95.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(53.7pt,-11.8pt) scale(1.32900646691621,1.32900646691621) ;">
+<table id="S5.T4.3.3" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.3.3.3" class="ltx_tr">
+<th id="S5.T4.3.3.3.4" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Shot Selection Strategy</th>
+<th id="S5.T4.3.3.3.5" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Captions</th>
+<th id="S5.T4.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><math id="S5.T4.1.1.1.1.m1.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S5.T4.1.1.1.1.m1.1a"><mi id="S5.T4.1.1.1.1.m1.1.1" xref="S5.T4.1.1.1.1.m1.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S5.T4.1.1.1.1.m1.1b"><ci id="S5.T4.1.1.1.1.m1.1.1.cmml" xref="S5.T4.1.1.1.1.m1.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.1.1.1.1.m1.1c">m</annotation></semantics></math></th>
+<th id="S5.T4.2.2.2.2" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><math id="S5.T4.2.2.2.2.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S5.T4.2.2.2.2.m1.1a"><mi id="S5.T4.2.2.2.2.m1.1.1" xref="S5.T4.2.2.2.2.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S5.T4.2.2.2.2.m1.1b"><ci id="S5.T4.2.2.2.2.m1.1.1.cmml" xref="S5.T4.2.2.2.2.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.2.2.2.2.m1.1c">n</annotation></semantics></math></th>
+<th id="S5.T4.3.3.3.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column"><math id="S5.T4.3.3.3.3.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S5.T4.3.3.3.3.m1.1a"><mi id="S5.T4.3.3.3.3.m1.1.1" xref="S5.T4.3.3.3.3.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S5.T4.3.3.3.3.m1.1b"><ci id="S5.T4.3.3.3.3.m1.1.1.cmml" xref="S5.T4.3.3.3.3.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.3.3.3.3.m1.1c">k</annotation></semantics></math></th>
+<th id="S5.T4.3.3.3.6" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column">Acc (%)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.3.3.4.1" class="ltx_tr">
+<td id="S5.T4.3.3.4.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">Random</td>
+<td id="S5.T4.3.3.4.1.2" class="ltx_td ltx_nopad_r ltx_align_center">Question-informative</td>
+<td id="S5.T4.3.3.4.1.3" class="ltx_td ltx_nopad_r ltx_align_center">1</td>
+<td id="S5.T4.3.3.4.1.4" class="ltx_td ltx_nopad_r ltx_align_center">14</td>
+<td id="S5.T4.3.3.4.1.5" class="ltx_td ltx_nopad_r ltx_align_center">5</td>
+<td id="S5.T4.3.3.4.1.6" class="ltx_td ltx_nopad_r ltx_align_center">53.19</td>
+</tr>
+<tr id="S5.T4.3.3.5.2" class="ltx_tr">
+<td id="S5.T4.3.3.5.2.1" class="ltx_td ltx_nopad_r ltx_align_center">Avg. Question and Image Sim.</td>
+<td id="S5.T4.3.3.5.2.2" class="ltx_td ltx_nopad_r ltx_align_center">Question-informative</td>
+<td id="S5.T4.3.3.5.2.3" class="ltx_td ltx_nopad_r ltx_align_center">1</td>
+<td id="S5.T4.3.3.5.2.4" class="ltx_td ltx_nopad_r ltx_align_center">14</td>
+<td id="S5.T4.3.3.5.2.5" class="ltx_td ltx_nopad_r ltx_align_center">5</td>
+<td id="S5.T4.3.3.5.2.6" class="ltx_td ltx_nopad_r ltx_align_center">56.50</td>
+</tr>
+<tr id="S5.T4.3.3.6.3" class="ltx_tr">
+<td id="S5.T4.3.3.6.3.1" class="ltx_td ltx_nopad_r ltx_align_center">MCAN latent space</td>
+<td id="S5.T4.3.3.6.3.2" class="ltx_td ltx_nopad_r ltx_align_center">Question-informative</td>
+<td id="S5.T4.3.3.6.3.3" class="ltx_td ltx_nopad_r ltx_align_center">1</td>
+<td id="S5.T4.3.3.6.3.4" class="ltx_td ltx_nopad_r ltx_align_center">14</td>
+<td id="S5.T4.3.3.6.3.5" class="ltx_td ltx_nopad_r ltx_align_center">5</td>
+<td id="S5.T4.3.3.6.3.6" class="ltx_td ltx_nopad_r ltx_align_center">57.56</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>Accuracy when using different shot selection strategies. Avg. question and image sim. strategy retrieves shots based on the average cosine similarity between the test sample’s question and image, and the training examples’ question and image. MCAN latent space strategy retrieves shots that are closer to the test sample in the trained MCAN’s latent space.</figcaption>
+</figure>
+<div id="S5.p3" class="ltx_para ltx_noindent">
+<p id="S5.p3.1" class="ltx_p"><span id="S5.p3.1.1" class="ltx_text ltx_font_bold">Effect of shot selection strategy:</span>
+Table <a href="#S5.T4" title="Table 4 ‣ 5 Ablation Studies ‣ A Simple Baseline for Knowledge-Based Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows that selecting random shots during in-context learning hurts the accuracy, confirming the findings of <cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite>. Retrieving shots based on the similarity between the test sample and the training examples yields a significant accuracy boost. Prophet’s shot selection strategy based on MCAN also seems to be effective but we note that it is based on pre-training a vanilla VQA model on a different
+dataset (VQA-v2).</p>
+</div>
+<div id="S5.p4" class="ltx_para ltx_noindent">
+<p id="S5.p4.3" class="ltx_p"><span id="S5.p4.3.1" class="ltx_text ltx_font_bold">Effect of number of question-informative captions:</span> Fig. 2 (a) shows the accuracy when we increase the number of captions per sample in the prompt during in-context learning. Here, we are using <math id="S5.p4.1.m1.1" class="ltx_Math" alttext="k=5" display="inline"><semantics id="S5.p4.1.m1.1a"><mrow id="S5.p4.1.m1.1.1" xref="S5.p4.1.m1.1.1.cmml"><mi id="S5.p4.1.m1.1.1.2" xref="S5.p4.1.m1.1.1.2.cmml">k</mi><mo id="S5.p4.1.m1.1.1.1" xref="S5.p4.1.m1.1.1.1.cmml">=</mo><mn id="S5.p4.1.m1.1.1.3" xref="S5.p4.1.m1.1.1.3.cmml">5</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.1.m1.1b"><apply id="S5.p4.1.m1.1.1.cmml" xref="S5.p4.1.m1.1.1"><eq id="S5.p4.1.m1.1.1.1.cmml" xref="S5.p4.1.m1.1.1.1"></eq><ci id="S5.p4.1.m1.1.1.2.cmml" xref="S5.p4.1.m1.1.1.2">𝑘</ci><cn type="integer" id="S5.p4.1.m1.1.1.3.cmml" xref="S5.p4.1.m1.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.1.m1.1c">k=5</annotation></semantics></math>, and <math id="S5.p4.2.m2.1" class="ltx_Math" alttext="n=10" display="inline"><semantics id="S5.p4.2.m2.1a"><mrow id="S5.p4.2.m2.1.1" xref="S5.p4.2.m2.1.1.cmml"><mi id="S5.p4.2.m2.1.1.2" xref="S5.p4.2.m2.1.1.2.cmml">n</mi><mo id="S5.p4.2.m2.1.1.1" xref="S5.p4.2.m2.1.1.1.cmml">=</mo><mn id="S5.p4.2.m2.1.1.3" xref="S5.p4.2.m2.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.2.m2.1b"><apply id="S5.p4.2.m2.1.1.cmml" xref="S5.p4.2.m2.1.1"><eq id="S5.p4.2.m2.1.1.1.cmml" xref="S5.p4.2.m2.1.1.1"></eq><ci id="S5.p4.2.m2.1.1.2.cmml" xref="S5.p4.2.m2.1.1.2">𝑛</ci><cn type="integer" id="S5.p4.2.m2.1.1.3.cmml" xref="S5.p4.2.m2.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.2.m2.1c">n=10</annotation></semantics></math> when using 1-10 captions, and <math id="S5.p4.3.m3.1" class="ltx_Math" alttext="n=5" display="inline"><semantics id="S5.p4.3.m3.1a"><mrow id="S5.p4.3.m3.1.1" xref="S5.p4.3.m3.1.1.cmml"><mi id="S5.p4.3.m3.1.1.2" xref="S5.p4.3.m3.1.1.2.cmml">n</mi><mo id="S5.p4.3.m3.1.1.1" xref="S5.p4.3.m3.1.1.1.cmml">=</mo><mn id="S5.p4.3.m3.1.1.3" xref="S5.p4.3.m3.1.1.3.cmml">5</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.3.m3.1b"><apply id="S5.p4.3.m3.1.1.cmml" xref="S5.p4.3.m3.1.1"><eq id="S5.p4.3.m3.1.1.1.cmml" xref="S5.p4.3.m3.1.1.1"></eq><ci id="S5.p4.3.m3.1.1.2.cmml" xref="S5.p4.3.m3.1.1.2">𝑛</ci><cn type="integer" id="S5.p4.3.m3.1.1.3.cmml" xref="S5.p4.3.m3.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.3.m3.1c">n=5</annotation></semantics></math> when using more than 10 captions due to max. sequence length constraints. More captions provide more information for each example helping the model to make a more accurate prediction based on context. As shown in the figure, the validation accuracy keeps increasing up to 60.02%. When using more than 10 captions, the accuracy decreases but this also can be attributed to the fact that we are also decreasing the number of shots to 5. 
+<br class="ltx_break"></p>
+</div>
+<div id="S5.p5" class="ltx_para ltx_noindent">
+<p id="S5.p5.3" class="ltx_p"><span id="S5.p5.3.1" class="ltx_text ltx_font_bold">Effect of multi-query ensemble:</span>
+Fig. 2 (b) shows the accuracy as the number of prompts, <math id="S5.p5.1.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S5.p5.1.m1.1a"><mi id="S5.p5.1.m1.1.1" xref="S5.p5.1.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S5.p5.1.m1.1b"><ci id="S5.p5.1.m1.1.1.cmml" xref="S5.p5.1.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p5.1.m1.1c">k</annotation></semantics></math>, increases. As anticipated, employing multiple prompts of LLaMA instead of just one yields improved accuracy. However, beyond <math id="S5.p5.2.m2.1" class="ltx_Math" alttext="k=6" display="inline"><semantics id="S5.p5.2.m2.1a"><mrow id="S5.p5.2.m2.1.1" xref="S5.p5.2.m2.1.1.cmml"><mi id="S5.p5.2.m2.1.1.2" xref="S5.p5.2.m2.1.1.2.cmml">k</mi><mo id="S5.p5.2.m2.1.1.1" xref="S5.p5.2.m2.1.1.1.cmml">=</mo><mn id="S5.p5.2.m2.1.1.3" xref="S5.p5.2.m2.1.1.3.cmml">6</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p5.2.m2.1b"><apply id="S5.p5.2.m2.1.1.cmml" xref="S5.p5.2.m2.1.1"><eq id="S5.p5.2.m2.1.1.1.cmml" xref="S5.p5.2.m2.1.1.1"></eq><ci id="S5.p5.2.m2.1.1.2.cmml" xref="S5.p5.2.m2.1.1.2">𝑘</ci><cn type="integer" id="S5.p5.2.m2.1.1.3.cmml" xref="S5.p5.2.m2.1.1.3">6</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p5.2.m2.1c">k=6</annotation></semantics></math>, the accuracy begins to fluctuate. It is important to note that this fluctuation could be attributed to the retrieval of noisy (irrelevant to the question) context examples as the value of <math id="S5.p5.3.m3.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S5.p5.3.m3.1a"><mi id="S5.p5.3.m3.1.1" xref="S5.p5.3.m3.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S5.p5.3.m3.1b"><ci id="S5.p5.3.m3.1.1.cmml" xref="S5.p5.3.m3.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p5.3.m3.1c">k</annotation></semantics></math> increases.</p>
+</div>
+<figure id="S5.3" class="ltx_table">
+<table id="S5.2.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.2.2.2" class="ltx_tr">
+<th id="S5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">
+<img src="/html/2310.13570/assets/images/ablate_no_of_captions.png" id="S5.1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="135" height="102" alt="[Uncaptioned image]">
+</th>
+<td id="S5.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2310.13570/assets/images/ablate_k_ensemble.png" id="S5.2.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="135" height="102" alt="[Uncaptioned image]"></td>
+</tr>
+<tr id="S5.2.2.3.1" class="ltx_tr">
+<th id="S5.2.2.3.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">(a)</th>
+<td id="S5.2.2.3.1.2" class="ltx_td ltx_align_center">(b)</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering">Figure 2: (a) Accuracy vs number of question informative captions used per shot during few shot in-context learning. (b) Accuracy vs number of prompts <math id="S5.3.3.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S5.3.3.m1.1b"><mi id="S5.3.3.m1.1.1" xref="S5.3.3.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S5.3.3.m1.1c"><ci id="S5.3.3.m1.1.1.cmml" xref="S5.3.3.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.3.3.m1.1d">k</annotation></semantics></math> used during in-context learning.</figcaption>
+</figure>
+<div id="S5.p6" class="ltx_para ltx_noindent">
+<p id="S5.p6.1" class="ltx_p"><span id="S5.p6.1.1" class="ltx_text ltx_font_bold">Effect of explicit knowledge:</span> We also tried to use KAT’s <cite class="ltx_cite ltx_citemacro_cite">Gui et al. (<a href="#bib.bib3" title="" class="ltx_ref">2022</a>)</cite> KB and trained a T5 <cite class="ltx_cite ltx_citemacro_cite">Raffel et al. (<a href="#bib.bib12" title="" class="ltx_ref">2020</a>)</cite> in order to integrate explicit knowledge into our model. For each image, we used BLIP to extract explicit knowledge via image-to-text retrieval. We used <math id="S5.p6.1.m1.1" class="ltx_Math" alttext="40" display="inline"><semantics id="S5.p6.1.m1.1a"><mn id="S5.p6.1.m1.1.1" xref="S5.p6.1.m1.1.1.cmml">40</mn><annotation-xml encoding="MathML-Content" id="S5.p6.1.m1.1b"><cn type="integer" id="S5.p6.1.m1.1.1.cmml" xref="S5.p6.1.m1.1.1">40</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p6.1.m1.1c">40</annotation></semantics></math> retrieved passages and LLaMA predictions as explicit and implicit knowledge, respectively. We achieved an accuracy of 58.70% which shows that our model does not benefit from such an approach.</p>
+</div>
+<div id="S5.p7" class="ltx_para ltx_noindent">
+<p id="S5.p7.2" class="ltx_p"><span id="S5.p7.2.1" class="ltx_text ltx_font_bold">Effect of size of LLM:</span> We also used a LLaMA-7B model using 9 question-informative captions, <math id="S5.p7.1.m1.1" class="ltx_Math" alttext="n=10" display="inline"><semantics id="S5.p7.1.m1.1a"><mrow id="S5.p7.1.m1.1.1" xref="S5.p7.1.m1.1.1.cmml"><mi id="S5.p7.1.m1.1.1.2" xref="S5.p7.1.m1.1.1.2.cmml">n</mi><mo id="S5.p7.1.m1.1.1.1" xref="S5.p7.1.m1.1.1.1.cmml">=</mo><mn id="S5.p7.1.m1.1.1.3" xref="S5.p7.1.m1.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p7.1.m1.1b"><apply id="S5.p7.1.m1.1.1.cmml" xref="S5.p7.1.m1.1.1"><eq id="S5.p7.1.m1.1.1.1.cmml" xref="S5.p7.1.m1.1.1.1"></eq><ci id="S5.p7.1.m1.1.1.2.cmml" xref="S5.p7.1.m1.1.1.2">𝑛</ci><cn type="integer" id="S5.p7.1.m1.1.1.3.cmml" xref="S5.p7.1.m1.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p7.1.m1.1c">n=10</annotation></semantics></math> and <math id="S5.p7.2.m2.1" class="ltx_Math" alttext="k=5" display="inline"><semantics id="S5.p7.2.m2.1a"><mrow id="S5.p7.2.m2.1.1" xref="S5.p7.2.m2.1.1.cmml"><mi id="S5.p7.2.m2.1.1.2" xref="S5.p7.2.m2.1.1.2.cmml">k</mi><mo id="S5.p7.2.m2.1.1.1" xref="S5.p7.2.m2.1.1.1.cmml">=</mo><mn id="S5.p7.2.m2.1.1.3" xref="S5.p7.2.m2.1.1.3.cmml">5</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p7.2.m2.1b"><apply id="S5.p7.2.m2.1.1.cmml" xref="S5.p7.2.m2.1.1"><eq id="S5.p7.2.m2.1.1.1.cmml" xref="S5.p7.2.m2.1.1.1"></eq><ci id="S5.p7.2.m2.1.1.2.cmml" xref="S5.p7.2.m2.1.1.2">𝑘</ci><cn type="integer" id="S5.p7.2.m2.1.1.3.cmml" xref="S5.p7.2.m2.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p7.2.m2.1c">k=5</annotation></semantics></math>. Reducing the size of the LLM leads to decreased accuracy but the drop is not large, still obtaining 57.99% accuracy.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusions</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">We proposed a simple yet effective baseline for KB-VQA. Our training-free method is based on in-context few-shot learning of the open-source LLaMA using question-informative captions. We show that this is sufficient to achieve SOTA results on the widely used OK-VQA and A-OK-VQA datasets.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Limitations</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">It is important to acknowledge that we have not explored the utilization of any other medium-sized LLMs apart from LLaMA, which presents a limitation of our study. Lastly, due to limitations in resources, we were unable to conduct experiments with larger sizes beyond 13B. However, it would indeed be intriguing to observe the performance when employing LLaMA models of sizes such as 30B or 65B.</p>
+</div>
+</section>
+<section id="Sx2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Ethics Statement</h2>
+
+<div id="Sx2.p1" class="ltx_para">
+<p id="Sx2.p1.1" class="ltx_p">The authors of this paper recognize the importance of responsible AI in both research and development endeavors. We are committed to ensuring that the model we develop is not only accurate but also fair and unbiased. We understand the potentially significant impact of VQA technology on society and, therefore, pledge to maintain transparency by sharing our findings and progress with relevant researchers and stakeholders.</p>
+</div>
+</section>
+<section id="Sx3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Acknowledgements</h2>
+
+<div id="Sx3.p1" class="ltx_para">
+<p id="Sx3.p1.1" class="ltx_p">Alexandros Xenos is funded by Queen Mary Principal’s PhD Studentships.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Brown et al. (2020)</span>
+<span class="ltx_bibblock">
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu, Clemens Winter, Chris Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://proceedings.neurips.cc/paper_files/paper/2020/file/1457c0d6bfcb4967418bfb8ac142f64a-Paper.pdf" title="" class="ltx_ref ltx_href">Language models are few-shot learners</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems</em>, volume 33, pages 1877–1901. Curran Associates, Inc.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Devlin et al. (2019)</span>
+<span class="ltx_bibblock">
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/N19-1423" title="" class="ltx_ref ltx_href">BERT: Pre-training of deep bidirectional transformers for language understanding</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)</em>, pages 4171–4186, Minneapolis, Minnesota. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Gui et al. (2022)</span>
+<span class="ltx_bibblock">
+Liangke Gui, Borui Wang, Qiuyuan Huang, Alexander Hauptmann, Yonatan Bisk, and Jianfeng Gao. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/2022.naacl-main.70" title="" class="ltx_ref ltx_href">KAT: A knowledge augmented transformer for vision-and-language</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</em>, pages 956–968, Seattle, United States. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Guo et al. (2023)</span>
+<span class="ltx_bibblock">
+Jiaxian Guo, Junnan Li, Dongxu Li, Anthony Meng Huat Tiong, Boyang Li, Dacheng Tao, and Steven C. H. Hoi. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2212.10846" title="" class="ltx_ref ltx_href">From images to textual prompts: Zero-shot vqa with frozen large language models</a>.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hu et al. (2023)</span>
+<span class="ltx_bibblock">
+Yushi Hu, Hang Hua, Zhengyuan Yang, Weijia Shi, Noah A. Smith, and Jiebo Luo. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2211.09699" title="" class="ltx_ref ltx_href">Promptcap: Prompt-guided task-aware image captioning</a>.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al. (2022)</span>
+<span class="ltx_bibblock">
+Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2201.12086" title="" class="ltx_ref ltx_href">Blip: Bootstrapping language-image pre-training for unified vision-language understanding and generation</a>.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lin et al. (2022)</span>
+<span class="ltx_bibblock">
+Yuanze Lin, Yujia Xie, Dongdong Chen, Yichong Xu, Chenguang Zhu, and Lu Yuan. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2206.01201" title="" class="ltx_ref ltx_href">Revive: Regional visual representation matters in knowledge-based visual question answering</a>.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Liu et al. (2022)</span>
+<span class="ltx_bibblock">
+Jiachang Liu, Dinghan Shen, Yizhe Zhang, Bill Dolan, Lawrence Carin, and Weizhu Chen. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/2022.deelio-1.10" title="" class="ltx_ref ltx_href">What makes good in-context examples for GPT-3?</a>
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">Proceedings of Deep Learning Inside Out (DeeLIO 2022): The 3rd Workshop on Knowledge Extraction and Integration for Deep Learning Architectures</em>, pages 100–114, Dublin, Ireland and Online. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Marino et al. (2021)</span>
+<span class="ltx_bibblock">
+Kenneth Marino, Xinlei Chen, Devi Parikh, Abhinav Gupta, and Marcus Rohrbach. 2021.
+
+</span>
+<span class="ltx_bibblock">Krisp: Integrating implicit and symbolic knowledge for open-domain knowledge-based vqa.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</em>, pages 14111–14121.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Marino et al. (2019)</span>
+<span class="ltx_bibblock">
+Kenneth Marino, Mohammad Rastegari, Ali Farhadi, and Roozbeh Mottaghi. 2019.
+
+</span>
+<span class="ltx_bibblock">Ok-vqa: A visual question answering benchmark requiring external knowledge.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</em>.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Radford et al. (2021)</span>
+<span class="ltx_bibblock">
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. 2021.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2103.00020" title="" class="ltx_ref ltx_href">Learning transferable visual models from natural language supervision</a>.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Raffel et al. (2020)</span>
+<span class="ltx_bibblock">
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Wei Li, and Peter J. Liu. 2020.
+
+</span>
+<span class="ltx_bibblock">Exploring the limits of transfer learning with a unified text-to-text transformer.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">J. Mach. Learn. Res.</em>, 21(1).
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Schwenk et al. (2022)</span>
+<span class="ltx_bibblock">
+Dustin Schwenk, Apoorv Khandelwal, Christopher Clark, Kenneth Marino, and Roozbeh Mottaghi. 2022.
+
+</span>
+<span class="ltx_bibblock">A-okvqa: A benchmark for visual question answering using world knowledge.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Computer Vision – ECCV 2022</em>, pages 146–162, Cham. Springer Nature Switzerland.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shah et al. (2019)</span>
+<span class="ltx_bibblock">
+Sanket Shah, Anand Mishra, Naganand Yadati, and Partha Pratim Talukdar. 2019.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1609/aaai.v33i01.33018876" title="" class="ltx_ref ltx_href">Kvqa: Knowledge-aware visual question answering</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Proceedings of the AAAI Conference on Artificial Intelligence</em>, 33(01):8876–8884.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shao et al. (2023)</span>
+<span class="ltx_bibblock">
+Zhenwei Shao, Zhou Yu, Meng Wang, and Jun Yu. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2303.01903" title="" class="ltx_ref ltx_href">Prompting large language models with answer heuristics for knowledge-based visual question answering</a>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tiong et al. (2022)</span>
+<span class="ltx_bibblock">
+Anthony Meng Huat Tiong, Junnan Li, Boyang Li, Silvio Savarese, and Steven C.H. Hoi. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://aclanthology.org/2022.findings-emnlp.67" title="" class="ltx_ref ltx_href">Plug-and-play VQA: Zero-shot VQA by conjoining large pretrained models with zero training</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Findings of the Association for Computational Linguistics: EMNLP 2022</em>, pages 951–967, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Touvron et al. (2023a)</span>
+<span class="ltx_bibblock">
+Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, Aurelien Rodriguez, Armand Joulin, Edouard Grave, and Guillaume Lample. 2023a.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2302.13971" title="" class="ltx_ref ltx_href">Llama: Open and efficient foundation language models</a>.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Touvron et al. (2023b)</span>
+<span class="ltx_bibblock">
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian Canton Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan Subramanian, Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurelien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas
+Scialom. 2023b.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2307.09288" title="" class="ltx_ref ltx_href">Llama 2: Open foundation and fine-tuned chat models</a>.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al. (2017)</span>
+<span class="ltx_bibblock">
+Peng Wang, Qi Wu, Chunhua Shen, Anthony Dick, and Anton Van Den Henge. 2017.
+
+</span>
+<span class="ltx_bibblock">Explicit knowledge-based reasoning for visual question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 26th International Joint Conference on Artificial Intelligence</em>, IJCAI’17, page 1290–1296. AAAI Press.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al. (2018)</span>
+<span class="ltx_bibblock">
+Peng Wang, Qi Wu, Chunhua Shen, Anthony Dick, and Anton van den Hengel. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1109/TPAMI.2017.2754246" title="" class="ltx_ref ltx_href">Fvqa: Fact-based visual question answering</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">IEEE Transactions on Pattern Analysis and Machine Intelligence</em>, 40(10):2413–2427.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wu et al. (2022)</span>
+<span class="ltx_bibblock">
+Jialin Wu, Jiasen Lu, Ashish Sabharwal, and Roozbeh Mottaghi. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1609/aaai.v36i3.20174" title="" class="ltx_ref ltx_href">Multi-modal answer validation for knowledge-based vqa</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">Proceedings of the AAAI Conference on Artificial Intelligence</em>, 36(3):2712–2721.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2022)</span>
+<span class="ltx_bibblock">
+Zhengyuan Yang, Zhe Gan, Jianfeng Wang, Xiaowei Hu, Yumao Lu, Zicheng Liu, and Lijuan Wang. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1609/aaai.v36i3.20215" title="" class="ltx_ref ltx_href">An empirical study of gpt-3 for few-shot knowledge-based vqa</a>.
+
+</span>
+<span class="ltx_bibblock">36:3081–3089.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yu et al. (2019)</span>
+<span class="ltx_bibblock">
+Zhou Yu, Jun Yu, Yuhao Cui, Dacheng Tao, and Qi Tian. 2019.
+
+</span>
+<span class="ltx_bibblock">Deep modular co-attention networks for visual question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</em>.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2021)</span>
+<span class="ltx_bibblock">
+Pengchuan Zhang, Xiujun Li, Xiaowei Hu, Jianwei Yang, Lei Zhang, Lijuan Wang, Yejin Choi, and Jianfeng Gao. 2021.
+
+</span>
+<span class="ltx_bibblock">Vinvl: Revisiting visual representations in vision-language models.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</em>, pages 5579–5588.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2022)</span>
+<span class="ltx_bibblock">
+Susan Zhang, Stephen Roller, Naman Goyal, Mikel Artetxe, Moya Chen, Shuohui Chen, Christopher Dewan, Mona Diab, Xian Li, Xi Victoria Lin, Todor Mihaylov, Myle Ott, Sam Shleifer, Kurt Shuster, Daniel Simig, Punit Singh Koura, Anjali Sridhar, Tianlu Wang, and Luke Zettlemoyer. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2205.01068" title="" class="ltx_ref ltx_href">Opt: Open pre-trained transformer language models</a>.
+
+</span>
+</li>
+</ul>
+</section>
+<section id="A1" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix A </span>Example Appendix</h2>
+
+<section id="A1.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">A.1 </span>Implementation Details</h3>
+
+<div id="A1.SS1.p1" class="ltx_para">
+<p id="A1.SS1.p1.1" class="ltx_p">We used the Huggingface Transformers library<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>https://huggingface.co/transformers/</span></span></span> in order to run LLaMA models. We used beam search with beam size = 2 during generation and max new tokens = 5 while using the default values for all the other parameters in the generate method. We run our model on a 40-GB VRAM A-100 GPU card.</p>
+</div>
+</section>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2310.13569" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2310.13570" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2310.13570">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2310.13570" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2310.13571" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Feb 27 21:06:16 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

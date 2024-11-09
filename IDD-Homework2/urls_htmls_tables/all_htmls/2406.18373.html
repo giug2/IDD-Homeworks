@@ -1,0 +1,1131 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.18373] Dynamic Data Pruning for Automatic Speech Recognition</title><meta property="og:description" content="The recent success of Automatic Speech Recognition (ASR) is largely attributed to the ever-growing amount of training data. However, this trend has made model training prohibitively costly and imposed computational dem…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Dynamic Data Pruning for Automatic Speech Recognition">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Dynamic Data Pruning for Automatic Speech Recognition">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.18373">
+
+<!--Generated on Fri Jul  5 21:13:42 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span>
+</div>
+<h1 class="ltx_title ltx_title_document">Dynamic Data Pruning for Automatic Speech Recognition</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id8.1" class="ltx_p">The recent success of Automatic Speech Recognition (ASR) is largely attributed to the ever-growing amount of training data. However, this trend has made model training prohibitively costly and imposed computational demands. While data pruning has been proposed to mitigate this issue by identifying a small subset of relevant data, its application in ASR has been barely explored, and existing works often entail significant overhead to achieve meaningful results. To fill this gap, this paper presents the first investigation of dynamic data pruning for ASR, finding that we can reach the full-data performance by dynamically selecting 70% of data. Furthermore, we introduce Dynamic Data Pruning for ASR (DDP-ASR), which offers several fine-grained pruning granularities specifically tailored for speech-related datasets, going beyond the conventional pruning of entire time sequences.
+Our intensive experiments show that DDP-ASR can save up to 1.6<math id="id8.1.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="id8.1.m1.1a"><mo id="id8.1.m1.1.1" xref="id8.1.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="id8.1.m1.1b"><times id="id8.1.m1.1.1.cmml" xref="id8.1.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="id8.1.m1.1c">\times</annotation></semantics></math> training time with negligible performance loss.</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>automatic speech recognition, data pruning, learning efficiency
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">In the speech domain, the increasingly larger training datasets have significantly contributed to remarkable performance gains <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx1" title="" class="ltx_ref">1</a>, <a href="#bib.bibx2" title="" class="ltx_ref">2</a>, <a href="#bib.bibx3" title="" class="ltx_ref">3</a>]</cite>. However, it also poses substantial challenges to training with limited computational resources. Some prior works have revealed that not all training instances are equally important for model training <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx4" title="" class="ltx_ref">4</a>, <a href="#bib.bibx5" title="" class="ltx_ref">5</a>, <a href="#bib.bibx6" title="" class="ltx_ref">6</a>]</cite>. This has led to inspiring efforts to improve the training efficiency of neural networks by either eliminating redundant data or prioritizing training instances based on their informational complexity <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>, <a href="#bib.bibx8" title="" class="ltx_ref">8</a>, <a href="#bib.bibx9" title="" class="ltx_ref">9</a>]</cite>.
+Many recent works have also proposed diverse data pruning approaches to enhance training efficiency across various domains, such as computer vision <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx10" title="" class="ltx_ref">10</a>, <a href="#bib.bibx11" title="" class="ltx_ref">11</a>, <a href="#bib.bibx12" title="" class="ltx_ref">12</a>, <a href="#bib.bibx13" title="" class="ltx_ref">13</a>]</cite> and natural language processing <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx14" title="" class="ltx_ref">14</a>, <a href="#bib.bibx15" title="" class="ltx_ref">15</a>, <a href="#bib.bibx16" title="" class="ltx_ref">16</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Despite the potential benefits of data pruning, it has received limited attention in the domain of Automatic Speech Recognition (ASR).
+In a recent study, Boris et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx17" title="" class="ltx_ref">17</a>]</cite> introduced a pruning approach to first group similar instances together through clustering to minimize the dataset size while maintaining its representative characteristics. This approach explores similarities in the multidimensional feature space of a pre-trained large audio model. However, it requires multiple trials to derive more precise representations before data pruning, leading to additional overhead costs. To address this issue, for the first time, we introduce <span id="S1.p2.1.1" class="ltx_text ltx_font_italic">Dynamic Data Pruning (DDP)</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx18" title="" class="ltx_ref">18</a>, <a href="#bib.bibx11" title="" class="ltx_ref">11</a>, <a href="#bib.bibx19" title="" class="ltx_ref">19</a>]</cite> in the context of ASR. DDP is a recently emerged data-pruning technique where only a subset of data is sampled and fed into the model throughout the training process.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Specifically, we begin by conducting a comprehensive investigation into DDP for ASR pre-training, using various pruning criteria. Our findings reveal an encouraging discovery: through the adoption of a curriculum learning strategy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx20" title="" class="ltx_ref">20</a>]</cite>, we are able to train an ASR model using only 70% of the data while achieving performance on par with that of the full-data training approach. To further enhance the efficacy of data pruning in ASR, we delve into a series of finely-tuned granularities meticulously crafted for speech-related data pruning. These granularities encompass the removal of individual time points as well as segments of temporal chunks. Our results demonstrate that by selectively removing consecutive samples, we can further improve the data efficiency of ASR. These empirical investigations culminate in the development of a novel data pruning approach for ASR, which we term Dynamic Data Pruning for ASR (DDP-ASR).</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">DDP-ASR incorporates both instance-wise and fine-grained time-wise granularities, allowing for the removal of a significant portion of data while achieving substantial practical speedup. Our extensive experiments on Librispeech demonstrate that, with a mixture of rule-of-thumb pruning rates, DDP-ASR can deliver up to 1.6<math id="S1.p4.1.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S1.p4.1.m1.1a"><mo id="S1.p4.1.m1.1.1" xref="S1.p4.1.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S1.p4.1.m1.1b"><times id="S1.p4.1.m1.1.1.cmml" xref="S1.p4.1.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S1.p4.1.m1.1c">\times</annotation></semantics></math> training speedups, while maintaining comparable performance to that achieved with full data. Additionally, we investigate the model's temporal robustness when trained on pruned subsets, revealing that our approach also brings benefits of robustness to audio clips with low sampling rates. To the best of our knowledge, our work is the first attempt to explore dynamic data pruning for ASR with novel pruning granularities specifically tailored for speech-related data,
+presenting new opportunities for enhancing the training efficiency of speech-related models.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2406.18373/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="282" height="42" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Instance-wise pruning approaches: (a) <span id="S2.F1.4.1" class="ltx_text ltx_font_italic">Easy</span>: Instances with the lowest scores are selected. (b) <span id="S2.F1.5.2" class="ltx_text ltx_font_italic">Hard</span>: Instances with the highest scores are selected. (c) <span id="S2.F1.6.3" class="ltx_text ltx_font_italic">Easy2hard</span>: Following the essence of curriculum learning, models initially train on relatively easy instances and progressively shift focus to more challenging ones as the training progresses.</figcaption>
+</figure>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Dynamic data pruning</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.5" class="ltx_p">Given a dataset <math id="S2.SS1.p1.1.m1.3" class="ltx_Math" alttext="\mathcal{D}=\left.\left\{z_{i}=\left(x_{i},y_{i}\right)\right\}\right|_{i=1}^{|\mathcal{D}|}" display="inline"><semantics id="S2.SS1.p1.1.m1.3a"><mrow id="S2.SS1.p1.1.m1.3.3" xref="S2.SS1.p1.1.m1.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.1.m1.3.3.3" xref="S2.SS1.p1.1.m1.3.3.3.cmml">𝒟</mi><mo id="S2.SS1.p1.1.m1.3.3.2" xref="S2.SS1.p1.1.m1.3.3.2.cmml">=</mo><msubsup id="S2.SS1.p1.1.m1.3.3.1.1" xref="S2.SS1.p1.1.m1.3.3.1.2.cmml"><mrow id="S2.SS1.p1.1.m1.3.3.1.1.1.1" xref="S2.SS1.p1.1.m1.3.3.1.2.cmml"><mrow id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.2.cmml"><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.2.cmml">{</mo><mrow id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.cmml"><msub id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.cmml"><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.2.cmml">z</mi><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.3.cmml">i</mi></msub><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.3.cmml">=</mo><mrow id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.3.cmml"><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.3.cmml">(</mo><msub id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.2.cmml">x</mi><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.3.cmml">i</mi></msub><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.4" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.3.cmml">,</mo><msub id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.cmml"><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.2" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.2.cmml">y</mi><mi id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.3.cmml">i</mi></msub><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.5" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.3.cmml">)</mo></mrow></mrow><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.3" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.2.cmml">}</mo></mrow><mo id="S2.SS1.p1.1.m1.3.3.1.1.1.1.2" xref="S2.SS1.p1.1.m1.3.3.1.2.1.cmml">|</mo></mrow><mrow id="S2.SS1.p1.1.m1.2.2.1" xref="S2.SS1.p1.1.m1.2.2.1.cmml"><mi id="S2.SS1.p1.1.m1.2.2.1.2" xref="S2.SS1.p1.1.m1.2.2.1.2.cmml">i</mi><mo id="S2.SS1.p1.1.m1.2.2.1.1" xref="S2.SS1.p1.1.m1.2.2.1.1.cmml">=</mo><mn id="S2.SS1.p1.1.m1.2.2.1.3" xref="S2.SS1.p1.1.m1.2.2.1.3.cmml">1</mn></mrow><mrow id="S2.SS1.p1.1.m1.1.1.1.3" xref="S2.SS1.p1.1.m1.1.1.1.2.cmml"><mo stretchy="false" id="S2.SS1.p1.1.m1.1.1.1.3.1" xref="S2.SS1.p1.1.m1.1.1.1.2.1.cmml">|</mo><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.1.m1.1.1.1.1" xref="S2.SS1.p1.1.m1.1.1.1.1.cmml">𝒟</mi><mo stretchy="false" id="S2.SS1.p1.1.m1.1.1.1.3.2" xref="S2.SS1.p1.1.m1.1.1.1.2.1.cmml">|</mo></mrow></msubsup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.3b"><apply id="S2.SS1.p1.1.m1.3.3.cmml" xref="S2.SS1.p1.1.m1.3.3"><eq id="S2.SS1.p1.1.m1.3.3.2.cmml" xref="S2.SS1.p1.1.m1.3.3.2"></eq><ci id="S2.SS1.p1.1.m1.3.3.3.cmml" xref="S2.SS1.p1.1.m1.3.3.3">𝒟</ci><apply id="S2.SS1.p1.1.m1.3.3.1.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1"><csymbol cd="latexml" id="S2.SS1.p1.1.m1.3.3.1.2.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.2">evaluated-at</csymbol><set id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1"><apply id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1"><eq id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.3"></eq><apply id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4">subscript</csymbol><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.2">𝑧</ci><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.3.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.4.3">𝑖</ci></apply><interval closure="open" id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2"><apply id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.2">𝑥</ci><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.1.1.1.3">𝑖</ci></apply><apply id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.1.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2">subscript</csymbol><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.2.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.2">𝑦</ci><ci id="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.3.cmml" xref="S2.SS1.p1.1.m1.3.3.1.1.1.1.1.1.1.2.2.2.3">𝑖</ci></apply></interval></apply></set><apply id="S2.SS1.p1.1.m1.2.2.1.cmml" xref="S2.SS1.p1.1.m1.2.2.1"><eq id="S2.SS1.p1.1.m1.2.2.1.1.cmml" xref="S2.SS1.p1.1.m1.2.2.1.1"></eq><ci id="S2.SS1.p1.1.m1.2.2.1.2.cmml" xref="S2.SS1.p1.1.m1.2.2.1.2">𝑖</ci><cn type="integer" id="S2.SS1.p1.1.m1.2.2.1.3.cmml" xref="S2.SS1.p1.1.m1.2.2.1.3">1</cn></apply><apply id="S2.SS1.p1.1.m1.1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.1.3"><abs id="S2.SS1.p1.1.m1.1.1.1.2.1.cmml" xref="S2.SS1.p1.1.m1.1.1.1.3.1"></abs><ci id="S2.SS1.p1.1.m1.1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1.1.1">𝒟</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.3c">\mathcal{D}=\left.\left\{z_{i}=\left(x_{i},y_{i}\right)\right\}\right|_{i=1}^{|\mathcal{D}|}</annotation></semantics></math>, a score <math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{H}(z)" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><mrow id="S2.SS1.p1.2.m2.1.2" xref="S2.SS1.p1.2.m2.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.2.m2.1.2.2" xref="S2.SS1.p1.2.m2.1.2.2.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.2.m2.1.2.1" xref="S2.SS1.p1.2.m2.1.2.1.cmml">​</mo><mrow id="S2.SS1.p1.2.m2.1.2.3.2" xref="S2.SS1.p1.2.m2.1.2.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.1.2.3.2.1" xref="S2.SS1.p1.2.m2.1.2.cmml">(</mo><mi id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">z</mi><mo stretchy="false" id="S2.SS1.p1.2.m2.1.2.3.2.2" xref="S2.SS1.p1.2.m2.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><apply id="S2.SS1.p1.2.m2.1.2.cmml" xref="S2.SS1.p1.2.m2.1.2"><times id="S2.SS1.p1.2.m2.1.2.1.cmml" xref="S2.SS1.p1.2.m2.1.2.1"></times><ci id="S2.SS1.p1.2.m2.1.2.2.cmml" xref="S2.SS1.p1.2.m2.1.2.2">ℋ</ci><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">𝑧</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">\mathcal{H}(z)</annotation></semantics></math> is assigned to each instance <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="z" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><mi id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml">z</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><ci id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">𝑧</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">z</annotation></semantics></math>. In each pruning cycle, instances are selectively removed according to the distribution of scores <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="\mathcal{H}" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml">ℋ</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><ci id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1">ℋ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">\mathcal{H}</annotation></semantics></math> and the pruning criterion <math id="S2.SS1.p1.5.m5.1" class="ltx_Math" alttext="\mathcal{S}" display="inline"><semantics id="S2.SS1.p1.5.m5.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml">𝒮</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.1b"><ci id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">𝒮</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.1c">\mathcal{S}</annotation></semantics></math>. The reserved subset after data pruning is defined as:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.3" class="ltx_Math" alttext="\mathcal{X}^{kept}=\mathcal{S}\left(\mathcal{H},\mathcal{X},k\right)" display="block"><semantics id="S2.E1.m1.3a"><mrow id="S2.E1.m1.3.4" xref="S2.E1.m1.3.4.cmml"><msup id="S2.E1.m1.3.4.2" xref="S2.E1.m1.3.4.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.3.4.2.2" xref="S2.E1.m1.3.4.2.2.cmml">𝒳</mi><mrow id="S2.E1.m1.3.4.2.3" xref="S2.E1.m1.3.4.2.3.cmml"><mi id="S2.E1.m1.3.4.2.3.2" xref="S2.E1.m1.3.4.2.3.2.cmml">k</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.4.2.3.1" xref="S2.E1.m1.3.4.2.3.1.cmml">​</mo><mi id="S2.E1.m1.3.4.2.3.3" xref="S2.E1.m1.3.4.2.3.3.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.4.2.3.1a" xref="S2.E1.m1.3.4.2.3.1.cmml">​</mo><mi id="S2.E1.m1.3.4.2.3.4" xref="S2.E1.m1.3.4.2.3.4.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.4.2.3.1b" xref="S2.E1.m1.3.4.2.3.1.cmml">​</mo><mi id="S2.E1.m1.3.4.2.3.5" xref="S2.E1.m1.3.4.2.3.5.cmml">t</mi></mrow></msup><mo id="S2.E1.m1.3.4.1" xref="S2.E1.m1.3.4.1.cmml">=</mo><mrow id="S2.E1.m1.3.4.3" xref="S2.E1.m1.3.4.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.3.4.3.2" xref="S2.E1.m1.3.4.3.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.4.3.1" xref="S2.E1.m1.3.4.3.1.cmml">​</mo><mrow id="S2.E1.m1.3.4.3.3.2" xref="S2.E1.m1.3.4.3.3.1.cmml"><mo id="S2.E1.m1.3.4.3.3.2.1" xref="S2.E1.m1.3.4.3.3.1.cmml">(</mo><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml">ℋ</mi><mo id="S2.E1.m1.3.4.3.3.2.2" xref="S2.E1.m1.3.4.3.3.1.cmml">,</mo><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.2.2" xref="S2.E1.m1.2.2.cmml">𝒳</mi><mo id="S2.E1.m1.3.4.3.3.2.3" xref="S2.E1.m1.3.4.3.3.1.cmml">,</mo><mi id="S2.E1.m1.3.3" xref="S2.E1.m1.3.3.cmml">k</mi><mo id="S2.E1.m1.3.4.3.3.2.4" xref="S2.E1.m1.3.4.3.3.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.3b"><apply id="S2.E1.m1.3.4.cmml" xref="S2.E1.m1.3.4"><eq id="S2.E1.m1.3.4.1.cmml" xref="S2.E1.m1.3.4.1"></eq><apply id="S2.E1.m1.3.4.2.cmml" xref="S2.E1.m1.3.4.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.4.2.1.cmml" xref="S2.E1.m1.3.4.2">superscript</csymbol><ci id="S2.E1.m1.3.4.2.2.cmml" xref="S2.E1.m1.3.4.2.2">𝒳</ci><apply id="S2.E1.m1.3.4.2.3.cmml" xref="S2.E1.m1.3.4.2.3"><times id="S2.E1.m1.3.4.2.3.1.cmml" xref="S2.E1.m1.3.4.2.3.1"></times><ci id="S2.E1.m1.3.4.2.3.2.cmml" xref="S2.E1.m1.3.4.2.3.2">𝑘</ci><ci id="S2.E1.m1.3.4.2.3.3.cmml" xref="S2.E1.m1.3.4.2.3.3">𝑒</ci><ci id="S2.E1.m1.3.4.2.3.4.cmml" xref="S2.E1.m1.3.4.2.3.4">𝑝</ci><ci id="S2.E1.m1.3.4.2.3.5.cmml" xref="S2.E1.m1.3.4.2.3.5">𝑡</ci></apply></apply><apply id="S2.E1.m1.3.4.3.cmml" xref="S2.E1.m1.3.4.3"><times id="S2.E1.m1.3.4.3.1.cmml" xref="S2.E1.m1.3.4.3.1"></times><ci id="S2.E1.m1.3.4.3.2.cmml" xref="S2.E1.m1.3.4.3.2">𝒮</ci><vector id="S2.E1.m1.3.4.3.3.1.cmml" xref="S2.E1.m1.3.4.3.3.2"><ci id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1">ℋ</ci><ci id="S2.E1.m1.2.2.cmml" xref="S2.E1.m1.2.2">𝒳</ci><ci id="S2.E1.m1.3.3.cmml" xref="S2.E1.m1.3.3">𝑘</ci></vector></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.3c">\mathcal{X}^{kept}=\mathcal{S}\left(\mathcal{H},\mathcal{X},k\right)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p1.7" class="ltx_p">where <math id="S2.SS1.p1.6.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS1.p1.6.m1.1a"><mi id="S2.SS1.p1.6.m1.1.1" xref="S2.SS1.p1.6.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m1.1b"><ci id="S2.SS1.p1.6.m1.1.1.cmml" xref="S2.SS1.p1.6.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m1.1c">k</annotation></semantics></math> is the kept ratio and <math id="S2.SS1.p1.7.m2.1" class="ltx_Math" alttext="\mathcal{X}" display="inline"><semantics id="S2.SS1.p1.7.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.7.m2.1.1" xref="S2.SS1.p1.7.m2.1.1.cmml">𝒳</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m2.1b"><ci id="S2.SS1.p1.7.m2.1.1.cmml" xref="S2.SS1.p1.7.m2.1.1">𝒳</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m2.1c">\mathcal{X}</annotation></semantics></math> corresponds to all input instances.
+For <span id="S2.SS1.p1.7.1" class="ltx_text ltx_font_italic">static data pruning</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx6" title="" class="ltx_ref">6</a>, <a href="#bib.bibx10" title="" class="ltx_ref">10</a>]</cite>, instances that satisfy a specific condition are permanently discarded before the training begins and will never be activated again.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.2" class="ltx_p">In contrast, dynamic data pruning enables the score
+<math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{H}_{t}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><msub id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p2.1.m1.1.1.2" xref="S2.SS1.p2.1.m1.1.1.2.cmml">ℋ</mi><mi id="S2.SS1.p2.1.m1.1.1.3" xref="S2.SS1.p2.1.m1.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><apply id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.1.m1.1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.1.m1.1.1.2.cmml" xref="S2.SS1.p2.1.m1.1.1.2">ℋ</ci><ci id="S2.SS1.p2.1.m1.1.1.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">\mathcal{H}_{t}</annotation></semantics></math> to be dynamically updated throughout training, ensuring that the coreset data can be more effectively adjusted based on the model's status at every <math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mi id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><ci id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">t</annotation></semantics></math> epoch.
+In this scenario, there is no reliance on pre-trained models, and intricate trials or runs are needed to acquire the pruning score before training <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx11" title="" class="ltx_ref">11</a>, <a href="#bib.bibx18" title="" class="ltx_ref">18</a>, <a href="#bib.bibx19" title="" class="ltx_ref">19</a>]</cite>.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Dynamic data pruning for ASR</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">To facilitate training acceleration through dynamic data pruning for speech data, we introduce a novel data pruning method, referred to as DDP-ASR (Dynamic Data Pruning for ASR). DDP-ASR extends beyond the conventional instance-wise data pruning by incorporating fine-grained time-wise pruning strategies within each time sequence, thereby achieving a practical speedup.</p>
+</div>
+<section id="S2.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.2.1 </span>Instance-wise pruning</h4>
+
+<div id="S2.SS2.SSS1.p1" class="ltx_para">
+<p id="S2.SS2.SSS1.p1.5" class="ltx_p">Instance-wise pruning aims to remove entire audio sequences based on a given score <math id="S2.SS2.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{H}_{t}" display="inline"><semantics id="S2.SS2.SSS1.p1.1.m1.1a"><msub id="S2.SS2.SSS1.p1.1.m1.1.1" xref="S2.SS2.SSS1.p1.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.1.m1.1.1.2" xref="S2.SS2.SSS1.p1.1.m1.1.1.2.cmml">ℋ</mi><mi id="S2.SS2.SSS1.p1.1.m1.1.1.3" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.1.m1.1b"><apply id="S2.SS2.SSS1.p1.1.m1.1.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.1.m1.1.1.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS2.SSS1.p1.1.m1.1.1.2.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.2">ℋ</ci><ci id="S2.SS2.SSS1.p1.1.m1.1.1.3.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.1.m1.1c">\mathcal{H}_{t}</annotation></semantics></math>. Several methods have been proposed to calculate the score of each instance, such as the loss values <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx11" title="" class="ltx_ref">11</a>]</cite> and uncertainty <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx19" title="" class="ltx_ref">19</a>]</cite>. The calculated score <math id="S2.SS2.SSS1.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{H}_{t}" display="inline"><semantics id="S2.SS2.SSS1.p1.2.m2.1a"><msub id="S2.SS2.SSS1.p1.2.m2.1.1" xref="S2.SS2.SSS1.p1.2.m2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.2.m2.1.1.2" xref="S2.SS2.SSS1.p1.2.m2.1.1.2.cmml">ℋ</mi><mi id="S2.SS2.SSS1.p1.2.m2.1.1.3" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.2.m2.1b"><apply id="S2.SS2.SSS1.p1.2.m2.1.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.2.m2.1.1.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1">subscript</csymbol><ci id="S2.SS2.SSS1.p1.2.m2.1.1.2.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.2">ℋ</ci><ci id="S2.SS2.SSS1.p1.2.m2.1.1.3.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.2.m2.1c">\mathcal{H}_{t}</annotation></semantics></math> is then used to determine which instances to preserve based on pruning criteria. For instance, the score distribution <math id="S2.SS2.SSS1.p1.3.m3.1" class="ltx_Math" alttext="\mathcal{H}_{t}" display="inline"><semantics id="S2.SS2.SSS1.p1.3.m3.1a"><msub id="S2.SS2.SSS1.p1.3.m3.1.1" xref="S2.SS2.SSS1.p1.3.m3.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.3.m3.1.1.2" xref="S2.SS2.SSS1.p1.3.m3.1.1.2.cmml">ℋ</mi><mi id="S2.SS2.SSS1.p1.3.m3.1.1.3" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.3.m3.1b"><apply id="S2.SS2.SSS1.p1.3.m3.1.1.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.3.m3.1.1.1.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS2.SSS1.p1.3.m3.1.1.2.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.2">ℋ</ci><ci id="S2.SS2.SSS1.p1.3.m3.1.1.3.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.3.m3.1c">\mathcal{H}_{t}</annotation></semantics></math> can be used to identify and retain either <span id="S2.SS2.SSS1.p1.5.1" class="ltx_text ltx_font_italic">easy</span> or <span id="S2.SS2.SSS1.p1.5.2" class="ltx_text ltx_font_italic">hard</span> instances, where <span id="S2.SS2.SSS1.p1.5.3" class="ltx_text ltx_font_italic">easy</span> instances are those with lower scores and <span id="S2.SS2.SSS1.p1.5.4" class="ltx_text ltx_font_italic">hard</span> instances are those with higher scores.
+In this study, we select the loss values <math id="S2.SS2.SSS1.p1.4.m4.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S2.SS2.SSS1.p1.4.m4.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.4.m4.1.1" xref="S2.SS2.SSS1.p1.4.m4.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.4.m4.1b"><ci id="S2.SS2.SSS1.p1.4.m4.1.1.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.4.m4.1c">\mathcal{L}</annotation></semantics></math> of each instance <math id="S2.SS2.SSS1.p1.5.m5.1" class="ltx_Math" alttext="z" display="inline"><semantics id="S2.SS2.SSS1.p1.5.m5.1a"><mi id="S2.SS2.SSS1.p1.5.m5.1.1" xref="S2.SS2.SSS1.p1.5.m5.1.1.cmml">z</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.5.m5.1b"><ci id="S2.SS2.SSS1.p1.5.m5.1.1.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1">𝑧</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.5.m5.1c">z</annotation></semantics></math> as the corresponding score, as these values can be obtained without extra cost during training and reflect the learning status of the instances. Moreover, its effectiveness has been verified in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx21" title="" class="ltx_ref">21</a>, <a href="#bib.bibx11" title="" class="ltx_ref">11</a>]</cite>.
+Therefore, we explore a variety of instance-wise pruning methods tailored for ASR training:
+</p>
+</div>
+<div id="S2.SS2.SSS1.p2" class="ltx_para ltx_noindent">
+<p id="S2.SS2.SSS1.p2.1" class="ltx_p"><span id="S2.SS2.SSS1.p2.1.1" class="ltx_text ltx_font_bold">Easy.</span> We prioritize the training of models on instances classified as ``easy'', which are identified by their lower scores, opting to exclude those with the highest scores. Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Methodology ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (a) illustrates an example of this method.</p>
+</div>
+<div id="S2.SS2.SSS1.p3" class="ltx_para ltx_noindent">
+<p id="S2.SS2.SSS1.p3.1" class="ltx_p"><span id="S2.SS2.SSS1.p3.1.1" class="ltx_text ltx_font_bold">Hard.</span> Conversely, we focus on incorporating ``hard'' instances for training, effectively sidelining those instances that are scored lower based on score distribution <math id="S2.SS2.SSS1.p3.1.m1.1" class="ltx_Math" alttext="\mathcal{H}_{t}" display="inline"><semantics id="S2.SS2.SSS1.p3.1.m1.1a"><msub id="S2.SS2.SSS1.p3.1.m1.1.1" xref="S2.SS2.SSS1.p3.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p3.1.m1.1.1.2" xref="S2.SS2.SSS1.p3.1.m1.1.1.2.cmml">ℋ</mi><mi id="S2.SS2.SSS1.p3.1.m1.1.1.3" xref="S2.SS2.SSS1.p3.1.m1.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p3.1.m1.1b"><apply id="S2.SS2.SSS1.p3.1.m1.1.1.cmml" xref="S2.SS2.SSS1.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p3.1.m1.1.1.1.cmml" xref="S2.SS2.SSS1.p3.1.m1.1.1">subscript</csymbol><ci id="S2.SS2.SSS1.p3.1.m1.1.1.2.cmml" xref="S2.SS2.SSS1.p3.1.m1.1.1.2">ℋ</ci><ci id="S2.SS2.SSS1.p3.1.m1.1.1.3.cmml" xref="S2.SS2.SSS1.p3.1.m1.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p3.1.m1.1c">\mathcal{H}_{t}</annotation></semantics></math>. Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Methodology ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (b) provides an example for this method.</p>
+</div>
+<div id="S2.SS2.SSS1.p4" class="ltx_para ltx_noindent">
+<p id="S2.SS2.SSS1.p4.4" class="ltx_p"><span id="S2.SS2.SSS1.p4.4.1" class="ltx_text ltx_font_bold">Easy2hard.</span> Inspired by curriculum learning strategies <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx22" title="" class="ltx_ref">22</a>, <a href="#bib.bibx23" title="" class="ltx_ref">23</a>]</cite>, which train their models by progressively showing harder examples, we propose a novel selection strategy that dynamically schedules the presentation of instances to the model during training. Thus, at every checkpoint, <math id="S2.SS2.SSS1.p4.1.m1.1" class="ltx_Math" alttext="(1\,-\,\epsilon)\,k" display="inline"><semantics id="S2.SS2.SSS1.p4.1.m1.1a"><mrow id="S2.SS2.SSS1.p4.1.m1.1.1" xref="S2.SS2.SSS1.p4.1.m1.1.1.cmml"><mrow id="S2.SS2.SSS1.p4.1.m1.1.1.1.1" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.2" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.cmml"><mn id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.2" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.2.cmml">1</mn><mo lspace="0.392em" rspace="0.392em" id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.1" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.1.cmml">−</mo><mi id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.3" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.3.cmml">ϵ</mi></mrow><mo stretchy="false" id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.3" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.cmml">)</mo></mrow><mo lspace="0.170em" rspace="0em" id="S2.SS2.SSS1.p4.1.m1.1.1.2" xref="S2.SS2.SSS1.p4.1.m1.1.1.2.cmml">​</mo><mi id="S2.SS2.SSS1.p4.1.m1.1.1.3" xref="S2.SS2.SSS1.p4.1.m1.1.1.3.cmml">k</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p4.1.m1.1b"><apply id="S2.SS2.SSS1.p4.1.m1.1.1.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1"><times id="S2.SS2.SSS1.p4.1.m1.1.1.2.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.2"></times><apply id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1"><minus id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.1.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.1"></minus><cn type="integer" id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.2.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.2">1</cn><ci id="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.3.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.1.1.1.3">italic-ϵ</ci></apply><ci id="S2.SS2.SSS1.p4.1.m1.1.1.3.cmml" xref="S2.SS2.SSS1.p4.1.m1.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p4.1.m1.1c">(1\,-\,\epsilon)\,k</annotation></semantics></math> points with progressively increasing difficulty are kept, and <math id="S2.SS2.SSS1.p4.2.m2.1" class="ltx_Math" alttext="\epsilon\,k" display="inline"><semantics id="S2.SS2.SSS1.p4.2.m2.1a"><mrow id="S2.SS2.SSS1.p4.2.m2.1.1" xref="S2.SS2.SSS1.p4.2.m2.1.1.cmml"><mi id="S2.SS2.SSS1.p4.2.m2.1.1.2" xref="S2.SS2.SSS1.p4.2.m2.1.1.2.cmml">ϵ</mi><mo lspace="0.170em" rspace="0em" id="S2.SS2.SSS1.p4.2.m2.1.1.1" xref="S2.SS2.SSS1.p4.2.m2.1.1.1.cmml">​</mo><mi id="S2.SS2.SSS1.p4.2.m2.1.1.3" xref="S2.SS2.SSS1.p4.2.m2.1.1.3.cmml">k</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p4.2.m2.1b"><apply id="S2.SS2.SSS1.p4.2.m2.1.1.cmml" xref="S2.SS2.SSS1.p4.2.m2.1.1"><times id="S2.SS2.SSS1.p4.2.m2.1.1.1.cmml" xref="S2.SS2.SSS1.p4.2.m2.1.1.1"></times><ci id="S2.SS2.SSS1.p4.2.m2.1.1.2.cmml" xref="S2.SS2.SSS1.p4.2.m2.1.1.2">italic-ϵ</ci><ci id="S2.SS2.SSS1.p4.2.m2.1.1.3.cmml" xref="S2.SS2.SSS1.p4.2.m2.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p4.2.m2.1c">\epsilon\,k</annotation></semantics></math> points are randomly selected from the remaining dataset. Here <math id="S2.SS2.SSS1.p4.3.m3.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S2.SS2.SSS1.p4.3.m3.1a"><mi id="S2.SS2.SSS1.p4.3.m3.1.1" xref="S2.SS2.SSS1.p4.3.m3.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p4.3.m3.1b"><ci id="S2.SS2.SSS1.p4.3.m3.1.1.cmml" xref="S2.SS2.SSS1.p4.3.m3.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p4.3.m3.1c">\epsilon</annotation></semantics></math> is used to strategically schedule the presentation of easy or hard instances to the model. It is worth noting that <math id="S2.SS2.SSS1.p4.4.m4.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S2.SS2.SSS1.p4.4.m4.1a"><mi id="S2.SS2.SSS1.p4.4.m4.1.1" xref="S2.SS2.SSS1.p4.4.m4.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p4.4.m4.1b"><ci id="S2.SS2.SSS1.p4.4.m4.1.1.cmml" xref="S2.SS2.SSS1.p4.4.m4.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p4.4.m4.1c">\epsilon</annotation></semantics></math> starts at 1 and gradually linearly decreases during training, effectively altering the selection strategy over time, as shown in Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Methodology ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (c).</p>
+</div>
+</section>
+<section id="S2.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.2.2 </span>Time-wise dropping</h4>
+
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2406.18373/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="110" height="42" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>A toy example comparing different time-wise pruning approaches: (a) Point Dropping, (b) Chunk Dropping, where signals highlighted in gray are pruned during training.</figcaption>
+</figure>
+<div id="S2.SS2.SSS2.p1" class="ltx_para ltx_noindent">
+<p id="S2.SS2.SSS2.p1.2" class="ltx_p"><span id="S2.SS2.SSS2.p1.2.1" class="ltx_text ltx_font_bold">Point-wise dropping.</span> Inspired by CLIP <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx24" title="" class="ltx_ref">24</a>]</cite>, which removes a portion of image patches to yield a training speedup, we introduce <span id="S2.SS2.SSS2.p1.2.2" class="ltx_text ltx_font_italic">point dropping</span>, a simple time-wise dropping strategy that removes individual data points within an instance to improve training speed.
+This is done by randomly retaining <math id="S2.SS2.SSS2.p1.1.m1.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS2.SSS2.p1.1.m1.1a"><mi id="S2.SS2.SSS2.p1.1.m1.1.1" xref="S2.SS2.SSS2.p1.1.m1.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p1.1.m1.1b"><ci id="S2.SS2.SSS2.p1.1.m1.1.1.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p1.1.m1.1c">L</annotation></semantics></math> audio samples within an instance that contains <math id="S2.SS2.SSS2.p1.2.m2.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.SS2.SSS2.p1.2.m2.1a"><mi id="S2.SS2.SSS2.p1.2.m2.1.1" xref="S2.SS2.SSS2.p1.2.m2.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p1.2.m2.1b"><ci id="S2.SS2.SSS2.p1.2.m2.1.1.cmml" xref="S2.SS2.SSS2.p1.2.m2.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p1.2.m2.1c">T</annotation></semantics></math> audio samples.</p>
+</div>
+<div id="S2.SS2.SSS2.p2" class="ltx_para ltx_noindent">
+<p id="S2.SS2.SSS2.p2.7" class="ltx_p"><span id="S2.SS2.SSS2.p2.7.1" class="ltx_text ltx_font_bold">Chunk-wise dropping.</span> Compared to point dropping, <span id="S2.SS2.SSS2.p2.7.2" class="ltx_text ltx_font_italic">chunk dropping</span> specifically targets the removal of chunks, each consisting of <math id="S2.SS2.SSS2.p2.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS2.SSS2.p2.1.m1.1a"><mi id="S2.SS2.SSS2.p2.1.m1.1.1" xref="S2.SS2.SSS2.p2.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.1.m1.1b"><ci id="S2.SS2.SSS2.p2.1.m1.1.1.cmml" xref="S2.SS2.SSS2.p2.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.1.m1.1c">n</annotation></semantics></math> consecutive audio samples. For any given chunk <math id="S2.SS2.SSS2.p2.2.m2.2" class="ltx_Math" alttext="[t,t+n]" display="inline"><semantics id="S2.SS2.SSS2.p2.2.m2.2a"><mrow id="S2.SS2.SSS2.p2.2.m2.2.2.1" xref="S2.SS2.SSS2.p2.2.m2.2.2.2.cmml"><mo stretchy="false" id="S2.SS2.SSS2.p2.2.m2.2.2.1.2" xref="S2.SS2.SSS2.p2.2.m2.2.2.2.cmml">[</mo><mi id="S2.SS2.SSS2.p2.2.m2.1.1" xref="S2.SS2.SSS2.p2.2.m2.1.1.cmml">t</mi><mo id="S2.SS2.SSS2.p2.2.m2.2.2.1.3" xref="S2.SS2.SSS2.p2.2.m2.2.2.2.cmml">,</mo><mrow id="S2.SS2.SSS2.p2.2.m2.2.2.1.1" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.cmml"><mi id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.2" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.2.cmml">t</mi><mo id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.1" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.1.cmml">+</mo><mi id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.3" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.3.cmml">n</mi></mrow><mo stretchy="false" id="S2.SS2.SSS2.p2.2.m2.2.2.1.4" xref="S2.SS2.SSS2.p2.2.m2.2.2.2.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.2.m2.2b"><interval closure="closed" id="S2.SS2.SSS2.p2.2.m2.2.2.2.cmml" xref="S2.SS2.SSS2.p2.2.m2.2.2.1"><ci id="S2.SS2.SSS2.p2.2.m2.1.1.cmml" xref="S2.SS2.SSS2.p2.2.m2.1.1">𝑡</ci><apply id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.cmml" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1"><plus id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.1.cmml" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.1"></plus><ci id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.2.cmml" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.2">𝑡</ci><ci id="S2.SS2.SSS2.p2.2.m2.2.2.1.1.3.cmml" xref="S2.SS2.SSS2.p2.2.m2.2.2.1.1.3">𝑛</ci></apply></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.2.m2.2c">[t,t+n]</annotation></semantics></math>, <math id="S2.SS2.SSS2.p2.3.m3.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.SS2.SSS2.p2.3.m3.1a"><mi id="S2.SS2.SSS2.p2.3.m3.1.1" xref="S2.SS2.SSS2.p2.3.m3.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.3.m3.1b"><ci id="S2.SS2.SSS2.p2.3.m3.1.1.cmml" xref="S2.SS2.SSS2.p2.3.m3.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.3.m3.1c">t</annotation></semantics></math> is chosen from the range <math id="S2.SS2.SSS2.p2.4.m4.2" class="ltx_Math" alttext="[0,T-n)" display="inline"><semantics id="S2.SS2.SSS2.p2.4.m4.2a"><mrow id="S2.SS2.SSS2.p2.4.m4.2.2.1" xref="S2.SS2.SSS2.p2.4.m4.2.2.2.cmml"><mo stretchy="false" id="S2.SS2.SSS2.p2.4.m4.2.2.1.2" xref="S2.SS2.SSS2.p2.4.m4.2.2.2.cmml">[</mo><mn id="S2.SS2.SSS2.p2.4.m4.1.1" xref="S2.SS2.SSS2.p2.4.m4.1.1.cmml">0</mn><mo id="S2.SS2.SSS2.p2.4.m4.2.2.1.3" xref="S2.SS2.SSS2.p2.4.m4.2.2.2.cmml">,</mo><mrow id="S2.SS2.SSS2.p2.4.m4.2.2.1.1" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.cmml"><mi id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.2" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.2.cmml">T</mi><mo id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.1" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.1.cmml">−</mo><mi id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.3" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.3.cmml">n</mi></mrow><mo stretchy="false" id="S2.SS2.SSS2.p2.4.m4.2.2.1.4" xref="S2.SS2.SSS2.p2.4.m4.2.2.2.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.4.m4.2b"><interval closure="closed-open" id="S2.SS2.SSS2.p2.4.m4.2.2.2.cmml" xref="S2.SS2.SSS2.p2.4.m4.2.2.1"><cn type="integer" id="S2.SS2.SSS2.p2.4.m4.1.1.cmml" xref="S2.SS2.SSS2.p2.4.m4.1.1">0</cn><apply id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.cmml" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1"><minus id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.1.cmml" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.1"></minus><ci id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.2.cmml" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.2">𝑇</ci><ci id="S2.SS2.SSS2.p2.4.m4.2.2.1.1.3.cmml" xref="S2.SS2.SSS2.p2.4.m4.2.2.1.1.3">𝑛</ci></apply></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.4.m4.2c">[0,T-n)</annotation></semantics></math>, where <math id="S2.SS2.SSS2.p2.5.m5.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.SS2.SSS2.p2.5.m5.1a"><mi id="S2.SS2.SSS2.p2.5.m5.1.1" xref="S2.SS2.SSS2.p2.5.m5.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.5.m5.1b"><ci id="S2.SS2.SSS2.p2.5.m5.1.1.cmml" xref="S2.SS2.SSS2.p2.5.m5.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.5.m5.1c">T</annotation></semantics></math> is the input length of the instance. With a remaining length denoted as <math id="S2.SS2.SSS2.p2.6.m6.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS2.SSS2.p2.6.m6.1a"><mi id="S2.SS2.SSS2.p2.6.m6.1.1" xref="S2.SS2.SSS2.p2.6.m6.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.6.m6.1b"><ci id="S2.SS2.SSS2.p2.6.m6.1.1.cmml" xref="S2.SS2.SSS2.p2.6.m6.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.6.m6.1c">L</annotation></semantics></math>, the method eliminates <math id="S2.SS2.SSS2.p2.7.m7.1" class="ltx_Math" alttext="{(T-L})/n" display="inline"><semantics id="S2.SS2.SSS2.p2.7.m7.1a"><mrow id="S2.SS2.SSS2.p2.7.m7.1.1" xref="S2.SS2.SSS2.p2.7.m7.1.1.cmml"><mrow id="S2.SS2.SSS2.p2.7.m7.1.1.1.1" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.2" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.cmml"><mi id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.2" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.2.cmml">T</mi><mo id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.1" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.1.cmml">−</mo><mi id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.3" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.3.cmml">L</mi></mrow><mo stretchy="false" id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.3" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.cmml">)</mo></mrow><mo id="S2.SS2.SSS2.p2.7.m7.1.1.2" xref="S2.SS2.SSS2.p2.7.m7.1.1.2.cmml">/</mo><mi id="S2.SS2.SSS2.p2.7.m7.1.1.3" xref="S2.SS2.SSS2.p2.7.m7.1.1.3.cmml">n</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p2.7.m7.1b"><apply id="S2.SS2.SSS2.p2.7.m7.1.1.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1"><divide id="S2.SS2.SSS2.p2.7.m7.1.1.2.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.2"></divide><apply id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1"><minus id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.1.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.1"></minus><ci id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.2.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.2">𝑇</ci><ci id="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.3.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.1.1.1.3">𝐿</ci></apply><ci id="S2.SS2.SSS2.p2.7.m7.1.1.3.cmml" xref="S2.SS2.SSS2.p2.7.m7.1.1.3">𝑛</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p2.7.m7.1c">{(T-L})/n</annotation></semantics></math> chunks.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Setup</h2>
+
+<div id="S3.p1" class="ltx_para ltx_noindent">
+<p id="S3.p1.1" class="ltx_p"><span id="S3.p1.1.1" class="ltx_text ltx_font_bold">Dataset.</span> In this study, we conduct experiments on two datasets: Librispeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx25" title="" class="ltx_ref">25</a>]</cite>, an audio corpus collected from audiobooks, and LRS3 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx26" title="" class="ltx_ref">26</a>]</cite>, an audio-visual corpus from TED and TEDx talks. For Librispeech, we use ``train-clean-100'', ``train-clean-360'', and ``train-other-500'' subsets, totalling 960 hours of training data and evaluate our performance on the ``test-clean'' set with a total of 5.1 hours of audio. LRS3 consists of 439 hours of video clips, with 118 516 (408 hours), 31 982 (30 hours) and 1 321 clips (0.9 hours) in the pre-training, training-validation, and test sets, respectively.</p>
+</div>
+<div id="S3.p2" class="ltx_para ltx_noindent">
+<p id="S3.p2.1" class="ltx_p"><span id="S3.p2.1.1" class="ltx_text ltx_font_bold">Pre-processing.</span> Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx27" title="" class="ltx_ref">27</a>]</cite>, we take raw audio waveforms as input to the model and perform only z-normalisation per utterance before feeding it into the model.</p>
+</div>
+<div id="S3.p3" class="ltx_para ltx_noindent">
+<p id="S3.p3.1" class="ltx_p"><span id="S3.p3.1.1" class="ltx_text ltx_font_bold">Data augmentation.</span> We only apply adaptive time masking <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx28" title="" class="ltx_ref">28</a>]</cite> to the raw audio stream. In particular, we choose a number of masks that is proportional to the utterance length and a maximum masking length of up to 0.4 seconds.</p>
+</div>
+<div id="S3.p4" class="ltx_para ltx_noindent">
+<p id="S3.p4.1" class="ltx_p"><span id="S3.p4.1.1" class="ltx_text ltx_font_bold">Model architecture.</span> Rather than pursuing state-of-the-art performance, our primary goal is to investigate data pruning techniques in the domain of ASR. Accordingly, we adapt the open-source conformer-based architecture from <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx29" title="" class="ltx_ref">29</a>]</cite>. Our models comprises a 1D ResNet front-end (3.9 M parameters) to extract speech features from raw audio waveforms, followed by a conformer encoder (170.9 M parameters), a Transformer decoder (64.5 M parameters) and a projection CTC layer (3.9 M parameters), resulting in a total of 243.1 M parameters.</p>
+</div>
+<div id="S3.p5" class="ltx_para ltx_noindent">
+<p id="S3.p5.1" class="ltx_p"><span id="S3.p5.1.1" class="ltx_text ltx_font_bold">Training details.</span> Following standard practices in ASR, we train using a combination of CTC loss and Cross-Entropy loss. The model is trained for 75 epochs using the AdamW optimiser <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx30" title="" class="ltx_ref">30</a>]</cite>. A cosine learning rate scheduler and a warm-up of 5 epochs are used, with the peak learning rate set to 0.001. We limit the duration of each training clip to no more than 16 seconds, and the maximum number of duration per batch is 64 seconds. All the models are trained with 32 A100 GPUs. For data pruning, we update the remaining subset every epoch. In the <span id="S3.p5.1.2" class="ltx_text ltx_font_typewriter">Easy2hard</span> method, the proportion between the selected subset based on scores and a random one is set to 2 : 1 at the end of the training, which means that <math id="S3.p5.1.m1.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S3.p5.1.m1.1a"><mi id="S3.p5.1.m1.1.1" xref="S3.p5.1.m1.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S3.p5.1.m1.1b"><ci id="S3.p5.1.m1.1.1.cmml" xref="S3.p5.1.m1.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p5.1.m1.1c">\epsilon</annotation></semantics></math> will linearly decay to 1 / 3. For time-wise dropping, we randomly drop samples up to the given dropping rate.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experimental Results</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Performance for instance-wise pruning</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">We evaluate the effectiveness of different instance-wise pruning methods for the Librispeech and LRS3 datasets. For a broader comparison, we include two additional pruning methods: (i) models trained with subsets randomly selected from the entire dataset in each pruning cycle, termed as <span id="S4.SS1.p1.1.1" class="ltx_text ltx_font_typewriter">Random</span>, and (ii) models trained on a fixed subset initially chosen at random from the full dataset, referred to as <span id="S4.SS1.p1.1.2" class="ltx_text ltx_font_typewriter">Static</span>.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">Results of using different instance-wise pruning methods on the `test-clean'' set of Librispeech are shown in Table <a href="#S4.T1" title="Table 1 ‣ 4.1 Performance for instance-wise pruning ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. We observe that for most pruning methods (namely, <span id="S4.SS1.p2.1.1" class="ltx_text ltx_font_typewriter">Static</span>, <span id="S4.SS1.p2.1.2" class="ltx_text ltx_font_typewriter">Easy</span> and <span id="S4.SS1.p2.1.3" class="ltx_text ltx_font_typewriter">Random</span>, respectively), the performance is substantially impacted when more training instances are pruned.
+For example, when using 50 % easy training data (namely, <span id="S4.SS1.p2.1.4" class="ltx_text ltx_font_typewriter">Easy</span>), a substantial increase of 1.7 % in Word Error Rate (WER) is observed. More hard instances likely tend to be removed, resulting in a relatively poor generalisation on the long sentences (More details analysis can be found in section <a href="#S4.SS6" title="4.6 Error analysis ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.6</span></a>). The issue can be partly mitigated by training with the <span id="S4.SS1.p2.1.5" class="ltx_text ltx_font_typewriter">Random</span> method, which avoids bias in the remaining instances. As a result, it narrows the performance gap to a mere 0.3 % in WER at a kept ratio of 50 %.
+A further closer performance gap to full data can be observed when using hard-related methods (namely, <span id="S4.SS1.p2.1.6" class="ltx_text ltx_font_typewriter">Hard</span> and <span id="S4.SS1.p2.1.7" class="ltx_text ltx_font_typewriter">Easy2hard</span>, respectively), which force the model to focus more on hard instances.
+Additionally, it is worth noting that using 70 % of the hard training instances can yield performance comparable to using the entire dataset, indicating considerable redundancy in LibriSpeech.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">Results of using different instance-wise pruning methods on the test set of LRS3 are presented in Table <a href="#S4.T2" title="Table 2 ‣ 4.1 Performance for instance-wise pruning ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. A similar trend as in the Librispeech experiments can be observed. The only exception is the results after using <span id="S4.SS1.p3.1.1" class="ltx_text ltx_font_typewriter">Hard</span>, which consistently perform worse than the <span id="S4.SS1.p3.1.2" class="ltx_text ltx_font_typewriter">Random</span> method. This might be due to a large discrepancy in the distribution of length between the training and test sets (as shown in Figure <a href="#S4.F3" title="Figure 3 ‣ 4.1 Performance for instance-wise pruning ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>). Specifically, concentrating on a subset of hard instances in the training set, which may not align well with the test set, can result in diminished test set performance. This is not the case for Librispeech, where length discrepancies are less noticeable.</p>
+</div>
+<figure id="S4.F3" class="ltx_figure"><img src="/html/2406.18373/assets/x3.png" id="S4.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="149" height="60" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The distribution of length on Librispeech and LRS3.</figcaption>
+</figure>
+<figure id="S4.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering" style="font-size:50%;"><span class="ltx_tag ltx_tag_table">Table 1: </span>WER [%] (<math id="S4.T1.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S4.T1.2.m1.1b"><mo stretchy="false" id="S4.T1.2.m1.1.1" xref="S4.T1.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S4.T1.2.m1.1c"><ci id="S4.T1.2.m1.1.1.cmml" xref="S4.T1.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.2.m1.1d">\downarrow</annotation></semantics></math>) of our models with different pruning methods as a function of the kept ratio on the test set of Librispeech. The best results are bold for each kept ratio.</figcaption>
+<div id="S4.T1.6" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:274.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(131.5pt,-83.2pt) scale(2.54136306328752,2.54136306328752) ;">
+<table id="S4.T1.6.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.6.1.1.1" class="ltx_tr">
+<th id="S4.T1.6.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">
+<span id="S4.T1.6.1.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:50%;">Method</span><span id="S4.T1.6.1.1.1.1.2" class="ltx_text" style="font-size:50%;">/</span><span id="S4.T1.6.1.1.1.1.3" class="ltx_text ltx_font_bold" style="font-size:50%;">Kept ratio [%]</span>
+</th>
+<th id="S4.T1.6.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T1.6.1.1.1.2.1" class="ltx_text ltx_font_bold" style="font-size:50%;">100</span></th>
+<th id="S4.T1.6.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T1.6.1.1.1.3.1" class="ltx_text ltx_font_bold" style="font-size:50%;">90</span></th>
+<th id="S4.T1.6.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T1.6.1.1.1.4.1" class="ltx_text ltx_font_bold" style="font-size:50%;">70</span></th>
+<th id="S4.T1.6.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T1.6.1.1.1.5.1" class="ltx_text ltx_font_bold" style="font-size:50%;">50</span></th>
+<th id="S4.T1.6.1.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T1.6.1.1.1.6.1" class="ltx_text ltx_font_bold" style="font-size:50%;">30</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.6.1.2.1" class="ltx_tr">
+<th id="S4.T1.6.1.2.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T1.6.1.2.1.1.1" class="ltx_text" style="font-size:50%;">Static</span></th>
+<td id="S4.T1.6.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.2.1.2.1" class="ltx_text" style="font-size:50%;">2.58</span></td>
+<td id="S4.T1.6.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.2.1.3.1" class="ltx_text" style="font-size:50%;">2.69</span></td>
+<td id="S4.T1.6.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.2.1.4.1" class="ltx_text" style="font-size:50%;">2.86</span></td>
+<td id="S4.T1.6.1.2.1.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.2.1.5.1" class="ltx_text" style="font-size:50%;">3.52</span></td>
+<td id="S4.T1.6.1.2.1.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.2.1.6.1" class="ltx_text" style="font-size:50%;">4.59</span></td>
+</tr>
+<tr id="S4.T1.6.1.3.2" class="ltx_tr">
+<th id="S4.T1.6.1.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T1.6.1.3.2.1.1" class="ltx_text" style="font-size:50%;">Easy</span></th>
+<td id="S4.T1.6.1.3.2.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.3.2.2.1" class="ltx_text" style="font-size:50%;">2.58</span></td>
+<td id="S4.T1.6.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.3.2.3.1" class="ltx_text" style="font-size:50%;">2.91</span></td>
+<td id="S4.T1.6.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.3.2.4.1" class="ltx_text" style="font-size:50%;">3.65</span></td>
+<td id="S4.T1.6.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.3.2.5.1" class="ltx_text" style="font-size:50%;">4.28</span></td>
+<td id="S4.T1.6.1.3.2.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.3.2.6.1" class="ltx_text" style="font-size:50%;">6.90</span></td>
+</tr>
+<tr id="S4.T1.6.1.4.3" class="ltx_tr">
+<th id="S4.T1.6.1.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T1.6.1.4.3.1.1" class="ltx_text" style="font-size:50%;">Random</span></th>
+<td id="S4.T1.6.1.4.3.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.4.3.2.1" class="ltx_text" style="font-size:50%;">2.58</span></td>
+<td id="S4.T1.6.1.4.3.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.4.3.3.1" class="ltx_text" style="font-size:50%;">2.59</span></td>
+<td id="S4.T1.6.1.4.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.4.3.4.1" class="ltx_text" style="font-size:50%;">2.66</span></td>
+<td id="S4.T1.6.1.4.3.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.4.3.5.1" class="ltx_text" style="font-size:50%;">2.88</span></td>
+<td id="S4.T1.6.1.4.3.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.4.3.6.1" class="ltx_text" style="font-size:50%;">3.17</span></td>
+</tr>
+<tr id="S4.T1.6.1.5.4" class="ltx_tr">
+<th id="S4.T1.6.1.5.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T1.6.1.5.4.1.1" class="ltx_text" style="font-size:50%;">Hard</span></th>
+<td id="S4.T1.6.1.5.4.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.5.4.2.1" class="ltx_text" style="font-size:50%;">2.58</span></td>
+<td id="S4.T1.6.1.5.4.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.5.4.3.1" class="ltx_text" style="font-size:50%;">2.63</span></td>
+<td id="S4.T1.6.1.5.4.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.5.4.4.1" class="ltx_text" style="font-size:50%;">2.57</span></td>
+<td id="S4.T1.6.1.5.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.5.4.5.1" class="ltx_text" style="font-size:50%;">2.76</span></td>
+<td id="S4.T1.6.1.5.4.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.1.5.4.6.1" class="ltx_text" style="font-size:50%;">3.13</span></td>
+</tr>
+<tr id="S4.T1.6.1.6.5" class="ltx_tr">
+<th id="S4.T1.6.1.6.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.1.1" class="ltx_text" style="font-size:50%;">Easy2hard</span></th>
+<td id="S4.T1.6.1.6.5.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.2.1" class="ltx_text" style="font-size:50%;">2.58</span></td>
+<td id="S4.T1.6.1.6.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.3.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.56</span></td>
+<td id="S4.T1.6.1.6.5.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.4.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.53</span></td>
+<td id="S4.T1.6.1.6.5.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.5.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.72</span></td>
+<td id="S4.T1.6.1.6.5.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T1.6.1.6.5.6.1" class="ltx_text ltx_font_bold" style="font-size:50%;">3.09</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption" style="font-size:50%;"><span class="ltx_tag ltx_tag_table">Table 2: </span>WER [%] (<math id="S4.T2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S4.T2.2.m1.1b"><mo stretchy="false" id="S4.T2.2.m1.1.1" xref="S4.T2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S4.T2.2.m1.1c"><ci id="S4.T2.2.m1.1.1.cmml" xref="S4.T2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.2.m1.1d">\downarrow</annotation></semantics></math>) results of our ASR model with different pruning methods as a function of the kept ratio on the ``test-clean'' set of LRS3.</figcaption>
+<div id="S4.T2.6" class="ltx_inline-block ltx_transformed_outer" style="width:433.6pt;height:270.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(130.2pt,-81.3pt) scale(2.50466467323314,2.50466467323314) ;">
+<table id="S4.T2.6.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.6.1.1.1" class="ltx_tr">
+<th id="S4.T2.6.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt">
+<span id="S4.T2.6.1.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:50%;">Method</span><span id="S4.T2.6.1.1.1.1.2" class="ltx_text" style="font-size:50%;">/</span><span id="S4.T2.6.1.1.1.1.3" class="ltx_text ltx_font_bold" style="font-size:50%;">Kept ratio [%]</span>
+</th>
+<th id="S4.T2.6.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T2.6.1.1.1.2.1" class="ltx_text ltx_font_bold" style="font-size:50%;">100</span></th>
+<th id="S4.T2.6.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T2.6.1.1.1.3.1" class="ltx_text ltx_font_bold" style="font-size:50%;">90</span></th>
+<th id="S4.T2.6.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T2.6.1.1.1.4.1" class="ltx_text ltx_font_bold" style="font-size:50%;">70</span></th>
+<th id="S4.T2.6.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T2.6.1.1.1.5.1" class="ltx_text ltx_font_bold" style="font-size:50%;">50</span></th>
+<th id="S4.T2.6.1.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T2.6.1.1.1.6.1" class="ltx_text ltx_font_bold" style="font-size:50%;">30</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.6.1.2.1" class="ltx_tr">
+<th id="S4.T2.6.1.2.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T2.6.1.2.1.1.1" class="ltx_text" style="font-size:50%;">Static</span></th>
+<td id="S4.T2.6.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.2.1.2.1" class="ltx_text" style="font-size:50%;">2.10</span></td>
+<td id="S4.T2.6.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.2.1.3.1" class="ltx_text" style="font-size:50%;">2.18</span></td>
+<td id="S4.T2.6.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.2.1.4.1" class="ltx_text" style="font-size:50%;">2.65</span></td>
+<td id="S4.T2.6.1.2.1.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.2.1.5.1" class="ltx_text" style="font-size:50%;">3.45</span></td>
+<td id="S4.T2.6.1.2.1.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.2.1.6.1" class="ltx_text" style="font-size:50%;">4.71</span></td>
+</tr>
+<tr id="S4.T2.6.1.3.2" class="ltx_tr">
+<th id="S4.T2.6.1.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T2.6.1.3.2.1.1" class="ltx_text" style="font-size:50%;">Easy</span></th>
+<td id="S4.T2.6.1.3.2.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.3.2.2.1" class="ltx_text" style="font-size:50%;">2.10</span></td>
+<td id="S4.T2.6.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.3.2.3.1" class="ltx_text" style="font-size:50%;">2.27</span></td>
+<td id="S4.T2.6.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.3.2.4.1" class="ltx_text" style="font-size:50%;">2.27</span></td>
+<td id="S4.T2.6.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.3.2.5.1" class="ltx_text" style="font-size:50%;">5.03</span></td>
+<td id="S4.T2.6.1.3.2.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.3.2.6.1" class="ltx_text" style="font-size:50%;">15.17</span></td>
+</tr>
+<tr id="S4.T2.6.1.4.3" class="ltx_tr">
+<th id="S4.T2.6.1.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T2.6.1.4.3.1.1" class="ltx_text" style="font-size:50%;">Random</span></th>
+<td id="S4.T2.6.1.4.3.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.4.3.2.1" class="ltx_text" style="font-size:50%;">2.10</span></td>
+<td id="S4.T2.6.1.4.3.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.4.3.3.1" class="ltx_text" style="font-size:50%;">2.12</span></td>
+<td id="S4.T2.6.1.4.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.4.3.4.1" class="ltx_text" style="font-size:50%;">2.12</span></td>
+<td id="S4.T2.6.1.4.3.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.4.3.5.1" class="ltx_text" style="font-size:50%;">2.29</span></td>
+<td id="S4.T2.6.1.4.3.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.4.3.6.1" class="ltx_text" style="font-size:50%;">2.60</span></td>
+</tr>
+<tr id="S4.T2.6.1.5.4" class="ltx_tr">
+<th id="S4.T2.6.1.5.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"><span id="S4.T2.6.1.5.4.1.1" class="ltx_text" style="font-size:50%;">Hard</span></th>
+<td id="S4.T2.6.1.5.4.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.5.4.2.1" class="ltx_text" style="font-size:50%;">2.10</span></td>
+<td id="S4.T2.6.1.5.4.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.5.4.3.1" class="ltx_text" style="font-size:50%;">2.16</span></td>
+<td id="S4.T2.6.1.5.4.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.5.4.4.1" class="ltx_text" style="font-size:50%;">2.67</span></td>
+<td id="S4.T2.6.1.5.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.5.4.5.1" class="ltx_text" style="font-size:50%;">2.80</span></td>
+<td id="S4.T2.6.1.5.4.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T2.6.1.5.4.6.1" class="ltx_text" style="font-size:50%;">2.90</span></td>
+</tr>
+<tr id="S4.T2.6.1.6.5" class="ltx_tr">
+<th id="S4.T2.6.1.6.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.1.1" class="ltx_text" style="font-size:50%;">Easy2hard</span></th>
+<td id="S4.T2.6.1.6.5.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.2.1" class="ltx_text" style="font-size:50%;">2.10</span></td>
+<td id="S4.T2.6.1.6.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.3.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.08</span></td>
+<td id="S4.T2.6.1.6.5.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.4.1" class="ltx_text ltx_font_bold" style="font-size:50%;">1.95</span></td>
+<td id="S4.T2.6.1.6.5.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.5.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.17</span></td>
+<td id="S4.T2.6.1.6.5.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T2.6.1.6.5.6.1" class="ltx_text ltx_font_bold" style="font-size:50%;">2.54</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering" style="font-size:70%;"><span class="ltx_tag ltx_tag_table">Table 3: </span>WER [%] (<math id="S4.T3.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S4.T3.2.m1.1b"><mo stretchy="false" id="S4.T3.2.m1.1.1" xref="S4.T3.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S4.T3.2.m1.1c"><ci id="S4.T3.2.m1.1.1.cmml" xref="S4.T3.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.2.m1.1d">\downarrow</annotation></semantics></math>) results of our models with different time-wise dropping methods as a function of the kept ratio on the ``test-clean'' set of LibriSpeech. The best results are bold for each time-wise kept ratio. ``k'' denotes the kept ratio.</figcaption>
+<div id="S4.T3.6" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:145pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(109.1pt,-36.5pt) scale(2.01376656645449,2.01376656645449) ;">
+<table id="S4.T3.6.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.6.1.1.1" class="ltx_tr">
+<th id="S4.T3.6.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt" rowspan="2"><span id="S4.T3.6.1.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">Method</span></th>
+<th id="S4.T3.6.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt" rowspan="2"><span id="S4.T3.6.1.1.1.2.1" class="ltx_text" style="font-size:70%;">
+<span id="S4.T3.6.1.1.1.2.1.1" class="ltx_inline-block">
+<span id="S4.T3.6.1.1.1.2.1.1.1" class="ltx_p"><span id="S4.T3.6.1.1.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Instance-wise</span></span>
+<span id="S4.T3.6.1.1.1.2.1.1.2" class="ltx_p"><span id="S4.T3.6.1.1.1.2.1.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic">k</span><span id="S4.T3.6.1.1.1.2.1.1.2.2" class="ltx_text ltx_font_bold"> [%]</span></span>
+</span></span></th>
+<th id="S4.T3.6.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="5"><span id="S4.T3.6.1.1.1.3.1" class="ltx_text ltx_font_bold" style="font-size:70%;">Time-wise <span id="S4.T3.6.1.1.1.3.1.1" class="ltx_text ltx_font_italic">k</span> [%]</span></th>
+</tr>
+<tr id="S4.T3.6.1.2.2" class="ltx_tr">
+<th id="S4.T3.6.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S4.T3.6.1.2.2.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">100</span></th>
+<th id="S4.T3.6.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S4.T3.6.1.2.2.2.1" class="ltx_text ltx_font_bold" style="font-size:70%;">90</span></th>
+<th id="S4.T3.6.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S4.T3.6.1.2.2.3.1" class="ltx_text ltx_font_bold" style="font-size:70%;">70</span></th>
+<th id="S4.T3.6.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S4.T3.6.1.2.2.4.1" class="ltx_text ltx_font_bold" style="font-size:70%;">50</span></th>
+<th id="S4.T3.6.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S4.T3.6.1.2.2.5.1" class="ltx_text ltx_font_bold" style="font-size:70%;">30</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.6.1.3.1" class="ltx_tr">
+<th id="S4.T3.6.1.3.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t"><span id="S4.T3.6.1.3.1.1.1" class="ltx_text" style="font-size:70%;">Point</span></th>
+<th id="S4.T3.6.1.3.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t"><span id="S4.T3.6.1.3.1.2.1" class="ltx_text" style="font-size:70%;">70</span></th>
+<td id="S4.T3.6.1.3.1.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.6.1.3.1.3.1" class="ltx_text" style="font-size:70%;">2.53</span></td>
+<td id="S4.T3.6.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.6.1.3.1.4.1" class="ltx_text" style="font-size:70%;">2.65</span></td>
+<td id="S4.T3.6.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.6.1.3.1.5.1" class="ltx_text" style="font-size:70%;">2.78</span></td>
+<td id="S4.T3.6.1.3.1.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.6.1.3.1.6.1" class="ltx_text" style="font-size:70%;">2.80</span></td>
+<td id="S4.T3.6.1.3.1.7" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.6.1.3.1.7.1" class="ltx_text" style="font-size:70%;">3.05</span></td>
+</tr>
+<tr id="S4.T3.6.1.4.2" class="ltx_tr">
+<th id="S4.T3.6.1.4.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.1.1" class="ltx_text" style="font-size:70%;">Chunk</span></th>
+<th id="S4.T3.6.1.4.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.2.1" class="ltx_text" style="font-size:70%;">70</span></th>
+<td id="S4.T3.6.1.4.2.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.3.1" class="ltx_text" style="font-size:70%;">2.53</span></td>
+<td id="S4.T3.6.1.4.2.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.4.1" class="ltx_text ltx_font_bold" style="font-size:70%;">2.59</span></td>
+<td id="S4.T3.6.1.4.2.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.5.1" class="ltx_text ltx_font_bold" style="font-size:70%;">2.59</span></td>
+<td id="S4.T3.6.1.4.2.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.6.1" class="ltx_text ltx_font_bold" style="font-size:70%;">2.66</span></td>
+<td id="S4.T3.6.1.4.2.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.6.1.4.2.7.1" class="ltx_text ltx_font_bold" style="font-size:70%;">2.79</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Performance for time-wise dropping</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">Table <a href="#S4.T3" title="Table 3 ‣ 4.1 Performance for instance-wise pruning ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> studies the impact of two time-wise dropping strategies (namely, <span id="S4.SS2.p1.1.1" class="ltx_text ltx_font_typewriter">point</span> and <span id="S4.SS2.p1.1.2" class="ltx_text ltx_font_typewriter">chunk</span>, respectively) by varying the dropping ratio on our proposed <span id="S4.SS2.p1.1.3" class="ltx_text ltx_font_typewriter">Easy2hard</span> method. We observe that overall the performance gap between the model trained after time dropping and the baseline model without time dropping becomes increasingly larger as the dropping ratio increases. The performance degradation may be partially due to corrupted temporal dependencies, where the model relies on the precise order of input data for accurate predictions.
+In particular, for point dropping, where at 30% of the dropping ratio, it results in a 0.25% increase of WER. Notably, chunk dropping, which involves removing consecutive samples in each chunk, can mitigate some of the performance declines. When applying a 30% time-wise dropping ratio to the audio samples using this method, the impact on performance is minimal, with only a 0.06% WER increase. Given that chunk dropping performs better, we use chunk dropping as our default setting for the time-wise dropping.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Instance-wise pruning or time-wise dropping?</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">We investigate in Table <a href="#S4.T4" title="Table 4 ‣ 4.3 Instance-wise pruning or time-wise dropping? ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> the optimal strategy of combining both pruning methods under the same wall-clock training time. The results indicate that for models trained with a larger portion of data (more than 70%), including time dropping results in a slight decrease in performance. Interestingly, we show that when the sampling rate is down-sampled from 16 000 Hz to 11 025 Hz, a closer performance gap for the model with time dropping can be observed compared with its counterpart, which indicates that a more robustness temporal dependency is learnt when time-wise dropping is applied. On the other hand, within the same training duration, combining instance- and time-wise data pruning for a smaller portion of training data leads to an observable reduction in WER, compared to models trained solely with instance-wise data pruning at a standard sampling rate (16 000 Hz). This suggests that the synergistic application of both pruning strategies is beneficial in scenarios with a very limited computational resource. In general, it is observed that models trained using time-wise dropping exhibit greater robustness across different sampling rates, especially at a low sampling rate.</p>
+</div>
+<figure id="S4.T4" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>Impact of different sampling rates on the performance of Librispeech. ``k'' denotes the kept ratio.</figcaption>
+<div id="S4.T4.15" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:429.3pt;height:225.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(70.6pt,-37.1pt) scale(1.48985619667203,1.48985619667203) ;">
+<table id="S4.T4.15.15" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T4.15.15.16.1" class="ltx_tr">
+<th id="S4.T4.15.15.16.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding-top:0.25pt;padding-bottom:0.25pt;">
+<span id="S4.T4.15.15.16.1.1.1" class="ltx_inline-block">
+<span id="S4.T4.15.15.16.1.1.1.1" class="ltx_p"><span id="S4.T4.15.15.16.1.1.1.1.1" class="ltx_text ltx_font_bold">Instance</span></span>
+<span id="S4.T4.15.15.16.1.1.1.2" class="ltx_p"><span id="S4.T4.15.15.16.1.1.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic">k</span><span id="S4.T4.15.15.16.1.1.1.2.2" class="ltx_text ltx_font_bold"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T4.15.15.16.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_tt" style="padding-top:0.25pt;padding-bottom:0.25pt;">
+<span id="S4.T4.15.15.16.1.2.1" class="ltx_inline-block">
+<span id="S4.T4.15.15.16.1.2.1.1" class="ltx_p"><span id="S4.T4.15.15.16.1.2.1.1.1" class="ltx_text ltx_font_bold">Time</span></span>
+<span id="S4.T4.15.15.16.1.2.1.2" class="ltx_p"><span id="S4.T4.15.15.16.1.2.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic">k</span><span id="S4.T4.15.15.16.1.2.1.2.2" class="ltx_text ltx_font_bold"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T4.15.15.16.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.25pt;padding-bottom:0.25pt;">
+<span id="S4.T4.15.15.16.1.3.1" class="ltx_inline-block">
+<span id="S4.T4.15.15.16.1.3.1.1" class="ltx_p"><span id="S4.T4.15.15.16.1.3.1.1.1" class="ltx_text ltx_font_bold">Wall-clock time</span></span>
+<span id="S4.T4.15.15.16.1.3.1.2" class="ltx_p"><span id="S4.T4.15.15.16.1.3.1.2.1" class="ltx_text ltx_font_bold">per epoch [min]</span></span>
+</span>
+</th>
+<th id="S4.T4.15.15.16.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.25pt;padding-bottom:0.25pt;">
+<span id="S4.T4.15.15.16.1.4.1" class="ltx_inline-block">
+<span id="S4.T4.15.15.16.1.4.1.1" class="ltx_p"><span id="S4.T4.15.15.16.1.4.1.1.1" class="ltx_text ltx_font_bold">WER</span></span>
+<span id="S4.T4.15.15.16.1.4.1.2" class="ltx_p"><span id="S4.T4.15.15.16.1.4.1.2.1" class="ltx_text ltx_font_bold">16KHz [%]</span></span>
+</span>
+</th>
+<th id="S4.T4.15.15.16.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.25pt;padding-bottom:0.25pt;">
+<span id="S4.T4.15.15.16.1.5.1" class="ltx_inline-block">
+<span id="S4.T4.15.15.16.1.5.1.1" class="ltx_p"><span id="S4.T4.15.15.16.1.5.1.1.1" class="ltx_text ltx_font_bold">WER</span></span>
+<span id="S4.T4.15.15.16.1.5.1.2" class="ltx_p"><span id="S4.T4.15.15.16.1.5.1.2.1" class="ltx_text ltx_font_bold">11KHz [%]</span></span>
+</span>
+</th>
+</tr>
+<tr id="S4.T4.1.1.1" class="ltx_tr">
+<th id="S4.T4.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">100</th>
+<th id="S4.T4.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">100</th>
+<th id="S4.T4.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">13.2<math id="S4.T4.1.1.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.1.1.1.1.m1.1a"><mo id="S4.T4.1.1.1.1.m1.1.1" xref="S4.T4.1.1.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.1.1.1.1.m1.1b"><csymbol cd="latexml" id="S4.T4.1.1.1.1.m1.1.1.cmml" xref="S4.T4.1.1.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.1.1.1.1.m1.1c">\pm</annotation></semantics></math>0.2</th>
+<th id="S4.T4.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">2.58</th>
+<th id="S4.T4.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.77</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T4.2.2.2" class="ltx_tr">
+<th id="S4.T4.2.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">70</th>
+<th id="S4.T4.2.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">100</th>
+<td id="S4.T4.2.2.2.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.8<math id="S4.T4.2.2.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.2.2.2.1.m1.1a"><mo id="S4.T4.2.2.2.1.m1.1.1" xref="S4.T4.2.2.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.2.2.2.1.m1.1b"><csymbol cd="latexml" id="S4.T4.2.2.2.1.m1.1.1.cmml" xref="S4.T4.2.2.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.2.2.2.1.m1.1c">\pm</annotation></semantics></math>0.2</td>
+<td id="S4.T4.2.2.2.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">2.53</td>
+<td id="S4.T4.2.2.2.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">10.56</td>
+</tr>
+<tr id="S4.T4.5.5.5" class="ltx_tr">
+<th id="S4.T4.5.5.5.4" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">80</th>
+<th id="S4.T4.5.5.5.5" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">80</th>
+<td id="S4.T4.3.3.3.1" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.8<math id="S4.T4.3.3.3.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.3.3.3.1.m1.1a"><mo id="S4.T4.3.3.3.1.m1.1.1" xref="S4.T4.3.3.3.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.3.3.3.1.m1.1b"><csymbol cd="latexml" id="S4.T4.3.3.3.1.m1.1.1.cmml" xref="S4.T4.3.3.3.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.3.3.3.1.m1.1c">\pm</annotation></semantics></math>0.1</td>
+<td id="S4.T4.4.4.4.2" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">2.56<sub id="S4.T4.4.4.4.2.1" class="ltx_sub"><span id="S4.T4.4.4.4.2.1.1" class="ltx_text ltx_font_italic">↑0.03</span></sub>
+</td>
+<td id="S4.T4.5.5.5.3" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">8.94<sub id="S4.T4.5.5.5.3.1" class="ltx_sub"><span id="S4.T4.5.5.5.3.1.1" class="ltx_text ltx_font_italic">↓1.62</span></sub>
+</td>
+</tr>
+<tr id="S4.T4.8.8.8" class="ltx_tr">
+<th id="S4.T4.8.8.8.4" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">90</th>
+<th id="S4.T4.8.8.8.5" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">60</th>
+<td id="S4.T4.6.6.6.1" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.7<math id="S4.T4.6.6.6.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.6.6.6.1.m1.1a"><mo id="S4.T4.6.6.6.1.m1.1.1" xref="S4.T4.6.6.6.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.6.6.6.1.m1.1b"><csymbol cd="latexml" id="S4.T4.6.6.6.1.m1.1.1.cmml" xref="S4.T4.6.6.6.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.6.6.6.1.m1.1c">\pm</annotation></semantics></math>0.2</td>
+<td id="S4.T4.7.7.7.2" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">2.61<sub id="S4.T4.7.7.7.2.1" class="ltx_sub"><span id="S4.T4.7.7.7.2.1.1" class="ltx_text ltx_font_italic">↑0.08</span></sub>
+</td>
+<td id="S4.T4.8.8.8.3" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">7.48<sub id="S4.T4.8.8.8.3.1" class="ltx_sub"><span id="S4.T4.8.8.8.3.1.1" class="ltx_text ltx_font_italic">↓3.08</span></sub>
+</td>
+</tr>
+<tr id="S4.T4.9.9.9" class="ltx_tr">
+<th id="S4.T4.9.9.9.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">30</th>
+<th id="S4.T4.9.9.9.3" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">100</th>
+<td id="S4.T4.9.9.9.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">4.2<math id="S4.T4.9.9.9.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.9.9.9.1.m1.1a"><mo id="S4.T4.9.9.9.1.m1.1.1" xref="S4.T4.9.9.9.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.9.9.9.1.m1.1b"><csymbol cd="latexml" id="S4.T4.9.9.9.1.m1.1.1.cmml" xref="S4.T4.9.9.9.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.9.9.9.1.m1.1c">\pm</annotation></semantics></math>0.1</td>
+<td id="S4.T4.9.9.9.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">3.09</td>
+<td id="S4.T4.9.9.9.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.25pt;padding-bottom:0.25pt;">14.29</td>
+</tr>
+<tr id="S4.T4.12.12.12" class="ltx_tr">
+<th id="S4.T4.12.12.12.4" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">40</th>
+<th id="S4.T4.12.12.12.5" class="ltx_td ltx_align_center ltx_th ltx_th_row" style="padding-top:0.25pt;padding-bottom:0.25pt;">50</th>
+<td id="S4.T4.10.10.10.1" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">4.2<math id="S4.T4.10.10.10.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.10.10.10.1.m1.1a"><mo id="S4.T4.10.10.10.1.m1.1.1" xref="S4.T4.10.10.10.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.10.10.10.1.m1.1b"><csymbol cd="latexml" id="S4.T4.10.10.10.1.m1.1.1.cmml" xref="S4.T4.10.10.10.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.10.10.10.1.m1.1c">\pm</annotation></semantics></math>0.1</td>
+<td id="S4.T4.11.11.11.2" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">3.04<sub id="S4.T4.11.11.11.2.1" class="ltx_sub"><span id="S4.T4.11.11.11.2.1.1" class="ltx_text ltx_font_italic">↓0.05</span></sub>
+</td>
+<td id="S4.T4.12.12.12.3" class="ltx_td ltx_align_center" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.52<sub id="S4.T4.12.12.12.3.1" class="ltx_sub"><span id="S4.T4.12.12.12.3.1.1" class="ltx_text ltx_font_italic">↓4.77</span></sub>
+</td>
+</tr>
+<tr id="S4.T4.15.15.15" class="ltx_tr">
+<th id="S4.T4.15.15.15.4" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb" style="padding-top:0.25pt;padding-bottom:0.25pt;">50</th>
+<th id="S4.T4.15.15.15.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb" style="padding-top:0.25pt;padding-bottom:0.25pt;">25</th>
+<td id="S4.T4.13.13.13.1" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.25pt;padding-bottom:0.25pt;">4.4<math id="S4.T4.13.13.13.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T4.13.13.13.1.m1.1a"><mo id="S4.T4.13.13.13.1.m1.1.1" xref="S4.T4.13.13.13.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T4.13.13.13.1.m1.1b"><csymbol cd="latexml" id="S4.T4.13.13.13.1.m1.1.1.cmml" xref="S4.T4.13.13.13.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.13.13.13.1.m1.1c">\pm</annotation></semantics></math>0.2</td>
+<td id="S4.T4.14.14.14.2" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.25pt;padding-bottom:0.25pt;">2.99<sub id="S4.T4.14.14.14.2.1" class="ltx_sub"><span id="S4.T4.14.14.14.2.1.1" class="ltx_text ltx_font_italic">↓0.10</span></sub>
+</td>
+<td id="S4.T4.15.15.15.3" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.25pt;padding-bottom:0.25pt;">9.42<sub id="S4.T4.15.15.15.3.1" class="ltx_sub"><span id="S4.T4.15.15.15.3.1.1" class="ltx_text ltx_font_italic">↓4.87</span></sub>
+</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T5" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering" style="font-size:70%;"><span class="ltx_tag ltx_tag_table">Table 5: </span>Time masking and dropping. Instances are kept to 70 % of the whole dataset for all cases. We mask up to 40 % audio samples in chunks and drop up to 30% of the audio samples.</figcaption>
+<div id="S4.T5.4" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:390.3pt;height:183.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(97.1pt,-45.7pt) scale(1.99058929233131,1.99058929233131) ;">
+<table id="S4.T5.4.4" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T5.4.4.5.1" class="ltx_tr">
+<td id="S4.T5.4.4.5.1.1" class="ltx_td ltx_align_center ltx_border_tt" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.5.1.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">Time mask</span></td>
+<td id="S4.T5.4.4.5.1.2" class="ltx_td ltx_align_center ltx_border_tt" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.5.1.2.1" class="ltx_text ltx_font_bold" style="font-size:70%;">Time drop</span></td>
+<td id="S4.T5.4.4.5.1.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-top:-1.75pt;padding-bottom:-1.75pt;">
+<span id="S4.T5.4.4.5.1.3.1" class="ltx_inline-block">
+<span id="S4.T5.4.4.5.1.3.1.1" class="ltx_p"><span id="S4.T5.4.4.5.1.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">Wall-clock time</span></span>
+<span id="S4.T5.4.4.5.1.3.1.2" class="ltx_p"><span id="S4.T5.4.4.5.1.3.1.2.1" class="ltx_text ltx_font_bold" style="font-size:70%;">per epoch [min]</span></span>
+</span>
+</td>
+<td id="S4.T5.4.4.5.1.4" class="ltx_td ltx_align_center ltx_border_tt" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.5.1.4.1" class="ltx_text ltx_font_bold" style="font-size:70%;">WER [%]</span></td>
+</tr>
+<tr id="S4.T5.1.1.1" class="ltx_tr">
+<td id="S4.T5.1.1.1.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.1.1.1.2.1" class="ltx_text" style="font-size:70%;">✗</span></td>
+<td id="S4.T5.1.1.1.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.1.1.1.3.1" class="ltx_text" style="font-size:70%;">✗</span></td>
+<td id="S4.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;">
+<span id="S4.T5.1.1.1.1.1" class="ltx_text" style="font-size:70%;">9.7</span><math id="S4.T5.1.1.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T5.1.1.1.1.m1.1a"><mo mathsize="70%" id="S4.T5.1.1.1.1.m1.1.1" xref="S4.T5.1.1.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T5.1.1.1.1.m1.1b"><csymbol cd="latexml" id="S4.T5.1.1.1.1.m1.1.1.cmml" xref="S4.T5.1.1.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.1.1.1.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T5.1.1.1.1.2" class="ltx_text" style="font-size:70%;">0.2</span>
+</td>
+<td id="S4.T5.1.1.1.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.1.1.1.4.1" class="ltx_text" style="font-size:70%;">3.11</span></td>
+</tr>
+<tr id="S4.T5.2.2.2" class="ltx_tr">
+<td id="S4.T5.2.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.2.2.2.2.1" class="ltx_text" style="font-size:70%;">✓</span></td>
+<td id="S4.T5.2.2.2.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.2.2.2.3.1" class="ltx_text" style="font-size:70%;">✗</span></td>
+<td id="S4.T5.2.2.2.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;">
+<span id="S4.T5.2.2.2.1.1" class="ltx_text" style="font-size:70%;">9.8</span><math id="S4.T5.2.2.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T5.2.2.2.1.m1.1a"><mo mathsize="70%" id="S4.T5.2.2.2.1.m1.1.1" xref="S4.T5.2.2.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T5.2.2.2.1.m1.1b"><csymbol cd="latexml" id="S4.T5.2.2.2.1.m1.1.1.cmml" xref="S4.T5.2.2.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.2.2.2.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T5.2.2.2.1.2" class="ltx_text" style="font-size:70%;">0.2</span>
+</td>
+<td id="S4.T5.2.2.2.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.2.2.2.4.1" class="ltx_text ltx_font_bold" style="font-size:70%;">2.53</span></td>
+</tr>
+<tr id="S4.T5.3.3.3" class="ltx_tr">
+<td id="S4.T5.3.3.3.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.3.3.3.2.1" class="ltx_text" style="font-size:70%;">✗</span></td>
+<td id="S4.T5.3.3.3.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.3.3.3.3.1" class="ltx_text" style="font-size:70%;">✓</span></td>
+<td id="S4.T5.3.3.3.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.3.3.3.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">8.1<math id="S4.T5.3.3.3.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T5.3.3.3.1.1.m1.1a"><mo id="S4.T5.3.3.3.1.1.m1.1.1" xref="S4.T5.3.3.3.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T5.3.3.3.1.1.m1.1b"><csymbol cd="latexml" id="S4.T5.3.3.3.1.1.m1.1.1.cmml" xref="S4.T5.3.3.3.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.3.3.3.1.1.m1.1c">\pm</annotation></semantics></math>0.1</span></td>
+<td id="S4.T5.3.3.3.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.3.3.3.4.1" class="ltx_text" style="font-size:70%;">2.78</span></td>
+</tr>
+<tr id="S4.T5.4.4.4" class="ltx_tr">
+<td id="S4.T5.4.4.4.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.4.2.1" class="ltx_text" style="font-size:70%;">✓</span></td>
+<td id="S4.T5.4.4.4.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.4.3.1" class="ltx_text" style="font-size:70%;">✓</span></td>
+<td id="S4.T5.4.4.4.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.4.1.1" class="ltx_text ltx_font_bold" style="font-size:70%;">8.1<math id="S4.T5.4.4.4.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T5.4.4.4.1.1.m1.1a"><mo id="S4.T5.4.4.4.1.1.m1.1.1" xref="S4.T5.4.4.4.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T5.4.4.4.1.1.m1.1b"><csymbol cd="latexml" id="S4.T5.4.4.4.1.1.m1.1.1.cmml" xref="S4.T5.4.4.4.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.4.4.4.1.1.m1.1c">\pm</annotation></semantics></math>0.1</span></td>
+<td id="S4.T5.4.4.4.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding-top:-1.75pt;padding-bottom:-1.75pt;"><span id="S4.T5.4.4.4.4.1" class="ltx_text" style="font-size:70%;">2.59</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Time masking versus time dropping</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">Time dropping is implemented by eliminating data points from the training instances, unlike time masking, which sets consecutive samples to zero without altering the speed, as discussed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx31" title="" class="ltx_ref">31</a>]</cite>. Table <a href="#S4.T5" title="Table 5 ‣ 4.3 Instance-wise pruning or time-wise dropping? ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> shows the impact of the use of time masking and time dropping on the ``test-clean'' set of Librispeech. In particular, the use of time masking results in a 0.58 % reduction in WER. However, substituting time masking with time dropping leads to a 0.25 % increase in WER, alongside a significant reduction of  17 % times. Interestingly, by integrating both time-masking and time-dropping approaches, it is possible to mitigate the performance decrease, achieving enhanced efficiency and comparable performance to the original model.</p>
+</div>
+</section>
+<section id="S4.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.5 </span>Data scaling and speedup</h3>
+
+<div id="S4.SS5.p1" class="ltx_para">
+<p id="S4.SS5.p1.1" class="ltx_p">We expanded the training dataset from 960 hours to 3,494 hours by incorporating additional datasets such as LRS3, VoxCeleb2, and AVSpeech. The outcomes on the Librispeech dataset, displayed in Table <a href="#S4.T6" title="Table 6 ‣ 4.5 Data scaling and speedup ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>, indicate a marginal improvement in performance using our proposed data pruning method compared to the random pruning method. This demonstrates the effectiveness of our approach when applied to larger training datasets.</p>
+</div>
+<div id="S4.SS5.p2" class="ltx_para">
+<p id="S4.SS5.p2.1" class="ltx_p">Table <a href="#S4.T7" title="Table 7 ‣ 4.5 Data scaling and speedup ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> presents the performance comparison of our method with full data training under the same training time. In particular, when using an instance-wise kept ratio of 70% with the <span id="S4.SS5.p2.1.1" class="ltx_text ltx_font_typewriter">Easy2hard</span> method, which takes a similar training time to the model using full data trained for 56 epochs, we observe a further decrease in WER by 0.06% compared to the model trained with the entire dataset for 56 epochs. Moreover, when combined with time-wise dropping, the training speed improves by 38%, resulting in a comparable WER to that achieved with 75 epochs of full data training.</p>
+</div>
+<figure id="S4.T6" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 6: </span>Impact of the size of additional training data on the "test-clean" set of Librispeech. The additional data includes LRS3, VoxCeleb2, and AVSpeech, totaling 3 494 hours.</figcaption>
+<div id="S4.T6.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:429.3pt;height:97.4pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(83.3pt,-18.9pt) scale(1.63366216358561,1.63366216358561) ;">
+<table id="S4.T6.2.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T6.2.2.3.1" class="ltx_tr">
+<th id="S4.T6.2.2.3.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.2.2.3.1.1.1" class="ltx_inline-block">
+<span id="S4.T6.2.2.3.1.1.1.1" class="ltx_p"><span id="S4.T6.2.2.3.1.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Training</span></span>
+<span id="S4.T6.2.2.3.1.1.1.2" class="ltx_p"><span id="S4.T6.2.2.3.1.1.1.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">data</span></span>
+</span>
+</th>
+<th id="S4.T6.2.2.3.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.2.2.3.1.2.1" class="ltx_inline-block">
+<span id="S4.T6.2.2.3.1.2.1.1" class="ltx_p"><span id="S4.T6.2.2.3.1.2.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Instance</span></span>
+<span id="S4.T6.2.2.3.1.2.1.2" class="ltx_p"><span id="S4.T6.2.2.3.1.2.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">k</span><span id="S4.T6.2.2.3.1.2.1.2.2" class="ltx_text ltx_font_bold" style="font-size:90%;"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T6.2.2.3.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.2.2.3.1.3.1" class="ltx_inline-block">
+<span id="S4.T6.2.2.3.1.3.1.1" class="ltx_p"><span id="S4.T6.2.2.3.1.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Time</span></span>
+<span id="S4.T6.2.2.3.1.3.1.2" class="ltx_p"><span id="S4.T6.2.2.3.1.3.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">k</span><span id="S4.T6.2.2.3.1.3.1.2.2" class="ltx_text ltx_font_bold" style="font-size:90%;"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T6.2.2.3.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.2.2.3.1.4.1" class="ltx_inline-block">
+<span id="S4.T6.2.2.3.1.4.1.1" class="ltx_p"><span id="S4.T6.2.2.3.1.4.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Wall-clock time</span></span>
+<span id="S4.T6.2.2.3.1.4.1.2" class="ltx_p"><span id="S4.T6.2.2.3.1.4.1.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">per epoch [min]</span></span>
+</span>
+</th>
+<th id="S4.T6.2.2.3.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.2.2.3.1.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">WER [%]</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T6.1.1.1" class="ltx_tr">
+<td id="S4.T6.1.1.1.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;" rowspan="2"><span id="S4.T6.1.1.1.2.1" class="ltx_text" style="font-size:90%;">
+<span id="S4.T6.1.1.1.2.1.1" class="ltx_inline-block">
+<span id="S4.T6.1.1.1.2.1.1.1" class="ltx_p">Random</span>
+<span id="S4.T6.1.1.1.2.1.1.2" class="ltx_p">Easy2hard</span>
+</span></span></td>
+<td id="S4.T6.1.1.1.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.1.1.1.3.1" class="ltx_text" style="font-size:90%;">50</span></td>
+<td id="S4.T6.1.1.1.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.1.1.1.4.1" class="ltx_text" style="font-size:90%;">100</span></td>
+<td id="S4.T6.1.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.1.1.1.1.1" class="ltx_text" style="font-size:90%;">25.5</span><math id="S4.T6.1.1.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T6.1.1.1.1.m1.1a"><mo mathsize="90%" id="S4.T6.1.1.1.1.m1.1.1" xref="S4.T6.1.1.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T6.1.1.1.1.m1.1b"><csymbol cd="latexml" id="S4.T6.1.1.1.1.m1.1.1.cmml" xref="S4.T6.1.1.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T6.1.1.1.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T6.1.1.1.1.2" class="ltx_text" style="font-size:90%;">0.5</span>
+</td>
+<td id="S4.T6.1.1.1.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.1.1.1.5.1" class="ltx_text" style="font-size:90%;">2.25</span></td>
+</tr>
+<tr id="S4.T6.2.2.2" class="ltx_tr">
+<td id="S4.T6.2.2.2.2" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.2.2.2.2.1" class="ltx_text" style="font-size:90%;">50</span></td>
+<td id="S4.T6.2.2.2.3" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.2.2.2.3.1" class="ltx_text" style="font-size:90%;">100</span></td>
+<td id="S4.T6.2.2.2.1" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T6.2.2.2.1.1" class="ltx_text" style="font-size:90%;">26.8</span><math id="S4.T6.2.2.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T6.2.2.2.1.m1.1a"><mo mathsize="90%" id="S4.T6.2.2.2.1.m1.1.1" xref="S4.T6.2.2.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T6.2.2.2.1.m1.1b"><csymbol cd="latexml" id="S4.T6.2.2.2.1.m1.1.1.cmml" xref="S4.T6.2.2.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T6.2.2.2.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T6.2.2.2.1.2" class="ltx_text" style="font-size:90%;">1.0</span>
+</td>
+<td id="S4.T6.2.2.2.4" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T6.2.2.2.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">2.18</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T7" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 7: </span>Impact of the number of training epochs on the Librispeech dataset. ``k'' denotes the kept ratio.</figcaption>
+<div id="S4.T7.6" class="ltx_inline-block ltx_transformed_outer" style="width:433.6pt;height:143.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(71.5pt,-23.7pt) scale(1.49163898663501,1.49163898663501) ;">
+<table id="S4.T7.6.6" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T7.6.6.7.1" class="ltx_tr">
+<th id="S4.T7.6.6.7.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.6.6.7.1.1.1" class="ltx_inline-block">
+<span id="S4.T7.6.6.7.1.1.1.1" class="ltx_p"><span id="S4.T7.6.6.7.1.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Instance-wise</span></span>
+<span id="S4.T7.6.6.7.1.1.1.2" class="ltx_p"><span id="S4.T7.6.6.7.1.1.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">k</span><span id="S4.T7.6.6.7.1.1.1.2.2" class="ltx_text ltx_font_bold" style="font-size:90%;"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T7.6.6.7.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.6.6.7.1.2.1" class="ltx_inline-block">
+<span id="S4.T7.6.6.7.1.2.1.1" class="ltx_p"><span id="S4.T7.6.6.7.1.2.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Time-wise</span></span>
+<span id="S4.T7.6.6.7.1.2.1.2" class="ltx_p"><span id="S4.T7.6.6.7.1.2.1.2.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">k</span><span id="S4.T7.6.6.7.1.2.1.2.2" class="ltx_text ltx_font_bold" style="font-size:90%;"> [%]</span></span>
+</span>
+</th>
+<th id="S4.T7.6.6.7.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.6.6.7.1.3.1" class="ltx_inline-block">
+<span id="S4.T7.6.6.7.1.3.1.1" class="ltx_p"><span id="S4.T7.6.6.7.1.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Training</span></span>
+<span id="S4.T7.6.6.7.1.3.1.2" class="ltx_p"><span id="S4.T7.6.6.7.1.3.1.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">epochs</span></span>
+</span>
+</th>
+<th id="S4.T7.6.6.7.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.6.6.7.1.4.1" class="ltx_inline-block">
+<span id="S4.T7.6.6.7.1.4.1.1" class="ltx_p"><span id="S4.T7.6.6.7.1.4.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Wall-clock time</span></span>
+<span id="S4.T7.6.6.7.1.4.1.2" class="ltx_p"><span id="S4.T7.6.6.7.1.4.1.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">per epoch [min]</span></span>
+</span>
+</th>
+<th id="S4.T7.6.6.7.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.6.6.7.1.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">WER [%]</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T7.1.1.1" class="ltx_tr">
+<td id="S4.T7.1.1.1.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;" rowspan="2"><span id="S4.T7.1.1.1.2.1" class="ltx_text" style="font-size:90%;">
+<span id="S4.T7.1.1.1.2.1.1" class="ltx_inline-block">
+<span id="S4.T7.1.1.1.2.1.1.1" class="ltx_p">100</span>
+</span></span></td>
+<td id="S4.T7.1.1.1.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;" rowspan="2"><span id="S4.T7.1.1.1.3.1" class="ltx_text" style="font-size:90%;">
+<span id="S4.T7.1.1.1.3.1.1" class="ltx_inline-block">
+<span id="S4.T7.1.1.1.3.1.1.1" class="ltx_p">100</span>
+</span></span></td>
+<td id="S4.T7.1.1.1.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.1.1.1.4.1" class="ltx_text" style="font-size:90%;">75</span></td>
+<td id="S4.T7.1.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;" rowspan="2"><span id="S4.T7.1.1.1.1.1" class="ltx_text" style="font-size:90%;">
+<span id="S4.T7.1.1.1.1.1.1" class="ltx_inline-block">
+<span id="S4.T7.1.1.1.1.1.1.1" class="ltx_p">13.2<math id="S4.T7.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T7.1.1.1.1.1.1.1.m1.1a"><mo id="S4.T7.1.1.1.1.1.1.1.m1.1.1" xref="S4.T7.1.1.1.1.1.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T7.1.1.1.1.1.1.1.m1.1b"><csymbol cd="latexml" id="S4.T7.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.T7.1.1.1.1.1.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.1.1.1.1.1.1.1.m1.1c">\pm</annotation></semantics></math>0.2</span>
+</span></span></td>
+<td id="S4.T7.1.1.1.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.1.1.1.5.1" class="ltx_text" style="font-size:90%;">2.58</span></td>
+</tr>
+<tr id="S4.T7.2.2.2" class="ltx_tr">
+<td id="S4.T7.2.2.2.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.2.2.2.1.1" class="ltx_text" style="font-size:90%;">56</span><math id="S4.T7.2.2.2.1.m1.1" class="ltx_Math" alttext="{}_{{\color[rgb]{0,0,1}\downarrow 25\,\%}}" display="inline"><semantics id="S4.T7.2.2.2.1.m1.1a"><msub id="S4.T7.2.2.2.1.m1.1.1" xref="S4.T7.2.2.2.1.m1.1.1.cmml"><mi id="S4.T7.2.2.2.1.m1.1.1a" xref="S4.T7.2.2.2.1.m1.1.1.cmml"></mi><mrow id="S4.T7.2.2.2.1.m1.1.1.1" xref="S4.T7.2.2.2.1.m1.1.1.1.cmml"><mi id="S4.T7.2.2.2.1.m1.1.1.1.2" xref="S4.T7.2.2.2.1.m1.1.1.1.2.cmml"></mi><mo mathcolor="#0000FF" mathsize="90%" stretchy="false" id="S4.T7.2.2.2.1.m1.1.1.1.1" xref="S4.T7.2.2.2.1.m1.1.1.1.1.cmml">↓</mo><mrow id="S4.T7.2.2.2.1.m1.1.1.1.3" xref="S4.T7.2.2.2.1.m1.1.1.1.3.cmml"><mn mathcolor="#0000FF" mathsize="90%" id="S4.T7.2.2.2.1.m1.1.1.1.3.2" xref="S4.T7.2.2.2.1.m1.1.1.1.3.2.cmml">25</mn><mo lspace="0.170em" mathcolor="#0000FF" mathsize="90%" id="S4.T7.2.2.2.1.m1.1.1.1.3.1" xref="S4.T7.2.2.2.1.m1.1.1.1.3.1.cmml">%</mo></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.T7.2.2.2.1.m1.1b"><apply id="S4.T7.2.2.2.1.m1.1.1.cmml" xref="S4.T7.2.2.2.1.m1.1.1"><apply id="S4.T7.2.2.2.1.m1.1.1.1.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1"><ci id="S4.T7.2.2.2.1.m1.1.1.1.1.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1.1">↓</ci><csymbol cd="latexml" id="S4.T7.2.2.2.1.m1.1.1.1.2.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1.2">absent</csymbol><apply id="S4.T7.2.2.2.1.m1.1.1.1.3.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1.3"><csymbol cd="latexml" id="S4.T7.2.2.2.1.m1.1.1.1.3.1.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.T7.2.2.2.1.m1.1.1.1.3.2.cmml" xref="S4.T7.2.2.2.1.m1.1.1.1.3.2">25</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.2.2.2.1.m1.1c">{}_{{\color[rgb]{0,0,1}\downarrow 25\,\%}}</annotation></semantics></math>
+</td>
+<td id="S4.T7.2.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.2.2.2.2.1" class="ltx_text" style="font-size:90%;">2.59</span></td>
+</tr>
+<tr id="S4.T7.4.4.4" class="ltx_tr">
+<td id="S4.T7.4.4.4.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.4.4.4.3.1" class="ltx_text" style="font-size:90%;">70</span></td>
+<td id="S4.T7.4.4.4.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.4.4.4.4.1" class="ltx_text" style="font-size:90%;">100</span></td>
+<td id="S4.T7.4.4.4.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.4.4.4.5.1" class="ltx_text" style="font-size:90%;">75</span></td>
+<td id="S4.T7.4.4.4.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.4.4.4.2.1" class="ltx_text" style="font-size:90%;">9.8</span><math id="S4.T7.3.3.3.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T7.3.3.3.1.m1.1a"><mo mathsize="90%" id="S4.T7.3.3.3.1.m1.1.1" xref="S4.T7.3.3.3.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T7.3.3.3.1.m1.1b"><csymbol cd="latexml" id="S4.T7.3.3.3.1.m1.1.1.cmml" xref="S4.T7.3.3.3.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.3.3.3.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T7.4.4.4.2.2" class="ltx_text" style="font-size:90%;">0.2</span><math id="S4.T7.4.4.4.2.m2.1" class="ltx_Math" alttext="{}_{{\color[rgb]{0,0,1}\downarrow 25\,\%}}" display="inline"><semantics id="S4.T7.4.4.4.2.m2.1a"><msub id="S4.T7.4.4.4.2.m2.1.1" xref="S4.T7.4.4.4.2.m2.1.1.cmml"><mi id="S4.T7.4.4.4.2.m2.1.1a" xref="S4.T7.4.4.4.2.m2.1.1.cmml"></mi><mrow id="S4.T7.4.4.4.2.m2.1.1.1" xref="S4.T7.4.4.4.2.m2.1.1.1.cmml"><mi id="S4.T7.4.4.4.2.m2.1.1.1.2" xref="S4.T7.4.4.4.2.m2.1.1.1.2.cmml"></mi><mo mathcolor="#0000FF" mathsize="90%" stretchy="false" id="S4.T7.4.4.4.2.m2.1.1.1.1" xref="S4.T7.4.4.4.2.m2.1.1.1.1.cmml">↓</mo><mrow id="S4.T7.4.4.4.2.m2.1.1.1.3" xref="S4.T7.4.4.4.2.m2.1.1.1.3.cmml"><mn mathcolor="#0000FF" mathsize="90%" id="S4.T7.4.4.4.2.m2.1.1.1.3.2" xref="S4.T7.4.4.4.2.m2.1.1.1.3.2.cmml">25</mn><mo lspace="0.170em" mathcolor="#0000FF" mathsize="90%" id="S4.T7.4.4.4.2.m2.1.1.1.3.1" xref="S4.T7.4.4.4.2.m2.1.1.1.3.1.cmml">%</mo></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.T7.4.4.4.2.m2.1b"><apply id="S4.T7.4.4.4.2.m2.1.1.cmml" xref="S4.T7.4.4.4.2.m2.1.1"><apply id="S4.T7.4.4.4.2.m2.1.1.1.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1"><ci id="S4.T7.4.4.4.2.m2.1.1.1.1.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1.1">↓</ci><csymbol cd="latexml" id="S4.T7.4.4.4.2.m2.1.1.1.2.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1.2">absent</csymbol><apply id="S4.T7.4.4.4.2.m2.1.1.1.3.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1.3"><csymbol cd="latexml" id="S4.T7.4.4.4.2.m2.1.1.1.3.1.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.T7.4.4.4.2.m2.1.1.1.3.2.cmml" xref="S4.T7.4.4.4.2.m2.1.1.1.3.2">25</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.4.4.4.2.m2.1c">{}_{{\color[rgb]{0,0,1}\downarrow 25\,\%}}</annotation></semantics></math>
+</td>
+<td id="S4.T7.4.4.4.6" class="ltx_td ltx_align_center ltx_border_t" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.4.4.4.6.1" class="ltx_text ltx_font_bold" style="font-size:90%;">2.53</span></td>
+</tr>
+<tr id="S4.T7.6.6.6" class="ltx_tr">
+<td id="S4.T7.6.6.6.3" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.6.6.6.3.1" class="ltx_text" style="font-size:90%;">70</span></td>
+<td id="S4.T7.6.6.6.4" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.6.6.6.4.1" class="ltx_text" style="font-size:90%;">70</span></td>
+<td id="S4.T7.6.6.6.5" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.6.6.6.5.1" class="ltx_text" style="font-size:90%;">75</span></td>
+<td id="S4.T7.6.6.6.2" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;">
+<span id="S4.T7.6.6.6.2.1" class="ltx_text" style="font-size:90%;">8.1</span><math id="S4.T7.5.5.5.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S4.T7.5.5.5.1.m1.1a"><mo mathsize="90%" id="S4.T7.5.5.5.1.m1.1.1" xref="S4.T7.5.5.5.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S4.T7.5.5.5.1.m1.1b"><csymbol cd="latexml" id="S4.T7.5.5.5.1.m1.1.1.cmml" xref="S4.T7.5.5.5.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.5.5.5.1.m1.1c">\pm</annotation></semantics></math><span id="S4.T7.6.6.6.2.2" class="ltx_text" style="font-size:90%;">0.1</span><math id="S4.T7.6.6.6.2.m2.1" class="ltx_Math" alttext="{}_{{\color[rgb]{0,0,1}\downarrow 38\,\%}}" display="inline"><semantics id="S4.T7.6.6.6.2.m2.1a"><msub id="S4.T7.6.6.6.2.m2.1.1" xref="S4.T7.6.6.6.2.m2.1.1.cmml"><mi id="S4.T7.6.6.6.2.m2.1.1a" xref="S4.T7.6.6.6.2.m2.1.1.cmml"></mi><mrow id="S4.T7.6.6.6.2.m2.1.1.1" xref="S4.T7.6.6.6.2.m2.1.1.1.cmml"><mi id="S4.T7.6.6.6.2.m2.1.1.1.2" xref="S4.T7.6.6.6.2.m2.1.1.1.2.cmml"></mi><mo mathcolor="#0000FF" mathsize="90%" stretchy="false" id="S4.T7.6.6.6.2.m2.1.1.1.1" xref="S4.T7.6.6.6.2.m2.1.1.1.1.cmml">↓</mo><mrow id="S4.T7.6.6.6.2.m2.1.1.1.3" xref="S4.T7.6.6.6.2.m2.1.1.1.3.cmml"><mn mathcolor="#0000FF" mathsize="90%" id="S4.T7.6.6.6.2.m2.1.1.1.3.2" xref="S4.T7.6.6.6.2.m2.1.1.1.3.2.cmml">38</mn><mo lspace="0.170em" mathcolor="#0000FF" mathsize="90%" id="S4.T7.6.6.6.2.m2.1.1.1.3.1" xref="S4.T7.6.6.6.2.m2.1.1.1.3.1.cmml">%</mo></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.T7.6.6.6.2.m2.1b"><apply id="S4.T7.6.6.6.2.m2.1.1.cmml" xref="S4.T7.6.6.6.2.m2.1.1"><apply id="S4.T7.6.6.6.2.m2.1.1.1.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1"><ci id="S4.T7.6.6.6.2.m2.1.1.1.1.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1.1">↓</ci><csymbol cd="latexml" id="S4.T7.6.6.6.2.m2.1.1.1.2.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1.2">absent</csymbol><apply id="S4.T7.6.6.6.2.m2.1.1.1.3.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1.3"><csymbol cd="latexml" id="S4.T7.6.6.6.2.m2.1.1.1.3.1.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1.3.1">percent</csymbol><cn type="integer" id="S4.T7.6.6.6.2.m2.1.1.1.3.2.cmml" xref="S4.T7.6.6.6.2.m2.1.1.1.3.2">38</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T7.6.6.6.2.m2.1c">{}_{{\color[rgb]{0,0,1}\downarrow 38\,\%}}</annotation></semantics></math>
+</td>
+<td id="S4.T7.6.6.6.6" class="ltx_td ltx_align_center ltx_border_bb" style="padding-top:0.45pt;padding-bottom:0.45pt;"><span id="S4.T7.6.6.6.6.1" class="ltx_text" style="font-size:90%;">2.59</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S4.SS6" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.6 </span>Error analysis</h3>
+
+<div id="S4.SS6.p1" class="ltx_para">
+<p id="S4.SS6.p1.1" class="ltx_p">To assess how the presented models affect performance across instances of varying input lengths. We divide the test samples in the ``test-clean'' set of Librispeech into three groups with different input duration, namely, <span id="S4.SS6.p1.1.1" class="ltx_text ltx_font_italic">Short</span> (0 - 8 seconds), <span id="S4.SS6.p1.1.2" class="ltx_text ltx_font_italic">Middle</span> (8 - 16 seconds) and <span id="S4.SS6.p1.1.3" class="ltx_text ltx_font_italic">Long</span> (<math id="S4.SS6.p1.1.m1.1" class="ltx_Math" alttext="\geq" display="inline"><semantics id="S4.SS6.p1.1.m1.1a"><mo id="S4.SS6.p1.1.m1.1.1" xref="S4.SS6.p1.1.m1.1.1.cmml">≥</mo><annotation-xml encoding="MathML-Content" id="S4.SS6.p1.1.m1.1b"><geq id="S4.SS6.p1.1.m1.1.1.cmml" xref="S4.SS6.p1.1.m1.1.1"></geq></annotation-xml><annotation encoding="application/x-tex" id="S4.SS6.p1.1.m1.1c">\geq</annotation></semantics></math> 16seconds), respectively. The performance of each group for the <span id="S4.SS6.p1.1.4" class="ltx_text ltx_font_typewriter">Easy</span>, <span id="S4.SS6.p1.1.5" class="ltx_text ltx_font_typewriter">Random</span>, <span id="S4.SS6.p1.1.6" class="ltx_text ltx_font_typewriter">Hard</span> and <span id="S4.SS6.p1.1.7" class="ltx_text ltx_font_typewriter">Easy2hard</span> methods is presented in Figure <a href="#S4.F4" title="Figure 4 ‣ 4.6 Error analysis ‣ 4 Experimental Results ‣ Dynamic Data Pruning for Automatic Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>. Interestingly, we observe that models prioritizing easy instances tend to underperform, especially on longer instances, whereas models that focus on challenging instances show better performance on shorter ones. Overall, the proposed <span id="S4.SS6.p1.1.8" class="ltx_text ltx_font_typewriter">Easy2hard</span> approach consistently outshines the other methods across all groups.</p>
+</div>
+<figure id="S4.F4" class="ltx_figure"><img src="/html/2406.18373/assets/x4.png" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="232" height="138" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Comparing instance-wise pruning strategies across three subsets of the Librispeech "test-clean" set, with instance-wise kept ratio of 50% for each method.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this work, we conduct detailed analysis of dynamic data pruning for ASR, focusing on both instance-wise and time-wise pruning techniques. We demonstrate that these methods can be synergistically employed to maintain performance while achieving significant speed improvements. Among pruning methods, our proposed <span id="S5.p1.1.1" class="ltx_text ltx_font_typewriter">Easy2hard</span> method has been found to be the most effective in speech recognition benchmarks. Notably, we observe that pruning up to 30% of instances, coupled with a 30% chunk dropping rate, can maintain performance compared to training with the full dataset. Moreover, our findings reveal that time-wise pruning significantly boosts model resilience to lower sampling rates, making it a valuable adjunct to time masking.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Acknowledgements</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">This research is part of the research program ‘MegaMind - Measuring, Gathering, Mining and Integrating Data for Self-management in the Edge of the Electricity System’, (partly) financed by the Dutch Research Council (NWO) through the Perspectief program under number P19-25. Additionally, note that only non-Meta authors utilized and processed the datasets (and no dataset pre-processing or processing took place on Meta's servers or facilities). Shiwei Liu is supported by the Royal Society with the Newton International Fellowship.</p>
+</div>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">7 </span>References</h2>
+
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bibx1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">Jared Kaplan et al.
+</span>
+<span class="ltx_bibblock">``Scaling Laws for Neural Language Models''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx1.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx1.2.2" class="ltx_text ltx_font_bold">abs/2001.08361</span>, 2020
+</span>
+<span class="ltx_bibblock">arXiv: <a target="_blank" href="https://arxiv.org/abs/2001.08361" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2001.08361</a>
+</span>
+</li>
+<li id="bib.bibx2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">Hugo Touvron et al.
+</span>
+<span class="ltx_bibblock">``Training data-efficient image transformers &amp; distillation through attention''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx2.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2021, pp. 10347–10357
+</span>
+</li>
+<li id="bib.bibx3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">Rishi Bommasani et al.
+</span>
+<span class="ltx_bibblock">``On the Opportunities and Risks of Foundation Models''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx3.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx3.2.2" class="ltx_text ltx_font_bold">abs/2108.07258</span>, 2021
+</span>
+<span class="ltx_bibblock">arXiv: <a target="_blank" href="https://arxiv.org/abs/2108.07258" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2108.07258</a>
+</span>
+</li>
+<li id="bib.bibx4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">Angelos Katharopoulos and François Fleuret
+</span>
+<span class="ltx_bibblock">``Not all samples are created equal: Deep learning with importance sampling''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx4.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2018, pp. 2525–2534
+</span>
+</li>
+<li id="bib.bibx5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">Mariya Toneva et al.
+</span>
+<span class="ltx_bibblock">``An Empirical Study of Example Forgetting during Deep Neural Network Learning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx5.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2018
+</span>
+</li>
+<li id="bib.bibx6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">C Coleman et al.
+</span>
+<span class="ltx_bibblock">``Selection via Proxy: Efficient Data Selection for Deep Learning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx6.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2020
+</span>
+</li>
+<li id="bib.bibx7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">Robert J. N. Baldock, Hartmut Maennel and Behnam Neyshabur
+</span>
+<span class="ltx_bibblock">``Deep Learning Through the Lens of Example Difficulty''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx7.1.1" class="ltx_emph ltx_font_italic">NIPS</em>, 2021, pp. 10876–10889
+</span>
+<span class="ltx_bibblock">URL: <a target="_blank" href="https://proceedings.neurips.cc/paper/2021/hash/5a4b25aaed25c2ee1b74de72dc03c14e-Abstract.html" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://proceedings.neurips.cc/paper/2021/hash/5a4b25aaed25c2ee1b74de72dc03c14e-Abstract.html</a>
+</span>
+</li>
+<li id="bib.bibx8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">Baharan Mirzasoleiman, Kaidi Cao and Jure Leskovec
+</span>
+<span class="ltx_bibblock">``Coresets for Robust Training of Deep Neural Networks against Noisy Labels''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx8.1.1" class="ltx_emph ltx_font_italic">NIPS</em>, 2020
+</span>
+<span class="ltx_bibblock">URL: <a target="_blank" href="https://proceedings.neurips.cc/paper/2020/hash/8493eeaccb772c0878f99d60a0bd2bb3-Abstract.html" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://proceedings.neurips.cc/paper/2020/hash/8493eeaccb772c0878f99d60a0bd2bb3-Abstract.html</a>
+</span>
+</li>
+<li id="bib.bibx9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">Sören Mindermann et al.
+</span>
+<span class="ltx_bibblock">``Prioritized training on points that are learnable, worth learning, and not yet learnt''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx9.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2022, pp. 15630–15649
+</span>
+</li>
+<li id="bib.bibx10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">Mansheej Paul, Surya Ganguli and Gintare Karolina Dziugaite
+</span>
+<span class="ltx_bibblock">``Deep learning on a data diet: Finding important examples early in training''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx10.1.1" class="ltx_emph ltx_font_italic">NIPS</em> <span id="bib.bibx10.2.2" class="ltx_text ltx_font_bold">34</span>, 2021, pp. 20596–20607
+</span>
+</li>
+<li id="bib.bibx11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">Ziheng Qin et al.
+</span>
+<span class="ltx_bibblock">``InfoBatch: Lossless Training Speed Up by Unbiased Dynamic Data Pruning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx11.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2024
+</span>
+</li>
+<li id="bib.bibx12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">Amro Abbas, Kushal Tirumala, Daniel Simig, Surya Ganguli and Ari S. Morcos
+</span>
+<span class="ltx_bibblock">``SemDeDup: Data-efficient learning at web-scale through semantic deduplication''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx12.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx12.2.2" class="ltx_text ltx_font_bold">abs/2303.09540</span>, 2023
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.48550/ARXIV.2303.09540" title="" class="ltx_ref ltx_href">10.48550/ARXIV.2303.09540</a>
+</span>
+</li>
+<li id="bib.bibx13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">Baharan Mirzasoleiman, Jeff Bilmes and Jure Leskovec
+</span>
+<span class="ltx_bibblock">``Coresets for data-efficient training of machine learning models''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx13.1.1" class="ltx_emph ltx_font_italic">ICML</em>, 2020, pp. 6950–6960
+</span>
+</li>
+<li id="bib.bibx14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">Mengzhou Xia, Sadhika Malladi, Suchin Gururangan, Sanjeev Arora and Danqi Chen
+</span>
+<span class="ltx_bibblock">``LESS: Selecting Influential Data for Targeted Instruction Tuning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx14.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx14.2.2" class="ltx_text ltx_font_bold">abs/2402.04333</span>, 2024
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.48550/ARXIV.2402.04333" title="" class="ltx_ref ltx_href">10.48550/ARXIV.2402.04333</a>
+</span>
+</li>
+<li id="bib.bibx15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">Max Marion et al.
+</span>
+<span class="ltx_bibblock">``When Less is More: Investigating Data Pruning for Pretraining LLMs at Scale''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx15.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx15.2.2" class="ltx_text ltx_font_bold">abs/2309.04564</span>, 2023
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.48550/ARXIV.2309.04564" title="" class="ltx_ref ltx_href">10.48550/ARXIV.2309.04564</a>
+</span>
+</li>
+<li id="bib.bibx16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">Suriya Gunasekar et al.
+</span>
+<span class="ltx_bibblock">``Textbooks Are All You Need''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx16.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx16.2.2" class="ltx_text ltx_font_bold">abs/2306.11644</span>, 2023
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.48550/ARXIV.2306.11644" title="" class="ltx_ref ltx_href">10.48550/ARXIV.2306.11644</a>
+</span>
+</li>
+<li id="bib.bibx17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">Boris Bergsma, Marta Brzezinska, Oleg V Yazyev and Milos Cernak
+</span>
+<span class="ltx_bibblock">``Cluster-based pruning techniques for audio data''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx17.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2309.11922</em>, 2023
+</span>
+</li>
+<li id="bib.bibx18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">Ravi S. Raju, Kyle Daruwalla and Mikko H. Lipasti
+</span>
+<span class="ltx_bibblock">``Accelerating Deep Learning with Dynamic Data Pruning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx18.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx18.2.2" class="ltx_text ltx_font_bold">abs/2111.12621</span>, 2021
+</span>
+<span class="ltx_bibblock">arXiv: <a target="_blank" href="https://arxiv.org/abs/2111.12621" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2111.12621</a>
+</span>
+</li>
+<li id="bib.bibx19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">Muyang He, Shuo Yang, Tiejun Huang and Bo Zhao
+</span>
+<span class="ltx_bibblock">``Large-scale Dataset Pruning with Dynamic Uncertainty''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx19.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx19.2.2" class="ltx_text ltx_font_bold">abs/2306.05175</span>, 2023
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.48550/ARXIV.2306.05175" title="" class="ltx_ref ltx_href">10.48550/ARXIV.2306.05175</a>
+</span>
+</li>
+<li id="bib.bibx20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">Yoshua Bengio, Jérôme Louradour, Ronan Collobert and Jason Weston
+</span>
+<span class="ltx_bibblock">``Curriculum learning''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx20.1.1" class="ltx_emph ltx_font_italic">ICML</em> <span id="bib.bibx20.2.2" class="ltx_text ltx_font_bold">382</span>, 2009, pp. 41–48
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.1145/1553374.1553380" title="" class="ltx_ref ltx_href">10.1145/1553374.1553380</a>
+</span>
+</li>
+<li id="bib.bibx21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">Mirza Cilimkovic
+</span>
+<span class="ltx_bibblock">``Neural networks and back propagation algorithm''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx21.1.1" class="ltx_emph ltx_font_italic">Institute of Technology Blanchardstown, Blanchardstown Road North Dublin</em> <span id="bib.bibx21.2.2" class="ltx_text ltx_font_bold">15.1</span>, 2015
+</span>
+</li>
+<li id="bib.bibx22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">Xiaoxia Wu, Ethan Dyer and Behnam Neyshabur
+</span>
+<span class="ltx_bibblock">``When Do Curricula Work?''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx22.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2020
+</span>
+</li>
+<li id="bib.bibx23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">Petru Soviany, Radu Tudor Ionescu, Paolo Rota and Nicu Sebe
+</span>
+<span class="ltx_bibblock">``Curriculum learning: A survey''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx23.1.1" class="ltx_emph ltx_font_italic">Int. J. Comput. Vision</em> <span id="bib.bibx23.2.2" class="ltx_text ltx_font_bold">130.6</span>, 2022, pp. 1526–1565
+</span>
+</li>
+<li id="bib.bibx24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">Yanghao Li, Haoqi Fan, Ronghang Hu, Christoph Feichtenhofer and Kaiming He
+</span>
+<span class="ltx_bibblock">``Scaling language-image pre-training via masking''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx24.1.1" class="ltx_emph ltx_font_italic">CVPR</em>, 2023, pp. 23390–23400
+</span>
+</li>
+<li id="bib.bibx25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">V. Panayotov, G. Chen, D. Povey and S. Khudanpur
+</span>
+<span class="ltx_bibblock">``Librispeech: An ASR corpus based on public domain audio books''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx25.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2015, pp. 5206–5210
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.1109/ICASSP.2015.7178964" title="" class="ltx_ref ltx_href">10.1109/ICASSP.2015.7178964</a>
+</span>
+</li>
+<li id="bib.bibx26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">Triantafyllos Afouras, Joon Son Chung and Andrew Zisserman
+</span>
+<span class="ltx_bibblock">``LRS3-TED: a large-scale dataset for visual speech recognition''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx26.1.1" class="ltx_emph ltx_font_italic">CoRR</em> <span id="bib.bibx26.2.2" class="ltx_text ltx_font_bold">abs/1809.00496</span>, 2018
+</span>
+<span class="ltx_bibblock">arXiv: <a target="_blank" href="http://arxiv.org/abs/1809.00496" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://arxiv.org/abs/1809.00496</a>
+</span>
+</li>
+<li id="bib.bibx27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">Pingchuan Ma, Stavros Petridis and Maja Pantic
+</span>
+<span class="ltx_bibblock">``End-To-End Audio-Visual Speech Recognition with Conformers''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx27.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2021, pp. 7613–7617
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.1109/ICASSP39728.2021.9414567" title="" class="ltx_ref ltx_href">10.1109/ICASSP39728.2021.9414567</a>
+</span>
+</li>
+<li id="bib.bibx28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">Pingchuan Ma, Stavros Petridis and Maja Pantic
+</span>
+<span class="ltx_bibblock">``Visual Speech Recognition for Multiple Languages in the Wild''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx28.1.1" class="ltx_emph ltx_font_italic">Nature Machine Intelligence</em>, 2022, pp. 930–939
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/https://doi.org/10.1038/s42256-022-00550-z" title="" class="ltx_ref ltx_href">https://doi.org/10.1038/s42256-022-00550-z</a>
+</span>
+</li>
+<li id="bib.bibx29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">Pingchuan Ma et al.
+</span>
+<span class="ltx_bibblock">``Auto-AVSR: Audio-visual speech recognition with automatic labels''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx29.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2023, pp. 1–5
+</span>
+</li>
+<li id="bib.bibx30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">Ilya Loshchilov and Frank Hutter
+</span>
+<span class="ltx_bibblock">``Decoupled Weight Decay Regularization''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx30.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2019
+</span>
+</li>
+<li id="bib.bibx31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">Daniel S. Park et al.
+</span>
+<span class="ltx_bibblock">``SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition''
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx31.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2019, pp. 2613–2617
+</span>
+<span class="ltx_bibblock">DOI: <a target="_blank" href="https://dx.doi.org/10.21437/Interspeech.2019-2680" title="" class="ltx_ref ltx_href">10.21437/Interspeech.2019-2680</a>
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.18372" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.18373" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.18373">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.18373" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.18374" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Jul  5 21:13:42 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

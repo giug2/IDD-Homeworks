@@ -1,0 +1,1105 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2408.08673] MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection</title><meta property="og:description" content="Sound event detection (SED) methods that leverage a large pre-trained Transformer encoder network have shown promising performance in recent DCASE challenges.
+However, they still rely on an RNN-based context network to…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2408.08673">
+
+<!--Generated on Thu Sep  5 15:40:11 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">[affiliation=1]PengfeiCai
+<span id="p1.3.1" class="ltx_ERROR undefined">\name</span>[affiliation=1]YanSong
+<span id="p1.3.2" class="ltx_ERROR undefined">\name</span>[affiliation=1]KangLi
+<span id="p1.3.3" class="ltx_ERROR undefined">\name</span>[affiliation=3]HaoyuSong
+<span id="p1.3.4" class="ltx_ERROR undefined">\name</span>[affiliation=2]IanMcLoughlin
+
+
+
+
+</p>
+</div>
+<h1 class="ltx_title ltx_title_document">MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id7.id1" class="ltx_p">Sound event detection (SED) methods that leverage a large pre-trained Transformer encoder network have shown promising performance in recent DCASE challenges.
+However, they still rely on an RNN-based context network to model temporal dependencies, largely due to the scarcity of labeled data.
+In this work, we propose a pure Transformer-based SED model with masked-reconstruction based pre-training, termed MAT-SED.
+Specifically, a Transformer with relative positional encoding is first designed as the context network, pre-trained by the
+masked-reconstruction task on all available target data in a self-supervised way.
+Both the encoder and the context network are jointly fine-tuned in a semi-supervised manner. Furthermore, a global-local feature fusion strategy is proposed to enhance the localization capability.
+Evaluation of MAT-SED on DCASE2023 task4 surpasses state-of-the-art performance, achieving 0.587/0.896 PSDS1/PSDS2 respectively.</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>sound event detection, transformer, masked-reconstruction, self-supervised learning
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Sound event detection (SED) aims to recognize not only what events are happening in an audio signal but also when those events are happening.
+Recent research in this field has garnered increasing interest from both academic and industrial sectors.
+The DCASE challenges <span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><a target="_blank" href="https://dcase.community/challenge2023/" title="" class="ltx_ref ltx_href">https://dcase.community/challenge2023/</a></span></span></span> have been conducted to evaluate the performance of systems in environmental sound classification and detection, significantly driving the advancement of SED research.
+This technology is widely used in various applications, such as smart homes <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, smart city <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, surveillance <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, etc.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Most recent SED architecture can generally be divided into an encoder network and a context network, as illustrated in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.
+In classical CRNN based SED systems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>, convolutional neural networks (CNNs) are used as the encoder network for feature extraction, while recurrent neural networks (RNNs) are employed as the context network to model temporal dependencies across latent features from the encoder.
+The scarcity of labeled data is always a significant challenge for the SED task, due to the high cost of strong annotation for sound events.
+Semi-supervised methods, such as mean-teacher <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>, have thus been introduced to utilize large amounts of unlabeled data to mitigate the impact of insufficient labeled data.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2408.08673/assets/x1.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_square" width="461" height="433" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>The architecture of MAT-SED, comprising two main components: the encoder network (green) and the context network (yellow), both of which are based on Transformer structures. "RPE" in the context network indicates the relative positional encoding.</figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Recently, Transformer-based SED models have surged in popularity, inspired by the successes of Transformers in various domains, including natural language processing <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, computer vision <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> and automatic speech recognition <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>.
+Convolution-augmented Transformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> utilizes Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> instead of RNN to model temporal dependencies, winning the first place in DCASE2020 Task 4.
+That work demonstrated the potential of Transformer-based structures for SED, though performance was still limited due to insufficient labeled data.
+To mitigate the problem of data scarcity, a widely used approach is to employ Transformer models pre-trained on readily available large-scale audio tagging datasets to serve as powerful feature extractors.
+Among high-ranking models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> of DCASE2023, the pre-trained Transformer and the CNN are concatenated in parallel as the encoder network, which can take the advantages of global and local features from different encoders.
+However, it is worth noting that most of those works only applied Transformer structures partially to the traditional CRNN.
+Again this is due to data scarcity issues.
+Furthermore, although powerful encoder networks can be obtained by pre-training, it is still difficult to train the downstream context network with limited labeled data.
+This remains a challenge to apply the pure Transformer-based structure for the SED task.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In this work, we present a pure Transformer-based SED model, termed Masked Audio Transformer for Sound Event Detection (MAT-SED).
+MAT-SED begins with the pre-trained Transformer model as an encoder network, then a Transformer with relative positional encoding instead of RNNs as the context network, which can better capture long-range context dependencies of latent features.
+The Transformer structures lack some of the inductive biases inherent to RNNs, such as sequentiality, which makes the Transformer-based context networks do not generalize well when trained on insufficient data.
+To address this problem, we use the masked-reconstruction task to pre-train the context network in the self-supervised manner, then fine-tune the pre-trained model with the classical mean-teacher algorithm.
+This training paradigm maximizes the utilization of large quantities of unlabeled data compared to pure semi-supervised learning.
+The global-local feature fusion strategy is employed to enhance the model’s localization accuracy in the fine-tuning stage.
+Experimental results on the DCASE2023 dataset show that the proposed MAT-SED achieves 0.587/0.896 PSDS1/PSDS2, surpassing state-of-the-art SED systems, thus demonstrating the potential of our approach.
+ <span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>The code is available at
+<a target="_blank" href="https://github.com/cai525/Transformer4SED" title="" class="ltx_ref ltx_href">https://github.com/cai525/Transformer4SED</a></span></span></span></p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">In this section, we first outline the model structure of MAT-SED, then introduce the masked-reconstruction based pre-training and the fine-tuning strategies.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Model</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">The overall structure of MAT-SED, as shown in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, consists of two main components: the encoder network and the context network.
+The encoder network is used to extract features from the mel-spectrogram, outputting latent feature sequences.
+The context network is responsible for capturing temporal dependencies across the latent features.
+Different types of head layer follow the context network to handle specific tasks, such as reconstruction, audio tagging and SED.</p>
+</div>
+<section id="S2.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.1.1 </span>Encoder network</h4>
+
+<div id="S2.SS1.SSS1.p1" class="ltx_para">
+<p id="S2.SS1.SSS1.p1.2" class="ltx_p">The encoder network of MAT-SED is based on PaSST <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>, a large pre-trained Transformer model for audio tagging.
+Each mel-spectrogram is divided into several <math id="S2.SS1.SSS1.p1.1.m1.1" class="ltx_Math" alttext="16\times 16" display="inline"><semantics id="S2.SS1.SSS1.p1.1.m1.1a"><mrow id="S2.SS1.SSS1.p1.1.m1.1.1" xref="S2.SS1.SSS1.p1.1.m1.1.1.cmml"><mn id="S2.SS1.SSS1.p1.1.m1.1.1.2" xref="S2.SS1.SSS1.p1.1.m1.1.1.2.cmml">16</mn><mo lspace="0.222em" rspace="0.222em" id="S2.SS1.SSS1.p1.1.m1.1.1.1" xref="S2.SS1.SSS1.p1.1.m1.1.1.1.cmml">×</mo><mn id="S2.SS1.SSS1.p1.1.m1.1.1.3" xref="S2.SS1.SSS1.p1.1.m1.1.1.3.cmml">16</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.1.m1.1b"><apply id="S2.SS1.SSS1.p1.1.m1.1.1.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1"><times id="S2.SS1.SSS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1.1"></times><cn type="integer" id="S2.SS1.SSS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1.2">16</cn><cn type="integer" id="S2.SS1.SSS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1.3">16</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.1.m1.1c">16\times 16</annotation></semantics></math> patches, then patches are projected linearly to a sequence of embeddings.
+The sequence traverses through 10 layers of PaSST blocks consisted of Transformers.
+Following PaSST, the frequency dimension is compressed via average pooling, succeeded by 10 times linear upsampling to restore the temporal resolution lost during the patching process.
+The output of the encoder network is denoted as <math id="S2.SS1.SSS1.p1.2.m2.4" class="ltx_Math" alttext="\mathbf{Z}=[\mathbf{z_{1}},\mathbf{z_{2}},...,\mathbf{z_{T}}]\in\mathbb{R}^{C\times T}" display="inline"><semantics id="S2.SS1.SSS1.p1.2.m2.4a"><mrow id="S2.SS1.SSS1.p1.2.m2.4.4" xref="S2.SS1.SSS1.p1.2.m2.4.4.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.4.4.5" xref="S2.SS1.SSS1.p1.2.m2.4.4.5.cmml">𝐙</mi><mo id="S2.SS1.SSS1.p1.2.m2.4.4.6" xref="S2.SS1.SSS1.p1.2.m2.4.4.6.cmml">=</mo><mrow id="S2.SS1.SSS1.p1.2.m2.4.4.3.3" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml"><mo stretchy="false" id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.4" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml">[</mo><msub id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.2" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.2.cmml">𝐳</mi><mn id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.3" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.3.cmml">𝟏</mn></msub><mo id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.5" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml">,</mo><msub id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.2" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.2.cmml">𝐳</mi><mn id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.3" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.3.cmml">𝟐</mn></msub><mo id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.6" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.SSS1.p1.2.m2.1.1" xref="S2.SS1.SSS1.p1.2.m2.1.1.cmml">…</mi><mo id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.7" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml">,</mo><msub id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.2" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.2.cmml">𝐳</mi><mi id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.3" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.3.cmml">𝐓</mi></msub><mo stretchy="false" id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.8" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml">]</mo></mrow><mo id="S2.SS1.SSS1.p1.2.m2.4.4.7" xref="S2.SS1.SSS1.p1.2.m2.4.4.7.cmml">∈</mo><msup id="S2.SS1.SSS1.p1.2.m2.4.4.8" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.4.4.8.2" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.2.cmml">ℝ</mi><mrow id="S2.SS1.SSS1.p1.2.m2.4.4.8.3" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.cmml"><mi id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.2" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.1" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.1.cmml">×</mo><mi id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.3" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.3.cmml">T</mi></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.2.m2.4b"><apply id="S2.SS1.SSS1.p1.2.m2.4.4.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4"><and id="S2.SS1.SSS1.p1.2.m2.4.4a.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4"></and><apply id="S2.SS1.SSS1.p1.2.m2.4.4b.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4"><eq id="S2.SS1.SSS1.p1.2.m2.4.4.6.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.6"></eq><ci id="S2.SS1.SSS1.p1.2.m2.4.4.5.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.5">𝐙</ci><list id="S2.SS1.SSS1.p1.2.m2.4.4.3.4.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3"><apply id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1">subscript</csymbol><ci id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.2">𝐳</ci><cn type="integer" id="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.2.2.1.1.1.3">1</cn></apply><apply id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2">subscript</csymbol><ci id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.2">𝐳</ci><cn type="integer" id="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.3.3.2.2.2.3">2</cn></apply><ci id="S2.SS1.SSS1.p1.2.m2.1.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.1.1">…</ci><apply id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3">subscript</csymbol><ci id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.2">𝐳</ci><ci id="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.3.3.3.3">𝐓</ci></apply></list></apply><apply id="S2.SS1.SSS1.p1.2.m2.4.4c.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4"><in id="S2.SS1.SSS1.p1.2.m2.4.4.7.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.7"></in><share href="#S2.SS1.SSS1.p1.2.m2.4.4.3.cmml" id="S2.SS1.SSS1.p1.2.m2.4.4d.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4"></share><apply id="S2.SS1.SSS1.p1.2.m2.4.4.8.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.2.m2.4.4.8.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8">superscript</csymbol><ci id="S2.SS1.SSS1.p1.2.m2.4.4.8.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.2">ℝ</ci><apply id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3"><times id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.1"></times><ci id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.2.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.2">𝐶</ci><ci id="S2.SS1.SSS1.p1.2.m2.4.4.8.3.3.cmml" xref="S2.SS1.SSS1.p1.2.m2.4.4.8.3.3">𝑇</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.2.m2.4c">\mathbf{Z}=[\mathbf{z_{1}},\mathbf{z_{2}},...,\mathbf{z_{T}}]\in\mathbb{R}^{C\times T}</annotation></semantics></math>, where C is the dimension of the embedding vector, and T is the length of encoder's output in the time dimension.</p>
+</div>
+</section>
+<section id="S2.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.1.2 </span>Context network</h4>
+
+<div id="S2.SS1.SSS2.p1" class="ltx_para">
+<p id="S2.SS1.SSS2.p1.1" class="ltx_p">Instead of the conventional RNN structure, we utilize 3 layers of Transformer block to constitute the context network.
+Given the crucial need for localization in the SED task, integrating positional information becomes vital.
+While RNN structures naturally embed positional information along the time dimension through their sequential structure <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>, Transformer models require positional encoding for the same purpose.
+The vanilla Transformer uses the absolute positional encoding (APE) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, where the positional encoding depends on absolute position of tokens.
+But for a given sound event, we hope that the model is translation equivariant along time dimension, i.e. when the time of a sound event in an audio signal is changed, the same features will be detected at the new time.
+We therefore use relative positional encoding (RPE) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> to achieve this purpose, where the learnable positional encoding is determined by the relative position between frames.
+Compared to learnable APE, the RPE is naturally translation-equivariant <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, making it more suitable for modelling temporal dependencies.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2408.08673/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="207" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>The global-local feature fusion strategy in the fine-tuning stage.
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Masked-reconstruction based pre-training</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.3" class="ltx_p">The model structure during pre-training is depicted in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (a).
+At this stage, we initialize the encoder network using the PaSST model pre-trained on AudioSet <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> and freeze its weights, to focus on pre-training the context network.
+We design the masked-reconstruction task as the pretext task, similar to train a masked language model.
+We mask a certain proportion of frames in the latent feature sequence <math id="S2.SS2.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{Z}" display="inline"><semantics id="S2.SS2.p1.1.m1.1a"><mi id="S2.SS2.p1.1.m1.1.1" xref="S2.SS2.p1.1.m1.1.1.cmml">𝐙</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.1.m1.1b"><ci id="S2.SS2.p1.1.m1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1">𝐙</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.1.m1.1c">\mathbf{Z}</annotation></semantics></math>, and substitute the masked frames with the learnable mask token, obtaining a new sequence <math id="S2.SS2.p1.2.m2.1" class="ltx_Math" alttext="\mathbf{Z^{\prime}}" display="inline"><semantics id="S2.SS2.p1.2.m2.1a"><msup id="S2.SS2.p1.2.m2.1.1" xref="S2.SS2.p1.2.m2.1.1.cmml"><mi id="S2.SS2.p1.2.m2.1.1.2" xref="S2.SS2.p1.2.m2.1.1.2.cmml">𝐙</mi><mo id="S2.SS2.p1.2.m2.1.1.3" xref="S2.SS2.p1.2.m2.1.1.3.cmml">′</mo></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.2.m2.1b"><apply id="S2.SS2.p1.2.m2.1.1.cmml" xref="S2.SS2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p1.2.m2.1.1.1.cmml" xref="S2.SS2.p1.2.m2.1.1">superscript</csymbol><ci id="S2.SS2.p1.2.m2.1.1.2.cmml" xref="S2.SS2.p1.2.m2.1.1.2">𝐙</ci><ci id="S2.SS2.p1.2.m2.1.1.3.cmml" xref="S2.SS2.p1.2.m2.1.1.3">′</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.2.m2.1c">\mathbf{Z^{\prime}}</annotation></semantics></math>.
+The masked-reconstruction task requires the context network to restore the masked latent features using the contextual information, which helps to enhance the temporal modeling ability of the context network.
+For the masking strategy, we adopt the block-wise masking strategy used in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>, dividing the sequence into several blocks of size 10, and masking entire blocks randomly.
+Compared to random masking, the block-wise masking strategy increases the difficulty of reconstruction, thus forces the model to learn more abstract semantic information.
+The masked sequence traverses through the context network and the reconstruction head composed of two fully connected layers, yielding the reconstructed sequence <math id="S2.SS2.p1.3.m3.4" class="ltx_Math" alttext="\mathbf{\hat{Z}}=[\hat{\mathbf{z}}_{1},\hat{\mathbf{z}}_{2},...,\hat{\mathbf{z}}_{T}]\in\mathbb{R}^{C\times T}" display="inline"><semantics id="S2.SS2.p1.3.m3.4a"><mrow id="S2.SS2.p1.3.m3.4.4" xref="S2.SS2.p1.3.m3.4.4.cmml"><mover accent="true" id="S2.SS2.p1.3.m3.4.4.5" xref="S2.SS2.p1.3.m3.4.4.5.cmml"><mi id="S2.SS2.p1.3.m3.4.4.5.2" xref="S2.SS2.p1.3.m3.4.4.5.2.cmml">𝐙</mi><mo id="S2.SS2.p1.3.m3.4.4.5.1" xref="S2.SS2.p1.3.m3.4.4.5.1.cmml">^</mo></mover><mo id="S2.SS2.p1.3.m3.4.4.6" xref="S2.SS2.p1.3.m3.4.4.6.cmml">=</mo><mrow id="S2.SS2.p1.3.m3.4.4.3.3" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml"><mo stretchy="false" id="S2.SS2.p1.3.m3.4.4.3.3.4" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml">[</mo><msub id="S2.SS2.p1.3.m3.2.2.1.1.1" xref="S2.SS2.p1.3.m3.2.2.1.1.1.cmml"><mover accent="true" id="S2.SS2.p1.3.m3.2.2.1.1.1.2" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2.cmml"><mi id="S2.SS2.p1.3.m3.2.2.1.1.1.2.2" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2.2.cmml">𝐳</mi><mo id="S2.SS2.p1.3.m3.2.2.1.1.1.2.1" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2.1.cmml">^</mo></mover><mn id="S2.SS2.p1.3.m3.2.2.1.1.1.3" xref="S2.SS2.p1.3.m3.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S2.SS2.p1.3.m3.4.4.3.3.5" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml">,</mo><msub id="S2.SS2.p1.3.m3.3.3.2.2.2" xref="S2.SS2.p1.3.m3.3.3.2.2.2.cmml"><mover accent="true" id="S2.SS2.p1.3.m3.3.3.2.2.2.2" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2.cmml"><mi id="S2.SS2.p1.3.m3.3.3.2.2.2.2.2" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2.2.cmml">𝐳</mi><mo id="S2.SS2.p1.3.m3.3.3.2.2.2.2.1" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2.1.cmml">^</mo></mover><mn id="S2.SS2.p1.3.m3.3.3.2.2.2.3" xref="S2.SS2.p1.3.m3.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S2.SS2.p1.3.m3.4.4.3.3.6" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S2.SS2.p1.3.m3.1.1" xref="S2.SS2.p1.3.m3.1.1.cmml">…</mi><mo id="S2.SS2.p1.3.m3.4.4.3.3.7" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml">,</mo><msub id="S2.SS2.p1.3.m3.4.4.3.3.3" xref="S2.SS2.p1.3.m3.4.4.3.3.3.cmml"><mover accent="true" id="S2.SS2.p1.3.m3.4.4.3.3.3.2" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2.cmml"><mi id="S2.SS2.p1.3.m3.4.4.3.3.3.2.2" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2.2.cmml">𝐳</mi><mo id="S2.SS2.p1.3.m3.4.4.3.3.3.2.1" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2.1.cmml">^</mo></mover><mi id="S2.SS2.p1.3.m3.4.4.3.3.3.3" xref="S2.SS2.p1.3.m3.4.4.3.3.3.3.cmml">T</mi></msub><mo stretchy="false" id="S2.SS2.p1.3.m3.4.4.3.3.8" xref="S2.SS2.p1.3.m3.4.4.3.4.cmml">]</mo></mrow><mo id="S2.SS2.p1.3.m3.4.4.7" xref="S2.SS2.p1.3.m3.4.4.7.cmml">∈</mo><msup id="S2.SS2.p1.3.m3.4.4.8" xref="S2.SS2.p1.3.m3.4.4.8.cmml"><mi id="S2.SS2.p1.3.m3.4.4.8.2" xref="S2.SS2.p1.3.m3.4.4.8.2.cmml">ℝ</mi><mrow id="S2.SS2.p1.3.m3.4.4.8.3" xref="S2.SS2.p1.3.m3.4.4.8.3.cmml"><mi id="S2.SS2.p1.3.m3.4.4.8.3.2" xref="S2.SS2.p1.3.m3.4.4.8.3.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS2.p1.3.m3.4.4.8.3.1" xref="S2.SS2.p1.3.m3.4.4.8.3.1.cmml">×</mo><mi id="S2.SS2.p1.3.m3.4.4.8.3.3" xref="S2.SS2.p1.3.m3.4.4.8.3.3.cmml">T</mi></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.3.m3.4b"><apply id="S2.SS2.p1.3.m3.4.4.cmml" xref="S2.SS2.p1.3.m3.4.4"><and id="S2.SS2.p1.3.m3.4.4a.cmml" xref="S2.SS2.p1.3.m3.4.4"></and><apply id="S2.SS2.p1.3.m3.4.4b.cmml" xref="S2.SS2.p1.3.m3.4.4"><eq id="S2.SS2.p1.3.m3.4.4.6.cmml" xref="S2.SS2.p1.3.m3.4.4.6"></eq><apply id="S2.SS2.p1.3.m3.4.4.5.cmml" xref="S2.SS2.p1.3.m3.4.4.5"><ci id="S2.SS2.p1.3.m3.4.4.5.1.cmml" xref="S2.SS2.p1.3.m3.4.4.5.1">^</ci><ci id="S2.SS2.p1.3.m3.4.4.5.2.cmml" xref="S2.SS2.p1.3.m3.4.4.5.2">𝐙</ci></apply><list id="S2.SS2.p1.3.m3.4.4.3.4.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3"><apply id="S2.SS2.p1.3.m3.2.2.1.1.1.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p1.3.m3.2.2.1.1.1.1.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1">subscript</csymbol><apply id="S2.SS2.p1.3.m3.2.2.1.1.1.2.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2"><ci id="S2.SS2.p1.3.m3.2.2.1.1.1.2.1.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2.1">^</ci><ci id="S2.SS2.p1.3.m3.2.2.1.1.1.2.2.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1.2.2">𝐳</ci></apply><cn type="integer" id="S2.SS2.p1.3.m3.2.2.1.1.1.3.cmml" xref="S2.SS2.p1.3.m3.2.2.1.1.1.3">1</cn></apply><apply id="S2.SS2.p1.3.m3.3.3.2.2.2.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.SS2.p1.3.m3.3.3.2.2.2.1.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2">subscript</csymbol><apply id="S2.SS2.p1.3.m3.3.3.2.2.2.2.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2"><ci id="S2.SS2.p1.3.m3.3.3.2.2.2.2.1.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2.1">^</ci><ci id="S2.SS2.p1.3.m3.3.3.2.2.2.2.2.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2.2.2">𝐳</ci></apply><cn type="integer" id="S2.SS2.p1.3.m3.3.3.2.2.2.3.cmml" xref="S2.SS2.p1.3.m3.3.3.2.2.2.3">2</cn></apply><ci id="S2.SS2.p1.3.m3.1.1.cmml" xref="S2.SS2.p1.3.m3.1.1">…</ci><apply id="S2.SS2.p1.3.m3.4.4.3.3.3.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3"><csymbol cd="ambiguous" id="S2.SS2.p1.3.m3.4.4.3.3.3.1.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3">subscript</csymbol><apply id="S2.SS2.p1.3.m3.4.4.3.3.3.2.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2"><ci id="S2.SS2.p1.3.m3.4.4.3.3.3.2.1.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2.1">^</ci><ci id="S2.SS2.p1.3.m3.4.4.3.3.3.2.2.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3.2.2">𝐳</ci></apply><ci id="S2.SS2.p1.3.m3.4.4.3.3.3.3.cmml" xref="S2.SS2.p1.3.m3.4.4.3.3.3.3">𝑇</ci></apply></list></apply><apply id="S2.SS2.p1.3.m3.4.4c.cmml" xref="S2.SS2.p1.3.m3.4.4"><in id="S2.SS2.p1.3.m3.4.4.7.cmml" xref="S2.SS2.p1.3.m3.4.4.7"></in><share href="#S2.SS2.p1.3.m3.4.4.3.cmml" id="S2.SS2.p1.3.m3.4.4d.cmml" xref="S2.SS2.p1.3.m3.4.4"></share><apply id="S2.SS2.p1.3.m3.4.4.8.cmml" xref="S2.SS2.p1.3.m3.4.4.8"><csymbol cd="ambiguous" id="S2.SS2.p1.3.m3.4.4.8.1.cmml" xref="S2.SS2.p1.3.m3.4.4.8">superscript</csymbol><ci id="S2.SS2.p1.3.m3.4.4.8.2.cmml" xref="S2.SS2.p1.3.m3.4.4.8.2">ℝ</ci><apply id="S2.SS2.p1.3.m3.4.4.8.3.cmml" xref="S2.SS2.p1.3.m3.4.4.8.3"><times id="S2.SS2.p1.3.m3.4.4.8.3.1.cmml" xref="S2.SS2.p1.3.m3.4.4.8.3.1"></times><ci id="S2.SS2.p1.3.m3.4.4.8.3.2.cmml" xref="S2.SS2.p1.3.m3.4.4.8.3.2">𝐶</ci><ci id="S2.SS2.p1.3.m3.4.4.8.3.3.cmml" xref="S2.SS2.p1.3.m3.4.4.8.3.3">𝑇</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.3.m3.4c">\mathbf{\hat{Z}}=[\hat{\mathbf{z}}_{1},\hat{\mathbf{z}}_{2},...,\hat{\mathbf{z}}_{T}]\in\mathbb{R}^{C\times T}</annotation></semantics></math>.We use mean squared error (MSE) loss to evaluate the quality of reconstruction:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.3" class="ltx_Math" alttext="\mathcal{L}_{m}=\sum_{x\in\mathcal{D}}\sum_{t\in M_{x}}(\hat{\mathbf{z}}_{t}(x)-\mathbf{z}_{t}(x))^{2}" display="block"><semantics id="S2.E1.m1.3a"><mrow id="S2.E1.m1.3.3" xref="S2.E1.m1.3.3.cmml"><msub id="S2.E1.m1.3.3.3" xref="S2.E1.m1.3.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.3.3.3.2" xref="S2.E1.m1.3.3.3.2.cmml">ℒ</mi><mi id="S2.E1.m1.3.3.3.3" xref="S2.E1.m1.3.3.3.3.cmml">m</mi></msub><mo rspace="0.111em" id="S2.E1.m1.3.3.2" xref="S2.E1.m1.3.3.2.cmml">=</mo><mrow id="S2.E1.m1.3.3.1" xref="S2.E1.m1.3.3.1.cmml"><munder id="S2.E1.m1.3.3.1.2" xref="S2.E1.m1.3.3.1.2.cmml"><mo movablelimits="false" rspace="0em" id="S2.E1.m1.3.3.1.2.2" xref="S2.E1.m1.3.3.1.2.2.cmml">∑</mo><mrow id="S2.E1.m1.3.3.1.2.3" xref="S2.E1.m1.3.3.1.2.3.cmml"><mi id="S2.E1.m1.3.3.1.2.3.2" xref="S2.E1.m1.3.3.1.2.3.2.cmml">x</mi><mo id="S2.E1.m1.3.3.1.2.3.1" xref="S2.E1.m1.3.3.1.2.3.1.cmml">∈</mo><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.3.3.1.2.3.3" xref="S2.E1.m1.3.3.1.2.3.3.cmml">𝒟</mi></mrow></munder><mrow id="S2.E1.m1.3.3.1.1" xref="S2.E1.m1.3.3.1.1.cmml"><munder id="S2.E1.m1.3.3.1.1.2" xref="S2.E1.m1.3.3.1.1.2.cmml"><mo movablelimits="false" rspace="0em" id="S2.E1.m1.3.3.1.1.2.2" xref="S2.E1.m1.3.3.1.1.2.2.cmml">∑</mo><mrow id="S2.E1.m1.3.3.1.1.2.3" xref="S2.E1.m1.3.3.1.1.2.3.cmml"><mi id="S2.E1.m1.3.3.1.1.2.3.2" xref="S2.E1.m1.3.3.1.1.2.3.2.cmml">t</mi><mo id="S2.E1.m1.3.3.1.1.2.3.1" xref="S2.E1.m1.3.3.1.1.2.3.1.cmml">∈</mo><msub id="S2.E1.m1.3.3.1.1.2.3.3" xref="S2.E1.m1.3.3.1.1.2.3.3.cmml"><mi id="S2.E1.m1.3.3.1.1.2.3.3.2" xref="S2.E1.m1.3.3.1.1.2.3.3.2.cmml">M</mi><mi id="S2.E1.m1.3.3.1.1.2.3.3.3" xref="S2.E1.m1.3.3.1.1.2.3.3.3.cmml">x</mi></msub></mrow></munder><msup id="S2.E1.m1.3.3.1.1.1" xref="S2.E1.m1.3.3.1.1.1.cmml"><mrow id="S2.E1.m1.3.3.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.cmml"><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.cmml"><msub id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.cmml"><mover accent="true" id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.2.cmml">𝐳</mi><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.1.cmml">^</mo></mover><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.3.cmml">t</mi></msub><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.1.1.1.1.2.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.1.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.2.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.cmml"><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.2.3.2.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.cmml">(</mo><mi id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml">x</mi><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.2.3.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml">−</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.cmml"><msub id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.2.cmml">𝐳</mi><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.3.cmml">t</mi></msub><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.1.1.1.1.3.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.1.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.3.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.cmml"><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.3.3.2.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.cmml">(</mo><mi id="S2.E1.m1.2.2" xref="S2.E1.m1.2.2.cmml">x</mi><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.3.3.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.cmml">)</mo></mrow></mrow></mrow><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.cmml">)</mo></mrow><mn id="S2.E1.m1.3.3.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.3.cmml">2</mn></msup></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.3b"><apply id="S2.E1.m1.3.3.cmml" xref="S2.E1.m1.3.3"><eq id="S2.E1.m1.3.3.2.cmml" xref="S2.E1.m1.3.3.2"></eq><apply id="S2.E1.m1.3.3.3.cmml" xref="S2.E1.m1.3.3.3"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.3.1.cmml" xref="S2.E1.m1.3.3.3">subscript</csymbol><ci id="S2.E1.m1.3.3.3.2.cmml" xref="S2.E1.m1.3.3.3.2">ℒ</ci><ci id="S2.E1.m1.3.3.3.3.cmml" xref="S2.E1.m1.3.3.3.3">𝑚</ci></apply><apply id="S2.E1.m1.3.3.1.cmml" xref="S2.E1.m1.3.3.1"><apply id="S2.E1.m1.3.3.1.2.cmml" xref="S2.E1.m1.3.3.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.2.1.cmml" xref="S2.E1.m1.3.3.1.2">subscript</csymbol><sum id="S2.E1.m1.3.3.1.2.2.cmml" xref="S2.E1.m1.3.3.1.2.2"></sum><apply id="S2.E1.m1.3.3.1.2.3.cmml" xref="S2.E1.m1.3.3.1.2.3"><in id="S2.E1.m1.3.3.1.2.3.1.cmml" xref="S2.E1.m1.3.3.1.2.3.1"></in><ci id="S2.E1.m1.3.3.1.2.3.2.cmml" xref="S2.E1.m1.3.3.1.2.3.2">𝑥</ci><ci id="S2.E1.m1.3.3.1.2.3.3.cmml" xref="S2.E1.m1.3.3.1.2.3.3">𝒟</ci></apply></apply><apply id="S2.E1.m1.3.3.1.1.cmml" xref="S2.E1.m1.3.3.1.1"><apply id="S2.E1.m1.3.3.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.2.1.cmml" xref="S2.E1.m1.3.3.1.1.2">subscript</csymbol><sum id="S2.E1.m1.3.3.1.1.2.2.cmml" xref="S2.E1.m1.3.3.1.1.2.2"></sum><apply id="S2.E1.m1.3.3.1.1.2.3.cmml" xref="S2.E1.m1.3.3.1.1.2.3"><in id="S2.E1.m1.3.3.1.1.2.3.1.cmml" xref="S2.E1.m1.3.3.1.1.2.3.1"></in><ci id="S2.E1.m1.3.3.1.1.2.3.2.cmml" xref="S2.E1.m1.3.3.1.1.2.3.2">𝑡</ci><apply id="S2.E1.m1.3.3.1.1.2.3.3.cmml" xref="S2.E1.m1.3.3.1.1.2.3.3"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.2.3.3.1.cmml" xref="S2.E1.m1.3.3.1.1.2.3.3">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.2.3.3.2.cmml" xref="S2.E1.m1.3.3.1.1.2.3.3.2">𝑀</ci><ci id="S2.E1.m1.3.3.1.1.2.3.3.3.cmml" xref="S2.E1.m1.3.3.1.1.2.3.3.3">𝑥</ci></apply></apply></apply><apply id="S2.E1.m1.3.3.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1">superscript</csymbol><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1"><minus id="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1"></minus><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2"><times id="S2.E1.m1.3.3.1.1.1.1.1.1.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.1"></times><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2">subscript</csymbol><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2"><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.1">^</ci><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.2.2">𝐳</ci></apply><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.2.2.3">𝑡</ci></apply><ci id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1">𝑥</ci></apply><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3"><times id="S2.E1.m1.3.3.1.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.1"></times><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.2">𝐳</ci><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.3.2.3">𝑡</ci></apply><ci id="S2.E1.m1.2.2.cmml" xref="S2.E1.m1.2.2">𝑥</ci></apply></apply><cn type="integer" id="S2.E1.m1.3.3.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.3">2</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.3c">\mathcal{L}_{m}=\sum_{x\in\mathcal{D}}\sum_{t\in M_{x}}(\hat{\mathbf{z}}_{t}(x)-\mathbf{z}_{t}(x))^{2}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p1.6" class="ltx_p">where <math id="S2.SS2.p1.4.m1.1" class="ltx_Math" alttext="\mathcal{D}" display="inline"><semantics id="S2.SS2.p1.4.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.p1.4.m1.1.1" xref="S2.SS2.p1.4.m1.1.1.cmml">𝒟</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.4.m1.1b"><ci id="S2.SS2.p1.4.m1.1.1.cmml" xref="S2.SS2.p1.4.m1.1.1">𝒟</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.4.m1.1c">\mathcal{D}</annotation></semantics></math> denotes the pre-training dataset, and <math id="S2.SS2.p1.5.m2.1" class="ltx_Math" alttext="M_{x}" display="inline"><semantics id="S2.SS2.p1.5.m2.1a"><msub id="S2.SS2.p1.5.m2.1.1" xref="S2.SS2.p1.5.m2.1.1.cmml"><mi id="S2.SS2.p1.5.m2.1.1.2" xref="S2.SS2.p1.5.m2.1.1.2.cmml">M</mi><mi id="S2.SS2.p1.5.m2.1.1.3" xref="S2.SS2.p1.5.m2.1.1.3.cmml">x</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.5.m2.1b"><apply id="S2.SS2.p1.5.m2.1.1.cmml" xref="S2.SS2.p1.5.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p1.5.m2.1.1.1.cmml" xref="S2.SS2.p1.5.m2.1.1">subscript</csymbol><ci id="S2.SS2.p1.5.m2.1.1.2.cmml" xref="S2.SS2.p1.5.m2.1.1.2">𝑀</ci><ci id="S2.SS2.p1.5.m2.1.1.3.cmml" xref="S2.SS2.p1.5.m2.1.1.3">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.5.m2.1c">M_{x}</annotation></semantics></math> denotes the set of masked frame indices corresponding to the sample <math id="S2.SS2.p1.6.m3.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS2.p1.6.m3.1a"><mi id="S2.SS2.p1.6.m3.1.1" xref="S2.SS2.p1.6.m3.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.6.m3.1b"><ci id="S2.SS2.p1.6.m3.1.1.cmml" xref="S2.SS2.p1.6.m3.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.6.m3.1c">x</annotation></semantics></math>.
+Note from this that only the masked frames are used to calculate the reconstruction loss.</p>
+</div>
+<figure id="S2.T1" class="ltx_table">
+<figcaption class="ltx_caption" style="font-size:80%;"><span class="ltx_tag ltx_tag_table">Table 1: </span>Comparison with state-of-the-art SED systems ( <sup id="S2.T1.8.1" class="ltx_sup"><span id="S2.T1.8.1.1" class="ltx_text ltx_font_italic">†</span></sup> denotes external data is used besides the DCASE2023 dataset).</figcaption>
+<table id="S2.T1.3" class="ltx_tabular ltx_align_middle">
+<tr id="S2.T1.3.2" class="ltx_tr">
+<td id="S2.T1.3.2.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.2.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:0.8pt;background:black;display:inline-block;"> </span></span>
+</span><span id="S2.T1.3.2.1.2" class="ltx_text" style="font-size:80%;">
+</span><span id="S2.T1.3.2.1.3" class="ltx_text ltx_font_bold" style="font-size:80%;">Model</span>
+</td>
+<td id="S2.T1.3.2.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.2.2.1.1" class="ltx_p"><span id="S2.T1.3.2.2.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">Encoder Network</span></span>
+</span>
+</td>
+<td id="S2.T1.3.2.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.2.3.1.1" class="ltx_p"><span id="S2.T1.3.2.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">Context Network</span></span>
+</span>
+</td>
+<td id="S2.T1.3.2.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.2.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.2.4.1.1" class="ltx_p"><span id="S2.T1.3.2.4.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">PSDS1</span></span>
+</span>
+</td>
+<td id="S2.T1.3.2.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.2.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.2.5.1.1" class="ltx_p"><span id="S2.T1.3.2.5.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">PSDS2</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.3" class="ltx_tr">
+<td id="S2.T1.3.3.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.3.1.1.1" class="ltx_p"><span id="S2.T1.3.3.1.1.1.1" class="ltx_text" style="font-size:80%;">CRNN-BEATs</span></span>
+</span>
+</td>
+<td id="S2.T1.3.3.2" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.3.2.1.1" class="ltx_p"><span id="S2.T1.3.3.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer + CNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.3.3" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.3.3.1.1" class="ltx_p"><span id="S2.T1.3.3.3.1.1.1" class="ltx_text" style="font-size:80%;">RNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.3.4" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.3.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.3.4.1.1" class="ltx_p"><span id="S2.T1.3.3.4.1.1.1" class="ltx_text" style="font-size:80%;">0.500</span></span>
+</span>
+</td>
+<td id="S2.T1.3.3.5" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.3.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.3.5.1.1" class="ltx_p"><span id="S2.T1.3.3.5.1.1.1" class="ltx_text" style="font-size:80%;">0.762</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.4" class="ltx_tr">
+<td id="S2.T1.3.4.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.4.1.1.1" class="ltx_p"><span id="S2.T1.3.4.1.1.1.1" class="ltx_text" style="font-size:80%;">PaSST-SED </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.T1.3.4.1.1.1.2.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a><span id="S2.T1.3.4.1.1.1.3.2" class="ltx_text" style="font-size:80%;">]</span></cite></span>
+</span>
+</td>
+<td id="S2.T1.3.4.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.4.2.1.1" class="ltx_p"><span id="S2.T1.3.4.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer</span></span>
+</span>
+</td>
+<td id="S2.T1.3.4.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.4.3.1.1" class="ltx_p"><span id="S2.T1.3.4.3.1.1.1" class="ltx_text" style="font-size:80%;">RNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.4.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.4.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.4.4.1.1" class="ltx_p"><span id="S2.T1.3.4.4.1.1.1" class="ltx_text" style="font-size:80%;">0.555</span></span>
+</span>
+</td>
+<td id="S2.T1.3.4.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.4.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.4.5.1.1" class="ltx_p"><span id="S2.T1.3.4.5.1.1.1" class="ltx_text" style="font-size:80%;">0.791</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.1" class="ltx_tr">
+<td id="S2.T1.3.1.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.1.1.1.1" class="ltx_p"><span id="S2.T1.3.1.1.1.1.1" class="ltx_text" style="font-size:80%;">MFDConv-BEATs</span><sup id="S2.T1.3.1.1.1.1.2" class="ltx_sup"><span id="S2.T1.3.1.1.1.1.2.1" class="ltx_text ltx_font_italic" style="font-size:80%;">†</span></sup><span id="S2.T1.3.1.1.1.1.3" class="ltx_text" style="font-size:80%;"> </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.T1.3.1.1.1.1.4.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S2.T1.3.1.1.1.1.5.2" class="ltx_text" style="font-size:80%;">]</span></cite></span>
+</span>
+</td>
+<td id="S2.T1.3.1.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.1.2.1.1" class="ltx_p"><span id="S2.T1.3.1.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer + CNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.1.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.1.3.1.1" class="ltx_p"><span id="S2.T1.3.1.3.1.1.1" class="ltx_text" style="font-size:80%;">RNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.1.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.1.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.1.4.1.1" class="ltx_p"><span id="S2.T1.3.1.4.1.1.1" class="ltx_text" style="font-size:80%;">0.552</span></span>
+</span>
+</td>
+<td id="S2.T1.3.1.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.1.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.1.5.1.1" class="ltx_p"><span id="S2.T1.3.1.5.1.1.1" class="ltx_text" style="font-size:80%;">0.794</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.5" class="ltx_tr">
+<td id="S2.T1.3.5.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.5.1.1.1" class="ltx_p"><span id="S2.T1.3.5.1.1.1.1" class="ltx_text" style="font-size:80%;">ATST-SED </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.T1.3.5.1.1.1.2.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib21" title="" class="ltx_ref">21</a><span id="S2.T1.3.5.1.1.1.3.2" class="ltx_text" style="font-size:80%;">]</span></cite></span>
+</span>
+</td>
+<td id="S2.T1.3.5.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.5.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.5.2.1.1" class="ltx_p"><span id="S2.T1.3.5.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer + CNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.5.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.5.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.5.3.1.1" class="ltx_p"><span id="S2.T1.3.5.3.1.1.1" class="ltx_text" style="font-size:80%;">RNN</span></span>
+</span>
+</td>
+<td id="S2.T1.3.5.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.5.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.5.4.1.1" class="ltx_p"><span id="S2.T1.3.5.4.1.1.1" class="ltx_text" style="font-size:80%;">0.583</span></span>
+</span>
+</td>
+<td id="S2.T1.3.5.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.5.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.5.5.1.1" class="ltx_p"><span id="S2.T1.3.5.5.1.1.1" class="ltx_text" style="font-size:80%;">0.810</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.6" class="ltx_tr">
+<td id="S2.T1.3.6.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.6.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.6.1.1.1" class="ltx_p"><span id="S2.T1.3.6.1.1.1.1" class="ltx_text" style="font-size:80%;">MAT-SED (median filter)</span></span>
+</span>
+</td>
+<td id="S2.T1.3.6.2" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.6.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.6.2.1.1" class="ltx_p"><span id="S2.T1.3.6.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer</span></span>
+</span>
+</td>
+<td id="S2.T1.3.6.3" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.6.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.6.3.1.1" class="ltx_p"><span id="S2.T1.3.6.3.1.1.1" class="ltx_text" style="font-size:80%;">Transformer</span></span>
+</span>
+</td>
+<td id="S2.T1.3.6.4" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.6.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.6.4.1.1" class="ltx_p"><span id="S2.T1.3.6.4.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.587</span></span>
+</span>
+</td>
+<td id="S2.T1.3.6.5" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.6.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.6.5.1.1" class="ltx_p"><span id="S2.T1.3.6.5.1.1.1" class="ltx_text" style="font-size:80%;">0.792</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.7" class="ltx_tr">
+<td id="S2.T1.3.7.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.7.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.7.1.1.1" class="ltx_p"><span id="S2.T1.3.7.1.1.1.1" class="ltx_text" style="font-size:80%;">MAT-SED (maximum filter)</span></span>
+</span>
+</td>
+<td id="S2.T1.3.7.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.7.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.7.2.1.1" class="ltx_p"><span id="S2.T1.3.7.2.1.1.1" class="ltx_text" style="font-size:80%;">Transformer</span></span>
+</span>
+</td>
+<td id="S2.T1.3.7.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.7.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.7.3.1.1" class="ltx_p"><span id="S2.T1.3.7.3.1.1.1" class="ltx_text" style="font-size:80%;">Transformer</span></span>
+</span>
+</td>
+<td id="S2.T1.3.7.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.7.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.7.4.1.1" class="ltx_p"><span id="S2.T1.3.7.4.1.1.1" class="ltx_text" style="font-size:80%;">0.090</span></span>
+</span>
+</td>
+<td id="S2.T1.3.7.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.7.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.7.5.1.1" class="ltx_p"><span id="S2.T1.3.7.5.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.896</span></span>
+</span>
+</td>
+</tr>
+<tr id="S2.T1.3.8" class="ltx_tr">
+<td id="S2.T1.3.8.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:99.6pt;padding-top:1.6pt;padding-bottom:1.6pt;">
+<span id="S2.T1.3.8.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S2.T1.3.8.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:0.8pt;background:black;display:inline-block;"> </span></span>
+</span>
+</td>
+<td id="S2.T1.3.8.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:1.6pt;padding-bottom:1.6pt;"></td>
+<td id="S2.T1.3.8.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:71.1pt;padding-top:1.6pt;padding-bottom:1.6pt;"></td>
+<td id="S2.T1.3.8.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;"></td>
+<td id="S2.T1.3.8.5" class="ltx_td ltx_align_justify ltx_align_middle" style="width:42.7pt;padding-top:1.6pt;padding-bottom:1.6pt;"></td>
+</tr>
+</table>
+</figure>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Fine-tuning</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">The model structure in the fine-tuning stage is shown in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (b).
+During fine-tuning, the reconstruction head is replaced by the SED head composed of a fully connected layer, which outputs the frame-level prediction.
+The frame-level prediction is pooled over the time dimension by linear-softmax pooling <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, to obtain the clip-level prediction result.
+Following the task-aware module in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>, we additionally set up an AT head to focuse on the audio tagging task.
+The mean-teacher algorithm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> is used for semi-supervised learning, with the consistency weight of 40.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.5" class="ltx_p">Previous studies <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite> have shown that using the window mechanism to limit the input duration can constrain the model to better attend to local information, thereby enhancing localization accuracy.
+We thus propose a novel strategy for fine-tuning, termed global-local feature fusion strategy, as depicted in Figure <a href="#S2.F2" title="Figure 2 ‣ 2.1.2 Context network ‣ 2.1 Model ‣ 2 Methodology ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+This strategy uses two branches to extract different features from the spectrogram.
+The global branch feeds the original spectrogram into the encoder network, yielding the global feature sequence <math id="S2.SS3.p2.1.m1.1" class="ltx_Math" alttext="\mathbf{Z}_{global}" display="inline"><semantics id="S2.SS3.p2.1.m1.1a"><msub id="S2.SS3.p2.1.m1.1.1" xref="S2.SS3.p2.1.m1.1.1.cmml"><mi id="S2.SS3.p2.1.m1.1.1.2" xref="S2.SS3.p2.1.m1.1.1.2.cmml">𝐙</mi><mrow id="S2.SS3.p2.1.m1.1.1.3" xref="S2.SS3.p2.1.m1.1.1.3.cmml"><mi id="S2.SS3.p2.1.m1.1.1.3.2" xref="S2.SS3.p2.1.m1.1.1.3.2.cmml">g</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.3.1" xref="S2.SS3.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3.3" xref="S2.SS3.p2.1.m1.1.1.3.3.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.3.1a" xref="S2.SS3.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3.4" xref="S2.SS3.p2.1.m1.1.1.3.4.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.3.1b" xref="S2.SS3.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3.5" xref="S2.SS3.p2.1.m1.1.1.3.5.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.3.1c" xref="S2.SS3.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3.6" xref="S2.SS3.p2.1.m1.1.1.3.6.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.1.m1.1.1.3.1d" xref="S2.SS3.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.1.m1.1.1.3.7" xref="S2.SS3.p2.1.m1.1.1.3.7.cmml">l</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.1.m1.1b"><apply id="S2.SS3.p2.1.m1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.1.m1.1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS3.p2.1.m1.1.1.2.cmml" xref="S2.SS3.p2.1.m1.1.1.2">𝐙</ci><apply id="S2.SS3.p2.1.m1.1.1.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3"><times id="S2.SS3.p2.1.m1.1.1.3.1.cmml" xref="S2.SS3.p2.1.m1.1.1.3.1"></times><ci id="S2.SS3.p2.1.m1.1.1.3.2.cmml" xref="S2.SS3.p2.1.m1.1.1.3.2">𝑔</ci><ci id="S2.SS3.p2.1.m1.1.1.3.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3.3">𝑙</ci><ci id="S2.SS3.p2.1.m1.1.1.3.4.cmml" xref="S2.SS3.p2.1.m1.1.1.3.4">𝑜</ci><ci id="S2.SS3.p2.1.m1.1.1.3.5.cmml" xref="S2.SS3.p2.1.m1.1.1.3.5">𝑏</ci><ci id="S2.SS3.p2.1.m1.1.1.3.6.cmml" xref="S2.SS3.p2.1.m1.1.1.3.6">𝑎</ci><ci id="S2.SS3.p2.1.m1.1.1.3.7.cmml" xref="S2.SS3.p2.1.m1.1.1.3.7">𝑙</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.1.m1.1c">\mathbf{Z}_{global}</annotation></semantics></math>. In the local branch, the spectrogram is split into several overlapping chunks along the time dimension by sliding windows. Each chunk is then independently fed into the encoder network for feature extraction, and the output features from different chunks are aggregated to form the local feature sequence <math id="S2.SS3.p2.2.m2.1" class="ltx_Math" alttext="\mathbf{Z}_{local}" display="inline"><semantics id="S2.SS3.p2.2.m2.1a"><msub id="S2.SS3.p2.2.m2.1.1" xref="S2.SS3.p2.2.m2.1.1.cmml"><mi id="S2.SS3.p2.2.m2.1.1.2" xref="S2.SS3.p2.2.m2.1.1.2.cmml">𝐙</mi><mrow id="S2.SS3.p2.2.m2.1.1.3" xref="S2.SS3.p2.2.m2.1.1.3.cmml"><mi id="S2.SS3.p2.2.m2.1.1.3.2" xref="S2.SS3.p2.2.m2.1.1.3.2.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.1" xref="S2.SS3.p2.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.2.m2.1.1.3.3" xref="S2.SS3.p2.2.m2.1.1.3.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.1a" xref="S2.SS3.p2.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.2.m2.1.1.3.4" xref="S2.SS3.p2.2.m2.1.1.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.1b" xref="S2.SS3.p2.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.2.m2.1.1.3.5" xref="S2.SS3.p2.2.m2.1.1.3.5.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.1c" xref="S2.SS3.p2.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.2.m2.1.1.3.6" xref="S2.SS3.p2.2.m2.1.1.3.6.cmml">l</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.2.m2.1b"><apply id="S2.SS3.p2.2.m2.1.1.cmml" xref="S2.SS3.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.2.m2.1.1.1.cmml" xref="S2.SS3.p2.2.m2.1.1">subscript</csymbol><ci id="S2.SS3.p2.2.m2.1.1.2.cmml" xref="S2.SS3.p2.2.m2.1.1.2">𝐙</ci><apply id="S2.SS3.p2.2.m2.1.1.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3"><times id="S2.SS3.p2.2.m2.1.1.3.1.cmml" xref="S2.SS3.p2.2.m2.1.1.3.1"></times><ci id="S2.SS3.p2.2.m2.1.1.3.2.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2">𝑙</ci><ci id="S2.SS3.p2.2.m2.1.1.3.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3.3">𝑜</ci><ci id="S2.SS3.p2.2.m2.1.1.3.4.cmml" xref="S2.SS3.p2.2.m2.1.1.3.4">𝑐</ci><ci id="S2.SS3.p2.2.m2.1.1.3.5.cmml" xref="S2.SS3.p2.2.m2.1.1.3.5">𝑎</ci><ci id="S2.SS3.p2.2.m2.1.1.3.6.cmml" xref="S2.SS3.p2.2.m2.1.1.3.6">𝑙</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.2.m2.1c">\mathbf{Z}_{local}</annotation></semantics></math>. Since there is temporal overlap between nearby chunks, we average the features extracted from different chunks for the overlapping duration. Global features <math id="S2.SS3.p2.3.m3.1" class="ltx_Math" alttext="\mathbf{Z}_{global}" display="inline"><semantics id="S2.SS3.p2.3.m3.1a"><msub id="S2.SS3.p2.3.m3.1.1" xref="S2.SS3.p2.3.m3.1.1.cmml"><mi id="S2.SS3.p2.3.m3.1.1.2" xref="S2.SS3.p2.3.m3.1.1.2.cmml">𝐙</mi><mrow id="S2.SS3.p2.3.m3.1.1.3" xref="S2.SS3.p2.3.m3.1.1.3.cmml"><mi id="S2.SS3.p2.3.m3.1.1.3.2" xref="S2.SS3.p2.3.m3.1.1.3.2.cmml">g</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m3.1.1.3.1" xref="S2.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.3.m3.1.1.3.3" xref="S2.SS3.p2.3.m3.1.1.3.3.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m3.1.1.3.1a" xref="S2.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.3.m3.1.1.3.4" xref="S2.SS3.p2.3.m3.1.1.3.4.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m3.1.1.3.1b" xref="S2.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.3.m3.1.1.3.5" xref="S2.SS3.p2.3.m3.1.1.3.5.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m3.1.1.3.1c" xref="S2.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.3.m3.1.1.3.6" xref="S2.SS3.p2.3.m3.1.1.3.6.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m3.1.1.3.1d" xref="S2.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.3.m3.1.1.3.7" xref="S2.SS3.p2.3.m3.1.1.3.7.cmml">l</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.3.m3.1b"><apply id="S2.SS3.p2.3.m3.1.1.cmml" xref="S2.SS3.p2.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.3.m3.1.1.1.cmml" xref="S2.SS3.p2.3.m3.1.1">subscript</csymbol><ci id="S2.SS3.p2.3.m3.1.1.2.cmml" xref="S2.SS3.p2.3.m3.1.1.2">𝐙</ci><apply id="S2.SS3.p2.3.m3.1.1.3.cmml" xref="S2.SS3.p2.3.m3.1.1.3"><times id="S2.SS3.p2.3.m3.1.1.3.1.cmml" xref="S2.SS3.p2.3.m3.1.1.3.1"></times><ci id="S2.SS3.p2.3.m3.1.1.3.2.cmml" xref="S2.SS3.p2.3.m3.1.1.3.2">𝑔</ci><ci id="S2.SS3.p2.3.m3.1.1.3.3.cmml" xref="S2.SS3.p2.3.m3.1.1.3.3">𝑙</ci><ci id="S2.SS3.p2.3.m3.1.1.3.4.cmml" xref="S2.SS3.p2.3.m3.1.1.3.4">𝑜</ci><ci id="S2.SS3.p2.3.m3.1.1.3.5.cmml" xref="S2.SS3.p2.3.m3.1.1.3.5">𝑏</ci><ci id="S2.SS3.p2.3.m3.1.1.3.6.cmml" xref="S2.SS3.p2.3.m3.1.1.3.6">𝑎</ci><ci id="S2.SS3.p2.3.m3.1.1.3.7.cmml" xref="S2.SS3.p2.3.m3.1.1.3.7">𝑙</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.3.m3.1c">\mathbf{Z}_{global}</annotation></semantics></math> and local features <math id="S2.SS3.p2.4.m4.1" class="ltx_Math" alttext="\mathbf{Z}_{local}" display="inline"><semantics id="S2.SS3.p2.4.m4.1a"><msub id="S2.SS3.p2.4.m4.1.1" xref="S2.SS3.p2.4.m4.1.1.cmml"><mi id="S2.SS3.p2.4.m4.1.1.2" xref="S2.SS3.p2.4.m4.1.1.2.cmml">𝐙</mi><mrow id="S2.SS3.p2.4.m4.1.1.3" xref="S2.SS3.p2.4.m4.1.1.3.cmml"><mi id="S2.SS3.p2.4.m4.1.1.3.2" xref="S2.SS3.p2.4.m4.1.1.3.2.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.4.m4.1.1.3.1" xref="S2.SS3.p2.4.m4.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.4.m4.1.1.3.3" xref="S2.SS3.p2.4.m4.1.1.3.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.4.m4.1.1.3.1a" xref="S2.SS3.p2.4.m4.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.4.m4.1.1.3.4" xref="S2.SS3.p2.4.m4.1.1.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.4.m4.1.1.3.1b" xref="S2.SS3.p2.4.m4.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.4.m4.1.1.3.5" xref="S2.SS3.p2.4.m4.1.1.3.5.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.4.m4.1.1.3.1c" xref="S2.SS3.p2.4.m4.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.4.m4.1.1.3.6" xref="S2.SS3.p2.4.m4.1.1.3.6.cmml">l</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.4.m4.1b"><apply id="S2.SS3.p2.4.m4.1.1.cmml" xref="S2.SS3.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.4.m4.1.1.1.cmml" xref="S2.SS3.p2.4.m4.1.1">subscript</csymbol><ci id="S2.SS3.p2.4.m4.1.1.2.cmml" xref="S2.SS3.p2.4.m4.1.1.2">𝐙</ci><apply id="S2.SS3.p2.4.m4.1.1.3.cmml" xref="S2.SS3.p2.4.m4.1.1.3"><times id="S2.SS3.p2.4.m4.1.1.3.1.cmml" xref="S2.SS3.p2.4.m4.1.1.3.1"></times><ci id="S2.SS3.p2.4.m4.1.1.3.2.cmml" xref="S2.SS3.p2.4.m4.1.1.3.2">𝑙</ci><ci id="S2.SS3.p2.4.m4.1.1.3.3.cmml" xref="S2.SS3.p2.4.m4.1.1.3.3">𝑜</ci><ci id="S2.SS3.p2.4.m4.1.1.3.4.cmml" xref="S2.SS3.p2.4.m4.1.1.3.4">𝑐</ci><ci id="S2.SS3.p2.4.m4.1.1.3.5.cmml" xref="S2.SS3.p2.4.m4.1.1.3.5">𝑎</ci><ci id="S2.SS3.p2.4.m4.1.1.3.6.cmml" xref="S2.SS3.p2.4.m4.1.1.3.6">𝑙</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.4.m4.1c">\mathbf{Z}_{local}</annotation></semantics></math> are fused linearly to obtain fused features <math id="S2.SS3.p2.5.m5.1" class="ltx_Math" alttext="\mathbf{Z}_{fused}" display="inline"><semantics id="S2.SS3.p2.5.m5.1a"><msub id="S2.SS3.p2.5.m5.1.1" xref="S2.SS3.p2.5.m5.1.1.cmml"><mi id="S2.SS3.p2.5.m5.1.1.2" xref="S2.SS3.p2.5.m5.1.1.2.cmml">𝐙</mi><mrow id="S2.SS3.p2.5.m5.1.1.3" xref="S2.SS3.p2.5.m5.1.1.3.cmml"><mi id="S2.SS3.p2.5.m5.1.1.3.2" xref="S2.SS3.p2.5.m5.1.1.3.2.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.5.m5.1.1.3.1" xref="S2.SS3.p2.5.m5.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.5.m5.1.1.3.3" xref="S2.SS3.p2.5.m5.1.1.3.3.cmml">u</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.5.m5.1.1.3.1a" xref="S2.SS3.p2.5.m5.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.5.m5.1.1.3.4" xref="S2.SS3.p2.5.m5.1.1.3.4.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.5.m5.1.1.3.1b" xref="S2.SS3.p2.5.m5.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.5.m5.1.1.3.5" xref="S2.SS3.p2.5.m5.1.1.3.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.5.m5.1.1.3.1c" xref="S2.SS3.p2.5.m5.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p2.5.m5.1.1.3.6" xref="S2.SS3.p2.5.m5.1.1.3.6.cmml">d</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.5.m5.1b"><apply id="S2.SS3.p2.5.m5.1.1.cmml" xref="S2.SS3.p2.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.5.m5.1.1.1.cmml" xref="S2.SS3.p2.5.m5.1.1">subscript</csymbol><ci id="S2.SS3.p2.5.m5.1.1.2.cmml" xref="S2.SS3.p2.5.m5.1.1.2">𝐙</ci><apply id="S2.SS3.p2.5.m5.1.1.3.cmml" xref="S2.SS3.p2.5.m5.1.1.3"><times id="S2.SS3.p2.5.m5.1.1.3.1.cmml" xref="S2.SS3.p2.5.m5.1.1.3.1"></times><ci id="S2.SS3.p2.5.m5.1.1.3.2.cmml" xref="S2.SS3.p2.5.m5.1.1.3.2">𝑓</ci><ci id="S2.SS3.p2.5.m5.1.1.3.3.cmml" xref="S2.SS3.p2.5.m5.1.1.3.3">𝑢</ci><ci id="S2.SS3.p2.5.m5.1.1.3.4.cmml" xref="S2.SS3.p2.5.m5.1.1.3.4">𝑠</ci><ci id="S2.SS3.p2.5.m5.1.1.3.5.cmml" xref="S2.SS3.p2.5.m5.1.1.3.5">𝑒</ci><ci id="S2.SS3.p2.5.m5.1.1.3.6.cmml" xref="S2.SS3.p2.5.m5.1.1.3.6">𝑑</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.5.m5.1c">\mathbf{Z}_{fused}</annotation></semantics></math>:</p>
+<table id="S2.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E2.m1.1" class="ltx_Math" alttext="\mathbf{Z}_{fused}=\lambda\mathbf{Z}_{local}+(1-\lambda)\mathbf{Z}_{global}" display="block"><semantics id="S2.E2.m1.1a"><mrow id="S2.E2.m1.1.1" xref="S2.E2.m1.1.1.cmml"><msub id="S2.E2.m1.1.1.3" xref="S2.E2.m1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.3.2" xref="S2.E2.m1.1.1.3.2.cmml">𝐙</mi><mrow id="S2.E2.m1.1.1.3.3" xref="S2.E2.m1.1.1.3.3.cmml"><mi id="S2.E2.m1.1.1.3.3.2" xref="S2.E2.m1.1.1.3.3.2.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.3.3.1" xref="S2.E2.m1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.3.3.3" xref="S2.E2.m1.1.1.3.3.3.cmml">u</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.3.3.1a" xref="S2.E2.m1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.3.3.4" xref="S2.E2.m1.1.1.3.3.4.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.3.3.1b" xref="S2.E2.m1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.3.3.5" xref="S2.E2.m1.1.1.3.3.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.3.3.1c" xref="S2.E2.m1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.3.3.6" xref="S2.E2.m1.1.1.3.3.6.cmml">d</mi></mrow></msub><mo id="S2.E2.m1.1.1.2" xref="S2.E2.m1.1.1.2.cmml">=</mo><mrow id="S2.E2.m1.1.1.1" xref="S2.E2.m1.1.1.1.cmml"><mrow id="S2.E2.m1.1.1.1.3" xref="S2.E2.m1.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.3.2.cmml">λ</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.3.1" xref="S2.E2.m1.1.1.1.3.1.cmml">​</mo><msub id="S2.E2.m1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.3.3.cmml"><mi id="S2.E2.m1.1.1.1.3.3.2" xref="S2.E2.m1.1.1.1.3.3.2.cmml">𝐙</mi><mrow id="S2.E2.m1.1.1.1.3.3.3" xref="S2.E2.m1.1.1.1.3.3.3.cmml"><mi id="S2.E2.m1.1.1.1.3.3.3.2" xref="S2.E2.m1.1.1.1.3.3.3.2.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.3.3.3.1" xref="S2.E2.m1.1.1.1.3.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.3.3.3.3" xref="S2.E2.m1.1.1.1.3.3.3.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.3.3.3.1a" xref="S2.E2.m1.1.1.1.3.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.3.3.3.4" xref="S2.E2.m1.1.1.1.3.3.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.3.3.3.1b" xref="S2.E2.m1.1.1.1.3.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.3.3.3.5" xref="S2.E2.m1.1.1.1.3.3.3.5.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.3.3.3.1c" xref="S2.E2.m1.1.1.1.3.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.3.3.3.6" xref="S2.E2.m1.1.1.1.3.3.3.6.cmml">l</mi></mrow></msub></mrow><mo id="S2.E2.m1.1.1.1.2" xref="S2.E2.m1.1.1.1.2.cmml">+</mo><mrow id="S2.E2.m1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.cmml"><mrow id="S2.E2.m1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E2.m1.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.cmml"><mn id="S2.E2.m1.1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.1.2.cmml">1</mn><mo id="S2.E2.m1.1.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.cmml">−</mo><mi id="S2.E2.m1.1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.1.3.cmml">λ</mi></mrow><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.1.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.cmml">​</mo><msub id="S2.E2.m1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.3.2.cmml">𝐙</mi><mrow id="S2.E2.m1.1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.3.3.cmml"><mi id="S2.E2.m1.1.1.1.1.3.3.2" xref="S2.E2.m1.1.1.1.1.3.3.2.cmml">g</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.3.3.1" xref="S2.E2.m1.1.1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.1.3.3.3" xref="S2.E2.m1.1.1.1.1.3.3.3.cmml">l</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.3.3.1a" xref="S2.E2.m1.1.1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.1.3.3.4" xref="S2.E2.m1.1.1.1.1.3.3.4.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.3.3.1b" xref="S2.E2.m1.1.1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.1.3.3.5" xref="S2.E2.m1.1.1.1.1.3.3.5.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.3.3.1c" xref="S2.E2.m1.1.1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.1.3.3.6" xref="S2.E2.m1.1.1.1.1.3.3.6.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.3.3.1d" xref="S2.E2.m1.1.1.1.1.3.3.1.cmml">​</mo><mi id="S2.E2.m1.1.1.1.1.3.3.7" xref="S2.E2.m1.1.1.1.1.3.3.7.cmml">l</mi></mrow></msub></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><apply id="S2.E2.m1.1.1.cmml" xref="S2.E2.m1.1.1"><eq id="S2.E2.m1.1.1.2.cmml" xref="S2.E2.m1.1.1.2"></eq><apply id="S2.E2.m1.1.1.3.cmml" xref="S2.E2.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.3.2">𝐙</ci><apply id="S2.E2.m1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.3.3"><times id="S2.E2.m1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.3.3.1"></times><ci id="S2.E2.m1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.3.3.2">𝑓</ci><ci id="S2.E2.m1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.3.3.3">𝑢</ci><ci id="S2.E2.m1.1.1.3.3.4.cmml" xref="S2.E2.m1.1.1.3.3.4">𝑠</ci><ci id="S2.E2.m1.1.1.3.3.5.cmml" xref="S2.E2.m1.1.1.3.3.5">𝑒</ci><ci id="S2.E2.m1.1.1.3.3.6.cmml" xref="S2.E2.m1.1.1.3.3.6">𝑑</ci></apply></apply><apply id="S2.E2.m1.1.1.1.cmml" xref="S2.E2.m1.1.1.1"><plus id="S2.E2.m1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.2"></plus><apply id="S2.E2.m1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.3"><times id="S2.E2.m1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.3.1"></times><ci id="S2.E2.m1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.3.2">𝜆</ci><apply id="S2.E2.m1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.3.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.1.3.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.1.3.3.2">𝐙</ci><apply id="S2.E2.m1.1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.1.3.3.3"><times id="S2.E2.m1.1.1.1.3.3.3.1.cmml" xref="S2.E2.m1.1.1.1.3.3.3.1"></times><ci id="S2.E2.m1.1.1.1.3.3.3.2.cmml" xref="S2.E2.m1.1.1.1.3.3.3.2">𝑙</ci><ci id="S2.E2.m1.1.1.1.3.3.3.3.cmml" xref="S2.E2.m1.1.1.1.3.3.3.3">𝑜</ci><ci id="S2.E2.m1.1.1.1.3.3.3.4.cmml" xref="S2.E2.m1.1.1.1.3.3.3.4">𝑐</ci><ci id="S2.E2.m1.1.1.1.3.3.3.5.cmml" xref="S2.E2.m1.1.1.1.3.3.3.5">𝑎</ci><ci id="S2.E2.m1.1.1.1.3.3.3.6.cmml" xref="S2.E2.m1.1.1.1.3.3.3.6">𝑙</ci></apply></apply></apply><apply id="S2.E2.m1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1"><times id="S2.E2.m1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.2"></times><apply id="S2.E2.m1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1"><minus id="S2.E2.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1"></minus><cn type="integer" id="S2.E2.m1.1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.2">1</cn><ci id="S2.E2.m1.1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.3">𝜆</ci></apply><apply id="S2.E2.m1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.3.2">𝐙</ci><apply id="S2.E2.m1.1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.3.3"><times id="S2.E2.m1.1.1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.1.1.3.3.1"></times><ci id="S2.E2.m1.1.1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.1.1.3.3.2">𝑔</ci><ci id="S2.E2.m1.1.1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.1.1.3.3.3">𝑙</ci><ci id="S2.E2.m1.1.1.1.1.3.3.4.cmml" xref="S2.E2.m1.1.1.1.1.3.3.4">𝑜</ci><ci id="S2.E2.m1.1.1.1.1.3.3.5.cmml" xref="S2.E2.m1.1.1.1.1.3.3.5">𝑏</ci><ci id="S2.E2.m1.1.1.1.1.3.3.6.cmml" xref="S2.E2.m1.1.1.1.1.3.3.6">𝑎</ci><ci id="S2.E2.m1.1.1.1.1.3.3.7.cmml" xref="S2.E2.m1.1.1.1.1.3.3.7">𝑙</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\mathbf{Z}_{fused}=\lambda\mathbf{Z}_{local}+(1-\lambda)\mathbf{Z}_{global}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS3.p2.6" class="ltx_p">In our model, <math id="S2.SS3.p2.6.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S2.SS3.p2.6.m1.1a"><mi id="S2.SS3.p2.6.m1.1.1" xref="S2.SS3.p2.6.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.6.m1.1b"><ci id="S2.SS3.p2.6.m1.1.1.cmml" xref="S2.SS3.p2.6.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.6.m1.1c">\lambda</annotation></semantics></math> is set to 0.5 so fused features combine both local and global characteristics. It thus works well for sound events of varying duration.
+Since the overlap between chunks increases the memory consumption significantly , the feature fusion strategy is only used in the teacher model of the mean-teacher algorithm, which does not require back-propagation.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Setup</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Dataset</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">The self-supervised pre-training and fine-tuning are both conducted on the DCASE2023 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> dataset, which is designed to detect sound event classes in domestic environments.
+The training set consists of 10-second audio clips, including 1578 weakly-labeled clips, 3470 strongly-labeled clips, 10000 synthetic-strongly labeled clips, and 14412 unlabeled in-domain clips. The model is evaluated on the DCASE2023 challenge task 4 validation set, consisting of 1168 strongly-labeled clips.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Feature extraction and evaluation setting</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">The input audio is sampled at 32kHz. For feature extraction, we use a Hamming window of 25ms with a stride of 10ms to perform short-time Fourier transform(STFT). The spectrum obtained by the STFT is further transformed into a mel-spectrogram with 128 mel filters. Mixup <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite>, time shift and filterAugment <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite> are used for data augmentation.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">The polyphonic sound detection score (PSDS) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> is used as the evaluation metric.
+Following the setting of DCASE2023 competition, we use two different metric settings, PSDS1 and PSDS2, for two different scenarios.
+The former focuses more on event localization, while the latter aims to avoid confusing between classes but for which localization is less crucial.
+Since PSDS1 can better reflect the model's localization performance, we use PSDS1 as the main evaluation metric in our experiments.
+In the testing phase, median filter and maximum filter are applied to the two PSDS scenarios respectively for post-processing <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Model and training setting</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">For the sliding windows in the global-local feature fusion strategy, the window size and step are set to 5s and 0.3s. The context network contains 3 Transformer blocks with input dimension 768 , 12 attention heads, and expansion ratio 1.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.5" class="ltx_p">During the pre-training phase, the model is trained over 6000 steps with a batch size of 24 and a learning rate of <math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mrow id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml"><mn id="S3.SS3.p2.1.m1.1.1.2" xref="S3.SS3.p2.1.m1.1.1.2.cmml">1</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.1.m1.1.1.1" xref="S3.SS3.p2.1.m1.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.1.m1.1.1.3" xref="S3.SS3.p2.1.m1.1.1.3.cmml"><mn id="S3.SS3.p2.1.m1.1.1.3.2" xref="S3.SS3.p2.1.m1.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.1.m1.1.1.3.3" xref="S3.SS3.p2.1.m1.1.1.3.3.cmml"><mo id="S3.SS3.p2.1.m1.1.1.3.3a" xref="S3.SS3.p2.1.m1.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.1.m1.1.1.3.3.2" xref="S3.SS3.p2.1.m1.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><apply id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1"><times id="S3.SS3.p2.1.m1.1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1.1"></times><cn type="integer" id="S3.SS3.p2.1.m1.1.1.2.cmml" xref="S3.SS3.p2.1.m1.1.1.2">1</cn><apply id="S3.SS3.p2.1.m1.1.1.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.1.m1.1.1.3.1.cmml" xref="S3.SS3.p2.1.m1.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.1.m1.1.1.3.2.cmml" xref="S3.SS3.p2.1.m1.1.1.3.2">10</cn><apply id="S3.SS3.p2.1.m1.1.1.3.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3.3"><minus id="S3.SS3.p2.1.m1.1.1.3.3.1.cmml" xref="S3.SS3.p2.1.m1.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.1.m1.1.1.3.3.2.cmml" xref="S3.SS3.p2.1.m1.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">1\times 10^{-4}</annotation></semantics></math>.
+For the masked-reconstruction task, the masking rate is set to 75%. During the fine-tuning stage, batch sizes for real strongly labeled, synthetic strongly labeled, real weakly labeled, and real unlabeled data are set to 3, 1, 4, 4, respectively.
+Following the strategy in  <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite>, only the SED head and AT head are trained for the first 6000 steps of fine-tuning, then the end-to-end fine-tuning is performed over the next 12000 steps.
+Learning rates for the encoder network, decoder network, and head layers are set to <math id="S3.SS3.p2.2.m2.1" class="ltx_Math" alttext="5\times 10^{-6}" display="inline"><semantics id="S3.SS3.p2.2.m2.1a"><mrow id="S3.SS3.p2.2.m2.1.1" xref="S3.SS3.p2.2.m2.1.1.cmml"><mn id="S3.SS3.p2.2.m2.1.1.2" xref="S3.SS3.p2.2.m2.1.1.2.cmml">5</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.2.m2.1.1.1" xref="S3.SS3.p2.2.m2.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.2.m2.1.1.3" xref="S3.SS3.p2.2.m2.1.1.3.cmml"><mn id="S3.SS3.p2.2.m2.1.1.3.2" xref="S3.SS3.p2.2.m2.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.2.m2.1.1.3.3" xref="S3.SS3.p2.2.m2.1.1.3.3.cmml"><mo id="S3.SS3.p2.2.m2.1.1.3.3a" xref="S3.SS3.p2.2.m2.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.2.m2.1.1.3.3.2" xref="S3.SS3.p2.2.m2.1.1.3.3.2.cmml">6</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.2.m2.1b"><apply id="S3.SS3.p2.2.m2.1.1.cmml" xref="S3.SS3.p2.2.m2.1.1"><times id="S3.SS3.p2.2.m2.1.1.1.cmml" xref="S3.SS3.p2.2.m2.1.1.1"></times><cn type="integer" id="S3.SS3.p2.2.m2.1.1.2.cmml" xref="S3.SS3.p2.2.m2.1.1.2">5</cn><apply id="S3.SS3.p2.2.m2.1.1.3.cmml" xref="S3.SS3.p2.2.m2.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.2.m2.1.1.3.1.cmml" xref="S3.SS3.p2.2.m2.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.2.m2.1.1.3.2.cmml" xref="S3.SS3.p2.2.m2.1.1.3.2">10</cn><apply id="S3.SS3.p2.2.m2.1.1.3.3.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3"><minus id="S3.SS3.p2.2.m2.1.1.3.3.1.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.2.m2.1.1.3.3.2.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3.2">6</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.2.m2.1c">5\times 10^{-6}</annotation></semantics></math>, <math id="S3.SS3.p2.3.m3.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S3.SS3.p2.3.m3.1a"><mrow id="S3.SS3.p2.3.m3.1.1" xref="S3.SS3.p2.3.m3.1.1.cmml"><mn id="S3.SS3.p2.3.m3.1.1.2" xref="S3.SS3.p2.3.m3.1.1.2.cmml">1</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.3.m3.1.1.1" xref="S3.SS3.p2.3.m3.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.3.m3.1.1.3" xref="S3.SS3.p2.3.m3.1.1.3.cmml"><mn id="S3.SS3.p2.3.m3.1.1.3.2" xref="S3.SS3.p2.3.m3.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.3.m3.1.1.3.3" xref="S3.SS3.p2.3.m3.1.1.3.3.cmml"><mo id="S3.SS3.p2.3.m3.1.1.3.3a" xref="S3.SS3.p2.3.m3.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.3.m3.1.1.3.3.2" xref="S3.SS3.p2.3.m3.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.3.m3.1b"><apply id="S3.SS3.p2.3.m3.1.1.cmml" xref="S3.SS3.p2.3.m3.1.1"><times id="S3.SS3.p2.3.m3.1.1.1.cmml" xref="S3.SS3.p2.3.m3.1.1.1"></times><cn type="integer" id="S3.SS3.p2.3.m3.1.1.2.cmml" xref="S3.SS3.p2.3.m3.1.1.2">1</cn><apply id="S3.SS3.p2.3.m3.1.1.3.cmml" xref="S3.SS3.p2.3.m3.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.3.m3.1.1.3.1.cmml" xref="S3.SS3.p2.3.m3.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.3.m3.1.1.3.2.cmml" xref="S3.SS3.p2.3.m3.1.1.3.2">10</cn><apply id="S3.SS3.p2.3.m3.1.1.3.3.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3"><minus id="S3.SS3.p2.3.m3.1.1.3.3.1.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.3.m3.1.1.3.3.2.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.3.m3.1c">1\times 10^{-4}</annotation></semantics></math>, and <math id="S3.SS3.p2.4.m4.1" class="ltx_Math" alttext="2\times 10^{-4}" display="inline"><semantics id="S3.SS3.p2.4.m4.1a"><mrow id="S3.SS3.p2.4.m4.1.1" xref="S3.SS3.p2.4.m4.1.1.cmml"><mn id="S3.SS3.p2.4.m4.1.1.2" xref="S3.SS3.p2.4.m4.1.1.2.cmml">2</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.4.m4.1.1.1" xref="S3.SS3.p2.4.m4.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.4.m4.1.1.3" xref="S3.SS3.p2.4.m4.1.1.3.cmml"><mn id="S3.SS3.p2.4.m4.1.1.3.2" xref="S3.SS3.p2.4.m4.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.4.m4.1.1.3.3" xref="S3.SS3.p2.4.m4.1.1.3.3.cmml"><mo id="S3.SS3.p2.4.m4.1.1.3.3a" xref="S3.SS3.p2.4.m4.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.4.m4.1.1.3.3.2" xref="S3.SS3.p2.4.m4.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.4.m4.1b"><apply id="S3.SS3.p2.4.m4.1.1.cmml" xref="S3.SS3.p2.4.m4.1.1"><times id="S3.SS3.p2.4.m4.1.1.1.cmml" xref="S3.SS3.p2.4.m4.1.1.1"></times><cn type="integer" id="S3.SS3.p2.4.m4.1.1.2.cmml" xref="S3.SS3.p2.4.m4.1.1.2">2</cn><apply id="S3.SS3.p2.4.m4.1.1.3.cmml" xref="S3.SS3.p2.4.m4.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.4.m4.1.1.3.1.cmml" xref="S3.SS3.p2.4.m4.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.4.m4.1.1.3.2.cmml" xref="S3.SS3.p2.4.m4.1.1.3.2">10</cn><apply id="S3.SS3.p2.4.m4.1.1.3.3.cmml" xref="S3.SS3.p2.4.m4.1.1.3.3"><minus id="S3.SS3.p2.4.m4.1.1.3.3.1.cmml" xref="S3.SS3.p2.4.m4.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.4.m4.1.1.3.3.2.cmml" xref="S3.SS3.p2.4.m4.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.4.m4.1c">2\times 10^{-4}</annotation></semantics></math>, respectively.
+The AdamW <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite> optimizer is used for optimization with a weight decay of <math id="S3.SS3.p2.5.m5.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S3.SS3.p2.5.m5.1a"><mrow id="S3.SS3.p2.5.m5.1.1" xref="S3.SS3.p2.5.m5.1.1.cmml"><mn id="S3.SS3.p2.5.m5.1.1.2" xref="S3.SS3.p2.5.m5.1.1.2.cmml">1</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.5.m5.1.1.1" xref="S3.SS3.p2.5.m5.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.5.m5.1.1.3" xref="S3.SS3.p2.5.m5.1.1.3.cmml"><mn id="S3.SS3.p2.5.m5.1.1.3.2" xref="S3.SS3.p2.5.m5.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.5.m5.1.1.3.3" xref="S3.SS3.p2.5.m5.1.1.3.3.cmml"><mo id="S3.SS3.p2.5.m5.1.1.3.3a" xref="S3.SS3.p2.5.m5.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.5.m5.1.1.3.3.2" xref="S3.SS3.p2.5.m5.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.5.m5.1b"><apply id="S3.SS3.p2.5.m5.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1"><times id="S3.SS3.p2.5.m5.1.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1.1"></times><cn type="integer" id="S3.SS3.p2.5.m5.1.1.2.cmml" xref="S3.SS3.p2.5.m5.1.1.2">1</cn><apply id="S3.SS3.p2.5.m5.1.1.3.cmml" xref="S3.SS3.p2.5.m5.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.5.m5.1.1.3.1.cmml" xref="S3.SS3.p2.5.m5.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.5.m5.1.1.3.2.cmml" xref="S3.SS3.p2.5.m5.1.1.3.2">10</cn><apply id="S3.SS3.p2.5.m5.1.1.3.3.cmml" xref="S3.SS3.p2.5.m5.1.1.3.3"><minus id="S3.SS3.p2.5.m5.1.1.3.3.1.cmml" xref="S3.SS3.p2.5.m5.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.5.m5.1.1.3.3.2.cmml" xref="S3.SS3.p2.5.m5.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.5.m5.1c">1\times 10^{-4}</annotation></semantics></math>. Training is conducted on 2 Intel-3090 GPUs for 13 hours in total.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Results</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In this section, we first compare the performance of MAT-SED against other state-of-the-art SED models.
+Then, we conduct ablation experiments to analyze the contributions of each MAT-SED component.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Performance of the proposed methods</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">Table <a href="#S2.T1" title="Table 1 ‣ 2.2 Masked-reconstruction based pre-training ‣ 2 Methodology ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> compares the performance of MAT-SED with other SED systems on the DCASE2023 dataset, where CRNN-BEATs is the baseline model of DCASE2023 task4.
+Our model achieves 0.587 PSDS1 and 0.896 PSDS2, outperforming previous SOTA models. It is noteworthy that MAT-SED stands out as the only model composed of pure Transformers in the table, whereas other models rely on CNN or RNN structures.
+This shows that the pure Transformer structure can perform well on SED tasks, given appropriate pre-training.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Ablation studies</h3>
+
+<section id="S4.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.2.1 </span>Ablations of the context network</h4>
+
+<div id="S4.SS2.SSS1.p1" class="ltx_para">
+<p id="S4.SS2.SSS1.p1.1" class="ltx_p">First, we explore the impact of different context network structures, as shown in Table <a href="#S4.T2" title="Table 2 ‣ 4.2.1 Ablations of the context network ‣ 4.2 Ablation studies ‣ 4 Results ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. Masked-reconstruction pre-training is employed in each set of experiments, and the hyperparameters of different structures are adjusted to the best. We use learnable APE in place of RPE to measure the effect of RPE. It can be seen from the table that the PSDS1 score of using RPE is significantly higher than APE, which indicates that the necessity of RPE for the SED task. Then we test the performance of Conformer  <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> for the context network. It can be seen from the table that Conformer achieves a PSDS1 of 0.544, trailing behind the Transformer using RPE, even though RPE is also utilized by Conformer. We suppose that the possible reason is that the convolution module in Conformer increases the parameter size, which makes it too bulky for the context network. Lastly, we substitute Transformers with GRU to compare the performance of RNNs and Transformers as the context network. The GRU achieves the PSDS1 of 0.557, lower than the Transformer using RPE, indicating that the Transformer with RPE serves as a more powerful context network structure than RNNs.</p>
+</div>
+<figure id="S4.F3" class="ltx_figure"><img src="/html/2408.08673/assets/x3.png" id="S4.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="272" height="163" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Convergence curves of training MAT-SED from scratch and end-to-end fine-tuning after masked-reconstruction pre-training.</figcaption>
+</figure>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption" style="font-size:80%;"><span class="ltx_tag ltx_tag_table">Table 2: </span>Ablation study on the context network. "RPE" and "APE" denote relative positional encoding and absolute positional encoding respectively.</figcaption>
+<table id="S4.T2.3" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T2.3.1" class="ltx_tr">
+<td id="S4.T2.3.1.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.1.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:0.8pt;background:black;display:inline-block;"> </span></span>
+</span><span id="S4.T2.3.1.1.2" class="ltx_text" style="font-size:80%;">
+</span><span id="S4.T2.3.1.1.3" class="ltx_text ltx_font_bold" style="font-size:80%;">Context Network</span>
+</td>
+<td id="S4.T2.3.1.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.1.2.1.1" class="ltx_p"><span id="S4.T2.3.1.2.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">RPE</span></span>
+</span>
+</td>
+<td id="S4.T2.3.1.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.1.3.1.1" class="ltx_p"><span id="S4.T2.3.1.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">PSDS1</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.3.2" class="ltx_tr">
+<td id="S4.T2.3.2.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.2.1.1.1" class="ltx_p"><span id="S4.T2.3.2.1.1.1.1" class="ltx_text" style="font-size:80%;">Transformer with RPE</span></span>
+</span>
+</td>
+<td id="S4.T2.3.2.2" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.2.2.1.1" class="ltx_p"><span id="S4.T2.3.2.2.1.1.1" class="ltx_text" style="font-size:80%;">✓</span></span>
+</span>
+</td>
+<td id="S4.T2.3.2.3" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.2.3.1.1" class="ltx_p"><span id="S4.T2.3.2.3.1.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.587</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.3.3" class="ltx_tr">
+<td id="S4.T2.3.3.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.3.1.1.1" class="ltx_p"><span id="S4.T2.3.3.1.1.1.1" class="ltx_text" style="font-size:80%;">Transformer with APE</span></span>
+</span>
+</td>
+<td id="S4.T2.3.3.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.3.2.1.1" class="ltx_p"><span id="S4.T2.3.3.2.1.1.1" class="ltx_text" style="font-size:80%;">✗</span></span>
+</span>
+</td>
+<td id="S4.T2.3.3.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.3.3.1.1" class="ltx_p"><span id="S4.T2.3.3.3.1.1.1" class="ltx_text" style="font-size:80%;">0.540</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.3.4" class="ltx_tr">
+<td id="S4.T2.3.4.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.4.1.1.1" class="ltx_p"><span id="S4.T2.3.4.1.1.1.1" class="ltx_text" style="font-size:80%;">Conformer</span></span>
+</span>
+</td>
+<td id="S4.T2.3.4.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.4.2.1.1" class="ltx_p"><span id="S4.T2.3.4.2.1.1.1" class="ltx_text" style="font-size:80%;">✓</span></span>
+</span>
+</td>
+<td id="S4.T2.3.4.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.4.3.1.1" class="ltx_p"><span id="S4.T2.3.4.3.1.1.1" class="ltx_text" style="font-size:80%;">0.544</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.3.5" class="ltx_tr">
+<td id="S4.T2.3.5.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.5.1.1.1" class="ltx_p"><span id="S4.T2.3.5.1.1.1.1" class="ltx_text" style="font-size:80%;">GRU</span></span>
+</span>
+</td>
+<td id="S4.T2.3.5.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.5.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.5.2.1.1" class="ltx_p"><span id="S4.T2.3.5.2.1.1.1" class="ltx_text" style="font-size:80%;">✗</span></span>
+</span>
+</td>
+<td id="S4.T2.3.5.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.5.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.5.3.1.1" class="ltx_p"><span id="S4.T2.3.5.3.1.1.1" class="ltx_text" style="font-size:80%;">0.557</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.3.6" class="ltx_tr">
+<td id="S4.T2.3.6.1" class="ltx_td ltx_align_justify ltx_align_middle" style="width:85.4pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T2.3.6.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.3.6.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:0.8pt;background:black;display:inline-block;"> </span></span>
+</span>
+</td>
+<td id="S4.T2.3.6.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;"></td>
+<td id="S4.T2.3.6.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:22.8pt;padding-top:0.8pt;padding-bottom:0.8pt;"></td>
+</tr>
+</table>
+</figure>
+</section>
+<section id="S4.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.2.2 </span>Ablations of masked-reconstruction based pre-training</h4>
+
+<div id="S4.SS2.SSS2.p1" class="ltx_para">
+<p id="S4.SS2.SSS2.p1.1" class="ltx_p">In this section, we analyze the effect of the masked-reconstruction pre-training. Figure <a href="#S4.F3" title="Figure 3 ‣ 4.2.1 Ablations of the context network ‣ 4.2 Ablation studies ‣ 4 Results ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> compares the convergence curves of training MAT-SED from scratch and end-to-end fine-tuning after masked-reconstruction pre-training. For the pre-trained model, the SED layer and AT layer are trained before the end-to-end fine-tuning to adjust to the features from pre-trained context network. The pre-trained network achieves a PSDS1 of 0.502 at the beginning of end-to-end fine-tuning, even higher than the DCASE2023 baseline model, indicating that the representation learned by the context network in the masked-reconstruction pre-training is well-suited for the SED task. During the subsequent end-to-end fine-tuning process, the optimal PSDS1 score for the network without pre-training is 0.563, noticeably lower than the pre-training network. On the other hand, severe overfitting occurs in the network without pre-training , which is not apparent in the pre-trained network. The results shows the efficacy of masked-reconstruction pre-training in enhancing Transformer-based context network's ability to model temporal dependencies, thus benefiting the localization of sound events.</p>
+</div>
+<div id="S4.SS2.SSS2.p2" class="ltx_para">
+<p id="S4.SS2.SSS2.p2.1" class="ltx_p">Figure <a href="#S4.F4" title="Figure 4 ‣ 4.2.2 Ablations of masked-reconstruction based pre-training ‣ 4.2 Ablation studies ‣ 4 Results ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> further compares the effect of masking ratio in the masked-reconstruction pre-training. It can be seen from the figure that the optimal masking ratio is 75%, relatively higher compared to Bert (15%) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>. A high masking ratio helps the model to learn abstract semantic features, rather than restoring the masked frames by simply interpolation. Similar conclusions have also been found in other self-supervised learning works based on masking <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>, <a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>.</p>
+</div>
+<figure id="S4.F4" class="ltx_figure"><img src="/html/2408.08673/assets/x4.png" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="313" height="156" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Impact of different masking ratio inimage the masked-reconstruction pre-training stage.</figcaption>
+</figure>
+<figure id="S4.T3" class="ltx_table">
+<figcaption class="ltx_caption" style="font-size:80%;"><span class="ltx_tag ltx_tag_table">Table 3: </span>Ablation study on the hyperparameters <math id="S4.T3.2.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S4.T3.2.m1.1b"><mi id="S4.T3.2.m1.1.1" xref="S4.T3.2.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S4.T3.2.m1.1c"><ci id="S4.T3.2.m1.1.1.cmml" xref="S4.T3.2.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.2.m1.1d">\lambda</annotation></semantics></math> in 
+<br class="ltx_break">the global-local feature fusion strategy.</figcaption>
+<table id="S4.T3.3" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T3.3.1" class="ltx_tr">
+<td id="S4.T3.3.1.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_r" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.1.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:1.0pt;background:black;display:inline-block;"> </span></span>
+</span><span id="S4.T3.3.1.1.2" class="ltx_text" style="font-size:80%;">
+</span><math id="S4.T3.3.1.1.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S4.T3.3.1.1.m1.1a"><mi mathsize="80%" id="S4.T3.3.1.1.m1.1.1" xref="S4.T3.3.1.1.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S4.T3.3.1.1.m1.1b"><ci id="S4.T3.3.1.1.m1.1.1.cmml" xref="S4.T3.3.1.1.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.3.1.1.m1.1c">\lambda</annotation></semantics></math>
+</td>
+<td id="S4.T3.3.1.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.1.2.1.1" class="ltx_p"><span id="S4.T3.3.1.2.1.1.1" class="ltx_text" style="font-size:80%;">0</span></span>
+</span>
+</td>
+<td id="S4.T3.3.1.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.1.3.1.1" class="ltx_p"><span id="S4.T3.3.1.3.1.1.1" class="ltx_text" style="font-size:80%;">0.5</span></span>
+</span>
+</td>
+<td id="S4.T3.3.1.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.1.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.1.4.1.1" class="ltx_p"><span id="S4.T3.3.1.4.1.1.1" class="ltx_text" style="font-size:80%;">1</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T3.3.2" class="ltx_tr">
+<td id="S4.T3.3.2.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_r ltx_border_t" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.2.1.1.1" class="ltx_p"><span id="S4.T3.3.2.1.1.1.1" class="ltx_text" style="font-size:80%;">PSDS1</span></span>
+</span>
+</td>
+<td id="S4.T3.3.2.2" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.2.2.1.1" class="ltx_p"><span id="S4.T3.3.2.2.1.1.1" class="ltx_text" style="font-size:80%;">0.565</span></span>
+</span>
+</td>
+<td id="S4.T3.3.2.3" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.2.3.1.1" class="ltx_p"><span id="S4.T3.3.2.3.1.1.1" class="ltx_text" style="font-size:80%;">0.587</span></span>
+</span>
+</td>
+<td id="S4.T3.3.2.4" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_t" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.2.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.2.4.1.1" class="ltx_p"><span id="S4.T3.3.2.4.1.1.1" class="ltx_text" style="font-size:80%;">0.579</span></span>
+</span>
+</td>
+</tr>
+<tr id="S4.T3.3.3" class="ltx_tr">
+<td id="S4.T3.3.3.1" class="ltx_td ltx_align_justify ltx_align_middle ltx_border_r" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;">
+<span id="S4.T3.3.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T3.3.3.1.1.1" class="ltx_p"><span class="ltx_rule" style="width:100%;height:0.8pt;background:black;display:inline-block;"> </span></span>
+</span>
+</td>
+<td id="S4.T3.3.3.2" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;"></td>
+<td id="S4.T3.3.3.3" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;"></td>
+<td id="S4.T3.3.3.4" class="ltx_td ltx_align_justify ltx_align_middle" style="width:28.5pt;padding-top:0.8pt;padding-bottom:0.8pt;"></td>
+</tr>
+</table>
+</figure>
+</section>
+<section id="S4.SS2.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.2.3 </span>Ablations of the global-local feature fusion strategy</h4>
+
+<div id="S4.SS2.SSS3.p1" class="ltx_para">
+<p id="S4.SS2.SSS3.p1.6" class="ltx_p">In this section, we analyze the effect of the global-local feature fusion strategy in the fine-tuning stage.
+In the feature fusion strategy, the hyperparameter <math id="S4.SS2.SSS3.p1.1.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S4.SS2.SSS3.p1.1.m1.1a"><mi id="S4.SS2.SSS3.p1.1.m1.1.1" xref="S4.SS2.SSS3.p1.1.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.1.m1.1b"><ci id="S4.SS2.SSS3.p1.1.m1.1.1.cmml" xref="S4.SS2.SSS3.p1.1.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.1.m1.1c">\lambda</annotation></semantics></math> controls the proportion of the global and local branches in the fused features. When <math id="S4.SS2.SSS3.p1.2.m2.1" class="ltx_Math" alttext="\lambda=1" display="inline"><semantics id="S4.SS2.SSS3.p1.2.m2.1a"><mrow id="S4.SS2.SSS3.p1.2.m2.1.1" xref="S4.SS2.SSS3.p1.2.m2.1.1.cmml"><mi id="S4.SS2.SSS3.p1.2.m2.1.1.2" xref="S4.SS2.SSS3.p1.2.m2.1.1.2.cmml">λ</mi><mo id="S4.SS2.SSS3.p1.2.m2.1.1.1" xref="S4.SS2.SSS3.p1.2.m2.1.1.1.cmml">=</mo><mn id="S4.SS2.SSS3.p1.2.m2.1.1.3" xref="S4.SS2.SSS3.p1.2.m2.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.2.m2.1b"><apply id="S4.SS2.SSS3.p1.2.m2.1.1.cmml" xref="S4.SS2.SSS3.p1.2.m2.1.1"><eq id="S4.SS2.SSS3.p1.2.m2.1.1.1.cmml" xref="S4.SS2.SSS3.p1.2.m2.1.1.1"></eq><ci id="S4.SS2.SSS3.p1.2.m2.1.1.2.cmml" xref="S4.SS2.SSS3.p1.2.m2.1.1.2">𝜆</ci><cn type="integer" id="S4.SS2.SSS3.p1.2.m2.1.1.3.cmml" xref="S4.SS2.SSS3.p1.2.m2.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.2.m2.1c">\lambda=1</annotation></semantics></math>, only local features are retained; when <math id="S4.SS2.SSS3.p1.3.m3.1" class="ltx_Math" alttext="\lambda=0" display="inline"><semantics id="S4.SS2.SSS3.p1.3.m3.1a"><mrow id="S4.SS2.SSS3.p1.3.m3.1.1" xref="S4.SS2.SSS3.p1.3.m3.1.1.cmml"><mi id="S4.SS2.SSS3.p1.3.m3.1.1.2" xref="S4.SS2.SSS3.p1.3.m3.1.1.2.cmml">λ</mi><mo id="S4.SS2.SSS3.p1.3.m3.1.1.1" xref="S4.SS2.SSS3.p1.3.m3.1.1.1.cmml">=</mo><mn id="S4.SS2.SSS3.p1.3.m3.1.1.3" xref="S4.SS2.SSS3.p1.3.m3.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.3.m3.1b"><apply id="S4.SS2.SSS3.p1.3.m3.1.1.cmml" xref="S4.SS2.SSS3.p1.3.m3.1.1"><eq id="S4.SS2.SSS3.p1.3.m3.1.1.1.cmml" xref="S4.SS2.SSS3.p1.3.m3.1.1.1"></eq><ci id="S4.SS2.SSS3.p1.3.m3.1.1.2.cmml" xref="S4.SS2.SSS3.p1.3.m3.1.1.2">𝜆</ci><cn type="integer" id="S4.SS2.SSS3.p1.3.m3.1.1.3.cmml" xref="S4.SS2.SSS3.p1.3.m3.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.3.m3.1c">\lambda=0</annotation></semantics></math>, only global features are retained, which means that the sliding window mechanism no longer works. In Table <a href="#S4.T3" title="Table 3 ‣ 4.2.2 Ablations of masked-reconstruction based pre-training ‣ 4.2 Ablation studies ‣ 4 Results ‣ MAT-SED: A Masked Audio Transformer with Masked-Reconstruction Based Pre-training for Sound Event Detection" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, we compare the PSDS1 scores when <math id="S4.SS2.SSS3.p1.4.m4.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S4.SS2.SSS3.p1.4.m4.1a"><mi id="S4.SS2.SSS3.p1.4.m4.1.1" xref="S4.SS2.SSS3.p1.4.m4.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.4.m4.1b"><ci id="S4.SS2.SSS3.p1.4.m4.1.1.cmml" xref="S4.SS2.SSS3.p1.4.m4.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.4.m4.1c">\lambda</annotation></semantics></math> is set to 0, 0.5 and 1. The experimental results show that higher PSDS1 is achieved when <math id="S4.SS2.SSS3.p1.5.m5.1" class="ltx_Math" alttext="\lambda=0.5" display="inline"><semantics id="S4.SS2.SSS3.p1.5.m5.1a"><mrow id="S4.SS2.SSS3.p1.5.m5.1.1" xref="S4.SS2.SSS3.p1.5.m5.1.1.cmml"><mi id="S4.SS2.SSS3.p1.5.m5.1.1.2" xref="S4.SS2.SSS3.p1.5.m5.1.1.2.cmml">λ</mi><mo id="S4.SS2.SSS3.p1.5.m5.1.1.1" xref="S4.SS2.SSS3.p1.5.m5.1.1.1.cmml">=</mo><mn id="S4.SS2.SSS3.p1.5.m5.1.1.3" xref="S4.SS2.SSS3.p1.5.m5.1.1.3.cmml">0.5</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.5.m5.1b"><apply id="S4.SS2.SSS3.p1.5.m5.1.1.cmml" xref="S4.SS2.SSS3.p1.5.m5.1.1"><eq id="S4.SS2.SSS3.p1.5.m5.1.1.1.cmml" xref="S4.SS2.SSS3.p1.5.m5.1.1.1"></eq><ci id="S4.SS2.SSS3.p1.5.m5.1.1.2.cmml" xref="S4.SS2.SSS3.p1.5.m5.1.1.2">𝜆</ci><cn type="float" id="S4.SS2.SSS3.p1.5.m5.1.1.3.cmml" xref="S4.SS2.SSS3.p1.5.m5.1.1.3">0.5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.5.m5.1c">\lambda=0.5</annotation></semantics></math> than the cases when <math id="S4.SS2.SSS3.p1.6.m6.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S4.SS2.SSS3.p1.6.m6.1a"><mi id="S4.SS2.SSS3.p1.6.m6.1.1" xref="S4.SS2.SSS3.p1.6.m6.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS3.p1.6.m6.1b"><ci id="S4.SS2.SSS3.p1.6.m6.1.1.cmml" xref="S4.SS2.SSS3.p1.6.m6.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS3.p1.6.m6.1c">\lambda</annotation></semantics></math> is set to 0 or 1, indicating that fusing the global and local features can obtain more powerful latent features than only relying on either side.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this paper, we propose MAT-SED, a pure Transformer-based SED model.
+In MAT-SED, the Transformer with relative positional encoding is employed as the context network, which enables the model to capture long-range context dependencies.
+The masked-reconstruction task is used to pre-train the Transformer-based context network before semi-supervised based fine-tuning. The global-local feature fusion strategy is employed to further enhance the model’s localization accuracy.
+MAT-SED achieves advanced performance on DCASE2023 dataset, outperforming other state-of-the-art SED models. Ablation experiments show that the self-supervised pre-training is crucial for Transformer-based structures.
+In the future, we aim to further explore self-supervised learning methods for audio Transformer structures.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+S. Krstulović, ``Audio event recognition in the smart home,''
+<em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">Computational Analysis of Sound Scenes and Events</em>, pp. 335–371, 2018.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+S. Domazetovska, D. Pecioski, V. Gavriloski, and H. Mickoski, ``Iot smart city
+framework using ai for urban sound classification,'' in <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">INTER-NOISE and
+NOISE-CON Congress and Conference Proceedings</em>, vol. 265, no. 5.   Institute of Noise Control Engineering, 2023,
+pp. 2767–2776.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+R. Radhakrishnan, A. Divakaran, and A. Smaragdis, ``Audio analysis for
+surveillance applications,'' in <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">IEEE Workshop on Applications of Signal
+Processing to Audio and Acoustics, 2005.</em>   IEEE, 2005, pp. 158–161.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+E. Cakır, G. Parascandolo, T. Heittola, H. Huttunen, and T. Virtanen,
+``Convolutional recurrent neural networks for polyphonic sound event
+detection,'' <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on Audio, Speech, and Language
+Processing</em>, vol. 25, no. 6, pp. 1291–1303, 2017.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+A. Tarvainen and H. Valpola, ``Mean teachers are better role models:
+Weight-averaged consistency targets improve semi-supervised deep learning
+results,'' <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, vol. 30,
+2017.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez,
+Ł. Kaiser, and I. Polosukhin, ``Attention is all you need,''
+<em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, vol. 30, 2017.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+J. Devlin, M. Chang, K. Lee, and K. Toutanova, ``BERT: pre-training of deep
+bidirectional transformers for language understanding,'' in <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Proceedings
+of the 2019 Conference of the North American Chapter of the Association for
+Computational Linguistics</em>.   Association for Computational Linguistics, 2019, pp. 4171–4186.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai,
+T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit,
+and N. Houlsby, ``An image is worth 16x16 words: Transformers for image
+recognition at scale,'' in <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">9th International Conference on Learning
+Representations (ICLR)</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Q. Zhang, H. Lu, H. Sak, A. Tripathi, E. McDermott, S. Koo, and S. Kumar,
+``Transformer transducer: A streamable speech recognition model with
+transformer encoders and RNN-T loss,'' in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">IEEE International
+Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2020, pp. 7829–7833.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+A. Gulati, J. Qin, C.-C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han, S. Wang,
+Z. Zhang, Y. Wu, and R. Pang, ``Conformer: Convolution-augmented Transformer
+for Speech Recognition,'' in <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proc. Interspeech 2020</em>, 2020, pp.
+5036–5040.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+K. Miyazaki, T. Komatsu, T. Hayashi, S. Watanabe, T. Toda, and K. Takeda,
+``Convolution-augmented transformer for semi-supervised sound event
+detection,'' DCASE2020 Challenge, Tech. Rep., June 2020.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+J. W. Kim, S. W. Son, Y. Song, . Kim, Hong Kook1, I. H. Song, and J. E. Lim,
+``Semi-supervised learning-based sound event detection using frequency
+dynamic convolution with large kernel attention for DCASE challenge 2023
+task 4,'' DCASE2023 Challenge, Tech. Rep., June 2023.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+S. Xiao, J. Shen, A. Hu, X. Zhang, P. Zhang, and Y. Yan, ``Sound event
+detection with weak prediction for dcase 2023 challenge task4a,'' DCASE2023
+Challenge, Tech. Rep., June 2023.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+K. Koutini, J. Schlüter, H. Eghbal-zadeh, and G. Widmer, ``Efficient Training
+of Audio Transformers with Patchout,'' in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Proc. Interspeech 2022</em>,
+2022, pp. 2753–2757.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+P. Shaw, J. Uszkoreit, and A. Vaswani, ``Self-attention with relative position
+representations,'' in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2018 Conference of the North
+American Chapter of the Association for Computational Linguistics</em>.   Association for Computational Linguistics,
+Jun. 2018, pp. 464–468.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Z. Dai, Z. Yang, Y. Yang, J. G. Carbonell, Q. V. Le, and R. Salakhutdinov,
+``Transformer-xl: Attentive language models beyond a fixed-length context,''
+in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 57th Conference of the Association for
+Computational Linguistics, ACL</em>.   Association for Computational Linguistics, 2019, pp. 2978–2988.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+X. Chu, Z. Tian, B. Zhang, X. Wang, and C. Shen, ``Conditional positional
+encodings for vision transformers,'' in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">The Eleventh International
+Conference on Learning Representations</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+J. F. Gemmeke, D. P. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore,
+M. Plakal, and M. Ritter, ``Audio set: An ontology and human-labeled dataset
+for audio events,'' in <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">IEEE international conference on acoustics,
+speech and signal processing (ICASSP)</em>.   IEEE, 2017, pp. 776–780.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+H. Bao, L. Dong, S. Piao, and F. Wei, ``BEiT: BERT pre-training of image
+transformers,'' in <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning
+Representations</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+K. Li, Y. Song, I. McLoughlin, L. Liu, J. Li, and L.-R. Dai, ``Fine-tuning
+Audio Spectrogram Transformer with Task-aware Adapters for Sound Event
+Detection,'' in <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Proc. INTERSPEECH 2023</em>, 2023, pp. 291–295.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+N. Shao, X. Li, and X. Li, ``Fine-tune the pretrained atst model for sound
+event detection,'' <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2309.08153</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Y. Wang, J. Li, and F. Metze, ``A comparison of five multiple instance learning
+pooling functions for sound event detection with weak labeling,'' in
+<em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">IEEE International Conference on Acoustics, Speech and Signal
+Processing (ICASSP)</em>.   IEEE, 2019, pp.
+31–35.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+J. Ebbers and R. Haeb-Umbach, ``Pre-training and self-training for sound event
+detection in domestic environments,'' DCASE2022 Challenge, Tech. Rep., June
+2022.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+L. Gao, Q. Mao, and M. Dong, ``Joint-Former: Jointly Regularized and Locally
+Down-sampled Conformer for Semi-supervised Sound Event Detection,'' in
+<em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">Proc. INTERSPEECH 2023</em>, 2023, pp. 2753–2757.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+N. Turpault, R. Serizel, A. Parag Shah, and J. Salamon, ``Sound event
+detection in domestic environments with weakly labeled data and soundscape
+synthesis,'' in <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">Workshop on Detection and Classification of Acoustic
+Scenes and Events</em>, October 2019.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+H. Zhang, M. Cisse, Y. N. Dauphin, and D. Lopez-Paz, ``mixup: Beyond empirical
+risk minimization,'' in <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning
+Representations (ICLR)</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+H. Nam, S.-H. Kim, and Y.-H. Park, ``Filteraugment: An acoustic environmental
+data augmentation method,'' in <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2022, pp. 4308–4312.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+C. Bilen, G. Ferroni, F. Tuveri, J. Azcarreta, and S. Krstulovic, ``A framework
+for the robust evaluation of sound event detection,'' in <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">IEEE
+International Conference on Acoustics, Speech and Signal Processing
+(ICASSP)</em>, 2020, pp. 61–65.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+K. Li, P. Cai, and Y. Song, ``Li USTC team's submission for DCASE 2023
+challenge task4a,'' DCASE2023 Challenge, Tech. Rep., June 2023.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, ``wav2vec 2.0: A framework for
+self-supervised learning of speech representations,'' <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">Advances in
+neural information processing systems</em>, vol. 33, pp. 12 449–12 460, 2020.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+I. Loshchilov and F. Hutter, ``Decoupled weight decay regularization,'' in
+<em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">7th International Conference on Learning Representations (ICLR)</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+K. He, X. Chen, S. Xie, Y. Li, P. Dollár, and R. Girshick, ``Masked
+autoencoders are scalable vision learners,'' in <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">Proceedings of the
+IEEE/CVF conference on computer vision and pattern recognition</em>, 2022, pp.
+16 000–16 009.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2408.08672" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2408.08673" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2408.08673">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2408.08673" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2408.08674" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Sep  5 15:40:11 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

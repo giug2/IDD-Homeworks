@@ -1,0 +1,989 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.04595] Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis</title><meta property="og:description" content="Mispronunciation Detection and Diagnosis (MDD) systems, leveraging Automatic Speech Recognition (ASR), face two main challenges in Mandarin Chinese: 1) The two-stage models create an information gap between the phoneme…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.04595">
+
+<!--Generated on Fri Jul  5 18:24:04 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">[]XintongWang
+<span id="p1.3.1" class="ltx_ERROR undefined">\name</span>[]MingqianShi
+<span id="p1.3.2" class="ltx_ERROR undefined">\name</span>[]YeWang
+
+
+
+
+</p>
+</div>
+<h1 class="ltx_title ltx_title_document">Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Mispronunciation Detection and Diagnosis (MDD) systems, leveraging Automatic Speech Recognition (ASR), face two main challenges in Mandarin Chinese: 1) The two-stage models create an information gap between the phoneme or tone classification stage and the MDD stage. 2) The scarcity of Mandarin MDD datasets limits model training. In this paper, we introduce a stateless RNN-T model for Mandarin MDD, utilizing HuBERT features with pitch embedding through a Pitch Fusion Block. Our model, trained solely on native speaker data, shows a 3% improvement in Phone Error Rate and a 7% increase in False Acceptance Rate over the state-of-the-art baseline in non-native scenarios.
+</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>speech recognition, human-computer interaction, computational paralinguistics
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">While learning a second language (L2), learners may produce mispronunciations due to various factors, such as the influence of their first language (L1) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Mispronunciations may manifest at the segmental level, involving phonemes, or at the supra-segmental level, which encompasses aspects such as prosody, fluency, and intonation. Mispronunciation Detection and Diagnosis (MDD) systems are utilized to identify these pronunciation errors and provide automatic feedback <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. In this work, we focus on the pronunciation errors of Mandarin Chinese learners, taking into account the unique challenges posed by its tonal nature.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Traditional methods for pronunciation assessment involve calculating variations of log-posterior probability to derive pronunciation scores, such as the Goodness of Pronunciation (GOP) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, scaling log-posterior probabilities <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>, and evaluating the log-likelihood ratio <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>. Although these approaches are relatively intuitive, they exhibit limitations in accuracy. This deficiency stems from the uniform scoring of all speech without accommodating the distinctive acoustic-phonetic characteristics of individual utterances <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>. In efforts to enhance performance, researchers have developed classifiers tailored to specific pronunciation errors. Additionally, Harrison et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> introduced the Extended Recognition Network (ERN), incorporating 51 context-sensitive phonological rules represented as finite state transducers. This ERN significantly improves the accuracy of pronunciation assessment. Nonetheless, this method faces challenges in fully addressing the diverse range of pronunciation error types.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Recently, Leung et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> introduced a CNN-RNN-CTC model that leverages end-to-end Automatic Speech Recognition (ASR) for MDD and demonstrated superior performance over ERN-based models without the need for phonemic or graphemic information, or forced alignment between different linguistic units. Subsequently, Zhang et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> adopted an autoregressive model, the Recurrent Neural Network Transducer (RNN-T) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>, for MDD. This approach aims to capture the temporal dependence of mispronunciation patterns, showing better performance than Connectionist Temporal Classification (CTC)-based methods. Xu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> also found that applying CTC loss directly, without canonical phoneme information, yielded worse results, likely due to the lack of textual context. However, with insufficient mispronunciation patterns in the training data, models tend to predict phonemes following canonical linguistic rules. Ghodsi et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> proposed a stateless RNN-T model that replaces the recurrent neural network with simple non-autoregressive layers while maintaining comparable accuracy in ASR tasks. The reduction in parameters in stateless RNN-T models has also accelerated training speed.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">Data sparsity, highlighting the scarcity of annotated non-native speech data, is a critical issue in Mandarin Chinese MDD. Established datasets such as Speechocean762 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> and L2-ARCTIC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> have significantly advanced MDD research for L2 English. However, for L2 Mandarin Chinese, the lack of sufficient data impedes the development of robust ASR-based MDD systems. To our knowledge, the only publicly available L2 Mandarin Chinese dataset for training is the relatively small LATIC dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>. Most studies in Mandarin Chinese MDD, including those by Chen et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>, Hu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, Shen et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, and Guo et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, have relied heavily on private datasets. In scenarios of limited data availability, Self-Supervised Learning (SSL) models pre-trained on large unlabeled datasets demonstrate significant potential in MDD, as evidenced by Liu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. Similarly, Shen et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> utilized SSL models to train an ASR-based model for MDD in Mandarin Chinese. However, this method did not explicitly extract pitch information from speech, which has been shown to enhance the performance of MDD models in tonal languages <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">In this paper, we propose an approach that involves the fine-tuning of HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite> with a stateless RNN-T for Mandarin Chinese MDD. Simultaneously, F0 is extracted from the waveform to generate pitch embedding, which is then fed into a pitch encoder to obtain high-dimensional pitch features. A Pitch Fusion Block is utilized by the model to combine HuBERT features with pitch features, aiming to improve MDD performance. Our proposed model was trained on AISHELL-1 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite> and evaluated on the LATIC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> dataset. The results demonstrate that our model achieved comparable performance to other models and showed a 3% relative improvement in the Phone Error Rate and a 7% increase in the False Acceptance Rate compared to a state-of-the-art baseline.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Method</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Our model, as shown in Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, follows a stateless RNN-T architecture, with an Encoder, a Stateless Decoder, and a Joint Network.
+The Encoder comprises an SSL module based on HuBERT, a Subsampling module, a Pitch Extractor, a Pitch Embedding, a Pitch Encoder, and a Pitch Fusion Block.
+The Stateless Decoder and Joint Network used in our model follow the structure outlined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2406.04595/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="332" height="218" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>The Proposed Tonal Phoneme MDD Framework.</figcaption>
+</figure>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Stateless RNN-T Overview</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.16" class="ltx_p">The original RNN-T comprises three key components: an Encoder, a Prediction Network (also referred to as a Decoder), and a Joint Network. Given a length <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mi id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><ci id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">L</annotation></semantics></math> input acoustic feature sequence, such as MFCCs or Fbanks, denoted as <math id="S2.SS1.p1.2.m2.3" class="ltx_Math" alttext="\bm{f}=(f_{1},\ldots,f_{L})" display="inline"><semantics id="S2.SS1.p1.2.m2.3a"><mrow id="S2.SS1.p1.2.m2.3.3" xref="S2.SS1.p1.2.m2.3.3.cmml"><mi id="S2.SS1.p1.2.m2.3.3.4" xref="S2.SS1.p1.2.m2.3.3.4.cmml">𝒇</mi><mo id="S2.SS1.p1.2.m2.3.3.3" xref="S2.SS1.p1.2.m2.3.3.3.cmml">=</mo><mrow id="S2.SS1.p1.2.m2.3.3.2.2" xref="S2.SS1.p1.2.m2.3.3.2.3.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.3.3.2.2.3" xref="S2.SS1.p1.2.m2.3.3.2.3.cmml">(</mo><msub id="S2.SS1.p1.2.m2.2.2.1.1.1" xref="S2.SS1.p1.2.m2.2.2.1.1.1.cmml"><mi id="S2.SS1.p1.2.m2.2.2.1.1.1.2" xref="S2.SS1.p1.2.m2.2.2.1.1.1.2.cmml">f</mi><mn id="S2.SS1.p1.2.m2.2.2.1.1.1.3" xref="S2.SS1.p1.2.m2.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S2.SS1.p1.2.m2.3.3.2.2.4" xref="S2.SS1.p1.2.m2.3.3.2.3.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">…</mi><mo id="S2.SS1.p1.2.m2.3.3.2.2.5" xref="S2.SS1.p1.2.m2.3.3.2.3.cmml">,</mo><msub id="S2.SS1.p1.2.m2.3.3.2.2.2" xref="S2.SS1.p1.2.m2.3.3.2.2.2.cmml"><mi id="S2.SS1.p1.2.m2.3.3.2.2.2.2" xref="S2.SS1.p1.2.m2.3.3.2.2.2.2.cmml">f</mi><mi id="S2.SS1.p1.2.m2.3.3.2.2.2.3" xref="S2.SS1.p1.2.m2.3.3.2.2.2.3.cmml">L</mi></msub><mo stretchy="false" id="S2.SS1.p1.2.m2.3.3.2.2.6" xref="S2.SS1.p1.2.m2.3.3.2.3.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.3b"><apply id="S2.SS1.p1.2.m2.3.3.cmml" xref="S2.SS1.p1.2.m2.3.3"><eq id="S2.SS1.p1.2.m2.3.3.3.cmml" xref="S2.SS1.p1.2.m2.3.3.3"></eq><ci id="S2.SS1.p1.2.m2.3.3.4.cmml" xref="S2.SS1.p1.2.m2.3.3.4">𝒇</ci><vector id="S2.SS1.p1.2.m2.3.3.2.3.cmml" xref="S2.SS1.p1.2.m2.3.3.2.2"><apply id="S2.SS1.p1.2.m2.2.2.1.1.1.cmml" xref="S2.SS1.p1.2.m2.2.2.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.2.2.1.1.1.1.cmml" xref="S2.SS1.p1.2.m2.2.2.1.1.1">subscript</csymbol><ci id="S2.SS1.p1.2.m2.2.2.1.1.1.2.cmml" xref="S2.SS1.p1.2.m2.2.2.1.1.1.2">𝑓</ci><cn type="integer" id="S2.SS1.p1.2.m2.2.2.1.1.1.3.cmml" xref="S2.SS1.p1.2.m2.2.2.1.1.1.3">1</cn></apply><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">…</ci><apply id="S2.SS1.p1.2.m2.3.3.2.2.2.cmml" xref="S2.SS1.p1.2.m2.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.3.3.2.2.2.1.cmml" xref="S2.SS1.p1.2.m2.3.3.2.2.2">subscript</csymbol><ci id="S2.SS1.p1.2.m2.3.3.2.2.2.2.cmml" xref="S2.SS1.p1.2.m2.3.3.2.2.2.2">𝑓</ci><ci id="S2.SS1.p1.2.m2.3.3.2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.3.3.2.2.2.3">𝐿</ci></apply></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.3c">\bm{f}=(f_{1},\ldots,f_{L})</annotation></semantics></math>, and a phoneme sequence <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="\bm{y}" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><mi id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml">𝒚</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><ci id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">𝒚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">\bm{y}</annotation></semantics></math> of length <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="U+1" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><mrow id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml"><mi id="S2.SS1.p1.4.m4.1.1.2" xref="S2.SS1.p1.4.m4.1.1.2.cmml">U</mi><mo id="S2.SS1.p1.4.m4.1.1.1" xref="S2.SS1.p1.4.m4.1.1.1.cmml">+</mo><mn id="S2.SS1.p1.4.m4.1.1.3" xref="S2.SS1.p1.4.m4.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><apply id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1"><plus id="S2.SS1.p1.4.m4.1.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1.1"></plus><ci id="S2.SS1.p1.4.m4.1.1.2.cmml" xref="S2.SS1.p1.4.m4.1.1.2">𝑈</ci><cn type="integer" id="S2.SS1.p1.4.m4.1.1.3.cmml" xref="S2.SS1.p1.4.m4.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">U+1</annotation></semantics></math>, <math id="S2.SS1.p1.5.m5.3" class="ltx_Math" alttext="\bm{y}=(y_{0},\ldots,y_{U})" display="inline"><semantics id="S2.SS1.p1.5.m5.3a"><mrow id="S2.SS1.p1.5.m5.3.3" xref="S2.SS1.p1.5.m5.3.3.cmml"><mi id="S2.SS1.p1.5.m5.3.3.4" xref="S2.SS1.p1.5.m5.3.3.4.cmml">𝒚</mi><mo id="S2.SS1.p1.5.m5.3.3.3" xref="S2.SS1.p1.5.m5.3.3.3.cmml">=</mo><mrow id="S2.SS1.p1.5.m5.3.3.2.2" xref="S2.SS1.p1.5.m5.3.3.2.3.cmml"><mo stretchy="false" id="S2.SS1.p1.5.m5.3.3.2.2.3" xref="S2.SS1.p1.5.m5.3.3.2.3.cmml">(</mo><msub id="S2.SS1.p1.5.m5.2.2.1.1.1" xref="S2.SS1.p1.5.m5.2.2.1.1.1.cmml"><mi id="S2.SS1.p1.5.m5.2.2.1.1.1.2" xref="S2.SS1.p1.5.m5.2.2.1.1.1.2.cmml">y</mi><mn id="S2.SS1.p1.5.m5.2.2.1.1.1.3" xref="S2.SS1.p1.5.m5.2.2.1.1.1.3.cmml">0</mn></msub><mo id="S2.SS1.p1.5.m5.3.3.2.2.4" xref="S2.SS1.p1.5.m5.3.3.2.3.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml">…</mi><mo id="S2.SS1.p1.5.m5.3.3.2.2.5" xref="S2.SS1.p1.5.m5.3.3.2.3.cmml">,</mo><msub id="S2.SS1.p1.5.m5.3.3.2.2.2" xref="S2.SS1.p1.5.m5.3.3.2.2.2.cmml"><mi id="S2.SS1.p1.5.m5.3.3.2.2.2.2" xref="S2.SS1.p1.5.m5.3.3.2.2.2.2.cmml">y</mi><mi id="S2.SS1.p1.5.m5.3.3.2.2.2.3" xref="S2.SS1.p1.5.m5.3.3.2.2.2.3.cmml">U</mi></msub><mo stretchy="false" id="S2.SS1.p1.5.m5.3.3.2.2.6" xref="S2.SS1.p1.5.m5.3.3.2.3.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.3b"><apply id="S2.SS1.p1.5.m5.3.3.cmml" xref="S2.SS1.p1.5.m5.3.3"><eq id="S2.SS1.p1.5.m5.3.3.3.cmml" xref="S2.SS1.p1.5.m5.3.3.3"></eq><ci id="S2.SS1.p1.5.m5.3.3.4.cmml" xref="S2.SS1.p1.5.m5.3.3.4">𝒚</ci><vector id="S2.SS1.p1.5.m5.3.3.2.3.cmml" xref="S2.SS1.p1.5.m5.3.3.2.2"><apply id="S2.SS1.p1.5.m5.2.2.1.1.1.cmml" xref="S2.SS1.p1.5.m5.2.2.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.2.2.1.1.1.1.cmml" xref="S2.SS1.p1.5.m5.2.2.1.1.1">subscript</csymbol><ci id="S2.SS1.p1.5.m5.2.2.1.1.1.2.cmml" xref="S2.SS1.p1.5.m5.2.2.1.1.1.2">𝑦</ci><cn type="integer" id="S2.SS1.p1.5.m5.2.2.1.1.1.3.cmml" xref="S2.SS1.p1.5.m5.2.2.1.1.1.3">0</cn></apply><ci id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">…</ci><apply id="S2.SS1.p1.5.m5.3.3.2.2.2.cmml" xref="S2.SS1.p1.5.m5.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.3.3.2.2.2.1.cmml" xref="S2.SS1.p1.5.m5.3.3.2.2.2">subscript</csymbol><ci id="S2.SS1.p1.5.m5.3.3.2.2.2.2.cmml" xref="S2.SS1.p1.5.m5.3.3.2.2.2.2">𝑦</ci><ci id="S2.SS1.p1.5.m5.3.3.2.2.2.3.cmml" xref="S2.SS1.p1.5.m5.3.3.2.2.2.3">𝑈</ci></apply></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.3c">\bm{y}=(y_{0},\ldots,y_{U})</annotation></semantics></math>, over the phoneme set <math id="S2.SS1.p1.6.m6.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S2.SS1.p1.6.m6.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.6.m6.1.1" xref="S2.SS1.p1.6.m6.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m6.1b"><ci id="S2.SS1.p1.6.m6.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m6.1c">\mathcal{P}</annotation></semantics></math>. The Encoder maps <math id="S2.SS1.p1.7.m7.1" class="ltx_Math" alttext="\bm{f}" display="inline"><semantics id="S2.SS1.p1.7.m7.1a"><mi id="S2.SS1.p1.7.m7.1.1" xref="S2.SS1.p1.7.m7.1.1.cmml">𝒇</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m7.1b"><ci id="S2.SS1.p1.7.m7.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1">𝒇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m7.1c">\bm{f}</annotation></semantics></math> into a high-dimensional acoustic representation. The Decoder is an autoregressive model that encodes <math id="S2.SS1.p1.8.m8.1" class="ltx_Math" alttext="y_{0...u-1}" display="inline"><semantics id="S2.SS1.p1.8.m8.1a"><msub id="S2.SS1.p1.8.m8.1.1" xref="S2.SS1.p1.8.m8.1.1.cmml"><mi id="S2.SS1.p1.8.m8.1.1.2" xref="S2.SS1.p1.8.m8.1.1.2.cmml">y</mi><mrow id="S2.SS1.p1.8.m8.1.1.3" xref="S2.SS1.p1.8.m8.1.1.3.cmml"><mrow id="S2.SS1.p1.8.m8.1.1.3.2" xref="S2.SS1.p1.8.m8.1.1.3.2.cmml"><mn id="S2.SS1.p1.8.m8.1.1.3.2.2" xref="S2.SS1.p1.8.m8.1.1.3.2.2.cmml">0</mn><mo lspace="0em" rspace="0em" id="S2.SS1.p1.8.m8.1.1.3.2.1" xref="S2.SS1.p1.8.m8.1.1.3.2.1.cmml">​</mo><mi mathvariant="normal" id="S2.SS1.p1.8.m8.1.1.3.2.3" xref="S2.SS1.p1.8.m8.1.1.3.2.3.cmml">…</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.8.m8.1.1.3.2.1a" xref="S2.SS1.p1.8.m8.1.1.3.2.1.cmml">​</mo><mi id="S2.SS1.p1.8.m8.1.1.3.2.4" xref="S2.SS1.p1.8.m8.1.1.3.2.4.cmml">u</mi></mrow><mo id="S2.SS1.p1.8.m8.1.1.3.1" xref="S2.SS1.p1.8.m8.1.1.3.1.cmml">−</mo><mn id="S2.SS1.p1.8.m8.1.1.3.3" xref="S2.SS1.p1.8.m8.1.1.3.3.cmml">1</mn></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.8.m8.1b"><apply id="S2.SS1.p1.8.m8.1.1.cmml" xref="S2.SS1.p1.8.m8.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.8.m8.1.1.1.cmml" xref="S2.SS1.p1.8.m8.1.1">subscript</csymbol><ci id="S2.SS1.p1.8.m8.1.1.2.cmml" xref="S2.SS1.p1.8.m8.1.1.2">𝑦</ci><apply id="S2.SS1.p1.8.m8.1.1.3.cmml" xref="S2.SS1.p1.8.m8.1.1.3"><minus id="S2.SS1.p1.8.m8.1.1.3.1.cmml" xref="S2.SS1.p1.8.m8.1.1.3.1"></minus><apply id="S2.SS1.p1.8.m8.1.1.3.2.cmml" xref="S2.SS1.p1.8.m8.1.1.3.2"><times id="S2.SS1.p1.8.m8.1.1.3.2.1.cmml" xref="S2.SS1.p1.8.m8.1.1.3.2.1"></times><cn type="integer" id="S2.SS1.p1.8.m8.1.1.3.2.2.cmml" xref="S2.SS1.p1.8.m8.1.1.3.2.2">0</cn><ci id="S2.SS1.p1.8.m8.1.1.3.2.3.cmml" xref="S2.SS1.p1.8.m8.1.1.3.2.3">…</ci><ci id="S2.SS1.p1.8.m8.1.1.3.2.4.cmml" xref="S2.SS1.p1.8.m8.1.1.3.2.4">𝑢</ci></apply><cn type="integer" id="S2.SS1.p1.8.m8.1.1.3.3.cmml" xref="S2.SS1.p1.8.m8.1.1.3.3">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.8.m8.1c">y_{0...u-1}</annotation></semantics></math> (<math id="S2.SS1.p1.9.m9.5" class="ltx_Math" alttext="u\in\{1,2,3,\ldots,U-1\}" display="inline"><semantics id="S2.SS1.p1.9.m9.5a"><mrow id="S2.SS1.p1.9.m9.5.5" xref="S2.SS1.p1.9.m9.5.5.cmml"><mi id="S2.SS1.p1.9.m9.5.5.3" xref="S2.SS1.p1.9.m9.5.5.3.cmml">u</mi><mo id="S2.SS1.p1.9.m9.5.5.2" xref="S2.SS1.p1.9.m9.5.5.2.cmml">∈</mo><mrow id="S2.SS1.p1.9.m9.5.5.1.1" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml"><mo stretchy="false" id="S2.SS1.p1.9.m9.5.5.1.1.2" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">{</mo><mn id="S2.SS1.p1.9.m9.1.1" xref="S2.SS1.p1.9.m9.1.1.cmml">1</mn><mo id="S2.SS1.p1.9.m9.5.5.1.1.3" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">,</mo><mn id="S2.SS1.p1.9.m9.2.2" xref="S2.SS1.p1.9.m9.2.2.cmml">2</mn><mo id="S2.SS1.p1.9.m9.5.5.1.1.4" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">,</mo><mn id="S2.SS1.p1.9.m9.3.3" xref="S2.SS1.p1.9.m9.3.3.cmml">3</mn><mo id="S2.SS1.p1.9.m9.5.5.1.1.5" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.9.m9.4.4" xref="S2.SS1.p1.9.m9.4.4.cmml">…</mi><mo id="S2.SS1.p1.9.m9.5.5.1.1.6" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">,</mo><mrow id="S2.SS1.p1.9.m9.5.5.1.1.1" xref="S2.SS1.p1.9.m9.5.5.1.1.1.cmml"><mi id="S2.SS1.p1.9.m9.5.5.1.1.1.2" xref="S2.SS1.p1.9.m9.5.5.1.1.1.2.cmml">U</mi><mo id="S2.SS1.p1.9.m9.5.5.1.1.1.1" xref="S2.SS1.p1.9.m9.5.5.1.1.1.1.cmml">−</mo><mn id="S2.SS1.p1.9.m9.5.5.1.1.1.3" xref="S2.SS1.p1.9.m9.5.5.1.1.1.3.cmml">1</mn></mrow><mo stretchy="false" id="S2.SS1.p1.9.m9.5.5.1.1.7" xref="S2.SS1.p1.9.m9.5.5.1.2.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.9.m9.5b"><apply id="S2.SS1.p1.9.m9.5.5.cmml" xref="S2.SS1.p1.9.m9.5.5"><in id="S2.SS1.p1.9.m9.5.5.2.cmml" xref="S2.SS1.p1.9.m9.5.5.2"></in><ci id="S2.SS1.p1.9.m9.5.5.3.cmml" xref="S2.SS1.p1.9.m9.5.5.3">𝑢</ci><set id="S2.SS1.p1.9.m9.5.5.1.2.cmml" xref="S2.SS1.p1.9.m9.5.5.1.1"><cn type="integer" id="S2.SS1.p1.9.m9.1.1.cmml" xref="S2.SS1.p1.9.m9.1.1">1</cn><cn type="integer" id="S2.SS1.p1.9.m9.2.2.cmml" xref="S2.SS1.p1.9.m9.2.2">2</cn><cn type="integer" id="S2.SS1.p1.9.m9.3.3.cmml" xref="S2.SS1.p1.9.m9.3.3">3</cn><ci id="S2.SS1.p1.9.m9.4.4.cmml" xref="S2.SS1.p1.9.m9.4.4">…</ci><apply id="S2.SS1.p1.9.m9.5.5.1.1.1.cmml" xref="S2.SS1.p1.9.m9.5.5.1.1.1"><minus id="S2.SS1.p1.9.m9.5.5.1.1.1.1.cmml" xref="S2.SS1.p1.9.m9.5.5.1.1.1.1"></minus><ci id="S2.SS1.p1.9.m9.5.5.1.1.1.2.cmml" xref="S2.SS1.p1.9.m9.5.5.1.1.1.2">𝑈</ci><cn type="integer" id="S2.SS1.p1.9.m9.5.5.1.1.1.3.cmml" xref="S2.SS1.p1.9.m9.5.5.1.1.1.3">1</cn></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.9.m9.5c">u\in\{1,2,3,\ldots,U-1\}</annotation></semantics></math>) into a high-dimensional phoneme representation. The encoder output and the decoder output are then projected to the same size. Subsequently, the Joint Network combines them to jointly predict <math id="S2.SS1.p1.10.m10.1" class="ltx_Math" alttext="y_{u}" display="inline"><semantics id="S2.SS1.p1.10.m10.1a"><msub id="S2.SS1.p1.10.m10.1.1" xref="S2.SS1.p1.10.m10.1.1.cmml"><mi id="S2.SS1.p1.10.m10.1.1.2" xref="S2.SS1.p1.10.m10.1.1.2.cmml">y</mi><mi id="S2.SS1.p1.10.m10.1.1.3" xref="S2.SS1.p1.10.m10.1.1.3.cmml">u</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.10.m10.1b"><apply id="S2.SS1.p1.10.m10.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.10.m10.1.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1">subscript</csymbol><ci id="S2.SS1.p1.10.m10.1.1.2.cmml" xref="S2.SS1.p1.10.m10.1.1.2">𝑦</ci><ci id="S2.SS1.p1.10.m10.1.1.3.cmml" xref="S2.SS1.p1.10.m10.1.1.3">𝑢</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.10.m10.1c">y_{u}</annotation></semantics></math> or <math id="S2.SS1.p1.11.m11.1" class="ltx_Math" alttext="\varnothing" display="inline"><semantics id="S2.SS1.p1.11.m11.1a"><mi mathvariant="normal" id="S2.SS1.p1.11.m11.1.1" xref="S2.SS1.p1.11.m11.1.1.cmml">∅</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.11.m11.1b"><emptyset id="S2.SS1.p1.11.m11.1.1.cmml" xref="S2.SS1.p1.11.m11.1.1"></emptyset></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.11.m11.1c">\varnothing</annotation></semantics></math>, where the blank token <math id="S2.SS1.p1.12.m12.1" class="ltx_Math" alttext="\varnothing" display="inline"><semantics id="S2.SS1.p1.12.m12.1a"><mi mathvariant="normal" id="S2.SS1.p1.12.m12.1.1" xref="S2.SS1.p1.12.m12.1.1.cmml">∅</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.12.m12.1b"><emptyset id="S2.SS1.p1.12.m12.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1"></emptyset></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.12.m12.1c">\varnothing</annotation></semantics></math> signifies nothing from <math id="S2.SS1.p1.13.m13.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S2.SS1.p1.13.m13.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.13.m13.1.1" xref="S2.SS1.p1.13.m13.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.13.m13.1b"><ci id="S2.SS1.p1.13.m13.1.1.cmml" xref="S2.SS1.p1.13.m13.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.13.m13.1c">\mathcal{P}</annotation></semantics></math> outputted at the current token position. <math id="S2.SS1.p1.14.m14.1" class="ltx_Math" alttext="y_{0}" display="inline"><semantics id="S2.SS1.p1.14.m14.1a"><msub id="S2.SS1.p1.14.m14.1.1" xref="S2.SS1.p1.14.m14.1.1.cmml"><mi id="S2.SS1.p1.14.m14.1.1.2" xref="S2.SS1.p1.14.m14.1.1.2.cmml">y</mi><mn id="S2.SS1.p1.14.m14.1.1.3" xref="S2.SS1.p1.14.m14.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.14.m14.1b"><apply id="S2.SS1.p1.14.m14.1.1.cmml" xref="S2.SS1.p1.14.m14.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.14.m14.1.1.1.cmml" xref="S2.SS1.p1.14.m14.1.1">subscript</csymbol><ci id="S2.SS1.p1.14.m14.1.1.2.cmml" xref="S2.SS1.p1.14.m14.1.1.2">𝑦</ci><cn type="integer" id="S2.SS1.p1.14.m14.1.1.3.cmml" xref="S2.SS1.p1.14.m14.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.14.m14.1c">y_{0}</annotation></semantics></math> with <math id="S2.SS1.p1.15.m15.1" class="ltx_Math" alttext="\varnothing" display="inline"><semantics id="S2.SS1.p1.15.m15.1a"><mi mathvariant="normal" id="S2.SS1.p1.15.m15.1.1" xref="S2.SS1.p1.15.m15.1.1.cmml">∅</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.15.m15.1b"><emptyset id="S2.SS1.p1.15.m15.1.1.cmml" xref="S2.SS1.p1.15.m15.1.1"></emptyset></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.15.m15.1c">\varnothing</annotation></semantics></math> represents the start of the sentence. The RNN-T loss <math id="S2.SS1.p1.16.m16.1" class="ltx_Math" alttext="\mathcal{L}_{RNN-T}" display="inline"><semantics id="S2.SS1.p1.16.m16.1a"><msub id="S2.SS1.p1.16.m16.1.1" xref="S2.SS1.p1.16.m16.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p1.16.m16.1.1.2" xref="S2.SS1.p1.16.m16.1.1.2.cmml">ℒ</mi><mrow id="S2.SS1.p1.16.m16.1.1.3" xref="S2.SS1.p1.16.m16.1.1.3.cmml"><mrow id="S2.SS1.p1.16.m16.1.1.3.2" xref="S2.SS1.p1.16.m16.1.1.3.2.cmml"><mi id="S2.SS1.p1.16.m16.1.1.3.2.2" xref="S2.SS1.p1.16.m16.1.1.3.2.2.cmml">R</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.16.m16.1.1.3.2.1" xref="S2.SS1.p1.16.m16.1.1.3.2.1.cmml">​</mo><mi id="S2.SS1.p1.16.m16.1.1.3.2.3" xref="S2.SS1.p1.16.m16.1.1.3.2.3.cmml">N</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.16.m16.1.1.3.2.1a" xref="S2.SS1.p1.16.m16.1.1.3.2.1.cmml">​</mo><mi id="S2.SS1.p1.16.m16.1.1.3.2.4" xref="S2.SS1.p1.16.m16.1.1.3.2.4.cmml">N</mi></mrow><mo id="S2.SS1.p1.16.m16.1.1.3.1" xref="S2.SS1.p1.16.m16.1.1.3.1.cmml">−</mo><mi id="S2.SS1.p1.16.m16.1.1.3.3" xref="S2.SS1.p1.16.m16.1.1.3.3.cmml">T</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.16.m16.1b"><apply id="S2.SS1.p1.16.m16.1.1.cmml" xref="S2.SS1.p1.16.m16.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.16.m16.1.1.1.cmml" xref="S2.SS1.p1.16.m16.1.1">subscript</csymbol><ci id="S2.SS1.p1.16.m16.1.1.2.cmml" xref="S2.SS1.p1.16.m16.1.1.2">ℒ</ci><apply id="S2.SS1.p1.16.m16.1.1.3.cmml" xref="S2.SS1.p1.16.m16.1.1.3"><minus id="S2.SS1.p1.16.m16.1.1.3.1.cmml" xref="S2.SS1.p1.16.m16.1.1.3.1"></minus><apply id="S2.SS1.p1.16.m16.1.1.3.2.cmml" xref="S2.SS1.p1.16.m16.1.1.3.2"><times id="S2.SS1.p1.16.m16.1.1.3.2.1.cmml" xref="S2.SS1.p1.16.m16.1.1.3.2.1"></times><ci id="S2.SS1.p1.16.m16.1.1.3.2.2.cmml" xref="S2.SS1.p1.16.m16.1.1.3.2.2">𝑅</ci><ci id="S2.SS1.p1.16.m16.1.1.3.2.3.cmml" xref="S2.SS1.p1.16.m16.1.1.3.2.3">𝑁</ci><ci id="S2.SS1.p1.16.m16.1.1.3.2.4.cmml" xref="S2.SS1.p1.16.m16.1.1.3.2.4">𝑁</ci></apply><ci id="S2.SS1.p1.16.m16.1.1.3.3.cmml" xref="S2.SS1.p1.16.m16.1.1.3.3">𝑇</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.16.m16.1c">\mathcal{L}_{RNN-T}</annotation></semantics></math> is defined as:</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.2" class="ltx_Math" alttext="\mathcal{L}_{RNN-T}=-P(\bm{y}|\bm{f})=-\sum_{\bm{a}\in\bm{M^{-1}}(\bm{y})}P(\bm{a}|\bm{f})," display="block"><semantics id="S2.Ex1.m1.2a"><mrow id="S2.Ex1.m1.2.2.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><mrow id="S2.Ex1.m1.2.2.1.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><msub id="S2.Ex1.m1.2.2.1.1.4" xref="S2.Ex1.m1.2.2.1.1.4.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.2.2.1.1.4.2" xref="S2.Ex1.m1.2.2.1.1.4.2.cmml">ℒ</mi><mrow id="S2.Ex1.m1.2.2.1.1.4.3" xref="S2.Ex1.m1.2.2.1.1.4.3.cmml"><mrow id="S2.Ex1.m1.2.2.1.1.4.3.2" xref="S2.Ex1.m1.2.2.1.1.4.3.2.cmml"><mi id="S2.Ex1.m1.2.2.1.1.4.3.2.2" xref="S2.Ex1.m1.2.2.1.1.4.3.2.2.cmml">R</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.4.3.2.1" xref="S2.Ex1.m1.2.2.1.1.4.3.2.1.cmml">​</mo><mi id="S2.Ex1.m1.2.2.1.1.4.3.2.3" xref="S2.Ex1.m1.2.2.1.1.4.3.2.3.cmml">N</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.4.3.2.1a" xref="S2.Ex1.m1.2.2.1.1.4.3.2.1.cmml">​</mo><mi id="S2.Ex1.m1.2.2.1.1.4.3.2.4" xref="S2.Ex1.m1.2.2.1.1.4.3.2.4.cmml">N</mi></mrow><mo id="S2.Ex1.m1.2.2.1.1.4.3.1" xref="S2.Ex1.m1.2.2.1.1.4.3.1.cmml">−</mo><mi id="S2.Ex1.m1.2.2.1.1.4.3.3" xref="S2.Ex1.m1.2.2.1.1.4.3.3.cmml">T</mi></mrow></msub><mo id="S2.Ex1.m1.2.2.1.1.5" xref="S2.Ex1.m1.2.2.1.1.5.cmml">=</mo><mrow id="S2.Ex1.m1.2.2.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.cmml"><mo id="S2.Ex1.m1.2.2.1.1.1a" xref="S2.Ex1.m1.2.2.1.1.1.cmml">−</mo><mrow id="S2.Ex1.m1.2.2.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.cmml"><mi id="S2.Ex1.m1.2.2.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.1.3.cmml">P</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex1.m1.2.2.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml"><mi id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.2.cmml">𝒚</mi><mo fence="false" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.1.cmml">|</mo><mi id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.3.cmml">𝒇</mi></mrow><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo id="S2.Ex1.m1.2.2.1.1.6" xref="S2.Ex1.m1.2.2.1.1.6.cmml">=</mo><mrow id="S2.Ex1.m1.2.2.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.cmml"><mo id="S2.Ex1.m1.2.2.1.1.2a" xref="S2.Ex1.m1.2.2.1.1.2.cmml">−</mo><mrow id="S2.Ex1.m1.2.2.1.1.2.1" xref="S2.Ex1.m1.2.2.1.1.2.1.cmml"><munder id="S2.Ex1.m1.2.2.1.1.2.1.2" xref="S2.Ex1.m1.2.2.1.1.2.1.2.cmml"><mo movablelimits="false" id="S2.Ex1.m1.2.2.1.1.2.1.2.2" xref="S2.Ex1.m1.2.2.1.1.2.1.2.2.cmml">∑</mo><mrow id="S2.Ex1.m1.1.1.1" xref="S2.Ex1.m1.1.1.1.cmml"><mi id="S2.Ex1.m1.1.1.1.3" xref="S2.Ex1.m1.1.1.1.3.cmml">𝒂</mi><mo id="S2.Ex1.m1.1.1.1.2" xref="S2.Ex1.m1.1.1.1.2.cmml">∈</mo><mrow id="S2.Ex1.m1.1.1.1.4" xref="S2.Ex1.m1.1.1.1.4.cmml"><msup id="S2.Ex1.m1.1.1.1.4.2" xref="S2.Ex1.m1.1.1.1.4.2.cmml"><mi id="S2.Ex1.m1.1.1.1.4.2.2" xref="S2.Ex1.m1.1.1.1.4.2.2.cmml">𝑴</mi><mrow id="S2.Ex1.m1.1.1.1.4.2.3" xref="S2.Ex1.m1.1.1.1.4.2.3.cmml"><mo class="ltx_mathvariant_bold" mathvariant="bold" id="S2.Ex1.m1.1.1.1.4.2.3a" xref="S2.Ex1.m1.1.1.1.4.2.3.cmml">−</mo><mn id="S2.Ex1.m1.1.1.1.4.2.3.2" xref="S2.Ex1.m1.1.1.1.4.2.3.2.cmml">𝟏</mn></mrow></msup><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.1.4.1" xref="S2.Ex1.m1.1.1.1.4.1.cmml">​</mo><mrow id="S2.Ex1.m1.1.1.1.4.3.2" xref="S2.Ex1.m1.1.1.1.4.cmml"><mo stretchy="false" id="S2.Ex1.m1.1.1.1.4.3.2.1" xref="S2.Ex1.m1.1.1.1.4.cmml">(</mo><mi id="S2.Ex1.m1.1.1.1.1" xref="S2.Ex1.m1.1.1.1.1.cmml">𝒚</mi><mo stretchy="false" id="S2.Ex1.m1.1.1.1.4.3.2.2" xref="S2.Ex1.m1.1.1.1.4.cmml">)</mo></mrow></mrow></mrow></munder><mrow id="S2.Ex1.m1.2.2.1.1.2.1.1" xref="S2.Ex1.m1.2.2.1.1.2.1.1.cmml"><mi id="S2.Ex1.m1.2.2.1.1.2.1.1.3" xref="S2.Ex1.m1.2.2.1.1.2.1.1.3.cmml">P</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.2.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.1.1.2.cmml">​</mo><mrow id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.cmml"><mi id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.2.cmml">𝒂</mi><mo fence="false" id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.1.cmml">|</mo><mi id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.3.cmml">𝒇</mi></mrow><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow></mrow><mo id="S2.Ex1.m1.2.2.1.2" xref="S2.Ex1.m1.2.2.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.2b"><apply id="S2.Ex1.m1.2.2.1.1.cmml" xref="S2.Ex1.m1.2.2.1"><and id="S2.Ex1.m1.2.2.1.1a.cmml" xref="S2.Ex1.m1.2.2.1"></and><apply id="S2.Ex1.m1.2.2.1.1b.cmml" xref="S2.Ex1.m1.2.2.1"><eq id="S2.Ex1.m1.2.2.1.1.5.cmml" xref="S2.Ex1.m1.2.2.1.1.5"></eq><apply id="S2.Ex1.m1.2.2.1.1.4.cmml" xref="S2.Ex1.m1.2.2.1.1.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.2.2.1.1.4.1.cmml" xref="S2.Ex1.m1.2.2.1.1.4">subscript</csymbol><ci id="S2.Ex1.m1.2.2.1.1.4.2.cmml" xref="S2.Ex1.m1.2.2.1.1.4.2">ℒ</ci><apply id="S2.Ex1.m1.2.2.1.1.4.3.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3"><minus id="S2.Ex1.m1.2.2.1.1.4.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.1"></minus><apply id="S2.Ex1.m1.2.2.1.1.4.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.2"><times id="S2.Ex1.m1.2.2.1.1.4.3.2.1.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.2.1"></times><ci id="S2.Ex1.m1.2.2.1.1.4.3.2.2.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.2.2">𝑅</ci><ci id="S2.Ex1.m1.2.2.1.1.4.3.2.3.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.2.3">𝑁</ci><ci id="S2.Ex1.m1.2.2.1.1.4.3.2.4.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.2.4">𝑁</ci></apply><ci id="S2.Ex1.m1.2.2.1.1.4.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.4.3.3">𝑇</ci></apply></apply><apply id="S2.Ex1.m1.2.2.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1"><minus id="S2.Ex1.m1.2.2.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.1"></minus><apply id="S2.Ex1.m1.2.2.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1"><times id="S2.Ex1.m1.2.2.1.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.2"></times><ci id="S2.Ex1.m1.2.2.1.1.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.3">𝑃</ci><apply id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.1">conditional</csymbol><ci id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.2">𝒚</ci><ci id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.3">𝒇</ci></apply></apply></apply></apply><apply id="S2.Ex1.m1.2.2.1.1c.cmml" xref="S2.Ex1.m1.2.2.1"><eq id="S2.Ex1.m1.2.2.1.1.6.cmml" xref="S2.Ex1.m1.2.2.1.1.6"></eq><share href="#S2.Ex1.m1.2.2.1.1.1.cmml" id="S2.Ex1.m1.2.2.1.1d.cmml" xref="S2.Ex1.m1.2.2.1"></share><apply id="S2.Ex1.m1.2.2.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2"><minus id="S2.Ex1.m1.2.2.1.1.2.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2"></minus><apply id="S2.Ex1.m1.2.2.1.1.2.1.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1"><apply id="S2.Ex1.m1.2.2.1.1.2.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.2.2.1.1.2.1.2.1.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.2">subscript</csymbol><sum id="S2.Ex1.m1.2.2.1.1.2.1.2.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.2.2"></sum><apply id="S2.Ex1.m1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1"><in id="S2.Ex1.m1.1.1.1.2.cmml" xref="S2.Ex1.m1.1.1.1.2"></in><ci id="S2.Ex1.m1.1.1.1.3.cmml" xref="S2.Ex1.m1.1.1.1.3">𝒂</ci><apply id="S2.Ex1.m1.1.1.1.4.cmml" xref="S2.Ex1.m1.1.1.1.4"><times id="S2.Ex1.m1.1.1.1.4.1.cmml" xref="S2.Ex1.m1.1.1.1.4.1"></times><apply id="S2.Ex1.m1.1.1.1.4.2.cmml" xref="S2.Ex1.m1.1.1.1.4.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.4.2.1.cmml" xref="S2.Ex1.m1.1.1.1.4.2">superscript</csymbol><ci id="S2.Ex1.m1.1.1.1.4.2.2.cmml" xref="S2.Ex1.m1.1.1.1.4.2.2">𝑴</ci><apply id="S2.Ex1.m1.1.1.1.4.2.3.cmml" xref="S2.Ex1.m1.1.1.1.4.2.3"><minus id="S2.Ex1.m1.1.1.1.4.2.3.1.cmml" xref="S2.Ex1.m1.1.1.1.4.2.3"></minus><cn type="integer" id="S2.Ex1.m1.1.1.1.4.2.3.2.cmml" xref="S2.Ex1.m1.1.1.1.4.2.3.2">1</cn></apply></apply><ci id="S2.Ex1.m1.1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1.1">𝒚</ci></apply></apply></apply><apply id="S2.Ex1.m1.2.2.1.1.2.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1"><times id="S2.Ex1.m1.2.2.1.1.2.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.2"></times><ci id="S2.Ex1.m1.2.2.1.1.2.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.3">𝑃</ci><apply id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1"><csymbol cd="latexml" id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.1">conditional</csymbol><ci id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.2">𝒂</ci><ci id="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.2.1.1.1.1.1.3">𝒇</ci></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.2c">\mathcal{L}_{RNN-T}=-P(\bm{y}|\bm{f})=-\sum_{\bm{a}\in\bm{M^{-1}}(\bm{y})}P(\bm{a}|\bm{f}),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p2.7" class="ltx_p">where <math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="\bm{a}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><mi id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml">𝒂</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><ci id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">𝒂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">\bm{a}</annotation></semantics></math> refers to an alignment between <math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="\bm{y}" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mi id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml">𝒚</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><ci id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1">𝒚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">\bm{y}</annotation></semantics></math> and <math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="\bm{f}" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mi id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml">𝒇</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><ci id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1">𝒇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">\bm{f}</annotation></semantics></math>. <math id="S2.SS1.p2.4.m4.1" class="ltx_Math" alttext="\bm{a}" display="inline"><semantics id="S2.SS1.p2.4.m4.1a"><mi id="S2.SS1.p2.4.m4.1.1" xref="S2.SS1.p2.4.m4.1.1.cmml">𝒂</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.4.m4.1b"><ci id="S2.SS1.p2.4.m4.1.1.cmml" xref="S2.SS1.p2.4.m4.1.1">𝒂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.4.m4.1c">\bm{a}</annotation></semantics></math> is a frame-level phoneme sequence with its length as <math id="S2.SS1.p2.5.m5.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS1.p2.5.m5.1a"><mi id="S2.SS1.p2.5.m5.1.1" xref="S2.SS1.p2.5.m5.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.5.m5.1b"><ci id="S2.SS1.p2.5.m5.1.1.cmml" xref="S2.SS1.p2.5.m5.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.5.m5.1c">L</annotation></semantics></math>. The various locations of the blank tokens refer to different alignments. <math id="S2.SS1.p2.6.m6.1" class="ltx_Math" alttext="\bm{M}" display="inline"><semantics id="S2.SS1.p2.6.m6.1a"><mi id="S2.SS1.p2.6.m6.1.1" xref="S2.SS1.p2.6.m6.1.1.cmml">𝑴</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.6.m6.1b"><ci id="S2.SS1.p2.6.m6.1.1.cmml" xref="S2.SS1.p2.6.m6.1.1">𝑴</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.6.m6.1c">\bm{M}</annotation></semantics></math> is a function that removes the blank tokens from <math id="S2.SS1.p2.7.m7.1" class="ltx_Math" alttext="\bm{a}" display="inline"><semantics id="S2.SS1.p2.7.m7.1a"><mi id="S2.SS1.p2.7.m7.1.1" xref="S2.SS1.p2.7.m7.1.1.cmml">𝒂</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.7.m7.1b"><ci id="S2.SS1.p2.7.m7.1.1.cmml" xref="S2.SS1.p2.7.m7.1.1">𝒂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.7.m7.1c">\bm{a}</annotation></semantics></math>. The model is optimized by maximizing the summation of probabilities of all alignments.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Phonetic Representation</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">For the MDD task, we use tonal phonemes to assess pronunciation with greater granularity. We use an open-source lexicon <span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>https://www.mdbg.net/chinese/dictionary?page=cc-cedict</span></span></span>, which encompasses most of the commonly used Chinese words and characters. This lexicon is also adopted in the AISHELL-1 dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>.
+Pronunciations are represented using the initial-final-tone system, where syllables are broken down into their initial consonant sounds, final vowel sounds, and tones.
+This phoneme set includes five tones: Tone 1 (high), Tone 2 (rising), Tone 3 (falling then rising), Tone 4 (high then falling), and Tone 5 (neutral or toneless) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite>. Notably, we regard zero-initial syllables as single tonal finals in this work.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>SSL module</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">We utilize HuBERT as the SSL module in our model. This module is employed for encoding speech from the waveform, aiming to provide enhanced representations. During implementation, the SSL module has a down-sampling factor of 320, equivalent to a 20ms hop size for audio sampled at 16kHz <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>. In this work, we adopt a Subsampling module at the top layer of HuBERT to achieve a 40ms hop size for the output feature. This involves concatenating each two successive frames and then applying a linear layer with a Tanh activation function.</p>
+</div>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Pitch Extractor</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p">To provide pitch information, the fundamental frequency (F0) is estimated with DIO <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> in WORLD <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite>.
+We analyze the distribution of F0 values across all training frames after applying speed perturbation at factors of 0.9, 1.0, and 1.1 using Lhotse <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>.
+We observe that most of the F0 values fall in the range of 100 - 600 Hz, with 100 - 200 Hz being the most common, and rarely exceeding 600 Hz, resulting in an unbalanced distribution. Therefore, we further apply Mel-scaling to the extracted F0, along with min-max normalization and discretization to obtain a coarse F0 with bins of size 256. We introduce an embedding layer (Pitch Embedding in Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) to map the F0 or variants of F0 into a higher-dimensional representation before feeding them into the Pitch Encoder. F0 is extracted with various hop sizes, including 10 ms, 20 ms, and 40 ms. Experiments were conducted to explore the impact of pitch extraction on the model's performance, as detailed in Section <a href="#S3.SS4" title="3.4 Effectiveness of Different Pitch Extraction Methods ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.4</span></a>.</p>
+</div>
+</section>
+<section id="S2.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.5 </span>Pitch Fusion Block</h3>
+
+<div id="S2.SS5.p1" class="ltx_para">
+<p id="S2.SS5.p1.1" class="ltx_p">The Pitch Fusion Block is used to fuse the extracted pitch features and HuBERT features.
+In Mandarin Chinese, the tone of an individual character can be determined by its short-term F0 contour. Meanwhile, this tonal identity is also subject to modification by the tones of preceding characters, a phenomenon known as tone sandhi.
+Hence, the Pitch Fusion Block is used to synergize the modeling of long-range global features with the detailed local feature patterns observed in the F0 contour. As shown in Figure <a href="#S2.F2" title="Figure 2 ‣ 2.6 Pitch Encoder ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we implemented the Pitch Fusion Block with Multi-Head Self-Attention to capture global features and residual convolution blocks for extracting local features. Subsequently, we sum the global and local features and normalize the resultant output. This is similar to the ConvFFT block presented in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>.</p>
+</div>
+</section>
+<section id="S2.SS6" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.6 </span>Pitch Encoder</h3>
+
+<div id="S2.SS6.p1" class="ltx_para">
+<p id="S2.SS6.p1.1" class="ltx_p">We implement the Pitch Encoder with a 1-D convolutional layer with group normalization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> and the Mish <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite> activation function. Subsequently, the Pitch Encoder employs a Pitch Fusion Block (Section <a href="#S2.SS5" title="2.5 Pitch Fusion Block ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.5</span></a>) implemented with Multi-Head Self-Attention and residual convolution blocks. In the experiments, <math id="S2.SS6.p1.1.m1.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S2.SS6.p1.1.m1.1a"><mi id="S2.SS6.p1.1.m1.1.1" xref="S2.SS6.p1.1.m1.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S2.SS6.p1.1.m1.1b"><ci id="S2.SS6.p1.1.m1.1.1.cmml" xref="S2.SS6.p1.1.m1.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS6.p1.1.m1.1c">M</annotation></semantics></math> Pitch Encoders are concatenated to accommodate different pitch extraction hop sizes (see Section <a href="#S3.SS2" title="3.2 Experimental Settings ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.2</span></a>).</p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2406.04595/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="266" height="205" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>The architecture of the Pitch Fusion Block. The Multi-Head Self-Attention is designed to capture global pitch features, while the residual convolution blocks (delineated by dotted lines and colored in green) aim to capture local pitch features.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Datasets</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">We train the MDD models using the AISHELL-1 corpus and evaluate their performance with the LATIC dataset. LATIC, annotated by human experts, is a non-native Mandarin Chinese speech dataset utilized to assess the efficacy of L2 MDD methods.
+The LATIC dataset comprises recordings from four speakers, each with a different L1 language: Russian, Korean, French, and Arabic. Dataset statistics are summarized in Table <a href="#S3.T1" title="Table 1 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Datasets Summary: The number of speakers, duration, utterances (Utt.), and L1 of speakers in AISHELL-1 and LATIC Datasets.</figcaption>
+<table id="S3.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt" rowspan="2"></th>
+<td id="S3.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt" colspan="3"><span id="S3.T1.1.1.1.2.1" class="ltx_text ltx_font_bold">AISHELL-1</span></td>
+<td id="S3.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.3.1" class="ltx_text ltx_font_bold">LATIC</span></td>
+</tr>
+<tr id="S3.T1.1.2.2" class="ltx_tr">
+<td id="S3.T1.1.2.2.1" class="ltx_td ltx_align_center">Train</td>
+<td id="S3.T1.1.2.2.2" class="ltx_td ltx_align_center">Dev</td>
+<td id="S3.T1.1.2.2.3" class="ltx_td ltx_align_center">Test</td>
+<td id="S3.T1.1.2.2.4" class="ltx_td ltx_align_center">Test</td>
+</tr>
+<tr id="S3.T1.1.3.3" class="ltx_tr">
+<th id="S3.T1.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Speakers</th>
+<td id="S3.T1.1.3.3.2" class="ltx_td ltx_align_center ltx_border_t">340</td>
+<td id="S3.T1.1.3.3.3" class="ltx_td ltx_align_center ltx_border_t">40</td>
+<td id="S3.T1.1.3.3.4" class="ltx_td ltx_align_center ltx_border_t">20</td>
+<td id="S3.T1.1.3.3.5" class="ltx_td ltx_align_center ltx_border_t">4</td>
+</tr>
+<tr id="S3.T1.1.4.4" class="ltx_tr">
+<th id="S3.T1.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Hours</th>
+<td id="S3.T1.1.4.4.2" class="ltx_td ltx_align_center">150</td>
+<td id="S3.T1.1.4.4.3" class="ltx_td ltx_align_center">10</td>
+<td id="S3.T1.1.4.4.4" class="ltx_td ltx_align_center">5</td>
+<td id="S3.T1.1.4.4.5" class="ltx_td ltx_align_center">4</td>
+</tr>
+<tr id="S3.T1.1.5.5" class="ltx_tr">
+<th id="S3.T1.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Utt.</th>
+<td id="S3.T1.1.5.5.2" class="ltx_td ltx_align_center">120098</td>
+<td id="S3.T1.1.5.5.3" class="ltx_td ltx_align_center">14326</td>
+<td id="S3.T1.1.5.5.4" class="ltx_td ltx_align_center">7176</td>
+<td id="S3.T1.1.5.5.5" class="ltx_td ltx_align_center">2579</td>
+</tr>
+<tr id="S3.T1.1.6.6" class="ltx_tr">
+<th id="S3.T1.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">L1</th>
+<td id="S3.T1.1.6.6.2" class="ltx_td ltx_align_center ltx_border_bb" colspan="3">Mandarin Chinese</td>
+<td id="S3.T1.1.6.6.3" class="ltx_td ltx_align_center ltx_border_bb">
+<table id="S3.T1.1.6.6.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.6.6.3.1.1" class="ltx_tr">
+<td id="S3.T1.1.6.6.3.1.1.1" class="ltx_td ltx_align_center">Russian, Korean,</td>
+</tr>
+<tr id="S3.T1.1.6.6.3.1.2" class="ltx_tr">
+<td id="S3.T1.1.6.6.3.1.2.1" class="ltx_td ltx_align_center">French, and Arabic</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="S3.T2" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>Overall Performance Comparison of PER and MDD Metrics. ``Hop Size'' indicates the hop size during pitch extraction. ``Pitch Encoder'' indicates whether the Pitch Encoder of the model is implemented with a Pitch Fusion Block (PFB). ``PE'' indicates models implemented with Pitch Embedding in the encoder.</figcaption>
+<table id="S3.T2.6" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T2.6.6" class="ltx_tr">
+<td id="S3.T2.6.6.7" class="ltx_td ltx_align_justify ltx_border_tt">
+<span id="S3.T2.6.6.7.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.6.7.1.1" class="ltx_p"><span id="S3.T2.6.6.7.1.1.1" class="ltx_text ltx_font_bold">Model</span></span>
+</span>
+</td>
+<td id="S3.T2.6.6.8" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T2.6.6.8.1" class="ltx_text ltx_font_bold">Hop Size</span></td>
+<td id="S3.T2.6.6.9" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T2.6.6.9.1" class="ltx_text ltx_font_bold">Pitch Encoder</span></td>
+<td id="S3.T2.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">
+<span id="S3.T2.1.1.1.1" class="ltx_text ltx_font_bold">PER</span> <math id="S3.T2.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T2.1.1.1.m1.1a"><mo stretchy="false" id="S3.T2.1.1.1.m1.1.1" xref="S3.T2.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T2.1.1.1.m1.1b"><ci id="S3.T2.1.1.1.m1.1.1.cmml" xref="S3.T2.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.2.2.2" class="ltx_td ltx_align_center ltx_border_tt">
+<span id="S3.T2.2.2.2.1" class="ltx_text ltx_font_bold">FRR</span> <math id="S3.T2.2.2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T2.2.2.2.m1.1a"><mo stretchy="false" id="S3.T2.2.2.2.m1.1.1" xref="S3.T2.2.2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T2.2.2.2.m1.1b"><ci id="S3.T2.2.2.2.m1.1.1.cmml" xref="S3.T2.2.2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.2.2.2.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.3.3.3" class="ltx_td ltx_align_center ltx_border_tt">
+<span id="S3.T2.3.3.3.1" class="ltx_text ltx_font_bold">FAR</span> <math id="S3.T2.3.3.3.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T2.3.3.3.m1.1a"><mo stretchy="false" id="S3.T2.3.3.3.m1.1.1" xref="S3.T2.3.3.3.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T2.3.3.3.m1.1b"><ci id="S3.T2.3.3.3.m1.1.1.cmml" xref="S3.T2.3.3.3.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.3.3.3.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.4.4.4" class="ltx_td ltx_align_center ltx_border_tt">
+<span id="S3.T2.4.4.4.1" class="ltx_text ltx_font_bold">Pre.</span> <math id="S3.T2.4.4.4.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.4.4.4.m1.1a"><mo stretchy="false" id="S3.T2.4.4.4.m1.1.1" xref="S3.T2.4.4.4.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.4.4.4.m1.1b"><ci id="S3.T2.4.4.4.m1.1.1.cmml" xref="S3.T2.4.4.4.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.4.4.4.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.5.5.5" class="ltx_td ltx_align_center ltx_border_tt">
+<span id="S3.T2.5.5.5.1" class="ltx_text ltx_font_bold">Rec.</span> <math id="S3.T2.5.5.5.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.5.5.5.m1.1a"><mo stretchy="false" id="S3.T2.5.5.5.m1.1.1" xref="S3.T2.5.5.5.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.5.5.5.m1.1b"><ci id="S3.T2.5.5.5.m1.1.1.cmml" xref="S3.T2.5.5.5.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.5.5.5.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.6.6.6" class="ltx_td ltx_align_left ltx_border_tt">
+<span id="S3.T2.6.6.6.1" class="ltx_text ltx_font_bold">F1-score</span> <math id="S3.T2.6.6.6.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.6.6.6.m1.1a"><mo stretchy="false" id="S3.T2.6.6.6.m1.1.1" xref="S3.T2.6.6.6.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.6.6.6.m1.1b"><ci id="S3.T2.6.6.6.m1.1.1.cmml" xref="S3.T2.6.6.6.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.6.6.6.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T2.6.7.1" class="ltx_tr">
+<td id="S3.T2.6.7.1.1" class="ltx_td ltx_align_justify ltx_border_t">
+<span id="S3.T2.6.7.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.7.1.1.1.1" class="ltx_p"><span id="S3.T2.6.7.1.1.1.1.1" class="ltx_text ltx_font_bold">Baseline</span></span>
+</span>
+</td>
+<td id="S3.T2.6.7.1.2" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.3" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.4" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.5" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.6" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.7" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.8" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.7.1.9" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S3.T2.6.8.2" class="ltx_tr">
+<td id="S3.T2.6.8.2.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.8.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.8.2.1.1.1" class="ltx_p">wav2vec2.0-CTC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite></span>
+</span>
+</td>
+<td id="S3.T2.6.8.2.2" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.8.2.3" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.8.2.4" class="ltx_td ltx_align_center">27.55</td>
+<td id="S3.T2.6.8.2.5" class="ltx_td ltx_align_center">0.266</td>
+<td id="S3.T2.6.8.2.6" class="ltx_td ltx_align_center">0.083</td>
+<td id="S3.T2.6.8.2.7" class="ltx_td ltx_align_center">0.109</td>
+<td id="S3.T2.6.8.2.8" class="ltx_td ltx_align_center">0.917</td>
+<td id="S3.T2.6.8.2.9" class="ltx_td ltx_align_left">0.195</td>
+</tr>
+<tr id="S3.T2.6.9.3" class="ltx_tr">
+<td id="S3.T2.6.9.3.1" class="ltx_td ltx_align_justify ltx_border_t">
+<span id="S3.T2.6.9.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.9.3.1.1.1" class="ltx_p"><span id="S3.T2.6.9.3.1.1.1.1" class="ltx_text ltx_font_bold">Stateless RNN-T</span></span>
+</span>
+</td>
+<td id="S3.T2.6.9.3.2" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.3" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.4" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.5" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.6" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.7" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.8" class="ltx_td ltx_border_t"></td>
+<td id="S3.T2.6.9.3.9" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S3.T2.6.10.4" class="ltx_tr">
+<td id="S3.T2.6.10.4.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.10.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.10.4.1.1.1" class="ltx_p">Pre-trained HuBERT</span>
+</span>
+</td>
+<td id="S3.T2.6.10.4.2" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.10.4.3" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.10.4.4" class="ltx_td ltx_align_center">28.65</td>
+<td id="S3.T2.6.10.4.5" class="ltx_td ltx_align_center">0.274</td>
+<td id="S3.T2.6.10.4.6" class="ltx_td ltx_align_center"><span id="S3.T2.6.10.4.6.1" class="ltx_text ltx_font_bold">0.063</span></td>
+<td id="S3.T2.6.10.4.7" class="ltx_td ltx_align_center">0.108</td>
+<td id="S3.T2.6.10.4.8" class="ltx_td ltx_align_center"><span id="S3.T2.6.10.4.8.1" class="ltx_text ltx_font_bold">0.937</span></td>
+<td id="S3.T2.6.10.4.9" class="ltx_td ltx_align_left">0.194</td>
+</tr>
+<tr id="S3.T2.6.11.5" class="ltx_tr">
+<td id="S3.T2.6.11.5.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.11.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.11.5.1.1.1" class="ltx_p">Fine-tuned HuBERT</span>
+</span>
+</td>
+<td id="S3.T2.6.11.5.2" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.11.5.3" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T2.6.11.5.4" class="ltx_td ltx_align_center">27.22</td>
+<td id="S3.T2.6.11.5.5" class="ltx_td ltx_align_center">0.261</td>
+<td id="S3.T2.6.11.5.6" class="ltx_td ltx_align_center">0.074</td>
+<td id="S3.T2.6.11.5.7" class="ltx_td ltx_align_center">0.109</td>
+<td id="S3.T2.6.11.5.8" class="ltx_td ltx_align_center">0.926</td>
+<td id="S3.T2.6.11.5.9" class="ltx_td ltx_align_left">0.196</td>
+</tr>
+<tr id="S3.T2.6.12.6" class="ltx_tr">
+<td id="S3.T2.6.12.6.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.12.6.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.12.6.1.1.1" class="ltx_p">- Raw F0 (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.12.6.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T2.6.12.6.3" class="ltx_td ltx_align_center">w/o PFB</td>
+<td id="S3.T2.6.12.6.4" class="ltx_td ltx_align_center">31.74</td>
+<td id="S3.T2.6.12.6.5" class="ltx_td ltx_align_center">0.303</td>
+<td id="S3.T2.6.12.6.6" class="ltx_td ltx_align_center">0.075</td>
+<td id="S3.T2.6.12.6.7" class="ltx_td ltx_align_center">0.082</td>
+<td id="S3.T2.6.12.6.8" class="ltx_td ltx_align_center">0.925</td>
+<td id="S3.T2.6.12.6.9" class="ltx_td ltx_align_left">0.150</td>
+</tr>
+<tr id="S3.T2.6.13.7" class="ltx_tr">
+<td id="S3.T2.6.13.7.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.13.7.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.13.7.1.1.1" class="ltx_p">- Raw F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.13.7.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T2.6.13.7.3" class="ltx_td ltx_align_center">w/o PFB</td>
+<td id="S3.T2.6.13.7.4" class="ltx_td ltx_align_center">27.32</td>
+<td id="S3.T2.6.13.7.5" class="ltx_td ltx_align_center">0.263</td>
+<td id="S3.T2.6.13.7.6" class="ltx_td ltx_align_center">0.087</td>
+<td id="S3.T2.6.13.7.7" class="ltx_td ltx_align_center">0.111</td>
+<td id="S3.T2.6.13.7.8" class="ltx_td ltx_align_center">0.913</td>
+<td id="S3.T2.6.13.7.9" class="ltx_td ltx_align_left">0.197</td>
+</tr>
+<tr id="S3.T2.6.14.8" class="ltx_tr">
+<td id="S3.T2.6.14.8.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.14.8.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.14.8.1.1.1" class="ltx_p">- Mel-scaled F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.14.8.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T2.6.14.8.3" class="ltx_td ltx_align_center">w/o PFB</td>
+<td id="S3.T2.6.14.8.4" class="ltx_td ltx_align_center">27.46</td>
+<td id="S3.T2.6.14.8.5" class="ltx_td ltx_align_center">0.264</td>
+<td id="S3.T2.6.14.8.6" class="ltx_td ltx_align_center">0.087</td>
+<td id="S3.T2.6.14.8.7" class="ltx_td ltx_align_center"><span id="S3.T2.6.14.8.7.1" class="ltx_text ltx_font_bold">0.113</span></td>
+<td id="S3.T2.6.14.8.8" class="ltx_td ltx_align_center">0.913</td>
+<td id="S3.T2.6.14.8.9" class="ltx_td ltx_align_left">0.200</td>
+</tr>
+<tr id="S3.T2.6.15.9" class="ltx_tr">
+<td id="S3.T2.6.15.9.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.15.9.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.15.9.1.1.1" class="ltx_p">- Coarse F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.15.9.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T2.6.15.9.3" class="ltx_td ltx_align_center">w/o PFB</td>
+<td id="S3.T2.6.15.9.4" class="ltx_td ltx_align_center">27.46</td>
+<td id="S3.T2.6.15.9.5" class="ltx_td ltx_align_center">0.264</td>
+<td id="S3.T2.6.15.9.6" class="ltx_td ltx_align_center">0.088</td>
+<td id="S3.T2.6.15.9.7" class="ltx_td ltx_align_center">0.109</td>
+<td id="S3.T2.6.15.9.8" class="ltx_td ltx_align_center">0.912</td>
+<td id="S3.T2.6.15.9.9" class="ltx_td ltx_align_left">0.195</td>
+</tr>
+<tr id="S3.T2.6.16.10" class="ltx_tr">
+<td id="S3.T2.6.16.10.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.16.10.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.16.10.1.1.1" class="ltx_p">- Raw F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.16.10.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T2.6.16.10.3" class="ltx_td ltx_align_center">w/ PFB</td>
+<td id="S3.T2.6.16.10.4" class="ltx_td ltx_align_center">27.28</td>
+<td id="S3.T2.6.16.10.5" class="ltx_td ltx_align_center">0.263</td>
+<td id="S3.T2.6.16.10.6" class="ltx_td ltx_align_center">0.085</td>
+<td id="S3.T2.6.16.10.7" class="ltx_td ltx_align_center">0.112</td>
+<td id="S3.T2.6.16.10.8" class="ltx_td ltx_align_center">0.915</td>
+<td id="S3.T2.6.16.10.9" class="ltx_td ltx_align_left">0.200</td>
+</tr>
+<tr id="S3.T2.6.17.11" class="ltx_tr">
+<td id="S3.T2.6.17.11.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.17.11.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.17.11.1.1.1" class="ltx_p">- Raw F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.17.11.2" class="ltx_td ltx_align_center">20 ms</td>
+<td id="S3.T2.6.17.11.3" class="ltx_td ltx_align_center">w/ PFB</td>
+<td id="S3.T2.6.17.11.4" class="ltx_td ltx_align_center">27.27</td>
+<td id="S3.T2.6.17.11.5" class="ltx_td ltx_align_center">0.261</td>
+<td id="S3.T2.6.17.11.6" class="ltx_td ltx_align_center">0.080</td>
+<td id="S3.T2.6.17.11.7" class="ltx_td ltx_align_center">0.113</td>
+<td id="S3.T2.6.17.11.8" class="ltx_td ltx_align_center">0.920</td>
+<td id="S3.T2.6.17.11.9" class="ltx_td ltx_align_left"><span id="S3.T2.6.17.11.9.1" class="ltx_text ltx_font_bold">0.201</span></td>
+</tr>
+<tr id="S3.T2.6.18.12" class="ltx_tr">
+<td id="S3.T2.6.18.12.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.18.12.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.18.12.1.1.1" class="ltx_p">- Raw F0 w/ PE (linear)</span>
+</span>
+</td>
+<td id="S3.T2.6.18.12.2" class="ltx_td ltx_align_center">40 ms</td>
+<td id="S3.T2.6.18.12.3" class="ltx_td ltx_align_center">w/ PFB</td>
+<td id="S3.T2.6.18.12.4" class="ltx_td ltx_align_center">27.22</td>
+<td id="S3.T2.6.18.12.5" class="ltx_td ltx_align_center">0.262</td>
+<td id="S3.T2.6.18.12.6" class="ltx_td ltx_align_center">0.088</td>
+<td id="S3.T2.6.18.12.7" class="ltx_td ltx_align_center">0.112</td>
+<td id="S3.T2.6.18.12.8" class="ltx_td ltx_align_center">0.912</td>
+<td id="S3.T2.6.18.12.9" class="ltx_td ltx_align_left">0.200</td>
+</tr>
+<tr id="S3.T2.6.19.13" class="ltx_tr">
+<td id="S3.T2.6.19.13.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.19.13.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.19.13.1.1.1" class="ltx_p">- Pitch Fusion Block (global)</span>
+</span>
+</td>
+<td id="S3.T2.6.19.13.2" class="ltx_td ltx_align_center">40 ms</td>
+<td id="S3.T2.6.19.13.3" class="ltx_td ltx_align_center">w/ PFB</td>
+<td id="S3.T2.6.19.13.4" class="ltx_td ltx_align_center">27.25</td>
+<td id="S3.T2.6.19.13.5" class="ltx_td ltx_align_center">0.263</td>
+<td id="S3.T2.6.19.13.6" class="ltx_td ltx_align_center">0.085</td>
+<td id="S3.T2.6.19.13.7" class="ltx_td ltx_align_center">0.112</td>
+<td id="S3.T2.6.19.13.8" class="ltx_td ltx_align_center">0.915</td>
+<td id="S3.T2.6.19.13.9" class="ltx_td ltx_align_left">0.200</td>
+</tr>
+<tr id="S3.T2.6.20.14" class="ltx_tr">
+<td id="S3.T2.6.20.14.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.20.14.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.20.14.1.1.1" class="ltx_p">- Pitch Fusion Block</span>
+</span>
+</td>
+<td id="S3.T2.6.20.14.2" class="ltx_td ltx_align_center">40 ms</td>
+<td id="S3.T2.6.20.14.3" class="ltx_td ltx_align_center">w/ PFB</td>
+<td id="S3.T2.6.20.14.4" class="ltx_td ltx_align_center"><span id="S3.T2.6.20.14.4.1" class="ltx_text ltx_font_bold">26.69</span></td>
+<td id="S3.T2.6.20.14.5" class="ltx_td ltx_align_center"><span id="S3.T2.6.20.14.5.1" class="ltx_text ltx_font_bold">0.257</span></td>
+<td id="S3.T2.6.20.14.6" class="ltx_td ltx_align_center">0.077</td>
+<td id="S3.T2.6.20.14.7" class="ltx_td ltx_align_center">0.111</td>
+<td id="S3.T2.6.20.14.8" class="ltx_td ltx_align_center">0.922</td>
+<td id="S3.T2.6.20.14.9" class="ltx_td ltx_align_left">0.198</td>
+</tr>
+<tr id="S3.T2.6.21.15" class="ltx_tr">
+<td id="S3.T2.6.21.15.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.21.15.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.21.15.1.1.1" class="ltx_p">Fine-tuned wav2vec2.0</span>
+</span>
+</td>
+<td id="S3.T2.6.21.15.2" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.3" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.4" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.5" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.6" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.7" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.8" class="ltx_td"></td>
+<td id="S3.T2.6.21.15.9" class="ltx_td"></td>
+</tr>
+<tr id="S3.T2.6.22.16" class="ltx_tr">
+<td id="S3.T2.6.22.16.1" class="ltx_td ltx_align_justify">
+<span id="S3.T2.6.22.16.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.22.16.1.1.1" class="ltx_p">- Raw F0 w/ PE</span>
+</span>
+</td>
+<td id="S3.T2.6.22.16.2" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.3" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.4" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.5" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.6" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.7" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.8" class="ltx_td"></td>
+<td id="S3.T2.6.22.16.9" class="ltx_td"></td>
+</tr>
+<tr id="S3.T2.6.23.17" class="ltx_tr">
+<td id="S3.T2.6.23.17.1" class="ltx_td ltx_align_justify ltx_border_bb">
+<span id="S3.T2.6.23.17.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S3.T2.6.23.17.1.1.1" class="ltx_p">- Pitch Fusion Block</span>
+</span>
+</td>
+<td id="S3.T2.6.23.17.2" class="ltx_td ltx_align_center ltx_border_bb">40 ms</td>
+<td id="S3.T2.6.23.17.3" class="ltx_td ltx_align_center ltx_border_bb">w/ PFB</td>
+<td id="S3.T2.6.23.17.4" class="ltx_td ltx_align_center ltx_border_bb">27.54</td>
+<td id="S3.T2.6.23.17.5" class="ltx_td ltx_align_center ltx_border_bb">0.266</td>
+<td id="S3.T2.6.23.17.6" class="ltx_td ltx_align_center ltx_border_bb">0.077</td>
+<td id="S3.T2.6.23.17.7" class="ltx_td ltx_align_center ltx_border_bb">0.103</td>
+<td id="S3.T2.6.23.17.8" class="ltx_td ltx_align_center ltx_border_bb">0.923</td>
+<td id="S3.T2.6.23.17.9" class="ltx_td ltx_align_left ltx_border_bb">0.185</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Experimental Settings</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.4" class="ltx_p">We employ pre-trained chinese-wav2vec2-base and chinese-hubert-base by TencentGameMate<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>https://github.com/TencentGameMate/chinese_speech_pretrain</span></span></span> for the SSL module. The subsampling output dimension is set to 1024. The input size of the pitch embedding layer is configured to be 1600, a parameter determined by conducting a statistical analysis on the maximum F0 observed within the training dataset. The Pitch Embedding is designed with an embedding size of 512.
+Our Pitch Encoder is implemented with three configurations.
+We use <math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><mi id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><ci id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">M</annotation></semantics></math> to denote the number of Pitch Encoders concatenated during implementation. Specifically, when the hop size for F0 extraction is set to 10 ms, <math id="S3.SS2.p1.2.m2.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS2.p1.2.m2.1a"><mi id="S3.SS2.p1.2.m2.1.1" xref="S3.SS2.p1.2.m2.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.2.m2.1b"><ci id="S3.SS2.p1.2.m2.1.1.cmml" xref="S3.SS2.p1.2.m2.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.2.m2.1c">M</annotation></semantics></math> is configured as 2, with the stride for the 1-D convolutional layers being 2. For a hop size of 20 ms, <math id="S3.SS2.p1.3.m3.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS2.p1.3.m3.1a"><mi id="S3.SS2.p1.3.m3.1.1" xref="S3.SS2.p1.3.m3.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.3.m3.1b"><ci id="S3.SS2.p1.3.m3.1.1.cmml" xref="S3.SS2.p1.3.m3.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.3.m3.1c">M</annotation></semantics></math> is reduced to 1, maintaining a stride of 2. For a hop size of 40 ms, <math id="S3.SS2.p1.4.m4.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS2.p1.4.m4.1a"><mi id="S3.SS2.p1.4.m4.1.1" xref="S3.SS2.p1.4.m4.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.4.m4.1b"><ci id="S3.SS2.p1.4.m4.1.1.cmml" xref="S3.SS2.p1.4.m4.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.4.m4.1c">M</annotation></semantics></math> remains 1, but the stride is adjusted to 1. These configurations ensure that the output size of the Pitch Encoder matches that of the HuBERT features.
+The hyperparameters of the Pitch Fusion Block used in this work are outlined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>. We set the embedding dimension to 1024 and use 4 attention heads. The vocabulary size in our work is 215, including 214 tonal phonemes tokens and a blank token. The acoustic projector maps the 1024-dimensional acoustic feature into 512, while the phoneme projector maps the phoneme embedding into 512. The architectural details of the stateless decoder and the Joint network are delineated in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">We fine-tune wav2vec2.0-CTC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> as the baseline model and compare it with the proposed stateless RNN-T-based models using the k2 framework<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>https://github.com/k2-fsa/icefall</span></span></span> and Fairseq<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span>https://github.com/facebookresearch/fairseq</span></span></span>. The SSL modules were frozen for the initial 10,000 training steps and subsequently commenced fine-tuning after this initial phase. By default, we set the max-duration per GPU to 100s in k2 and fine-tuned the SSL modules for 20 epochs. All models are trained on 24GB NVIDIA RTX A5000 GPU. We fine-tuned SSL modules using the same optimization strategy as mentioned in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>. During decoding, greedy search is employed.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Metrics and Overall Experimental Results</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">Following previous works <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib32" title="" class="ltx_ref">32</a>, <a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>, we employ several evaluation metrics to assess the performance of the MDD model, including False Rejection Rate (FRR; FR/(FR + TA)), False Acceptance Rate (FAR; FA/(FA + TR)), Recall (RE; TR/(FA + TR)), Precision (PR; TR/(FR + TR)), and F1-score (2*(RE * PR)/(RE + PR)). The True Rejection (TR) represents the number of phonemes labeled as mispronunciations and detected as incorrect. False Rejection (FR) is the number of phonemes annotated as correct pronunciation and identified as incorrect. False Acceptance (FA) is the number of phonemes that are mispronounced but misclassified as correct. True Acceptance (TA) is the number of correct pronounced phonemes classified as correct. Additionally, we compute the Phoneme Error Rate (PER) to evaluate the performance of the phoneme recognition model.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">Experimental results are summarized in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. It is observed that L1 fine-tuned HuBERT achieves improvements in PER, FRR, and F1-score among the HuBERT model initialized by the pre-trained parameters and the baseline.</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p">To assess the efficacy of wav2vec2.0 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite> and HuBERT in the MDD task, we fine-tuned wav2vec2.0 under the same configuration as HuBERT in our best model. The experimental results reveal that the proposed stateless RNN-T with HuBERT achieves a notable improvement in the PER, and FRR, Precision, and F1-score, outperforming the wav2vec2.0 based model with the same stateless RNN-T architecture.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Effectiveness of Different Pitch Extraction Methods</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">We conduct a series of experiments to evaluate the efficacy of pitch extraction methods (Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>).
+Using the same pitch extraction hop size (10 ms) and Pitch Encoder (w/o PFB), the raw F0 with pitch embedding (Raw F0 w/ PE as shown in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>) achieves a lower PER and FRR, outperforming models that utilize mel-scaled F0 and coarse F0. Furthermore, compared to the model that uses raw F0 without Pitch Embedding, the model with raw F0 and Pitch Embedding achieves a 16% reduction in PER, a 35% improvement in Precision, and a 31.3% improvement in F1-score. This demonstrates the effectiveness of using a high-dimensional representation of raw F0 over raw F0 alone for Mandarin Chinese MDD.</p>
+</div>
+<div id="S3.SS4.p2" class="ltx_para">
+<p id="S3.SS4.p2.1" class="ltx_p">The results for various hop sizes, specifically at 10 ms, 20 ms, and 40 ms, are presented in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. The results indicate that the model with a 40 ms hop size for F0 as input achieved the lowest PER.</p>
+</div>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Effectiveness of Different Pitch Fusion Methods</h3>
+
+<div id="S3.SS5.p1" class="ltx_para">
+<p id="S3.SS5.p1.1" class="ltx_p">We compare three models with different pitch fusion methods fusing Pitch Encoder output with HuBERT features. The proposed model with complete Pitch Fusion Block is denoted as the ``Pitch Fusion Block'' in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+For comparison, we replace the Pitch Fusion Blocks (in Figure <a href="#S2.F1" title="Figure 1 ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) with a linear layer. These models are marked with ``linear'' in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+Furthermore, we remove the convolution residual blocks in the Pitch Fusion Block (delineated by dotted lines and colored in green in Figure <a href="#S2.F2" title="Figure 2 ‣ 2.6 Pitch Encoder ‣ 2 Method ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>) to evaluate the effect of extracted local features on MDD performance. As the remaining Multi-Head Self-Attention extracts the global features, we mark this model with ``global'' in Table <a href="#S3.T2" title="Table 2 ‣ 3.1 Datasets ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.
+Results show that the proposed model, which incorporates pitch-aware methodologies, reduces the PER and FRR, and achieves higher precision and F1-score compared to the fine-tuned HuBERT without pitch input.</p>
+</div>
+<div id="S3.SS5.p2" class="ltx_para">
+<p id="S3.SS5.p2.1" class="ltx_p">We list models with high Recall (higher than 0.922) in Table <a href="#S3.T3" title="Table 3 ‣ 3.5 Effectiveness of Different Pitch Fusion Methods ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, and provide more detailed metrics to analyze their performance.
+True Rejection (TR) consists of two components: Correct Diagnosis (CD) and Diagnostic Errors (DE).
+CD represents the count of mispronunciations accurately identified by the model. DE refers to the instances where mispronunciations are correctly detected but incorrectly attributed to a different phoneme than the one actually produced by the L2 speaker.
+For instance, if the expected phoneme is `sh' and the L2 speaker pronounces it as `s', a model recognition of `s' would be classified under CD, indicating a correct diagnosis. Conversely, if the model incorrectly identifies the mispronounced phoneme as `c', this instance would be categorized as a DE, highlighting a correct detection but erroneous recognition.
+We further adopt the Diagnostic Error Rate (DER; DE / CD + DE) proposed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> to measure the performance of our model. As demonstrated in Table <a href="#S3.T3" title="Table 3 ‣ 3.5 Effectiveness of Different Pitch Fusion Methods ‣ 3 Experiments ‣ Pitch-Aware RNN-T for Mandarin Chinese Mispronunciation Detection and Diagnosis" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, our model exhibits the lowest DER, signifying a reduced incidence of Diagnostic Errors in True Rejections when compared to competing models.</p>
+</div>
+<figure id="S3.T3" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 3: </span>Comparison of Diagnostic Error Rate (DER) in models with high recall.</figcaption>
+<table id="S3.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T3.1.1" class="ltx_tr">
+<th id="S3.T3.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"><span id="S3.T3.1.1.2.1" class="ltx_text ltx_font_bold">Model</span></th>
+<th id="S3.T3.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T3.1.1.3.1" class="ltx_text ltx_font_bold">Hop Size</span></th>
+<th id="S3.T3.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T3.1.1.4.1" class="ltx_text ltx_font_bold">Pitch</span></th>
+<th id="S3.T3.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T3.1.1.1.1" class="ltx_text ltx_font_bold">DER <math id="S3.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T3.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T3.1.1.1.1.m1.1.1" xref="S3.T3.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T3.1.1.1.1.m1.1b"><ci id="S3.T3.1.1.1.1.m1.1.1.cmml" xref="S3.T3.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T3.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math></span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T3.1.2.1" class="ltx_tr">
+<th id="S3.T3.1.2.1.1" class="ltx_td ltx_th ltx_th_row"></th>
+<th id="S3.T3.1.2.1.2" class="ltx_td ltx_th ltx_th_column"></th>
+<th id="S3.T3.1.2.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column"><span id="S3.T3.1.2.1.3.1" class="ltx_text ltx_font_bold">Encoder</span></th>
+<td id="S3.T3.1.2.1.4" class="ltx_td"></td>
+</tr>
+<tr id="S3.T3.1.3.2" class="ltx_tr">
+<th id="S3.T3.1.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">Pre-trained HuBERT</th>
+<td id="S3.T3.1.3.2.2" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="S3.T3.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="S3.T3.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t">0.321</td>
+</tr>
+<tr id="S3.T3.1.4.3" class="ltx_tr">
+<th id="S3.T3.1.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Fine-tuned HuBERT</th>
+<td id="S3.T3.1.4.3.2" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T3.1.4.3.3" class="ltx_td ltx_align_center">-</td>
+<td id="S3.T3.1.4.3.4" class="ltx_td ltx_align_center">0.320</td>
+</tr>
+<tr id="S3.T3.1.5.4" class="ltx_tr">
+<th id="S3.T3.1.5.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">- Raw F0 (linear)</th>
+<td id="S3.T3.1.5.4.2" class="ltx_td ltx_align_center">10 ms</td>
+<td id="S3.T3.1.5.4.3" class="ltx_td ltx_align_center">w/o PFB</td>
+<td id="S3.T3.1.5.4.4" class="ltx_td ltx_align_center">0.370</td>
+</tr>
+<tr id="S3.T3.1.6.5" class="ltx_tr">
+<th id="S3.T3.1.6.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">- Raw F0 w/ PE</th>
+<td id="S3.T3.1.6.5.2" class="ltx_td"></td>
+<td id="S3.T3.1.6.5.3" class="ltx_td"></td>
+<td id="S3.T3.1.6.5.4" class="ltx_td"></td>
+</tr>
+<tr id="S3.T3.1.7.6" class="ltx_tr">
+<th id="S3.T3.1.7.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb">   - Pitch Fusion Block</th>
+<td id="S3.T3.1.7.6.2" class="ltx_td ltx_align_center ltx_border_bb">40 ms</td>
+<td id="S3.T3.1.7.6.3" class="ltx_td ltx_align_center ltx_border_bb">w/ PFB</td>
+<td id="S3.T3.1.7.6.4" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T3.1.7.6.4.1" class="ltx_text ltx_font_bold">0.318</span></td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">This paper introduces a pitch-aware Recurrent Neural Network Transducer specifically designed for Mandarin Chinese Mispronunciation Detection and Diagnosis. The proposed model employs a novel fusion methodology that integrates pitch embeddings with HuBERT features to achieve state-of-the-art performance. Additionally, this study investigates the impact of various hop sizes on F0 extraction, the use of Mel-scaled F0, and different pitch fusion mechanisms on model performance. We anticipate that the findings presented herein will serve as a catalyst for future research in the areas of tonal language Automatic Speech Recognition and Mispronunciation Detection and Diagnosis.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Acknowledgements</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">The authors would like to thank anonymous reviewers for their
+valuable suggestions. This project is funded by a research grant MOE-MOESOL2021-0005 from the Ministry of Education in Singapore.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+D. Y. Zhang, S. Saha, and S. Campbell, ``Phonetic rnn-transducer for mispronunciation diagnosis,'' in <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+K. Li, X. Qian, and H. Meng, ``Mispronunciation detection and diagnosis in l2 english speech using multidistribution deep neural networks,'' <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on Audio, Speech, and Language Processing</em>, vol. 25, no. 1, pp. 193–207, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+S. M. Witt and S. J. Young, ``Phone-level pronunciation scoring and assessment for interactive language learning,'' <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Speech communication</em>, vol. 30, no. 2-3, pp. 95–108, 2000.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+F. Zhang, C. Huang, F. K. Soong, M. Chu, and R. Wang, ``Automatic mispronunciation detection for mandarin,'' in <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">2008 IEEE International Conference on Acoustics, Speech and Signal Processing</em>.   IEEE, 2008, pp. 5077–5080.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+H. Franco, L. Neumeyer, M. Ramos, and H. Bratt, ``Automatic detection of phone-level mispronunciation for language learning,'' in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Sixth European Conference on Speech Communication and Technology</em>, 1999.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+K. Truong, A. Neri, C. Cucchiarini, and H. Strik, ``Automatic pronunciation error detection: an acoustic-phonetic approach,'' in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proc. InSTIL/ICALL 2004 Symposium on Computer Assisted Learning</em>, 2004, p. paper 032.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+A. M. Harrison, W.-K. Lo, X.-J. Qian, and H. Meng, ``Implementation of an extended recognition network for mispronunciation detection and diagnosis in computer-assisted pronunciation training,'' in <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Proc. Speech and Language Technology in Education (SLaTE 2009)</em>, 2009, pp. 45–48.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+W.-K. Leung, X. Liu, and H. Meng, ``Cnn-rnn-ctc based end-to-end mispronunciation detection and diagnosis,'' in <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2019, pp. 8132–8136.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+A. Graves, ``Sequence transduction with recurrent neural networks,'' <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1211.3711</em>, 2012.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+X. Xu, Y. Kang, S. Cao, B. Lin, and L. Ma, ``Explore wav2vec 2.0 for mispronunciation detection.'' in <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2021, pp. 4428–4432.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+M. Ghodsi, X. Liu, J. Apfel, R. Cabrera, and E. Weinstein, ``Rnn-transducer with stateless prediction network,'' in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2020, pp. 7049–7053.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+J. Zhang, Z. Zhang, Y. Wang, Z. Yan, Q. Song, Y. Huang, K. Li, D. Povey, and Y. Wang, ``speechocean762: An open-source non-native english speech corpus for pronunciation assessment,'' <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2104.01378</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+G. Zhao, S. Sonsaat, A. Silpachai, I. Lucic, E. Chukharev-Hudilainen, J. Levis, and R. Gutierrez-Osuna, ``L2-arctic: A non-native english speech corpus.'' in <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2018, pp. 2783–2787.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+X. Zhang, ``Latic: A non-native pre-labelled mandarin chinese validation corpus for automatic speech scoring and evaluation task,'' 2021. [Online]. Available: <a target="_blank" href="https://dx.doi.org/10.21227/mqtj-qh10" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://dx.doi.org/10.21227/mqtj-qh10</a>
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+J.-C. Chen, J.-S. R. Jang, J.-Y. Li, and M.-C. Wu, ``Automatic pronunciation assessment for mandarin chinese,'' in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">2004 IEEE International Conference on Multimedia and Expo (ICME)(IEEE Cat. No. 04TH8763)</em>, vol. 3.   IEEE, 2004, pp. 1979–1982.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+W. Hu, Y. Qian, F. K. Soong, and Y. Wang, ``Improved mispronunciation detection with deep neural network trained acoustic models and transfer learning based logistic regression classifiers,'' <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Speech Communication</em>, vol. 67, pp. 154–166, 2015.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Y. Shen, Q. Liu, Z. Fan, J. Liu, and A. Wumaier, ``Self-supervised pre-trained speech representation based end-to-end mispronunciation detection and diagnosis of mandarin,'' <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">IEEE Access</em>, vol. 10, pp. 106 451–106 462, 2022.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+S. Guo, Z. Kadeer, A. Wumaier, L. Wang, and C. Fan, ``Multi-feature and multi-modal mispronunciation detection and diagnosis method based on the squeezeformer encoder,'' <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">IEEE Access</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+H. Liu, M. Shi, and Y. Wang, ``Zero-Shot Automatic Pronunciation Assessment,'' in <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Proc. INTERSPEECH 2023</em>, 2023, pp. 1009–1013.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+T. T. Huu, V. T. Pham, T. T. T. Nguyen, and T. L. Dao, ``Mispronunciation detection and diagnosis model for tonal language, applied to Vietnamese,'' in <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Proc. INTERSPEECH 2023</em>, 2023, pp. 1014–1018.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, ``Hubert: Self-supervised speech representation learning by masked prediction of hidden units,'' <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on Audio, Speech, and Language Processing</em>, vol. 29, pp. 3451–3460, 2021.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+H. Bu, J. Du, X. Na, B. Wu, and H. Zheng, ``Aishell-1: An open-source mandarin speech corpus and a speech recognition baseline,'' in <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">2017 20th conference of the oriental chapter of the international coordinating committee on speech databases and speech I/O systems and assessment (O-COCOSDA)</em>.   IEEE, 2017, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+Z. Yao, L. Guo, X. Yang, W. Kang, F. Kuang, Y. Yang, Z. Jin, L. Lin, and D. Povey, ``Zipformer: A faster and better encoder for automatic speech recognition,'' <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2310.11230</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+R. Tong, N. F. Chen, B. Ma, and H. Li, ``Context aware mispronunciation detection for mandarin pronunciation training.'' in <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2016, pp. 3112–3116.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+M. Morise, H. Kawahara, and H. Katayose, ``Fast and reliable f0 estimation method based on the period extraction of vocal fold vibration of singing voice and speech,'' in <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">Audio Engineering Society Conference: 35th International Conference: Audio for Games</em>.   Audio Engineering Society, 2009.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+M. Morise, F. Yokomori, and K. Ozawa, ``World: a vocoder-based high-quality speech synthesis system for real-time applications,'' <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">IEICE TRANSACTIONS on Information and Systems</em>, vol. 99, no. 7, pp. 1877–1884, 2016.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+P. Żelasko, D. Povey, J. Trmal, S. Khudanpur <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Lhotse: a speech data representation library for the modern deep learning ecosystem,'' <em id="bib.bib27.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2110.12561</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+C. Wang, C. Zeng, and X. He, ``Xiaoicesing 2: A high-fidelity singing voice synthesizer based on generative adversarial network,'' <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2210.14666</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+X. Wang, C. Zeng, J. Chen, and C. Wang, ``Crosssinger: A cross-lingual multi-singer high-fidelity singing voice synthesizer trained on monolingual singers,'' in <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</em>.   IEEE, 2023, pp. 1–6.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+Y. Wu and K. He, ``Group normalization,'' in <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">Proceedings of the European conference on computer vision (ECCV)</em>, 2018, pp. 3–19.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+D. Misra, ``Mish: A self regularized non-monotonic activation function,'' <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1908.08681</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+X. Qian, F. K. Soong, and H. M. Meng, ``Discriminative acoustic model for improving mispronunciation detection and diagnosis in computer-aided pronunciation training (capt).'' in <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>, 2010, pp. 757–760.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+B.-C. Yan, M.-C. Wu, H.-T. Hung, and B. Chen, ``An end-to-end mispronunciation detection system for l2 english speech leveraging novel anti-phone modeling,'' <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2005.11950</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, ``wav2vec 2.0: A framework for self-supervised learning of speech representations,'' <em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, vol. 33, pp. 12 449–12 460, 2020.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.04594" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.04595" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.04595">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.04595" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.04596" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Jul  5 18:24:04 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

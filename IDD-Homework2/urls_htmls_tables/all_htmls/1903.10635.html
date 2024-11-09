@@ -1,0 +1,1015 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1903.10635] Federated Learning Of Out-Of-Vocabulary Words</title><meta property="og:description" content="We demonstrate that a character-level recurrent neural network is able to learn
+out-of-vocabulary (OOV) words under federated learning settings, for the purpose of expanding the vocabulary of
+a virtual keyboard for sma…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Federated Learning Of Out-Of-Vocabulary Words">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Federated Learning Of Out-Of-Vocabulary Words">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1903.10635">
+
+<!--Generated on Sat Mar 16 09:25:10 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Federated Learning Of Out-Of-Vocabulary Words</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Mingqing Chen  Rajiv Mathews  Tom Ouyang  Françoise Beaufays
+<br class="ltx_break">Google LLC 
+<br class="ltx_break">Mountain View, CA, U.S.A. 
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">mingqing, mathews, ouyang, fsb@google.com</span>
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">We demonstrate that a character-level recurrent neural network is able to learn
+out-of-vocabulary (OOV) words under federated learning settings, for the purpose of expanding the vocabulary of
+a virtual keyboard for smartphones without exporting sensitive text to servers.
+High-frequency words can be sampled from the trained generative model
+by drawing from the joint posterior directly.
+We study the feasibility of the approach in two settings:
+(1) using simulated federated learning on a publicly available non-IID per-user dataset from a popular social networking website,
+(2) using federated learning on data hosted on user mobile devices.
+The model achieves good recall and precision compared to ground-truth OOV words in setting (1).
+With (2) we demonstrate the practicality of this approach by showing that
+we can learn meaningful OOV words with good character-level prediction accuracy and cross entropy loss.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Gboard — the Google keyboard — is a virtual keyboard for touch screen mobile
+devices with support for more than 600 language varieties and over 1 billion installs as of 2018.
+Gboard provides a variety of input features, including
+tap and word-gesture typing, auto-correction, word completion and next word prediction.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Learning frequently typed words from user-generated data is an important component to the development of a mobile keyboard.
+Example usage includes incorporating new trending words (celebrity names, pop culture words, etc.)
+as they arise, or simply compensating for omissions in the initial keyboard implementation,
+especially for low-resource languages.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">The list of words is often referred to as the “vocabulary”, and may or may not be hand-curated.
+Words missing from the vocabulary cannot be predicted on the keyboard suggestion strip,
+cannot be gesture typed, and more annoyingly, may be autocorrected even when typed correctly <cite class="ltx_cite ltx_citemacro_cite">Ouyang et al. (<a href="#bib.bib14" title="" class="ltx_ref">2017</a>)</cite>.
+Moreover, for latency and reliability reasons,
+mobile keyboards models run on-device.
+This means that the vocabulary supporting the models are intrinsically limited in size,
+e.g. to a couple hundred thousand words per language.
+It is therefore crucial to discover and include the most useful words in this rather short vocabulary list.
+Words not in the vocabulary are often called “out-of-vocabulary” (OOV) words.
+Note that the concept of vocabulary is not limited to mobile keyboards.
+Other natural language applications, such as for example neural machine translation (NMT),
+rely on a vocabulary to encode words during end-to-end training.
+Learning OOV words and their rankings is thus a fairly generic technology need.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">The focus of our work is learning OOV words in a environment without transmitting and storing sensitive user content on centralized servers.
+Privacy is easier to ensure when words are learned on device.
+Our work builds upon recent advances in Federated Learning (FL) <cite class="ltx_cite ltx_citemacro_cite">Konečnỳ et al. (<a href="#bib.bib10" title="" class="ltx_ref">2016</a>); Yang et al. (<a href="#bib.bib17" title="" class="ltx_ref">2018</a>); Hard et al. (<a href="#bib.bib8" title="" class="ltx_ref">2018</a>)</cite>,
+a decentralized learning technique to train models such as neural networks on users’ devices,
+uploading only ephemeral model updates to the server for aggregation,
+and leaving the users’ raw data on their device.
+Approaches based on hash maps, count sketches <cite class="ltx_cite ltx_citemacro_cite">Charikar et al. (<a href="#bib.bib4" title="" class="ltx_ref">2002</a>)</cite>,
+or tries <cite class="ltx_cite ltx_citemacro_cite">Gunasinghe and Alahakoon (<a href="#bib.bib7" title="" class="ltx_ref">2012</a>)</cite> require significant adaptation to be able to run on FL settings <cite class="ltx_cite ltx_citemacro_cite">Zhu et al. (<a href="#bib.bib18" title="" class="ltx_ref">2019</a>)</cite>.
+Our work builds upon a very general FL framework for neural networks,
+where we train a federated character-based recurrent neural network (RNN) on device.
+OOV words are Monte Carlo sampled on servers during interference (details in <a href="#S2.SS1" title="2.1 LSTM Modeling ‣ 2 Method ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.1</span></a>).</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">While Federated Learning removes the need to upload raw user material — here OOV words — to the server,
+the privacy risk of unintended memorization still exists (as demonstrated in <cite class="ltx_cite ltx_citemacro_cite">Carlini et al. (<a href="#bib.bib3" title="" class="ltx_ref">2018</a>)</cite>).
+Such risk can be mitigated, usually with some accuracy cost, using techniques
+including differential privacy <cite class="ltx_cite ltx_citemacro_cite">McMahan et al. (<a href="#bib.bib12" title="" class="ltx_ref">2018</a>)</cite>. Exploring these trade-offs is beyond the scope of this paper.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">The proposed approach relies on a learned probabilistic model, and may therefore not
+generate the words it is trained from faithfully. It may “daydream” OOV words, that is, come up with
+character sequences never seen in the training data. And it may not be able to regenerate some words
+that would be interesting to learn.
+The key to demonstrate the practicality of the approach is to answer:
+(1) How frequently do daydreamed words occur?
+(2) How well does the sampled distribution represent the true word frequencies in the dataset?
+In response to these questions, our contributions include the following:</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.4" class="ltx_p">1. We train the proposed LSTM model on a public Reddit comments dataset with a
+simulated FL environment.
+The Reddit dataset contains user ID information for
+each entry (user’s comments or posts), which can be used to mimic the process
+of FL to learn from each client’s local data.
+The simulated FL model is able to achieve
+<math id="S1.p7.1.m1.1" class="ltx_Math" alttext="90.56\%" display="inline"><semantics id="S1.p7.1.m1.1a"><mrow id="S1.p7.1.m1.1.1" xref="S1.p7.1.m1.1.1.cmml"><mn id="S1.p7.1.m1.1.1.2" xref="S1.p7.1.m1.1.1.2.cmml">90.56</mn><mo id="S1.p7.1.m1.1.1.1" xref="S1.p7.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S1.p7.1.m1.1b"><apply id="S1.p7.1.m1.1.1.cmml" xref="S1.p7.1.m1.1.1"><csymbol cd="latexml" id="S1.p7.1.m1.1.1.1.cmml" xref="S1.p7.1.m1.1.1.1">percent</csymbol><cn type="float" id="S1.p7.1.m1.1.1.2.cmml" xref="S1.p7.1.m1.1.1.2">90.56</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.p7.1.m1.1c">90.56\%</annotation></semantics></math> precision and <math id="S1.p7.2.m2.1" class="ltx_Math" alttext="81.22\%" display="inline"><semantics id="S1.p7.2.m2.1a"><mrow id="S1.p7.2.m2.1.1" xref="S1.p7.2.m2.1.1.cmml"><mn id="S1.p7.2.m2.1.1.2" xref="S1.p7.2.m2.1.1.2.cmml">81.22</mn><mo id="S1.p7.2.m2.1.1.1" xref="S1.p7.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S1.p7.2.m2.1b"><apply id="S1.p7.2.m2.1.1.cmml" xref="S1.p7.2.m2.1.1"><csymbol cd="latexml" id="S1.p7.2.m2.1.1.1.cmml" xref="S1.p7.2.m2.1.1.1">percent</csymbol><cn type="float" id="S1.p7.2.m2.1.1.2.cmml" xref="S1.p7.2.m2.1.1.2">81.22</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.p7.2.m2.1c">81.22\%</annotation></semantics></math> recall for top <math id="S1.p7.3.m3.1" class="ltx_Math" alttext="{10^{5}}" display="inline"><semantics id="S1.p7.3.m3.1a"><msup id="S1.p7.3.m3.1.1" xref="S1.p7.3.m3.1.1.cmml"><mn id="S1.p7.3.m3.1.1.2" xref="S1.p7.3.m3.1.1.2.cmml">10</mn><mn id="S1.p7.3.m3.1.1.3" xref="S1.p7.3.m3.1.1.3.cmml">5</mn></msup><annotation-xml encoding="MathML-Content" id="S1.p7.3.m3.1b"><apply id="S1.p7.3.m3.1.1.cmml" xref="S1.p7.3.m3.1.1"><csymbol cd="ambiguous" id="S1.p7.3.m3.1.1.1.cmml" xref="S1.p7.3.m3.1.1">superscript</csymbol><cn type="integer" id="S1.p7.3.m3.1.1.2.cmml" xref="S1.p7.3.m3.1.1.2">10</cn><cn type="integer" id="S1.p7.3.m3.1.1.3.cmml" xref="S1.p7.3.m3.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.p7.3.m3.1c">{10^{5}}</annotation></semantics></math> unique words,
+based on a total number of <math id="S1.p7.4.m4.1" class="ltx_Math" alttext="{10^{8}}" display="inline"><semantics id="S1.p7.4.m4.1a"><msup id="S1.p7.4.m4.1.1" xref="S1.p7.4.m4.1.1.cmml"><mn id="S1.p7.4.m4.1.1.2" xref="S1.p7.4.m4.1.1.2.cmml">10</mn><mn id="S1.p7.4.m4.1.1.3" xref="S1.p7.4.m4.1.1.3.cmml">8</mn></msup><annotation-xml encoding="MathML-Content" id="S1.p7.4.m4.1b"><apply id="S1.p7.4.m4.1.1.cmml" xref="S1.p7.4.m4.1.1"><csymbol cd="ambiguous" id="S1.p7.4.m4.1.1.1.cmml" xref="S1.p7.4.m4.1.1">superscript</csymbol><cn type="integer" id="S1.p7.4.m4.1.1.2.cmml" xref="S1.p7.4.m4.1.1.2">10</cn><cn type="integer" id="S1.p7.4.m4.1.1.3.cmml" xref="S1.p7.4.m4.1.1.3">8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.p7.4.m4.1c">{10^{8}}</annotation></semantics></math> parallel independent samplings.</p>
+</div>
+<div id="S1.p8" class="ltx_para">
+<p id="S1.p8.1" class="ltx_p">2. We show the feasibility of training LSTM models from daily Gboard user data
+with real, on-device, FL settings.
+The FL model is able to reach <math id="S1.p8.1.m1.1" class="ltx_Math" alttext="55.8\%" display="inline"><semantics id="S1.p8.1.m1.1a"><mrow id="S1.p8.1.m1.1.1" xref="S1.p8.1.m1.1.1.cmml"><mn id="S1.p8.1.m1.1.1.2" xref="S1.p8.1.m1.1.1.2.cmml">55.8</mn><mo id="S1.p8.1.m1.1.1.1" xref="S1.p8.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S1.p8.1.m1.1b"><apply id="S1.p8.1.m1.1.1.cmml" xref="S1.p8.1.m1.1.1"><csymbol cd="latexml" id="S1.p8.1.m1.1.1.1.cmml" xref="S1.p8.1.m1.1.1.1">percent</csymbol><cn type="float" id="S1.p8.1.m1.1.1.2.cmml" xref="S1.p8.1.m1.1.1.2">55.8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.p8.1.m1.1c">55.8\%</annotation></semantics></math> character-level top-3 prediction accuracy and 2.35 cross entropy on users’ on-device data.
+We further show that the top sampled words are
+very meaningful and are able to capture words we know to be trending in the news at the time of the experiments.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Method</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>LSTM Modeling</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.5" class="ltx_p">LSTM models <cite class="ltx_cite ltx_citemacro_cite">Hochreiter and Schmidhuber (<a href="#bib.bib9" title="" class="ltx_ref">1997</a>)</cite> have been successfully used in a variety of sequence processing tasks.
+In this work we use a variant of LSTM with a Coupled Input and
+Forget Gate (CIFG) <cite class="ltx_cite ltx_citemacro_cite">Greff et al. (<a href="#bib.bib6" title="" class="ltx_ref">2017</a>)</cite>, peephole connections <cite class="ltx_cite ltx_citemacro_cite">Gers and Schmidhuber (<a href="#bib.bib5" title="" class="ltx_ref">2000</a>)</cite> and a projection layer <cite class="ltx_cite ltx_citemacro_cite">Sak et al. (<a href="#bib.bib15" title="" class="ltx_ref">2014</a>)</cite>.
+CIFG couples the forget and input decisions together, thereby reducing the
+number of parameters by <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="25\%" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mrow id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml"><mn id="S2.SS1.p1.1.m1.1.1.2" xref="S2.SS1.p1.1.m1.1.1.2.cmml">25</mn><mo id="S2.SS1.p1.1.m1.1.1.1" xref="S2.SS1.p1.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><apply id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1"><csymbol cd="latexml" id="S2.SS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1.1">percent</csymbol><cn type="integer" id="S2.SS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.2">25</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">25\%</annotation></semantics></math>.
+The projection layer that is located at the output gate generates the hidden state <math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="h_{t}" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><msub id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml"><mi id="S2.SS1.p1.2.m2.1.1.2" xref="S2.SS1.p1.2.m2.1.1.2.cmml">h</mi><mi id="S2.SS1.p1.2.m2.1.1.3" xref="S2.SS1.p1.2.m2.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><apply id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.1.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">subscript</csymbol><ci id="S2.SS1.p1.2.m2.1.1.2.cmml" xref="S2.SS1.p1.2.m2.1.1.2">ℎ</ci><ci id="S2.SS1.p1.2.m2.1.1.3.cmml" xref="S2.SS1.p1.2.m2.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">h_{t}</annotation></semantics></math> to reduce the dimension and speed-up training.
+Peephole connections let the gate layers look at the cell state.
+We use multi-layer LSTMs <cite class="ltx_cite ltx_citemacro_cite">Sutskever et al. (<a href="#bib.bib16" title="" class="ltx_ref">2014</a>)</cite> to increase the representation power of the model.
+The loss function of the LSTM model is computed as the cross entropy (CE)
+between the predicted character distribution <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="\widehat{y}_{i}^{t}" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><msubsup id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml"><mover accent="true" id="S2.SS1.p1.3.m3.1.1.2.2" xref="S2.SS1.p1.3.m3.1.1.2.2.cmml"><mi id="S2.SS1.p1.3.m3.1.1.2.2.2" xref="S2.SS1.p1.3.m3.1.1.2.2.2.cmml">y</mi><mo id="S2.SS1.p1.3.m3.1.1.2.2.1" xref="S2.SS1.p1.3.m3.1.1.2.2.1.cmml">^</mo></mover><mi id="S2.SS1.p1.3.m3.1.1.2.3" xref="S2.SS1.p1.3.m3.1.1.2.3.cmml">i</mi><mi id="S2.SS1.p1.3.m3.1.1.3" xref="S2.SS1.p1.3.m3.1.1.3.cmml">t</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><apply id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">superscript</csymbol><apply id="S2.SS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.2.1.cmml" xref="S2.SS1.p1.3.m3.1.1">subscript</csymbol><apply id="S2.SS1.p1.3.m3.1.1.2.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2.2"><ci id="S2.SS1.p1.3.m3.1.1.2.2.1.cmml" xref="S2.SS1.p1.3.m3.1.1.2.2.1">^</ci><ci id="S2.SS1.p1.3.m3.1.1.2.2.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2.2.2">𝑦</ci></apply><ci id="S2.SS1.p1.3.m3.1.1.2.3.cmml" xref="S2.SS1.p1.3.m3.1.1.2.3">𝑖</ci></apply><ci id="S2.SS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">\widehat{y}_{i}^{t}</annotation></semantics></math> at each step <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><mi id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><ci id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">t</annotation></semantics></math> and a one-hot encoding of the current
+true character <math id="S2.SS1.p1.5.m5.1" class="ltx_Math" alttext="y_{i}^{t}" display="inline"><semantics id="S2.SS1.p1.5.m5.1a"><msubsup id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml"><mi id="S2.SS1.p1.5.m5.1.1.2.2" xref="S2.SS1.p1.5.m5.1.1.2.2.cmml">y</mi><mi id="S2.SS1.p1.5.m5.1.1.2.3" xref="S2.SS1.p1.5.m5.1.1.2.3.cmml">i</mi><mi id="S2.SS1.p1.5.m5.1.1.3" xref="S2.SS1.p1.5.m5.1.1.3.cmml">t</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.1b"><apply id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.1.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">superscript</csymbol><apply id="S2.SS1.p1.5.m5.1.1.2.cmml" xref="S2.SS1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.1.1.2.1.cmml" xref="S2.SS1.p1.5.m5.1.1">subscript</csymbol><ci id="S2.SS1.p1.5.m5.1.1.2.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2.2">𝑦</ci><ci id="S2.SS1.p1.5.m5.1.1.2.3.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3">𝑖</ci></apply><ci id="S2.SS1.p1.5.m5.1.1.3.cmml" xref="S2.SS1.p1.5.m5.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.1c">y_{i}^{t}</annotation></semantics></math>, summed over the words in the dataset.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.8" class="ltx_p">During the inference stage, the sampling is based on the chain rule of probability,</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.1" class="ltx_Math" alttext="\text{Pr}(x_{0:T-1})=\prod_{t=0}^{T-1}\text{Pr}(x_{t}|x_{0:t-1})," display="block"><semantics id="S2.E1.m1.1a"><mrow id="S2.E1.m1.1.1.1" xref="S2.E1.m1.1.1.1.1.cmml"><mrow id="S2.E1.m1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.cmml"><mrow id="S2.E1.m1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.cmml"><mtext id="S2.E1.m1.1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.1.3a.cmml">Pr</mtext><mo lspace="0em" rspace="0em" id="S2.E1.m1.1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.1.1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E1.m1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.1.1.1.1.2.cmml">x</mi><mrow id="S2.E1.m1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.cmml"><mn id="S2.E1.m1.1.1.1.1.1.1.1.1.3.2" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E1.m1.1.1.1.1.1.1.1.1.3.1" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.1.cmml">:</mo><mrow id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.cmml"><mi id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.2" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.2.cmml">T</mi><mo id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.1" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.1.cmml">−</mo><mn id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.3" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><mo stretchy="false" id="S2.E1.m1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.111em" id="S2.E1.m1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.3.cmml">=</mo><mrow id="S2.E1.m1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.2.cmml"><munderover id="S2.E1.m1.1.1.1.1.2.2" xref="S2.E1.m1.1.1.1.1.2.2.cmml"><mo movablelimits="false" id="S2.E1.m1.1.1.1.1.2.2.2.2" xref="S2.E1.m1.1.1.1.1.2.2.2.2.cmml">∏</mo><mrow id="S2.E1.m1.1.1.1.1.2.2.2.3" xref="S2.E1.m1.1.1.1.1.2.2.2.3.cmml"><mi id="S2.E1.m1.1.1.1.1.2.2.2.3.2" xref="S2.E1.m1.1.1.1.1.2.2.2.3.2.cmml">t</mi><mo id="S2.E1.m1.1.1.1.1.2.2.2.3.1" xref="S2.E1.m1.1.1.1.1.2.2.2.3.1.cmml">=</mo><mn id="S2.E1.m1.1.1.1.1.2.2.2.3.3" xref="S2.E1.m1.1.1.1.1.2.2.2.3.3.cmml">0</mn></mrow><mrow id="S2.E1.m1.1.1.1.1.2.2.3" xref="S2.E1.m1.1.1.1.1.2.2.3.cmml"><mi id="S2.E1.m1.1.1.1.1.2.2.3.2" xref="S2.E1.m1.1.1.1.1.2.2.3.2.cmml">T</mi><mo id="S2.E1.m1.1.1.1.1.2.2.3.1" xref="S2.E1.m1.1.1.1.1.2.2.3.1.cmml">−</mo><mn id="S2.E1.m1.1.1.1.1.2.2.3.3" xref="S2.E1.m1.1.1.1.1.2.2.3.3.cmml">1</mn></mrow></munderover><mrow id="S2.E1.m1.1.1.1.1.2.1" xref="S2.E1.m1.1.1.1.1.2.1.cmml"><mtext id="S2.E1.m1.1.1.1.1.2.1.3" xref="S2.E1.m1.1.1.1.1.2.1.3a.cmml">Pr</mtext><mo lspace="0em" rspace="0em" id="S2.E1.m1.1.1.1.1.2.1.2" xref="S2.E1.m1.1.1.1.1.2.1.2.cmml">​</mo><mrow id="S2.E1.m1.1.1.1.1.2.1.1.1" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.1.1.1.1.2.1.1.1.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.1.1.1.1.2.1.1.1.1" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.cmml"><msub id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.cmml"><mi id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.2.cmml">x</mi><mi id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.3.cmml">t</mi></msub><mo fence="false" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.1.cmml">|</mo><msub id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.cmml"><mi id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.2.cmml">x</mi><mrow id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.cmml"><mn id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.1" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.1.cmml">:</mo><mrow id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.cmml"><mi id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.2" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.2.cmml">t</mi><mo id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.1" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.1.cmml">−</mo><mn id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><mo stretchy="false" id="S2.E1.m1.1.1.1.1.2.1.1.1.3" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><mo id="S2.E1.m1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.1b"><apply id="S2.E1.m1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1"><eq id="S2.E1.m1.1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.1.3"></eq><apply id="S2.E1.m1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1"><times id="S2.E1.m1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.1.1.2"></times><ci id="S2.E1.m1.1.1.1.1.1.3a.cmml" xref="S2.E1.m1.1.1.1.1.1.3"><mtext id="S2.E1.m1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.1.1.3">Pr</mtext></ci><apply id="S2.E1.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E1.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.2">𝑥</ci><apply id="S2.E1.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3"><ci id="S2.E1.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.1">:</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.2">0</cn><apply id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3"><minus id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.1"></minus><ci id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.2">𝑇</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.3.cmml" xref="S2.E1.m1.1.1.1.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply></apply><apply id="S2.E1.m1.1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.1.2"><apply id="S2.E1.m1.1.1.1.1.2.2.cmml" xref="S2.E1.m1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.2.2.1.cmml" xref="S2.E1.m1.1.1.1.1.2.2">superscript</csymbol><apply id="S2.E1.m1.1.1.1.1.2.2.2.cmml" xref="S2.E1.m1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.2.2.2.1.cmml" xref="S2.E1.m1.1.1.1.1.2.2">subscript</csymbol><csymbol cd="latexml" id="S2.E1.m1.1.1.1.1.2.2.2.2.cmml" xref="S2.E1.m1.1.1.1.1.2.2.2.2">product</csymbol><apply id="S2.E1.m1.1.1.1.1.2.2.2.3.cmml" xref="S2.E1.m1.1.1.1.1.2.2.2.3"><eq id="S2.E1.m1.1.1.1.1.2.2.2.3.1.cmml" xref="S2.E1.m1.1.1.1.1.2.2.2.3.1"></eq><ci id="S2.E1.m1.1.1.1.1.2.2.2.3.2.cmml" xref="S2.E1.m1.1.1.1.1.2.2.2.3.2">𝑡</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.2.2.2.3.3.cmml" xref="S2.E1.m1.1.1.1.1.2.2.2.3.3">0</cn></apply></apply><apply id="S2.E1.m1.1.1.1.1.2.2.3.cmml" xref="S2.E1.m1.1.1.1.1.2.2.3"><minus id="S2.E1.m1.1.1.1.1.2.2.3.1.cmml" xref="S2.E1.m1.1.1.1.1.2.2.3.1"></minus><ci id="S2.E1.m1.1.1.1.1.2.2.3.2.cmml" xref="S2.E1.m1.1.1.1.1.2.2.3.2">𝑇</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.2.2.3.3.cmml" xref="S2.E1.m1.1.1.1.1.2.2.3.3">1</cn></apply></apply><apply id="S2.E1.m1.1.1.1.1.2.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1"><times id="S2.E1.m1.1.1.1.1.2.1.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.2"></times><ci id="S2.E1.m1.1.1.1.1.2.1.3a.cmml" xref="S2.E1.m1.1.1.1.1.2.1.3"><mtext id="S2.E1.m1.1.1.1.1.2.1.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.3">Pr</mtext></ci><apply id="S2.E1.m1.1.1.1.1.2.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1"><csymbol cd="latexml" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.1">conditional</csymbol><apply id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2">subscript</csymbol><ci id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.2">𝑥</ci><ci id="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3">subscript</csymbol><ci id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.2">𝑥</ci><apply id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3"><ci id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.1">:</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.2">0</cn><apply id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3"><minus id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.1.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.1"></minus><ci id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.2.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.2">𝑡</ci><cn type="integer" id="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.3.cmml" xref="S2.E1.m1.1.1.1.1.2.1.1.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.1c">\text{Pr}(x_{0:T-1})=\prod_{t=0}^{T-1}\text{Pr}(x_{t}|x_{0:t-1}),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p2.3" class="ltx_p">where <math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="x_{0:T-1}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><msub id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml"><mi id="S2.SS1.p2.1.m1.1.1.2" xref="S2.SS1.p2.1.m1.1.1.2.cmml">x</mi><mrow id="S2.SS1.p2.1.m1.1.1.3" xref="S2.SS1.p2.1.m1.1.1.3.cmml"><mn id="S2.SS1.p2.1.m1.1.1.3.2" xref="S2.SS1.p2.1.m1.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p2.1.m1.1.1.3.1" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">:</mo><mrow id="S2.SS1.p2.1.m1.1.1.3.3" xref="S2.SS1.p2.1.m1.1.1.3.3.cmml"><mi id="S2.SS1.p2.1.m1.1.1.3.3.2" xref="S2.SS1.p2.1.m1.1.1.3.3.2.cmml">T</mi><mo id="S2.SS1.p2.1.m1.1.1.3.3.1" xref="S2.SS1.p2.1.m1.1.1.3.3.1.cmml">−</mo><mn id="S2.SS1.p2.1.m1.1.1.3.3.3" xref="S2.SS1.p2.1.m1.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><apply id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.1.m1.1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.1.m1.1.1.2.cmml" xref="S2.SS1.p2.1.m1.1.1.2">𝑥</ci><apply id="S2.SS1.p2.1.m1.1.1.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3"><ci id="S2.SS1.p2.1.m1.1.1.3.1.cmml" xref="S2.SS1.p2.1.m1.1.1.3.1">:</ci><cn type="integer" id="S2.SS1.p2.1.m1.1.1.3.2.cmml" xref="S2.SS1.p2.1.m1.1.1.3.2">0</cn><apply id="S2.SS1.p2.1.m1.1.1.3.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3"><minus id="S2.SS1.p2.1.m1.1.1.3.3.1.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3.1"></minus><ci id="S2.SS1.p2.1.m1.1.1.3.3.2.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3.2">𝑇</ci><cn type="integer" id="S2.SS1.p2.1.m1.1.1.3.3.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3.3">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">x_{0:T-1}</annotation></semantics></math> is a sequence with arbitrary length <math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mi id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><ci id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">T</annotation></semantics></math>.
+RNNs estimate <math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="\text{Pr}(x_{t}|x_{0:t-1})" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mrow id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml"><mtext id="S2.SS1.p2.3.m3.1.1.3" xref="S2.SS1.p2.3.m3.1.1.3a.cmml">Pr</mtext><mo lspace="0em" rspace="0em" id="S2.SS1.p2.3.m3.1.1.2" xref="S2.SS1.p2.3.m3.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.3.m3.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS1.p2.3.m3.1.1.1.1.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.cmml"><msub id="S2.SS1.p2.3.m3.1.1.1.1.1.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.2.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2.2.cmml">x</mi><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.2.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2.3.cmml">t</mi></msub><mo fence="false" id="S2.SS1.p2.3.m3.1.1.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml">|</mo><msub id="S2.SS1.p2.3.m3.1.1.1.1.1.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.2.cmml">x</mi><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.cmml"><mn id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.1.cmml">:</mo><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.2.cmml">t</mi><mo id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.1.cmml">−</mo><mn id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><mo stretchy="false" id="S2.SS1.p2.3.m3.1.1.1.1.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><apply id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1"><times id="S2.SS1.p2.3.m3.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.2"></times><ci id="S2.SS1.p2.3.m3.1.1.3a.cmml" xref="S2.SS1.p2.3.m3.1.1.3"><mtext id="S2.SS1.p2.3.m3.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.3">Pr</mtext></ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1"><csymbol cd="latexml" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1">conditional</csymbol><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.2.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2">subscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.2.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2.2">𝑥</ci><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.2">𝑥</ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3"><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.1">:</ci><cn type="integer" id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.2">0</cn><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3"><minus id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.1"></minus><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">\text{Pr}(x_{t}|x_{0:t-1})</annotation></semantics></math> as</p>
+<table id="S2.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E2.m1.1" class="ltx_Math" alttext="P_{f_{\theta}}(x_{t}|x_{0:t-1})=P_{r}(x_{t}|f_{\theta}(x_{0:t-1}))," display="block"><semantics id="S2.E2.m1.1a"><mrow id="S2.E2.m1.1.1.1" xref="S2.E2.m1.1.1.1.1.cmml"><mrow id="S2.E2.m1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.cmml"><mrow id="S2.E2.m1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.cmml"><msub id="S2.E2.m1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.1.3.2.cmml">P</mi><msub id="S2.E2.m1.1.1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.1.3.3.cmml"><mi id="S2.E2.m1.1.1.1.1.1.3.3.2" xref="S2.E2.m1.1.1.1.1.1.3.3.2.cmml">f</mi><mi id="S2.E2.m1.1.1.1.1.1.3.3.3" xref="S2.E2.m1.1.1.1.1.1.3.3.3.cmml">θ</mi></msub></msub><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E2.m1.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E2.m1.1.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.E2.m1.1.1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2.cmml"><mi id="S2.E2.m1.1.1.1.1.1.1.1.1.2.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2.2.cmml">x</mi><mi id="S2.E2.m1.1.1.1.1.1.1.1.1.2.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2.3.cmml">t</mi></msub><mo fence="false" id="S2.E2.m1.1.1.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.1.cmml">|</mo><msub id="S2.E2.m1.1.1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.1.1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.2.cmml">x</mi><mrow id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.cmml"><mn id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.1.cmml">:</mo><mrow id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.cmml"><mi id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.2" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.2.cmml">t</mi><mo id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.1" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.1.cmml">−</mo><mn id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo id="S2.E2.m1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.3.cmml">=</mo><mrow id="S2.E2.m1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.cmml"><msub id="S2.E2.m1.1.1.1.1.2.3" xref="S2.E2.m1.1.1.1.1.2.3.cmml"><mi id="S2.E2.m1.1.1.1.1.2.3.2" xref="S2.E2.m1.1.1.1.1.2.3.2.cmml">P</mi><mi id="S2.E2.m1.1.1.1.1.2.3.3" xref="S2.E2.m1.1.1.1.1.2.3.3.cmml">r</mi></msub><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.2.2" xref="S2.E2.m1.1.1.1.1.2.2.cmml">​</mo><mrow id="S2.E2.m1.1.1.1.1.2.1.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.1.1.1.1.2.1.1.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.cmml">(</mo><mrow id="S2.E2.m1.1.1.1.1.2.1.1.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.cmml"><msub id="S2.E2.m1.1.1.1.1.2.1.1.1.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3.2.cmml">x</mi><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3.3.cmml">t</mi></msub><mo fence="false" id="S2.E2.m1.1.1.1.1.2.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.2.cmml">|</mo><mrow id="S2.E2.m1.1.1.1.1.2.1.1.1.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.cmml"><msub id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.cmml"><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.2.cmml">f</mi><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.3.cmml">θ</mi></msub><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.2.cmml">​</mo><mrow id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.cmml"><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.2.cmml">x</mi><mrow id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.cmml"><mn id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.1.cmml">:</mo><mrow id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.cmml"><mi id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.2" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.2.cmml">t</mi><mo id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.1" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.1.cmml">−</mo><mn id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><mo stretchy="false" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo stretchy="false" id="S2.E2.m1.1.1.1.1.2.1.1.3" xref="S2.E2.m1.1.1.1.1.2.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo id="S2.E2.m1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><apply id="S2.E2.m1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1"><eq id="S2.E2.m1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.3"></eq><apply id="S2.E2.m1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1"><times id="S2.E2.m1.1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.1.2"></times><apply id="S2.E2.m1.1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.1.3.2">𝑃</ci><apply id="S2.E2.m1.1.1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.1.3.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.1.1.1.3.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.1.1.1.3.3.2">𝑓</ci><ci id="S2.E2.m1.1.1.1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.1.1.1.3.3.3">𝜃</ci></apply></apply><apply id="S2.E2.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.E2.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.1">conditional</csymbol><apply id="S2.E2.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2.2">𝑥</ci><ci id="S2.E2.m1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.E2.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.2">𝑥</ci><apply id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3"><ci id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.1">:</ci><cn type="integer" id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.2">0</cn><apply id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3"><minus id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.1"></minus><ci id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.2">𝑡</ci><cn type="integer" id="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></apply><apply id="S2.E2.m1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.2"><times id="S2.E2.m1.1.1.1.1.2.2.cmml" xref="S2.E2.m1.1.1.1.1.2.2"></times><apply id="S2.E2.m1.1.1.1.1.2.3.cmml" xref="S2.E2.m1.1.1.1.1.2.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.2.3.1.cmml" xref="S2.E2.m1.1.1.1.1.2.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.2.3.2.cmml" xref="S2.E2.m1.1.1.1.1.2.3.2">𝑃</ci><ci id="S2.E2.m1.1.1.1.1.2.3.3.cmml" xref="S2.E2.m1.1.1.1.1.2.3.3">𝑟</ci></apply><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1"><csymbol cd="latexml" id="S2.E2.m1.1.1.1.1.2.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.2">conditional</csymbol><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.2.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3.2">𝑥</ci><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.3.3">𝑡</ci></apply><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1"><times id="S2.E2.m1.1.1.1.1.2.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.2"></times><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.2">𝑓</ci><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.3.3">𝜃</ci></apply><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.2">𝑥</ci><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3"><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.1">:</ci><cn type="integer" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.2">0</cn><apply id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3"><minus id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.1"></minus><ci id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.3.cmml" xref="S2.E2.m1.1.1.1.1.2.1.1.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">P_{f_{\theta}}(x_{t}|x_{0:t-1})=P_{r}(x_{t}|f_{\theta}(x_{0:t-1})),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p2.7" class="ltx_p">where <math id="S2.SS1.p2.4.m1.1" class="ltx_Math" alttext="f_{\theta}" display="inline"><semantics id="S2.SS1.p2.4.m1.1a"><msub id="S2.SS1.p2.4.m1.1.1" xref="S2.SS1.p2.4.m1.1.1.cmml"><mi id="S2.SS1.p2.4.m1.1.1.2" xref="S2.SS1.p2.4.m1.1.1.2.cmml">f</mi><mi id="S2.SS1.p2.4.m1.1.1.3" xref="S2.SS1.p2.4.m1.1.1.3.cmml">θ</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.4.m1.1b"><apply id="S2.SS1.p2.4.m1.1.1.cmml" xref="S2.SS1.p2.4.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.4.m1.1.1.1.cmml" xref="S2.SS1.p2.4.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.4.m1.1.1.2.cmml" xref="S2.SS1.p2.4.m1.1.1.2">𝑓</ci><ci id="S2.SS1.p2.4.m1.1.1.3.cmml" xref="S2.SS1.p2.4.m1.1.1.3">𝜃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.4.m1.1c">f_{\theta}</annotation></semantics></math> can be perceived as a function mapping input sequence <math id="S2.SS1.p2.5.m2.1" class="ltx_Math" alttext="x_{0:t-1}" display="inline"><semantics id="S2.SS1.p2.5.m2.1a"><msub id="S2.SS1.p2.5.m2.1.1" xref="S2.SS1.p2.5.m2.1.1.cmml"><mi id="S2.SS1.p2.5.m2.1.1.2" xref="S2.SS1.p2.5.m2.1.1.2.cmml">x</mi><mrow id="S2.SS1.p2.5.m2.1.1.3" xref="S2.SS1.p2.5.m2.1.1.3.cmml"><mn id="S2.SS1.p2.5.m2.1.1.3.2" xref="S2.SS1.p2.5.m2.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p2.5.m2.1.1.3.1" xref="S2.SS1.p2.5.m2.1.1.3.1.cmml">:</mo><mrow id="S2.SS1.p2.5.m2.1.1.3.3" xref="S2.SS1.p2.5.m2.1.1.3.3.cmml"><mi id="S2.SS1.p2.5.m2.1.1.3.3.2" xref="S2.SS1.p2.5.m2.1.1.3.3.2.cmml">t</mi><mo id="S2.SS1.p2.5.m2.1.1.3.3.1" xref="S2.SS1.p2.5.m2.1.1.3.3.1.cmml">−</mo><mn id="S2.SS1.p2.5.m2.1.1.3.3.3" xref="S2.SS1.p2.5.m2.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.5.m2.1b"><apply id="S2.SS1.p2.5.m2.1.1.cmml" xref="S2.SS1.p2.5.m2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.5.m2.1.1.1.cmml" xref="S2.SS1.p2.5.m2.1.1">subscript</csymbol><ci id="S2.SS1.p2.5.m2.1.1.2.cmml" xref="S2.SS1.p2.5.m2.1.1.2">𝑥</ci><apply id="S2.SS1.p2.5.m2.1.1.3.cmml" xref="S2.SS1.p2.5.m2.1.1.3"><ci id="S2.SS1.p2.5.m2.1.1.3.1.cmml" xref="S2.SS1.p2.5.m2.1.1.3.1">:</ci><cn type="integer" id="S2.SS1.p2.5.m2.1.1.3.2.cmml" xref="S2.SS1.p2.5.m2.1.1.3.2">0</cn><apply id="S2.SS1.p2.5.m2.1.1.3.3.cmml" xref="S2.SS1.p2.5.m2.1.1.3.3"><minus id="S2.SS1.p2.5.m2.1.1.3.3.1.cmml" xref="S2.SS1.p2.5.m2.1.1.3.3.1"></minus><ci id="S2.SS1.p2.5.m2.1.1.3.3.2.cmml" xref="S2.SS1.p2.5.m2.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p2.5.m2.1.1.3.3.3.cmml" xref="S2.SS1.p2.5.m2.1.1.3.3.3">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.5.m2.1c">x_{0:t-1}</annotation></semantics></math> to the hidden state of the RNN.
+The sampling process starts with multiple threads, each beginning with start of the word token.
+At step <math id="S2.SS1.p2.6.m3.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.SS1.p2.6.m3.1a"><mi id="S2.SS1.p2.6.m3.1.1" xref="S2.SS1.p2.6.m3.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.6.m3.1b"><ci id="S2.SS1.p2.6.m3.1.1.cmml" xref="S2.SS1.p2.6.m3.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.6.m3.1c">t</annotation></semantics></math> each thread generates a random index based on <math id="S2.SS1.p2.7.m4.1" class="ltx_Math" alttext="P_{f_{\theta}}(x_{t}|x_{0:t-1})" display="inline"><semantics id="S2.SS1.p2.7.m4.1a"><mrow id="S2.SS1.p2.7.m4.1.1" xref="S2.SS1.p2.7.m4.1.1.cmml"><msub id="S2.SS1.p2.7.m4.1.1.3" xref="S2.SS1.p2.7.m4.1.1.3.cmml"><mi id="S2.SS1.p2.7.m4.1.1.3.2" xref="S2.SS1.p2.7.m4.1.1.3.2.cmml">P</mi><msub id="S2.SS1.p2.7.m4.1.1.3.3" xref="S2.SS1.p2.7.m4.1.1.3.3.cmml"><mi id="S2.SS1.p2.7.m4.1.1.3.3.2" xref="S2.SS1.p2.7.m4.1.1.3.3.2.cmml">f</mi><mi id="S2.SS1.p2.7.m4.1.1.3.3.3" xref="S2.SS1.p2.7.m4.1.1.3.3.3.cmml">θ</mi></msub></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p2.7.m4.1.1.2" xref="S2.SS1.p2.7.m4.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.7.m4.1.1.1.1" xref="S2.SS1.p2.7.m4.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS1.p2.7.m4.1.1.1.1.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p2.7.m4.1.1.1.1.1" xref="S2.SS1.p2.7.m4.1.1.1.1.1.cmml"><msub id="S2.SS1.p2.7.m4.1.1.1.1.1.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2.cmml"><mi id="S2.SS1.p2.7.m4.1.1.1.1.1.2.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2.2.cmml">x</mi><mi id="S2.SS1.p2.7.m4.1.1.1.1.1.2.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2.3.cmml">t</mi></msub><mo fence="false" id="S2.SS1.p2.7.m4.1.1.1.1.1.1" xref="S2.SS1.p2.7.m4.1.1.1.1.1.1.cmml">|</mo><msub id="S2.SS1.p2.7.m4.1.1.1.1.1.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.cmml"><mi id="S2.SS1.p2.7.m4.1.1.1.1.1.3.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.2.cmml">x</mi><mrow id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.cmml"><mn id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.1" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.1.cmml">:</mo><mrow id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.cmml"><mi id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.2" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.2.cmml">t</mi><mo id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.1" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.1.cmml">−</mo><mn id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><mo stretchy="false" id="S2.SS1.p2.7.m4.1.1.1.1.3" xref="S2.SS1.p2.7.m4.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.7.m4.1b"><apply id="S2.SS1.p2.7.m4.1.1.cmml" xref="S2.SS1.p2.7.m4.1.1"><times id="S2.SS1.p2.7.m4.1.1.2.cmml" xref="S2.SS1.p2.7.m4.1.1.2"></times><apply id="S2.SS1.p2.7.m4.1.1.3.cmml" xref="S2.SS1.p2.7.m4.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.7.m4.1.1.3.1.cmml" xref="S2.SS1.p2.7.m4.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.7.m4.1.1.3.2.cmml" xref="S2.SS1.p2.7.m4.1.1.3.2">𝑃</ci><apply id="S2.SS1.p2.7.m4.1.1.3.3.cmml" xref="S2.SS1.p2.7.m4.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS1.p2.7.m4.1.1.3.3.1.cmml" xref="S2.SS1.p2.7.m4.1.1.3.3">subscript</csymbol><ci id="S2.SS1.p2.7.m4.1.1.3.3.2.cmml" xref="S2.SS1.p2.7.m4.1.1.3.3.2">𝑓</ci><ci id="S2.SS1.p2.7.m4.1.1.3.3.3.cmml" xref="S2.SS1.p2.7.m4.1.1.3.3.3">𝜃</ci></apply></apply><apply id="S2.SS1.p2.7.m4.1.1.1.1.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1"><csymbol cd="latexml" id="S2.SS1.p2.7.m4.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.1">conditional</csymbol><apply id="S2.SS1.p2.7.m4.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p2.7.m4.1.1.1.1.1.2.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2">subscript</csymbol><ci id="S2.SS1.p2.7.m4.1.1.1.1.1.2.2.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2.2">𝑥</ci><ci id="S2.SS1.p2.7.m4.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.SS1.p2.7.m4.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.7.m4.1.1.1.1.1.3.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.7.m4.1.1.1.1.1.3.2.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.2">𝑥</ci><apply id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3"><ci id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.1">:</ci><cn type="integer" id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.2.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.2">0</cn><apply id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3"><minus id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.1.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.1"></minus><ci id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.2.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.3.cmml" xref="S2.SS1.p2.7.m4.1.1.1.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.7.m4.1c">P_{f_{\theta}}(x_{t}|x_{0:t-1})</annotation></semantics></math>.
+This is done iteratively until it hits end of the word tokens.
+This parallel sampling approach avoids the dependency between each sampling thread,
+which might occur in beam search or shortest path search sampling <cite class="ltx_cite ltx_citemacro_cite">Carlini et al. (<a href="#bib.bib3" title="" class="ltx_ref">2018</a>)</cite>,</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/1903.10635/assets/figures/lstm_smc_illustration.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="314" height="132" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Monte Carlo sampling of OOV words from the LSTM model.</figcaption>
+</figure>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Federated Learning</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Federated learning (FL) is a new paradigm of machine learning that keeps training data localized
+on mobile devices and never collects them centrally.
+FL is shown to be robust to unbalanced or non-IID (independent and identically distributed) data
+distributions <cite class="ltx_cite ltx_citemacro_cite">McMahan et al. (<a href="#bib.bib11" title="" class="ltx_ref">2016</a>); Konečnỳ et al. (<a href="#bib.bib10" title="" class="ltx_ref">2016</a>)</cite>.
+It learns a shared model by aggregating locally-computed gradients.
+FL is especially useful for OOV word learning, since OOV words typically include sensitive user content.
+FL avoids the need for transmitting and storing such content on centralized servers.
+FL can also be combined with privacy-preserving techniques like secure aggregation <cite class="ltx_cite ltx_citemacro_cite">Bonawitz et al. (<a href="#bib.bib2" title="" class="ltx_ref">2016</a>)</cite> and differential
+privacy <cite class="ltx_cite ltx_citemacro_cite">McMahan et al. (<a href="#bib.bib12" title="" class="ltx_ref">2018</a>)</cite> to offer stronger privacy guarantees to users.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.12" class="ltx_p">We use the <span id="S2.SS2.p2.12.1" class="ltx_text ltx_font_typewriter">FederatedAveraging</span> algorithm
+presented in <cite class="ltx_cite ltx_citemacro_cite">McMahan et al. (<a href="#bib.bib11" title="" class="ltx_ref">2016</a>)</cite> to combine
+client updates <math id="S2.SS2.p2.1.m1.2" class="ltx_Math" alttext="w_{t+1}^{k}\leftarrow\text{ClientUpdate}(k,w_{t})" display="inline"><semantics id="S2.SS2.p2.1.m1.2a"><mrow id="S2.SS2.p2.1.m1.2.2" xref="S2.SS2.p2.1.m1.2.2.cmml"><msubsup id="S2.SS2.p2.1.m1.2.2.3" xref="S2.SS2.p2.1.m1.2.2.3.cmml"><mi id="S2.SS2.p2.1.m1.2.2.3.2.2" xref="S2.SS2.p2.1.m1.2.2.3.2.2.cmml">w</mi><mrow id="S2.SS2.p2.1.m1.2.2.3.2.3" xref="S2.SS2.p2.1.m1.2.2.3.2.3.cmml"><mi id="S2.SS2.p2.1.m1.2.2.3.2.3.2" xref="S2.SS2.p2.1.m1.2.2.3.2.3.2.cmml">t</mi><mo id="S2.SS2.p2.1.m1.2.2.3.2.3.1" xref="S2.SS2.p2.1.m1.2.2.3.2.3.1.cmml">+</mo><mn id="S2.SS2.p2.1.m1.2.2.3.2.3.3" xref="S2.SS2.p2.1.m1.2.2.3.2.3.3.cmml">1</mn></mrow><mi id="S2.SS2.p2.1.m1.2.2.3.3" xref="S2.SS2.p2.1.m1.2.2.3.3.cmml">k</mi></msubsup><mo stretchy="false" id="S2.SS2.p2.1.m1.2.2.2" xref="S2.SS2.p2.1.m1.2.2.2.cmml">←</mo><mrow id="S2.SS2.p2.1.m1.2.2.1" xref="S2.SS2.p2.1.m1.2.2.1.cmml"><mtext id="S2.SS2.p2.1.m1.2.2.1.3" xref="S2.SS2.p2.1.m1.2.2.1.3a.cmml">ClientUpdate</mtext><mo lspace="0em" rspace="0em" id="S2.SS2.p2.1.m1.2.2.1.2" xref="S2.SS2.p2.1.m1.2.2.1.2.cmml">​</mo><mrow id="S2.SS2.p2.1.m1.2.2.1.1.1" xref="S2.SS2.p2.1.m1.2.2.1.1.2.cmml"><mo stretchy="false" id="S2.SS2.p2.1.m1.2.2.1.1.1.2" xref="S2.SS2.p2.1.m1.2.2.1.1.2.cmml">(</mo><mi id="S2.SS2.p2.1.m1.1.1" xref="S2.SS2.p2.1.m1.1.1.cmml">k</mi><mo id="S2.SS2.p2.1.m1.2.2.1.1.1.3" xref="S2.SS2.p2.1.m1.2.2.1.1.2.cmml">,</mo><msub id="S2.SS2.p2.1.m1.2.2.1.1.1.1" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1.cmml"><mi id="S2.SS2.p2.1.m1.2.2.1.1.1.1.2" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1.2.cmml">w</mi><mi id="S2.SS2.p2.1.m1.2.2.1.1.1.1.3" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1.3.cmml">t</mi></msub><mo stretchy="false" id="S2.SS2.p2.1.m1.2.2.1.1.1.4" xref="S2.SS2.p2.1.m1.2.2.1.1.2.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.1.m1.2b"><apply id="S2.SS2.p2.1.m1.2.2.cmml" xref="S2.SS2.p2.1.m1.2.2"><ci id="S2.SS2.p2.1.m1.2.2.2.cmml" xref="S2.SS2.p2.1.m1.2.2.2">←</ci><apply id="S2.SS2.p2.1.m1.2.2.3.cmml" xref="S2.SS2.p2.1.m1.2.2.3"><csymbol cd="ambiguous" id="S2.SS2.p2.1.m1.2.2.3.1.cmml" xref="S2.SS2.p2.1.m1.2.2.3">superscript</csymbol><apply id="S2.SS2.p2.1.m1.2.2.3.2.cmml" xref="S2.SS2.p2.1.m1.2.2.3"><csymbol cd="ambiguous" id="S2.SS2.p2.1.m1.2.2.3.2.1.cmml" xref="S2.SS2.p2.1.m1.2.2.3">subscript</csymbol><ci id="S2.SS2.p2.1.m1.2.2.3.2.2.cmml" xref="S2.SS2.p2.1.m1.2.2.3.2.2">𝑤</ci><apply id="S2.SS2.p2.1.m1.2.2.3.2.3.cmml" xref="S2.SS2.p2.1.m1.2.2.3.2.3"><plus id="S2.SS2.p2.1.m1.2.2.3.2.3.1.cmml" xref="S2.SS2.p2.1.m1.2.2.3.2.3.1"></plus><ci id="S2.SS2.p2.1.m1.2.2.3.2.3.2.cmml" xref="S2.SS2.p2.1.m1.2.2.3.2.3.2">𝑡</ci><cn type="integer" id="S2.SS2.p2.1.m1.2.2.3.2.3.3.cmml" xref="S2.SS2.p2.1.m1.2.2.3.2.3.3">1</cn></apply></apply><ci id="S2.SS2.p2.1.m1.2.2.3.3.cmml" xref="S2.SS2.p2.1.m1.2.2.3.3">𝑘</ci></apply><apply id="S2.SS2.p2.1.m1.2.2.1.cmml" xref="S2.SS2.p2.1.m1.2.2.1"><times id="S2.SS2.p2.1.m1.2.2.1.2.cmml" xref="S2.SS2.p2.1.m1.2.2.1.2"></times><ci id="S2.SS2.p2.1.m1.2.2.1.3a.cmml" xref="S2.SS2.p2.1.m1.2.2.1.3"><mtext id="S2.SS2.p2.1.m1.2.2.1.3.cmml" xref="S2.SS2.p2.1.m1.2.2.1.3">ClientUpdate</mtext></ci><interval closure="open" id="S2.SS2.p2.1.m1.2.2.1.1.2.cmml" xref="S2.SS2.p2.1.m1.2.2.1.1.1"><ci id="S2.SS2.p2.1.m1.1.1.cmml" xref="S2.SS2.p2.1.m1.1.1">𝑘</ci><apply id="S2.SS2.p2.1.m1.2.2.1.1.1.1.cmml" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.1.m1.2.2.1.1.1.1.1.cmml" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1">subscript</csymbol><ci id="S2.SS2.p2.1.m1.2.2.1.1.1.1.2.cmml" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1.2">𝑤</ci><ci id="S2.SS2.p2.1.m1.2.2.1.1.1.1.3.cmml" xref="S2.SS2.p2.1.m1.2.2.1.1.1.1.3">𝑡</ci></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.1.m1.2c">w_{t+1}^{k}\leftarrow\text{ClientUpdate}(k,w_{t})</annotation></semantics></math> after each round <math id="S2.SS2.p2.2.m2.1" class="ltx_Math" alttext="{t+1}" display="inline"><semantics id="S2.SS2.p2.2.m2.1a"><mrow id="S2.SS2.p2.2.m2.1.1" xref="S2.SS2.p2.2.m2.1.1.cmml"><mi id="S2.SS2.p2.2.m2.1.1.2" xref="S2.SS2.p2.2.m2.1.1.2.cmml">t</mi><mo id="S2.SS2.p2.2.m2.1.1.1" xref="S2.SS2.p2.2.m2.1.1.1.cmml">+</mo><mn id="S2.SS2.p2.2.m2.1.1.3" xref="S2.SS2.p2.2.m2.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.2.m2.1b"><apply id="S2.SS2.p2.2.m2.1.1.cmml" xref="S2.SS2.p2.2.m2.1.1"><plus id="S2.SS2.p2.2.m2.1.1.1.cmml" xref="S2.SS2.p2.2.m2.1.1.1"></plus><ci id="S2.SS2.p2.2.m2.1.1.2.cmml" xref="S2.SS2.p2.2.m2.1.1.2">𝑡</ci><cn type="integer" id="S2.SS2.p2.2.m2.1.1.3.cmml" xref="S2.SS2.p2.2.m2.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.2.m2.1c">{t+1}</annotation></semantics></math> of local training to
+produce a new global round with weight <math id="S2.SS2.p2.3.m3.1" class="ltx_Math" alttext="w_{t+1}\leftarrow\sum_{k=1}^{K}\frac{n_{k}}{n}w_{t+1}^{k}" display="inline"><semantics id="S2.SS2.p2.3.m3.1a"><mrow id="S2.SS2.p2.3.m3.1.1" xref="S2.SS2.p2.3.m3.1.1.cmml"><msub id="S2.SS2.p2.3.m3.1.1.2" xref="S2.SS2.p2.3.m3.1.1.2.cmml"><mi id="S2.SS2.p2.3.m3.1.1.2.2" xref="S2.SS2.p2.3.m3.1.1.2.2.cmml">w</mi><mrow id="S2.SS2.p2.3.m3.1.1.2.3" xref="S2.SS2.p2.3.m3.1.1.2.3.cmml"><mi id="S2.SS2.p2.3.m3.1.1.2.3.2" xref="S2.SS2.p2.3.m3.1.1.2.3.2.cmml">t</mi><mo id="S2.SS2.p2.3.m3.1.1.2.3.1" xref="S2.SS2.p2.3.m3.1.1.2.3.1.cmml">+</mo><mn id="S2.SS2.p2.3.m3.1.1.2.3.3" xref="S2.SS2.p2.3.m3.1.1.2.3.3.cmml">1</mn></mrow></msub><mo rspace="0.111em" stretchy="false" id="S2.SS2.p2.3.m3.1.1.1" xref="S2.SS2.p2.3.m3.1.1.1.cmml">←</mo><mrow id="S2.SS2.p2.3.m3.1.1.3" xref="S2.SS2.p2.3.m3.1.1.3.cmml"><msubsup id="S2.SS2.p2.3.m3.1.1.3.1" xref="S2.SS2.p2.3.m3.1.1.3.1.cmml"><mo id="S2.SS2.p2.3.m3.1.1.3.1.2.2" xref="S2.SS2.p2.3.m3.1.1.3.1.2.2.cmml">∑</mo><mrow id="S2.SS2.p2.3.m3.1.1.3.1.2.3" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.cmml"><mi id="S2.SS2.p2.3.m3.1.1.3.1.2.3.2" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.2.cmml">k</mi><mo id="S2.SS2.p2.3.m3.1.1.3.1.2.3.1" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.1.cmml">=</mo><mn id="S2.SS2.p2.3.m3.1.1.3.1.2.3.3" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.3.cmml">1</mn></mrow><mi id="S2.SS2.p2.3.m3.1.1.3.1.3" xref="S2.SS2.p2.3.m3.1.1.3.1.3.cmml">K</mi></msubsup><mrow id="S2.SS2.p2.3.m3.1.1.3.2" xref="S2.SS2.p2.3.m3.1.1.3.2.cmml"><mfrac id="S2.SS2.p2.3.m3.1.1.3.2.2" xref="S2.SS2.p2.3.m3.1.1.3.2.2.cmml"><msub id="S2.SS2.p2.3.m3.1.1.3.2.2.2" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2.cmml"><mi id="S2.SS2.p2.3.m3.1.1.3.2.2.2.2" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2.2.cmml">n</mi><mi id="S2.SS2.p2.3.m3.1.1.3.2.2.2.3" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2.3.cmml">k</mi></msub><mi id="S2.SS2.p2.3.m3.1.1.3.2.2.3" xref="S2.SS2.p2.3.m3.1.1.3.2.2.3.cmml">n</mi></mfrac><mo lspace="0em" rspace="0em" id="S2.SS2.p2.3.m3.1.1.3.2.1" xref="S2.SS2.p2.3.m3.1.1.3.2.1.cmml">​</mo><msubsup id="S2.SS2.p2.3.m3.1.1.3.2.3" xref="S2.SS2.p2.3.m3.1.1.3.2.3.cmml"><mi id="S2.SS2.p2.3.m3.1.1.3.2.3.2.2" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.2.cmml">w</mi><mrow id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.cmml"><mi id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.2" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.2.cmml">t</mi><mo id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.1" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.1.cmml">+</mo><mn id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.3" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.3.cmml">1</mn></mrow><mi id="S2.SS2.p2.3.m3.1.1.3.2.3.3" xref="S2.SS2.p2.3.m3.1.1.3.2.3.3.cmml">k</mi></msubsup></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.3.m3.1b"><apply id="S2.SS2.p2.3.m3.1.1.cmml" xref="S2.SS2.p2.3.m3.1.1"><ci id="S2.SS2.p2.3.m3.1.1.1.cmml" xref="S2.SS2.p2.3.m3.1.1.1">←</ci><apply id="S2.SS2.p2.3.m3.1.1.2.cmml" xref="S2.SS2.p2.3.m3.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.2">subscript</csymbol><ci id="S2.SS2.p2.3.m3.1.1.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.2.2">𝑤</ci><apply id="S2.SS2.p2.3.m3.1.1.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.2.3"><plus id="S2.SS2.p2.3.m3.1.1.2.3.1.cmml" xref="S2.SS2.p2.3.m3.1.1.2.3.1"></plus><ci id="S2.SS2.p2.3.m3.1.1.2.3.2.cmml" xref="S2.SS2.p2.3.m3.1.1.2.3.2">𝑡</ci><cn type="integer" id="S2.SS2.p2.3.m3.1.1.2.3.3.cmml" xref="S2.SS2.p2.3.m3.1.1.2.3.3">1</cn></apply></apply><apply id="S2.SS2.p2.3.m3.1.1.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3"><apply id="S2.SS2.p2.3.m3.1.1.3.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.3.1.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1">superscript</csymbol><apply id="S2.SS2.p2.3.m3.1.1.3.1.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.3.1.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1">subscript</csymbol><sum id="S2.SS2.p2.3.m3.1.1.3.1.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.2.2"></sum><apply id="S2.SS2.p2.3.m3.1.1.3.1.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3"><eq id="S2.SS2.p2.3.m3.1.1.3.1.2.3.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.1"></eq><ci id="S2.SS2.p2.3.m3.1.1.3.1.2.3.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.2">𝑘</ci><cn type="integer" id="S2.SS2.p2.3.m3.1.1.3.1.2.3.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.2.3.3">1</cn></apply></apply><ci id="S2.SS2.p2.3.m3.1.1.3.1.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.1.3">𝐾</ci></apply><apply id="S2.SS2.p2.3.m3.1.1.3.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2"><times id="S2.SS2.p2.3.m3.1.1.3.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.1"></times><apply id="S2.SS2.p2.3.m3.1.1.3.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2"><divide id="S2.SS2.p2.3.m3.1.1.3.2.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2"></divide><apply id="S2.SS2.p2.3.m3.1.1.3.2.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.3.2.2.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2">subscript</csymbol><ci id="S2.SS2.p2.3.m3.1.1.3.2.2.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2.2">𝑛</ci><ci id="S2.SS2.p2.3.m3.1.1.3.2.2.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2.2.3">𝑘</ci></apply><ci id="S2.SS2.p2.3.m3.1.1.3.2.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.2.3">𝑛</ci></apply><apply id="S2.SS2.p2.3.m3.1.1.3.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.3.2.3.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3">superscript</csymbol><apply id="S2.SS2.p2.3.m3.1.1.3.2.3.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m3.1.1.3.2.3.2.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3">subscript</csymbol><ci id="S2.SS2.p2.3.m3.1.1.3.2.3.2.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.2">𝑤</ci><apply id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3"><plus id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.1.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.1"></plus><ci id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.2.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.2">𝑡</ci><cn type="integer" id="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.2.3.3">1</cn></apply></apply><ci id="S2.SS2.p2.3.m3.1.1.3.2.3.3.cmml" xref="S2.SS2.p2.3.m3.1.1.3.2.3.3">𝑘</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.3.m3.1c">w_{t+1}\leftarrow\sum_{k=1}^{K}\frac{n_{k}}{n}w_{t+1}^{k}</annotation></semantics></math>,
+where <math id="S2.SS2.p2.4.m4.1" class="ltx_Math" alttext="w^{t}" display="inline"><semantics id="S2.SS2.p2.4.m4.1a"><msup id="S2.SS2.p2.4.m4.1.1" xref="S2.SS2.p2.4.m4.1.1.cmml"><mi id="S2.SS2.p2.4.m4.1.1.2" xref="S2.SS2.p2.4.m4.1.1.2.cmml">w</mi><mi id="S2.SS2.p2.4.m4.1.1.3" xref="S2.SS2.p2.4.m4.1.1.3.cmml">t</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.4.m4.1b"><apply id="S2.SS2.p2.4.m4.1.1.cmml" xref="S2.SS2.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.4.m4.1.1.1.cmml" xref="S2.SS2.p2.4.m4.1.1">superscript</csymbol><ci id="S2.SS2.p2.4.m4.1.1.2.cmml" xref="S2.SS2.p2.4.m4.1.1.2">𝑤</ci><ci id="S2.SS2.p2.4.m4.1.1.3.cmml" xref="S2.SS2.p2.4.m4.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.4.m4.1c">w^{t}</annotation></semantics></math> is the global model weight at round <math id="S2.SS2.p2.5.m5.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.SS2.p2.5.m5.1a"><mi id="S2.SS2.p2.5.m5.1.1" xref="S2.SS2.p2.5.m5.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.5.m5.1b"><ci id="S2.SS2.p2.5.m5.1.1.cmml" xref="S2.SS2.p2.5.m5.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.5.m5.1c">t</annotation></semantics></math> and <math id="S2.SS2.p2.6.m6.1" class="ltx_Math" alttext="w_{t+1}^{k}" display="inline"><semantics id="S2.SS2.p2.6.m6.1a"><msubsup id="S2.SS2.p2.6.m6.1.1" xref="S2.SS2.p2.6.m6.1.1.cmml"><mi id="S2.SS2.p2.6.m6.1.1.2.2" xref="S2.SS2.p2.6.m6.1.1.2.2.cmml">w</mi><mrow id="S2.SS2.p2.6.m6.1.1.2.3" xref="S2.SS2.p2.6.m6.1.1.2.3.cmml"><mi id="S2.SS2.p2.6.m6.1.1.2.3.2" xref="S2.SS2.p2.6.m6.1.1.2.3.2.cmml">t</mi><mo id="S2.SS2.p2.6.m6.1.1.2.3.1" xref="S2.SS2.p2.6.m6.1.1.2.3.1.cmml">+</mo><mn id="S2.SS2.p2.6.m6.1.1.2.3.3" xref="S2.SS2.p2.6.m6.1.1.2.3.3.cmml">1</mn></mrow><mi id="S2.SS2.p2.6.m6.1.1.3" xref="S2.SS2.p2.6.m6.1.1.3.cmml">k</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.6.m6.1b"><apply id="S2.SS2.p2.6.m6.1.1.cmml" xref="S2.SS2.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.6.m6.1.1.1.cmml" xref="S2.SS2.p2.6.m6.1.1">superscript</csymbol><apply id="S2.SS2.p2.6.m6.1.1.2.cmml" xref="S2.SS2.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.6.m6.1.1.2.1.cmml" xref="S2.SS2.p2.6.m6.1.1">subscript</csymbol><ci id="S2.SS2.p2.6.m6.1.1.2.2.cmml" xref="S2.SS2.p2.6.m6.1.1.2.2">𝑤</ci><apply id="S2.SS2.p2.6.m6.1.1.2.3.cmml" xref="S2.SS2.p2.6.m6.1.1.2.3"><plus id="S2.SS2.p2.6.m6.1.1.2.3.1.cmml" xref="S2.SS2.p2.6.m6.1.1.2.3.1"></plus><ci id="S2.SS2.p2.6.m6.1.1.2.3.2.cmml" xref="S2.SS2.p2.6.m6.1.1.2.3.2">𝑡</ci><cn type="integer" id="S2.SS2.p2.6.m6.1.1.2.3.3.cmml" xref="S2.SS2.p2.6.m6.1.1.2.3.3">1</cn></apply></apply><ci id="S2.SS2.p2.6.m6.1.1.3.cmml" xref="S2.SS2.p2.6.m6.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.6.m6.1c">w_{t+1}^{k}</annotation></semantics></math> is the model weight for each participating device <math id="S2.SS2.p2.7.m7.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS2.p2.7.m7.1a"><mi id="S2.SS2.p2.7.m7.1.1" xref="S2.SS2.p2.7.m7.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.7.m7.1b"><ci id="S2.SS2.p2.7.m7.1.1.cmml" xref="S2.SS2.p2.7.m7.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.7.m7.1c">k</annotation></semantics></math>,
+and <math id="S2.SS2.p2.8.m8.1" class="ltx_Math" alttext="n_{k}" display="inline"><semantics id="S2.SS2.p2.8.m8.1a"><msub id="S2.SS2.p2.8.m8.1.1" xref="S2.SS2.p2.8.m8.1.1.cmml"><mi id="S2.SS2.p2.8.m8.1.1.2" xref="S2.SS2.p2.8.m8.1.1.2.cmml">n</mi><mi id="S2.SS2.p2.8.m8.1.1.3" xref="S2.SS2.p2.8.m8.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.8.m8.1b"><apply id="S2.SS2.p2.8.m8.1.1.cmml" xref="S2.SS2.p2.8.m8.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.8.m8.1.1.1.cmml" xref="S2.SS2.p2.8.m8.1.1">subscript</csymbol><ci id="S2.SS2.p2.8.m8.1.1.2.cmml" xref="S2.SS2.p2.8.m8.1.1.2">𝑛</ci><ci id="S2.SS2.p2.8.m8.1.1.3.cmml" xref="S2.SS2.p2.8.m8.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.8.m8.1c">n_{k}</annotation></semantics></math> and <math id="S2.SS2.p2.9.m9.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS2.p2.9.m9.1a"><mi id="S2.SS2.p2.9.m9.1.1" xref="S2.SS2.p2.9.m9.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.9.m9.1b"><ci id="S2.SS2.p2.9.m9.1.1.cmml" xref="S2.SS2.p2.9.m9.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.9.m9.1c">n</annotation></semantics></math> are number of data points on client <math id="S2.SS2.p2.10.m10.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS2.p2.10.m10.1a"><mi id="S2.SS2.p2.10.m10.1.1" xref="S2.SS2.p2.10.m10.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.10.m10.1b"><ci id="S2.SS2.p2.10.m10.1.1.cmml" xref="S2.SS2.p2.10.m10.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.10.m10.1c">k</annotation></semantics></math> and the total sum of all <math id="S2.SS2.p2.11.m11.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S2.SS2.p2.11.m11.1a"><mi id="S2.SS2.p2.11.m11.1.1" xref="S2.SS2.p2.11.m11.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.11.m11.1b"><ci id="S2.SS2.p2.11.m11.1.1.cmml" xref="S2.SS2.p2.11.m11.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.11.m11.1c">K</annotation></semantics></math> devices.
+Adaptive <math id="S2.SS2.p2.12.m12.1" class="ltx_Math" alttext="L_{2}" display="inline"><semantics id="S2.SS2.p2.12.m12.1a"><msub id="S2.SS2.p2.12.m12.1.1" xref="S2.SS2.p2.12.m12.1.1.cmml"><mi id="S2.SS2.p2.12.m12.1.1.2" xref="S2.SS2.p2.12.m12.1.1.2.cmml">L</mi><mn id="S2.SS2.p2.12.m12.1.1.3" xref="S2.SS2.p2.12.m12.1.1.3.cmml">2</mn></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.12.m12.1b"><apply id="S2.SS2.p2.12.m12.1.1.cmml" xref="S2.SS2.p2.12.m12.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.12.m12.1.1.1.cmml" xref="S2.SS2.p2.12.m12.1.1">subscript</csymbol><ci id="S2.SS2.p2.12.m12.1.1.2.cmml" xref="S2.SS2.p2.12.m12.1.1.2">𝐿</ci><cn type="integer" id="S2.SS2.p2.12.m12.1.1.3.cmml" xref="S2.SS2.p2.12.m12.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.12.m12.1c">L_{2}</annotation></semantics></math>-norm clipping is performed on each client’s gradient,
+as it is found to improve the robustness of model convergence.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">In this section, we show the details of our experiments in two different settings:
+(1) simulated FL with the public Reddit dataset <cite class="ltx_cite ltx_citemacro_cite">Al-Rfou et al. (<a href="#bib.bib1" title="" class="ltx_ref">2016</a>)</cite>,
+(2) on-device FL where user text never leaves their device.
+In all of our experiments, we use a filter to exclude “invalid” OOV patterns that represent things we don’t want the model to learn.
+The filtering excludes words that:
+(1) start with non-ASCII alphabetical characters (mostly emoji),
+(2) contain numbers (street or telephone numbers),
+(3) contain repetitive patterns like “hahaha” or “yesss”,
+(4) are no longer than 2 in length.
+In both simulated and on-device FL setting, training and evaluation are defined by separate computation tasks that sample users’ data independently.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Evaluation metrics</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">In OOV word learning, we are interested in how many words are either missing or daydreamed from the model sampling.
+In simulated FL, we have access to the datasets and know the ground truth OOV words and their frequencies.
+Thus, the quality of the model can be evaluated based on precision and recall (PR).
+For the on-device FL setting, it is not possible to compute PR since users’ raw input data is inaccessible by design.
+We show that the model is able to converge to good CE loss and top-K character-level prediction accuracy.
+Unlike PR, CE and accuracy does not need computationally-intensive sampling and can be computed on the fly during training.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Model parameters</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.19" class="ltx_p">Table <a href="#S3.T1" title="Table 1 ‣ 3.2 Model parameters ‣ 3 Experiments ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows three different model hyper-parameters used in our federated experiments.
+<math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="N_{r}" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><msub id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml"><mi id="S3.SS2.p1.1.m1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.2.cmml">N</mi><mi id="S3.SS2.p1.1.m1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><apply id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.1.m1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1">subscript</csymbol><ci id="S3.SS2.p1.1.m1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.2">𝑁</ci><ci id="S3.SS2.p1.1.m1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">N_{r}</annotation></semantics></math>, <math id="S3.SS2.p1.2.m2.1" class="ltx_Math" alttext="\eta" display="inline"><semantics id="S3.SS2.p1.2.m2.1a"><mi id="S3.SS2.p1.2.m2.1.1" xref="S3.SS2.p1.2.m2.1.1.cmml">η</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.2.m2.1b"><ci id="S3.SS2.p1.2.m2.1.1.cmml" xref="S3.SS2.p1.2.m2.1.1">𝜂</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.2.m2.1c">\eta</annotation></semantics></math>, <math id="S3.SS2.p1.3.m3.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.SS2.p1.3.m3.1a"><mi id="S3.SS2.p1.3.m3.1.1" xref="S3.SS2.p1.3.m3.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.3.m3.1b"><ci id="S3.SS2.p1.3.m3.1.1.cmml" xref="S3.SS2.p1.3.m3.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.3.m3.1c">m</annotation></semantics></math>, and <math id="S3.SS2.p1.4.m4.1" class="ltx_Math" alttext="B_{s}" display="inline"><semantics id="S3.SS2.p1.4.m4.1a"><msub id="S3.SS2.p1.4.m4.1.1" xref="S3.SS2.p1.4.m4.1.1.cmml"><mi id="S3.SS2.p1.4.m4.1.1.2" xref="S3.SS2.p1.4.m4.1.1.2.cmml">B</mi><mi id="S3.SS2.p1.4.m4.1.1.3" xref="S3.SS2.p1.4.m4.1.1.3.cmml">s</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.4.m4.1b"><apply id="S3.SS2.p1.4.m4.1.1.cmml" xref="S3.SS2.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.4.m4.1.1.1.cmml" xref="S3.SS2.p1.4.m4.1.1">subscript</csymbol><ci id="S3.SS2.p1.4.m4.1.1.2.cmml" xref="S3.SS2.p1.4.m4.1.1.2">𝐵</ci><ci id="S3.SS2.p1.4.m4.1.1.3.cmml" xref="S3.SS2.p1.4.m4.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.4.m4.1c">B_{s}</annotation></semantics></math> refers to number of RNN layers, server side learning rate, momentum, and batch size, respectively.
+<math id="S3.SS2.p1.5.m5.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S3.SS2.p1.5.m5.1a"><msubsup id="S3.SS2.p1.5.m5.1.1" xref="S3.SS2.p1.5.m5.1.1.cmml"><mtext id="S3.SS2.p1.5.m5.1.1.2.2" xref="S3.SS2.p1.5.m5.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.5.m5.1.1.3" xref="S3.SS2.p1.5.m5.1.1.3a.cmml">S</mtext><mtext id="S3.SS2.p1.5.m5.1.1.2.3" xref="S3.SS2.p1.5.m5.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.5.m5.1b"><apply id="S3.SS2.p1.5.m5.1.1.cmml" xref="S3.SS2.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.5.m5.1.1.1.cmml" xref="S3.SS2.p1.5.m5.1.1">subscript</csymbol><apply id="S3.SS2.p1.5.m5.1.1.2.cmml" xref="S3.SS2.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.5.m5.1.1.2.1.cmml" xref="S3.SS2.p1.5.m5.1.1">superscript</csymbol><ci id="S3.SS2.p1.5.m5.1.1.2.2a.cmml" xref="S3.SS2.p1.5.m5.1.1.2.2"><mtext id="S3.SS2.p1.5.m5.1.1.2.2.cmml" xref="S3.SS2.p1.5.m5.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.5.m5.1.1.2.3a.cmml" xref="S3.SS2.p1.5.m5.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.5.m5.1.1.2.3.cmml" xref="S3.SS2.p1.5.m5.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.5.m5.1.1.3a.cmml" xref="S3.SS2.p1.5.m5.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.5.m5.1.1.3.cmml" xref="S3.SS2.p1.5.m5.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.5.m5.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math> and <math id="S3.SS2.p1.6.m6.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.6.m6.1a"><msubsup id="S3.SS2.p1.6.m6.1.1" xref="S3.SS2.p1.6.m6.1.1.cmml"><mtext id="S3.SS2.p1.6.m6.1.1.2.2" xref="S3.SS2.p1.6.m6.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.6.m6.1.1.3" xref="S3.SS2.p1.6.m6.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.6.m6.1.1.2.3" xref="S3.SS2.p1.6.m6.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.6.m6.1b"><apply id="S3.SS2.p1.6.m6.1.1.cmml" xref="S3.SS2.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.6.m6.1.1.1.cmml" xref="S3.SS2.p1.6.m6.1.1">subscript</csymbol><apply id="S3.SS2.p1.6.m6.1.1.2.cmml" xref="S3.SS2.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.6.m6.1.1.2.1.cmml" xref="S3.SS2.p1.6.m6.1.1">superscript</csymbol><ci id="S3.SS2.p1.6.m6.1.1.2.2a.cmml" xref="S3.SS2.p1.6.m6.1.1.2.2"><mtext id="S3.SS2.p1.6.m6.1.1.2.2.cmml" xref="S3.SS2.p1.6.m6.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.6.m6.1.1.2.3a.cmml" xref="S3.SS2.p1.6.m6.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.6.m6.1.1.2.3.cmml" xref="S3.SS2.p1.6.m6.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.6.m6.1.1.3a.cmml" xref="S3.SS2.p1.6.m6.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.6.m6.1.1.3.cmml" xref="S3.SS2.p1.6.m6.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.6.m6.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math> applies standard SGD without momentum or clipping.
+They vary in the LSTM model architectures, where model <math id="S3.SS2.p1.7.m7.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S3.SS2.p1.7.m7.1a"><msubsup id="S3.SS2.p1.7.m7.1.1" xref="S3.SS2.p1.7.m7.1.1.cmml"><mtext id="S3.SS2.p1.7.m7.1.1.2.2" xref="S3.SS2.p1.7.m7.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.7.m7.1.1.3" xref="S3.SS2.p1.7.m7.1.1.3a.cmml">S</mtext><mtext id="S3.SS2.p1.7.m7.1.1.2.3" xref="S3.SS2.p1.7.m7.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.7.m7.1b"><apply id="S3.SS2.p1.7.m7.1.1.cmml" xref="S3.SS2.p1.7.m7.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.7.m7.1.1.1.cmml" xref="S3.SS2.p1.7.m7.1.1">subscript</csymbol><apply id="S3.SS2.p1.7.m7.1.1.2.cmml" xref="S3.SS2.p1.7.m7.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.7.m7.1.1.2.1.cmml" xref="S3.SS2.p1.7.m7.1.1">superscript</csymbol><ci id="S3.SS2.p1.7.m7.1.1.2.2a.cmml" xref="S3.SS2.p1.7.m7.1.1.2.2"><mtext id="S3.SS2.p1.7.m7.1.1.2.2.cmml" xref="S3.SS2.p1.7.m7.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.7.m7.1.1.2.3a.cmml" xref="S3.SS2.p1.7.m7.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.7.m7.1.1.2.3.cmml" xref="S3.SS2.p1.7.m7.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.7.m7.1.1.3a.cmml" xref="S3.SS2.p1.7.m7.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.7.m7.1.1.3.cmml" xref="S3.SS2.p1.7.m7.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.7.m7.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math> contains <math id="S3.SS2.p1.8.m8.1" class="ltx_Math" alttext="216" display="inline"><semantics id="S3.SS2.p1.8.m8.1a"><mn id="S3.SS2.p1.8.m8.1.1" xref="S3.SS2.p1.8.m8.1.1.cmml">216</mn><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.8.m8.1b"><cn type="integer" id="S3.SS2.p1.8.m8.1.1.cmml" xref="S3.SS2.p1.8.m8.1.1">216</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.8.m8.1c">216</annotation></semantics></math>K parameters and <math id="S3.SS2.p1.9.m9.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.9.m9.1a"><msubsup id="S3.SS2.p1.9.m9.1.1" xref="S3.SS2.p1.9.m9.1.1.cmml"><mtext id="S3.SS2.p1.9.m9.1.1.2.2" xref="S3.SS2.p1.9.m9.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.9.m9.1.1.3" xref="S3.SS2.p1.9.m9.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.9.m9.1.1.2.3" xref="S3.SS2.p1.9.m9.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.9.m9.1b"><apply id="S3.SS2.p1.9.m9.1.1.cmml" xref="S3.SS2.p1.9.m9.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.9.m9.1.1.1.cmml" xref="S3.SS2.p1.9.m9.1.1">subscript</csymbol><apply id="S3.SS2.p1.9.m9.1.1.2.cmml" xref="S3.SS2.p1.9.m9.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.9.m9.1.1.2.1.cmml" xref="S3.SS2.p1.9.m9.1.1">superscript</csymbol><ci id="S3.SS2.p1.9.m9.1.1.2.2a.cmml" xref="S3.SS2.p1.9.m9.1.1.2.2"><mtext id="S3.SS2.p1.9.m9.1.1.2.2.cmml" xref="S3.SS2.p1.9.m9.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.9.m9.1.1.2.3a.cmml" xref="S3.SS2.p1.9.m9.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.9.m9.1.1.2.3.cmml" xref="S3.SS2.p1.9.m9.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.9.m9.1.1.3a.cmml" xref="S3.SS2.p1.9.m9.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.9.m9.1.1.3.cmml" xref="S3.SS2.p1.9.m9.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.9.m9.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math> contains <math id="S3.SS2.p1.10.m10.1" class="ltx_Math" alttext="758" display="inline"><semantics id="S3.SS2.p1.10.m10.1a"><mn id="S3.SS2.p1.10.m10.1.1" xref="S3.SS2.p1.10.m10.1.1.cmml">758</mn><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.10.m10.1b"><cn type="integer" id="S3.SS2.p1.10.m10.1.1.cmml" xref="S3.SS2.p1.10.m10.1.1">758</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.10.m10.1c">758</annotation></semantics></math>K parameters.
+<math id="S3.SS2.p1.11.m11.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.11.m11.1a"><msubsup id="S3.SS2.p1.11.m11.1.1" xref="S3.SS2.p1.11.m11.1.1.cmml"><mtext id="S3.SS2.p1.11.m11.1.1.2.2" xref="S3.SS2.p1.11.m11.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.11.m11.1.1.3" xref="S3.SS2.p1.11.m11.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.11.m11.1.1.2.3" xref="S3.SS2.p1.11.m11.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.11.m11.1b"><apply id="S3.SS2.p1.11.m11.1.1.cmml" xref="S3.SS2.p1.11.m11.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.11.m11.1.1.1.cmml" xref="S3.SS2.p1.11.m11.1.1">subscript</csymbol><apply id="S3.SS2.p1.11.m11.1.1.2.cmml" xref="S3.SS2.p1.11.m11.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.11.m11.1.1.2.1.cmml" xref="S3.SS2.p1.11.m11.1.1">superscript</csymbol><ci id="S3.SS2.p1.11.m11.1.1.2.2a.cmml" xref="S3.SS2.p1.11.m11.1.1.2.2"><mtext id="S3.SS2.p1.11.m11.1.1.2.2.cmml" xref="S3.SS2.p1.11.m11.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.11.m11.1.1.2.3a.cmml" xref="S3.SS2.p1.11.m11.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.11.m11.1.1.2.3.cmml" xref="S3.SS2.p1.11.m11.1.1.2.3">M</mtext></ci></apply><ci id="S3.SS2.p1.11.m11.1.1.3a.cmml" xref="S3.SS2.p1.11.m11.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.11.m11.1.1.3.cmml" xref="S3.SS2.p1.11.m11.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.11.m11.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> has the same model architecture as <math id="S3.SS2.p1.12.m12.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.12.m12.1a"><msubsup id="S3.SS2.p1.12.m12.1.1" xref="S3.SS2.p1.12.m12.1.1.cmml"><mtext id="S3.SS2.p1.12.m12.1.1.2.2" xref="S3.SS2.p1.12.m12.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.12.m12.1.1.3" xref="S3.SS2.p1.12.m12.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.12.m12.1.1.2.3" xref="S3.SS2.p1.12.m12.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.12.m12.1b"><apply id="S3.SS2.p1.12.m12.1.1.cmml" xref="S3.SS2.p1.12.m12.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.12.m12.1.1.1.cmml" xref="S3.SS2.p1.12.m12.1.1">subscript</csymbol><apply id="S3.SS2.p1.12.m12.1.1.2.cmml" xref="S3.SS2.p1.12.m12.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.12.m12.1.1.2.1.cmml" xref="S3.SS2.p1.12.m12.1.1">superscript</csymbol><ci id="S3.SS2.p1.12.m12.1.1.2.2a.cmml" xref="S3.SS2.p1.12.m12.1.1.2.2"><mtext id="S3.SS2.p1.12.m12.1.1.2.2.cmml" xref="S3.SS2.p1.12.m12.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.12.m12.1.1.2.3a.cmml" xref="S3.SS2.p1.12.m12.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.12.m12.1.1.2.3.cmml" xref="S3.SS2.p1.12.m12.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.12.m12.1.1.3a.cmml" xref="S3.SS2.p1.12.m12.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.12.m12.1.1.3.cmml" xref="S3.SS2.p1.12.m12.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.12.m12.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math> and further applies adaptive gradient clipping,
+combined with Nesterov accelerated gradient <cite class="ltx_cite ltx_citemacro_cite">Nesterov (<a href="#bib.bib13" title="" class="ltx_ref">1983</a>)</cite> and a momentum hyper-parameter of <math id="S3.SS2.p1.13.m13.1" class="ltx_Math" alttext="0.9" display="inline"><semantics id="S3.SS2.p1.13.m13.1a"><mn id="S3.SS2.p1.13.m13.1.1" xref="S3.SS2.p1.13.m13.1.1.cmml">0.9</mn><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.13.m13.1b"><cn type="float" id="S3.SS2.p1.13.m13.1.1.cmml" xref="S3.SS2.p1.13.m13.1.1">0.9</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.13.m13.1c">0.9</annotation></semantics></math>.
+Unlike server-based training, FL uses a client-side learning rate <math id="S3.SS2.p1.14.m14.1" class="ltx_Math" alttext="\eta_{\text{client}}" display="inline"><semantics id="S3.SS2.p1.14.m14.1a"><msub id="S3.SS2.p1.14.m14.1.1" xref="S3.SS2.p1.14.m14.1.1.cmml"><mi id="S3.SS2.p1.14.m14.1.1.2" xref="S3.SS2.p1.14.m14.1.1.2.cmml">η</mi><mtext id="S3.SS2.p1.14.m14.1.1.3" xref="S3.SS2.p1.14.m14.1.1.3a.cmml">client</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.14.m14.1b"><apply id="S3.SS2.p1.14.m14.1.1.cmml" xref="S3.SS2.p1.14.m14.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.14.m14.1.1.1.cmml" xref="S3.SS2.p1.14.m14.1.1">subscript</csymbol><ci id="S3.SS2.p1.14.m14.1.1.2.cmml" xref="S3.SS2.p1.14.m14.1.1.2">𝜂</ci><ci id="S3.SS2.p1.14.m14.1.1.3a.cmml" xref="S3.SS2.p1.14.m14.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.14.m14.1.1.3.cmml" xref="S3.SS2.p1.14.m14.1.1.3">client</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.14.m14.1c">\eta_{\text{client}}</annotation></semantics></math> with local min-batch update,
+in addition to the server-side learning rate <math id="S3.SS2.p1.15.m15.1" class="ltx_Math" alttext="\eta" display="inline"><semantics id="S3.SS2.p1.15.m15.1a"><mi id="S3.SS2.p1.15.m15.1.1" xref="S3.SS2.p1.15.m15.1.1.cmml">η</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.15.m15.1b"><ci id="S3.SS2.p1.15.m15.1.1.cmml" xref="S3.SS2.p1.15.m15.1.1">𝜂</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.15.m15.1c">\eta</annotation></semantics></math>.
+<math id="S3.SS2.p1.16.m16.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.16.m16.1a"><msubsup id="S3.SS2.p1.16.m16.1.1" xref="S3.SS2.p1.16.m16.1.1.cmml"><mtext id="S3.SS2.p1.16.m16.1.1.2.2" xref="S3.SS2.p1.16.m16.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.16.m16.1.1.3" xref="S3.SS2.p1.16.m16.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.16.m16.1.1.2.3" xref="S3.SS2.p1.16.m16.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.16.m16.1b"><apply id="S3.SS2.p1.16.m16.1.1.cmml" xref="S3.SS2.p1.16.m16.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.16.m16.1.1.1.cmml" xref="S3.SS2.p1.16.m16.1.1">subscript</csymbol><apply id="S3.SS2.p1.16.m16.1.1.2.cmml" xref="S3.SS2.p1.16.m16.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.16.m16.1.1.2.1.cmml" xref="S3.SS2.p1.16.m16.1.1">superscript</csymbol><ci id="S3.SS2.p1.16.m16.1.1.2.2a.cmml" xref="S3.SS2.p1.16.m16.1.1.2.2"><mtext id="S3.SS2.p1.16.m16.1.1.2.2.cmml" xref="S3.SS2.p1.16.m16.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.16.m16.1.1.2.3a.cmml" xref="S3.SS2.p1.16.m16.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.16.m16.1.1.2.3.cmml" xref="S3.SS2.p1.16.m16.1.1.2.3">M</mtext></ci></apply><ci id="S3.SS2.p1.16.m16.1.1.3a.cmml" xref="S3.SS2.p1.16.m16.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.16.m16.1.1.3.cmml" xref="S3.SS2.p1.16.m16.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.16.m16.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> converges with <math id="S3.SS2.p1.17.m17.1" class="ltx_Math" alttext="\eta_{\text{client}}=0.5" display="inline"><semantics id="S3.SS2.p1.17.m17.1a"><mrow id="S3.SS2.p1.17.m17.1.1" xref="S3.SS2.p1.17.m17.1.1.cmml"><msub id="S3.SS2.p1.17.m17.1.1.2" xref="S3.SS2.p1.17.m17.1.1.2.cmml"><mi id="S3.SS2.p1.17.m17.1.1.2.2" xref="S3.SS2.p1.17.m17.1.1.2.2.cmml">η</mi><mtext id="S3.SS2.p1.17.m17.1.1.2.3" xref="S3.SS2.p1.17.m17.1.1.2.3a.cmml">client</mtext></msub><mo id="S3.SS2.p1.17.m17.1.1.1" xref="S3.SS2.p1.17.m17.1.1.1.cmml">=</mo><mn id="S3.SS2.p1.17.m17.1.1.3" xref="S3.SS2.p1.17.m17.1.1.3.cmml">0.5</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.17.m17.1b"><apply id="S3.SS2.p1.17.m17.1.1.cmml" xref="S3.SS2.p1.17.m17.1.1"><eq id="S3.SS2.p1.17.m17.1.1.1.cmml" xref="S3.SS2.p1.17.m17.1.1.1"></eq><apply id="S3.SS2.p1.17.m17.1.1.2.cmml" xref="S3.SS2.p1.17.m17.1.1.2"><csymbol cd="ambiguous" id="S3.SS2.p1.17.m17.1.1.2.1.cmml" xref="S3.SS2.p1.17.m17.1.1.2">subscript</csymbol><ci id="S3.SS2.p1.17.m17.1.1.2.2.cmml" xref="S3.SS2.p1.17.m17.1.1.2.2">𝜂</ci><ci id="S3.SS2.p1.17.m17.1.1.2.3a.cmml" xref="S3.SS2.p1.17.m17.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.17.m17.1.1.2.3.cmml" xref="S3.SS2.p1.17.m17.1.1.2.3">client</mtext></ci></apply><cn type="float" id="S3.SS2.p1.17.m17.1.1.3.cmml" xref="S3.SS2.p1.17.m17.1.1.3">0.5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.17.m17.1c">\eta_{\text{client}}=0.5</annotation></semantics></math>, while <math id="S3.SS2.p1.18.m18.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S3.SS2.p1.18.m18.1a"><msubsup id="S3.SS2.p1.18.m18.1.1" xref="S3.SS2.p1.18.m18.1.1.cmml"><mtext id="S3.SS2.p1.18.m18.1.1.2.2" xref="S3.SS2.p1.18.m18.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.18.m18.1.1.3" xref="S3.SS2.p1.18.m18.1.1.3a.cmml">S</mtext><mtext id="S3.SS2.p1.18.m18.1.1.2.3" xref="S3.SS2.p1.18.m18.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.18.m18.1b"><apply id="S3.SS2.p1.18.m18.1.1.cmml" xref="S3.SS2.p1.18.m18.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.18.m18.1.1.1.cmml" xref="S3.SS2.p1.18.m18.1.1">subscript</csymbol><apply id="S3.SS2.p1.18.m18.1.1.2.cmml" xref="S3.SS2.p1.18.m18.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.18.m18.1.1.2.1.cmml" xref="S3.SS2.p1.18.m18.1.1">superscript</csymbol><ci id="S3.SS2.p1.18.m18.1.1.2.2a.cmml" xref="S3.SS2.p1.18.m18.1.1.2.2"><mtext id="S3.SS2.p1.18.m18.1.1.2.2.cmml" xref="S3.SS2.p1.18.m18.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.18.m18.1.1.2.3a.cmml" xref="S3.SS2.p1.18.m18.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.18.m18.1.1.2.3.cmml" xref="S3.SS2.p1.18.m18.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.18.m18.1.1.3a.cmml" xref="S3.SS2.p1.18.m18.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.18.m18.1.1.3.cmml" xref="S3.SS2.p1.18.m18.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.18.m18.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math> and <math id="S3.SS2.p1.19.m19.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S3.SS2.p1.19.m19.1a"><msubsup id="S3.SS2.p1.19.m19.1.1" xref="S3.SS2.p1.19.m19.1.1.cmml"><mtext id="S3.SS2.p1.19.m19.1.1.2.2" xref="S3.SS2.p1.19.m19.1.1.2.2a.cmml">FL</mtext><mtext id="S3.SS2.p1.19.m19.1.1.3" xref="S3.SS2.p1.19.m19.1.1.3a.cmml">L</mtext><mtext id="S3.SS2.p1.19.m19.1.1.2.3" xref="S3.SS2.p1.19.m19.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.19.m19.1b"><apply id="S3.SS2.p1.19.m19.1.1.cmml" xref="S3.SS2.p1.19.m19.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.19.m19.1.1.1.cmml" xref="S3.SS2.p1.19.m19.1.1">subscript</csymbol><apply id="S3.SS2.p1.19.m19.1.1.2.cmml" xref="S3.SS2.p1.19.m19.1.1"><csymbol cd="ambiguous" id="S3.SS2.p1.19.m19.1.1.2.1.cmml" xref="S3.SS2.p1.19.m19.1.1">superscript</csymbol><ci id="S3.SS2.p1.19.m19.1.1.2.2a.cmml" xref="S3.SS2.p1.19.m19.1.1.2.2"><mtext id="S3.SS2.p1.19.m19.1.1.2.2.cmml" xref="S3.SS2.p1.19.m19.1.1.2.2">FL</mtext></ci><ci id="S3.SS2.p1.19.m19.1.1.2.3a.cmml" xref="S3.SS2.p1.19.m19.1.1.2.3"><mtext mathsize="70%" id="S3.SS2.p1.19.m19.1.1.2.3.cmml" xref="S3.SS2.p1.19.m19.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.SS2.p1.19.m19.1.1.3a.cmml" xref="S3.SS2.p1.19.m19.1.1.3"><mtext mathsize="70%" id="S3.SS2.p1.19.m19.1.1.3.cmml" xref="S3.SS2.p1.19.m19.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.19.m19.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math> diverges with such a high value.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<table id="S3.T1.13" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T1.3.3" class="ltx_tr">
+<th id="S3.T1.3.3.4" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S3.T1.1.1.1" class="ltx_td ltx_align_center"><math id="S3.T1.1.1.1.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S3.T1.1.1.1.m1.1a"><msubsup id="S3.T1.1.1.1.m1.1.1" xref="S3.T1.1.1.1.m1.1.1.cmml"><mtext id="S3.T1.1.1.1.m1.1.1.2.2" xref="S3.T1.1.1.1.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S3.T1.1.1.1.m1.1.1.3" xref="S3.T1.1.1.1.m1.1.1.3a.cmml">S</mtext><mtext id="S3.T1.1.1.1.m1.1.1.2.3" xref="S3.T1.1.1.1.m1.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.T1.1.1.1.m1.1b"><apply id="S3.T1.1.1.1.m1.1.1.cmml" xref="S3.T1.1.1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.1.1.1.m1.1.1.1.cmml" xref="S3.T1.1.1.1.m1.1.1">subscript</csymbol><apply id="S3.T1.1.1.1.m1.1.1.2.cmml" xref="S3.T1.1.1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.1.1.1.m1.1.1.2.1.cmml" xref="S3.T1.1.1.1.m1.1.1">superscript</csymbol><ci id="S3.T1.1.1.1.m1.1.1.2.2a.cmml" xref="S3.T1.1.1.1.m1.1.1.2.2"><mtext id="S3.T1.1.1.1.m1.1.1.2.2.cmml" xref="S3.T1.1.1.1.m1.1.1.2.2">FL</mtext></ci><ci id="S3.T1.1.1.1.m1.1.1.2.3a.cmml" xref="S3.T1.1.1.1.m1.1.1.2.3"><mtext mathsize="70%" id="S3.T1.1.1.1.m1.1.1.2.3.cmml" xref="S3.T1.1.1.1.m1.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.T1.1.1.1.m1.1.1.3a.cmml" xref="S3.T1.1.1.1.m1.1.1.3"><mtext mathsize="70%" id="S3.T1.1.1.1.m1.1.1.3.cmml" xref="S3.T1.1.1.1.m1.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.1.1.1.m1.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math></td>
+<td id="S3.T1.2.2.2" class="ltx_td ltx_align_center"><math id="S3.T1.2.2.2.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S3.T1.2.2.2.m1.1a"><msubsup id="S3.T1.2.2.2.m1.1.1" xref="S3.T1.2.2.2.m1.1.1.cmml"><mtext id="S3.T1.2.2.2.m1.1.1.2.2" xref="S3.T1.2.2.2.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S3.T1.2.2.2.m1.1.1.3" xref="S3.T1.2.2.2.m1.1.1.3a.cmml">L</mtext><mtext id="S3.T1.2.2.2.m1.1.1.2.3" xref="S3.T1.2.2.2.m1.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.T1.2.2.2.m1.1b"><apply id="S3.T1.2.2.2.m1.1.1.cmml" xref="S3.T1.2.2.2.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.2.2.2.m1.1.1.1.cmml" xref="S3.T1.2.2.2.m1.1.1">subscript</csymbol><apply id="S3.T1.2.2.2.m1.1.1.2.cmml" xref="S3.T1.2.2.2.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.2.2.2.m1.1.1.2.1.cmml" xref="S3.T1.2.2.2.m1.1.1">superscript</csymbol><ci id="S3.T1.2.2.2.m1.1.1.2.2a.cmml" xref="S3.T1.2.2.2.m1.1.1.2.2"><mtext id="S3.T1.2.2.2.m1.1.1.2.2.cmml" xref="S3.T1.2.2.2.m1.1.1.2.2">FL</mtext></ci><ci id="S3.T1.2.2.2.m1.1.1.2.3a.cmml" xref="S3.T1.2.2.2.m1.1.1.2.3"><mtext mathsize="70%" id="S3.T1.2.2.2.m1.1.1.2.3.cmml" xref="S3.T1.2.2.2.m1.1.1.2.3">SGD</mtext></ci></apply><ci id="S3.T1.2.2.2.m1.1.1.3a.cmml" xref="S3.T1.2.2.2.m1.1.1.3"><mtext mathsize="70%" id="S3.T1.2.2.2.m1.1.1.3.cmml" xref="S3.T1.2.2.2.m1.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.2.2.2.m1.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math></td>
+<td id="S3.T1.3.3.3" class="ltx_td ltx_align_center"><math id="S3.T1.3.3.3.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S3.T1.3.3.3.m1.1a"><msubsup id="S3.T1.3.3.3.m1.1.1" xref="S3.T1.3.3.3.m1.1.1.cmml"><mtext id="S3.T1.3.3.3.m1.1.1.2.2" xref="S3.T1.3.3.3.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S3.T1.3.3.3.m1.1.1.3" xref="S3.T1.3.3.3.m1.1.1.3a.cmml">L</mtext><mtext id="S3.T1.3.3.3.m1.1.1.2.3" xref="S3.T1.3.3.3.m1.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S3.T1.3.3.3.m1.1b"><apply id="S3.T1.3.3.3.m1.1.1.cmml" xref="S3.T1.3.3.3.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.3.3.3.m1.1.1.1.cmml" xref="S3.T1.3.3.3.m1.1.1">subscript</csymbol><apply id="S3.T1.3.3.3.m1.1.1.2.cmml" xref="S3.T1.3.3.3.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.3.3.3.m1.1.1.2.1.cmml" xref="S3.T1.3.3.3.m1.1.1">superscript</csymbol><ci id="S3.T1.3.3.3.m1.1.1.2.2a.cmml" xref="S3.T1.3.3.3.m1.1.1.2.2"><mtext id="S3.T1.3.3.3.m1.1.1.2.2.cmml" xref="S3.T1.3.3.3.m1.1.1.2.2">FL</mtext></ci><ci id="S3.T1.3.3.3.m1.1.1.2.3a.cmml" xref="S3.T1.3.3.3.m1.1.1.2.3"><mtext mathsize="70%" id="S3.T1.3.3.3.m1.1.1.2.3.cmml" xref="S3.T1.3.3.3.m1.1.1.2.3">M</mtext></ci></apply><ci id="S3.T1.3.3.3.m1.1.1.3a.cmml" xref="S3.T1.3.3.3.m1.1.1.3"><mtext mathsize="70%" id="S3.T1.3.3.3.m1.1.1.3.cmml" xref="S3.T1.3.3.3.m1.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.3.3.3.m1.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math></td>
+</tr>
+<tr id="S3.T1.4.4" class="ltx_tr">
+<th id="S3.T1.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S3.T1.4.4.1.m1.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.T1.4.4.1.m1.1a"><mi id="S3.T1.4.4.1.m1.1.1" xref="S3.T1.4.4.1.m1.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.T1.4.4.1.m1.1b"><ci id="S3.T1.4.4.1.m1.1.1.cmml" xref="S3.T1.4.4.1.m1.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.4.4.1.m1.1c">m</annotation></semantics></math></th>
+<td id="S3.T1.4.4.2" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T1.4.4.3" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T1.4.4.4" class="ltx_td ltx_align_center ltx_border_t">0.9</td>
+</tr>
+<tr id="S3.T1.5.5" class="ltx_tr">
+<th id="S3.T1.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.5.5.1.m1.1" class="ltx_Math" alttext="B_{s}" display="inline"><semantics id="S3.T1.5.5.1.m1.1a"><msub id="S3.T1.5.5.1.m1.1.1" xref="S3.T1.5.5.1.m1.1.1.cmml"><mi id="S3.T1.5.5.1.m1.1.1.2" xref="S3.T1.5.5.1.m1.1.1.2.cmml">B</mi><mi id="S3.T1.5.5.1.m1.1.1.3" xref="S3.T1.5.5.1.m1.1.1.3.cmml">s</mi></msub><annotation-xml encoding="MathML-Content" id="S3.T1.5.5.1.m1.1b"><apply id="S3.T1.5.5.1.m1.1.1.cmml" xref="S3.T1.5.5.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.5.5.1.m1.1.1.1.cmml" xref="S3.T1.5.5.1.m1.1.1">subscript</csymbol><ci id="S3.T1.5.5.1.m1.1.1.2.cmml" xref="S3.T1.5.5.1.m1.1.1.2">𝐵</ci><ci id="S3.T1.5.5.1.m1.1.1.3.cmml" xref="S3.T1.5.5.1.m1.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.5.5.1.m1.1c">B_{s}</annotation></semantics></math></th>
+<td id="S3.T1.5.5.2" class="ltx_td ltx_align_center">64</td>
+<td id="S3.T1.5.5.3" class="ltx_td ltx_align_center">64</td>
+<td id="S3.T1.5.5.4" class="ltx_td ltx_align_center">64</td>
+</tr>
+<tr id="S3.T1.7.7" class="ltx_tr">
+<th id="S3.T1.6.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.6.6.1.m1.1" class="ltx_Math" alttext="S" display="inline"><semantics id="S3.T1.6.6.1.m1.1a"><mi id="S3.T1.6.6.1.m1.1.1" xref="S3.T1.6.6.1.m1.1.1.cmml">S</mi><annotation-xml encoding="MathML-Content" id="S3.T1.6.6.1.m1.1b"><ci id="S3.T1.6.6.1.m1.1.1.cmml" xref="S3.T1.6.6.1.m1.1.1">𝑆</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.6.6.1.m1.1c">S</annotation></semantics></math></th>
+<td id="S3.T1.7.7.3" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T1.7.7.4" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T1.7.7.2" class="ltx_td ltx_align_center"><math id="S3.T1.7.7.2.m1.1" class="ltx_Math" alttext="6.0^{*}" display="inline"><semantics id="S3.T1.7.7.2.m1.1a"><msup id="S3.T1.7.7.2.m1.1.1" xref="S3.T1.7.7.2.m1.1.1.cmml"><mn id="S3.T1.7.7.2.m1.1.1.2" xref="S3.T1.7.7.2.m1.1.1.2.cmml">6.0</mn><mo id="S3.T1.7.7.2.m1.1.1.3" xref="S3.T1.7.7.2.m1.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S3.T1.7.7.2.m1.1b"><apply id="S3.T1.7.7.2.m1.1.1.cmml" xref="S3.T1.7.7.2.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.7.7.2.m1.1.1.1.cmml" xref="S3.T1.7.7.2.m1.1.1">superscript</csymbol><cn type="float" id="S3.T1.7.7.2.m1.1.1.2.cmml" xref="S3.T1.7.7.2.m1.1.1.2">6.0</cn><times id="S3.T1.7.7.2.m1.1.1.3.cmml" xref="S3.T1.7.7.2.m1.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.7.7.2.m1.1c">6.0^{*}</annotation></semantics></math></td>
+</tr>
+<tr id="S3.T1.8.8" class="ltx_tr">
+<th id="S3.T1.8.8.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.8.8.1.m1.1" class="ltx_Math" alttext="\eta" display="inline"><semantics id="S3.T1.8.8.1.m1.1a"><mi id="S3.T1.8.8.1.m1.1.1" xref="S3.T1.8.8.1.m1.1.1.cmml">η</mi><annotation-xml encoding="MathML-Content" id="S3.T1.8.8.1.m1.1b"><ci id="S3.T1.8.8.1.m1.1.1.cmml" xref="S3.T1.8.8.1.m1.1.1">𝜂</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.8.8.1.m1.1c">\eta</annotation></semantics></math></th>
+<td id="S3.T1.8.8.2" class="ltx_td ltx_align_center">1.0</td>
+<td id="S3.T1.8.8.3" class="ltx_td ltx_align_center">1.0</td>
+<td id="S3.T1.8.8.4" class="ltx_td ltx_align_center">1.0</td>
+</tr>
+<tr id="S3.T1.9.9" class="ltx_tr">
+<th id="S3.T1.9.9.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.9.9.1.m1.1" class="ltx_Math" alttext="\eta_{client}" display="inline"><semantics id="S3.T1.9.9.1.m1.1a"><msub id="S3.T1.9.9.1.m1.1.1" xref="S3.T1.9.9.1.m1.1.1.cmml"><mi id="S3.T1.9.9.1.m1.1.1.2" xref="S3.T1.9.9.1.m1.1.1.2.cmml">η</mi><mrow id="S3.T1.9.9.1.m1.1.1.3" xref="S3.T1.9.9.1.m1.1.1.3.cmml"><mi id="S3.T1.9.9.1.m1.1.1.3.2" xref="S3.T1.9.9.1.m1.1.1.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S3.T1.9.9.1.m1.1.1.3.1" xref="S3.T1.9.9.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.T1.9.9.1.m1.1.1.3.3" xref="S3.T1.9.9.1.m1.1.1.3.3.cmml">l</mi><mo lspace="0em" rspace="0em" id="S3.T1.9.9.1.m1.1.1.3.1a" xref="S3.T1.9.9.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.T1.9.9.1.m1.1.1.3.4" xref="S3.T1.9.9.1.m1.1.1.3.4.cmml">i</mi><mo lspace="0em" rspace="0em" id="S3.T1.9.9.1.m1.1.1.3.1b" xref="S3.T1.9.9.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.T1.9.9.1.m1.1.1.3.5" xref="S3.T1.9.9.1.m1.1.1.3.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S3.T1.9.9.1.m1.1.1.3.1c" xref="S3.T1.9.9.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.T1.9.9.1.m1.1.1.3.6" xref="S3.T1.9.9.1.m1.1.1.3.6.cmml">n</mi><mo lspace="0em" rspace="0em" id="S3.T1.9.9.1.m1.1.1.3.1d" xref="S3.T1.9.9.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.T1.9.9.1.m1.1.1.3.7" xref="S3.T1.9.9.1.m1.1.1.3.7.cmml">t</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.T1.9.9.1.m1.1b"><apply id="S3.T1.9.9.1.m1.1.1.cmml" xref="S3.T1.9.9.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.9.9.1.m1.1.1.1.cmml" xref="S3.T1.9.9.1.m1.1.1">subscript</csymbol><ci id="S3.T1.9.9.1.m1.1.1.2.cmml" xref="S3.T1.9.9.1.m1.1.1.2">𝜂</ci><apply id="S3.T1.9.9.1.m1.1.1.3.cmml" xref="S3.T1.9.9.1.m1.1.1.3"><times id="S3.T1.9.9.1.m1.1.1.3.1.cmml" xref="S3.T1.9.9.1.m1.1.1.3.1"></times><ci id="S3.T1.9.9.1.m1.1.1.3.2.cmml" xref="S3.T1.9.9.1.m1.1.1.3.2">𝑐</ci><ci id="S3.T1.9.9.1.m1.1.1.3.3.cmml" xref="S3.T1.9.9.1.m1.1.1.3.3">𝑙</ci><ci id="S3.T1.9.9.1.m1.1.1.3.4.cmml" xref="S3.T1.9.9.1.m1.1.1.3.4">𝑖</ci><ci id="S3.T1.9.9.1.m1.1.1.3.5.cmml" xref="S3.T1.9.9.1.m1.1.1.3.5">𝑒</ci><ci id="S3.T1.9.9.1.m1.1.1.3.6.cmml" xref="S3.T1.9.9.1.m1.1.1.3.6">𝑛</ci><ci id="S3.T1.9.9.1.m1.1.1.3.7.cmml" xref="S3.T1.9.9.1.m1.1.1.3.7">𝑡</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.9.9.1.m1.1c">\eta_{client}</annotation></semantics></math></th>
+<td id="S3.T1.9.9.2" class="ltx_td ltx_align_center">0.1</td>
+<td id="S3.T1.9.9.3" class="ltx_td ltx_align_center">0.1</td>
+<td id="S3.T1.9.9.4" class="ltx_td ltx_align_center">0.5</td>
+</tr>
+<tr id="S3.T1.10.10" class="ltx_tr">
+<th id="S3.T1.10.10.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.10.10.1.m1.1" class="ltx_Math" alttext="N_{r}" display="inline"><semantics id="S3.T1.10.10.1.m1.1a"><msub id="S3.T1.10.10.1.m1.1.1" xref="S3.T1.10.10.1.m1.1.1.cmml"><mi id="S3.T1.10.10.1.m1.1.1.2" xref="S3.T1.10.10.1.m1.1.1.2.cmml">N</mi><mi id="S3.T1.10.10.1.m1.1.1.3" xref="S3.T1.10.10.1.m1.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.T1.10.10.1.m1.1b"><apply id="S3.T1.10.10.1.m1.1.1.cmml" xref="S3.T1.10.10.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.10.10.1.m1.1.1.1.cmml" xref="S3.T1.10.10.1.m1.1.1">subscript</csymbol><ci id="S3.T1.10.10.1.m1.1.1.2.cmml" xref="S3.T1.10.10.1.m1.1.1.2">𝑁</ci><ci id="S3.T1.10.10.1.m1.1.1.3.cmml" xref="S3.T1.10.10.1.m1.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.10.10.1.m1.1c">N_{r}</annotation></semantics></math></th>
+<td id="S3.T1.10.10.2" class="ltx_td ltx_align_center">2</td>
+<td id="S3.T1.10.10.3" class="ltx_td ltx_align_center">3</td>
+<td id="S3.T1.10.10.4" class="ltx_td ltx_align_center">3</td>
+</tr>
+<tr id="S3.T1.11.11" class="ltx_tr">
+<th id="S3.T1.11.11.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.11.11.1.m1.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S3.T1.11.11.1.m1.1a"><mi id="S3.T1.11.11.1.m1.1.1" xref="S3.T1.11.11.1.m1.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S3.T1.11.11.1.m1.1b"><ci id="S3.T1.11.11.1.m1.1.1.cmml" xref="S3.T1.11.11.1.m1.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.11.11.1.m1.1c">N</annotation></semantics></math></th>
+<td id="S3.T1.11.11.2" class="ltx_td ltx_align_center">256</td>
+<td id="S3.T1.11.11.3" class="ltx_td ltx_align_center">256</td>
+<td id="S3.T1.11.11.4" class="ltx_td ltx_align_center">256</td>
+</tr>
+<tr id="S3.T1.12.12" class="ltx_tr">
+<th id="S3.T1.12.12.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.12.12.1.m1.1" class="ltx_Math" alttext="d" display="inline"><semantics id="S3.T1.12.12.1.m1.1a"><mi id="S3.T1.12.12.1.m1.1.1" xref="S3.T1.12.12.1.m1.1.1.cmml">d</mi><annotation-xml encoding="MathML-Content" id="S3.T1.12.12.1.m1.1b"><ci id="S3.T1.12.12.1.m1.1.1.cmml" xref="S3.T1.12.12.1.m1.1.1">𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.12.12.1.m1.1c">d</annotation></semantics></math></th>
+<td id="S3.T1.12.12.2" class="ltx_td ltx_align_center">16</td>
+<td id="S3.T1.12.12.3" class="ltx_td ltx_align_center">128</td>
+<td id="S3.T1.12.12.4" class="ltx_td ltx_align_center">128</td>
+</tr>
+<tr id="S3.T1.13.13" class="ltx_tr">
+<th id="S3.T1.13.13.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><math id="S3.T1.13.13.1.m1.1" class="ltx_Math" alttext="N_{p}" display="inline"><semantics id="S3.T1.13.13.1.m1.1a"><msub id="S3.T1.13.13.1.m1.1.1" xref="S3.T1.13.13.1.m1.1.1.cmml"><mi id="S3.T1.13.13.1.m1.1.1.2" xref="S3.T1.13.13.1.m1.1.1.2.cmml">N</mi><mi id="S3.T1.13.13.1.m1.1.1.3" xref="S3.T1.13.13.1.m1.1.1.3.cmml">p</mi></msub><annotation-xml encoding="MathML-Content" id="S3.T1.13.13.1.m1.1b"><apply id="S3.T1.13.13.1.m1.1.1.cmml" xref="S3.T1.13.13.1.m1.1.1"><csymbol cd="ambiguous" id="S3.T1.13.13.1.m1.1.1.1.cmml" xref="S3.T1.13.13.1.m1.1.1">subscript</csymbol><ci id="S3.T1.13.13.1.m1.1.1.2.cmml" xref="S3.T1.13.13.1.m1.1.1.2">𝑁</ci><ci id="S3.T1.13.13.1.m1.1.1.3.cmml" xref="S3.T1.13.13.1.m1.1.1.3">𝑝</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.13.13.1.m1.1c">N_{p}</annotation></semantics></math></th>
+<td id="S3.T1.13.13.2" class="ltx_td ltx_align_center">64</td>
+<td id="S3.T1.13.13.3" class="ltx_td ltx_align_center">128</td>
+<td id="S3.T1.13.13.4" class="ltx_td ltx_align_center">128</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Hyper-parameters for three different FL settings.
+*Here adaptive clipping with a 0.99 percentile ratio is used together with server-side L2 clipping.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Federated learning settings</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.2" class="ltx_p">For both simulated and on-device FL, <math id="S3.SS3.p1.1.m1.1" class="ltx_Math" alttext="200" display="inline"><semantics id="S3.SS3.p1.1.m1.1a"><mn id="S3.SS3.p1.1.m1.1.1" xref="S3.SS3.p1.1.m1.1.1.cmml">200</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.1.m1.1b"><cn type="integer" id="S3.SS3.p1.1.m1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1">200</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.1.m1.1c">200</annotation></semantics></math> client updates are required to close each round.
+For each training round we set number of local epochs as <math id="S3.SS3.p1.2.m2.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S3.SS3.p1.2.m2.1a"><mn id="S3.SS3.p1.2.m2.1.1" xref="S3.SS3.p1.2.m2.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.2.m2.1b"><cn type="integer" id="S3.SS3.p1.2.m2.1.1.cmml" xref="S3.SS3.p1.2.m2.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.2.m2.1c">1</annotation></semantics></math>.</p>
+</div>
+<section id="S3.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.3.1 </span>Simulated FL on Reddit data</h4>
+
+<div id="S3.SS3.SSS1.p1" class="ltx_para">
+<p id="S3.SS3.SSS1.p1.4" class="ltx_p">The Reddit conversation corpus is a publicly-accessible and fairly large dataset.
+It includes diverse topics from 300,000 sub-forums <cite class="ltx_cite ltx_citemacro_cite">Al-Rfou et al. (<a href="#bib.bib1" title="" class="ltx_ref">2016</a>)</cite>.
+The data are organized as “Reddit posts”, where users can comment on each other’s comments indefinitely and user IDs are kept.
+The data contain 133 million posts from 326 thousand different sub-forums, consisting of 2.1 billion comments.
+Unlike Twitter, Reddit message sizes are unlimited.
+Similar to work in <cite class="ltx_cite ltx_citemacro_cite">Al-Rfou et al. (<a href="#bib.bib1" title="" class="ltx_ref">2016</a>)</cite>, Reddit posts that have more than 1000 comments are excluded.
+The final filtered data used for FL simulation contain <math id="S3.SS3.SSS1.p1.1.m1.1" class="ltx_Math" alttext="492" display="inline"><semantics id="S3.SS3.SSS1.p1.1.m1.1a"><mn id="S3.SS3.SSS1.p1.1.m1.1.1" xref="S3.SS3.SSS1.p1.1.m1.1.1.cmml">492</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.SSS1.p1.1.m1.1b"><cn type="integer" id="S3.SS3.SSS1.p1.1.m1.1.1.cmml" xref="S3.SS3.SSS1.p1.1.m1.1.1">492</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.SSS1.p1.1.m1.1c">492</annotation></semantics></math> million comments coming from <math id="S3.SS3.SSS1.p1.2.m2.1" class="ltx_Math" alttext="763" display="inline"><semantics id="S3.SS3.SSS1.p1.2.m2.1a"><mn id="S3.SS3.SSS1.p1.2.m2.1.1" xref="S3.SS3.SSS1.p1.2.m2.1.1.cmml">763</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.SSS1.p1.2.m2.1b"><cn type="integer" id="S3.SS3.SSS1.p1.2.m2.1.1.cmml" xref="S3.SS3.SSS1.p1.2.m2.1.1">763</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.SSS1.p1.2.m2.1c">763</annotation></semantics></math> thousand unique users.
+There are <math id="S3.SS3.SSS1.p1.3.m3.1" class="ltx_Math" alttext="259" display="inline"><semantics id="S3.SS3.SSS1.p1.3.m3.1a"><mn id="S3.SS3.SSS1.p1.3.m3.1.1" xref="S3.SS3.SSS1.p1.3.m3.1.1.cmml">259</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.SSS1.p1.3.m3.1b"><cn type="integer" id="S3.SS3.SSS1.p1.3.m3.1.1.cmml" xref="S3.SS3.SSS1.p1.3.m3.1.1">259</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.SSS1.p1.3.m3.1c">259</annotation></semantics></math> million filtered OOV words, among which <math id="S3.SS3.SSS1.p1.4.m4.1" class="ltx_Math" alttext="19" display="inline"><semantics id="S3.SS3.SSS1.p1.4.m4.1a"><mn id="S3.SS3.SSS1.p1.4.m4.1.1" xref="S3.SS3.SSS1.p1.4.m4.1.1.cmml">19</mn><annotation-xml encoding="MathML-Content" id="S3.SS3.SSS1.p1.4.m4.1b"><cn type="integer" id="S3.SS3.SSS1.p1.4.m4.1.1.cmml" xref="S3.SS3.SSS1.p1.4.m4.1.1">19</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.SSS1.p1.4.m4.1c">19</annotation></semantics></math> million are unique.
+As user-tagged data is needed to do FL experiments,
+Reddit posts are sharded in FL simulations based on user ID to mimic the local client cache scenario.</p>
+</div>
+<figure id="S3.F3" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1"><img src="/html/1903.10635/assets/figures/reddit_precision.png" id="S3.F3.g1" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="314" height="177" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Precision vs. top-<math id="S3.F3.2.m1.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.F3.2.m1.1b"><mi id="S3.F3.2.m1.1.1" xref="S3.F3.2.m1.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.F3.2.m1.1c"><ci id="S3.F3.2.m1.1.1.cmml" xref="S3.F3.2.m1.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.F3.2.m1.1d">K</annotation></semantics></math> uniquely sampled words in simulated FL experiments.</figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1"><img src="/html/1903.10635/assets/figures/reddit_recall.png" id="S3.F3.g2" class="ltx_graphics ltx_centering ltx_figure_panel ltx_img_landscape" width="314" height="177" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Recall vs. top-<math id="S3.F3.4.m1.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.F3.4.m1.1a"><mi id="S3.F3.4.m1.1.1" xref="S3.F3.4.m1.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.F3.4.m1.1b"><ci id="S3.F3.4.m1.1.1.cmml" xref="S3.F3.4.m1.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.F3.4.m1.1c">K</annotation></semantics></math> unique words from ground truth in simulated FL experiments.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.3.2 </span>FL on client device data</h4>
+
+<div id="S3.SS3.SSS2.p1" class="ltx_para">
+<p id="S3.SS3.SSS2.p1.1" class="ltx_p">In the on-device FL setting, the original raw data content is not accessible for human inspection since it
+remains stored in local caches on client devices.
+In order to participate in a round of FL, client devices must:
+(1) have at least 2G of memory,
+(2) be charging,
+(3) be connected to an un-metered network,
+and (4) be idle.
+In this study we experiment FL on three languages:
+(1) American English (en_US),
+(2) Brazilian Portuguese (pt_BR),
+and (3) Indonesian (in_ID).
+A separate FL model is trained specifically on devices located in each region for each language.
+Although ground truth OOV words are not accessible in the on-device setting,
+the model can still be evaluated on a character-level metric like top-3 prediction accuracy or CE (i.e. given current context “extra” in “extraordinary”, predict “o” for next character).</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Results</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>FL simulation on Reddit data</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.5" class="ltx_p">During training, <math id="S4.SS1.p1.1.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S4.SS1.p1.1.m1.1a"><msubsup id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml"><mtext id="S4.SS1.p1.1.m1.1.1.2.2" xref="S4.SS1.p1.1.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS1.p1.1.m1.1.1.3" xref="S4.SS1.p1.1.m1.1.1.3a.cmml">L</mtext><mtext id="S4.SS1.p1.1.m1.1.1.2.3" xref="S4.SS1.p1.1.m1.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.1b"><apply id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.1.m1.1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1">subscript</csymbol><apply id="S4.SS1.p1.1.m1.1.1.2.cmml" xref="S4.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.1.m1.1.1.2.1.cmml" xref="S4.SS1.p1.1.m1.1.1">superscript</csymbol><ci id="S4.SS1.p1.1.m1.1.1.2.2a.cmml" xref="S4.SS1.p1.1.m1.1.1.2.2"><mtext id="S4.SS1.p1.1.m1.1.1.2.2.cmml" xref="S4.SS1.p1.1.m1.1.1.2.2">FL</mtext></ci><ci id="S4.SS1.p1.1.m1.1.1.2.3a.cmml" xref="S4.SS1.p1.1.m1.1.1.2.3"><mtext mathsize="70%" id="S4.SS1.p1.1.m1.1.1.2.3.cmml" xref="S4.SS1.p1.1.m1.1.1.2.3">M</mtext></ci></apply><ci id="S4.SS1.p1.1.m1.1.1.3a.cmml" xref="S4.SS1.p1.1.m1.1.1.3"><mtext mathsize="70%" id="S4.SS1.p1.1.m1.1.1.3.cmml" xref="S4.SS1.p1.1.m1.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> converges faster and better than <math id="S4.SS1.p1.2.m2.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S4.SS1.p1.2.m2.1a"><msubsup id="S4.SS1.p1.2.m2.1.1" xref="S4.SS1.p1.2.m2.1.1.cmml"><mtext id="S4.SS1.p1.2.m2.1.1.2.2" xref="S4.SS1.p1.2.m2.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS1.p1.2.m2.1.1.3" xref="S4.SS1.p1.2.m2.1.1.3a.cmml">S</mtext><mtext id="S4.SS1.p1.2.m2.1.1.2.3" xref="S4.SS1.p1.2.m2.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.2.m2.1b"><apply id="S4.SS1.p1.2.m2.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.2.m2.1.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1">subscript</csymbol><apply id="S4.SS1.p1.2.m2.1.1.2.cmml" xref="S4.SS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.2.m2.1.1.2.1.cmml" xref="S4.SS1.p1.2.m2.1.1">superscript</csymbol><ci id="S4.SS1.p1.2.m2.1.1.2.2a.cmml" xref="S4.SS1.p1.2.m2.1.1.2.2"><mtext id="S4.SS1.p1.2.m2.1.1.2.2.cmml" xref="S4.SS1.p1.2.m2.1.1.2.2">FL</mtext></ci><ci id="S4.SS1.p1.2.m2.1.1.2.3a.cmml" xref="S4.SS1.p1.2.m2.1.1.2.3"><mtext mathsize="70%" id="S4.SS1.p1.2.m2.1.1.2.3.cmml" xref="S4.SS1.p1.2.m2.1.1.2.3">SGD</mtext></ci></apply><ci id="S4.SS1.p1.2.m2.1.1.3a.cmml" xref="S4.SS1.p1.2.m2.1.1.3"><mtext mathsize="70%" id="S4.SS1.p1.2.m2.1.1.3.cmml" xref="S4.SS1.p1.2.m2.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.2.m2.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math> and <math id="S4.SS1.p1.3.m3.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S4.SS1.p1.3.m3.1a"><msubsup id="S4.SS1.p1.3.m3.1.1" xref="S4.SS1.p1.3.m3.1.1.cmml"><mtext id="S4.SS1.p1.3.m3.1.1.2.2" xref="S4.SS1.p1.3.m3.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS1.p1.3.m3.1.1.3" xref="S4.SS1.p1.3.m3.1.1.3a.cmml">L</mtext><mtext id="S4.SS1.p1.3.m3.1.1.2.3" xref="S4.SS1.p1.3.m3.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.3.m3.1b"><apply id="S4.SS1.p1.3.m3.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.3.m3.1.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1">subscript</csymbol><apply id="S4.SS1.p1.3.m3.1.1.2.cmml" xref="S4.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.3.m3.1.1.2.1.cmml" xref="S4.SS1.p1.3.m3.1.1">superscript</csymbol><ci id="S4.SS1.p1.3.m3.1.1.2.2a.cmml" xref="S4.SS1.p1.3.m3.1.1.2.2"><mtext id="S4.SS1.p1.3.m3.1.1.2.2.cmml" xref="S4.SS1.p1.3.m3.1.1.2.2">FL</mtext></ci><ci id="S4.SS1.p1.3.m3.1.1.2.3a.cmml" xref="S4.SS1.p1.3.m3.1.1.2.3"><mtext mathsize="70%" id="S4.SS1.p1.3.m3.1.1.2.3.cmml" xref="S4.SS1.p1.3.m3.1.1.2.3">SGD</mtext></ci></apply><ci id="S4.SS1.p1.3.m3.1.1.3a.cmml" xref="S4.SS1.p1.3.m3.1.1.3"><mtext mathsize="70%" id="S4.SS1.p1.3.m3.1.1.3.cmml" xref="S4.SS1.p1.3.m3.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.3.m3.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math> in both CE loss and prediction accuracy,
+with <math id="S4.SS1.p1.4.m4.1" class="ltx_Math" alttext="66.3\%" display="inline"><semantics id="S4.SS1.p1.4.m4.1a"><mrow id="S4.SS1.p1.4.m4.1.1" xref="S4.SS1.p1.4.m4.1.1.cmml"><mn id="S4.SS1.p1.4.m4.1.1.2" xref="S4.SS1.p1.4.m4.1.1.2.cmml">66.3</mn><mo id="S4.SS1.p1.4.m4.1.1.1" xref="S4.SS1.p1.4.m4.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.4.m4.1b"><apply id="S4.SS1.p1.4.m4.1.1.cmml" xref="S4.SS1.p1.4.m4.1.1"><csymbol cd="latexml" id="S4.SS1.p1.4.m4.1.1.1.cmml" xref="S4.SS1.p1.4.m4.1.1.1">percent</csymbol><cn type="float" id="S4.SS1.p1.4.m4.1.1.2.cmml" xref="S4.SS1.p1.4.m4.1.1.2">66.3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.4.m4.1c">66.3\%</annotation></semantics></math> and <math id="S4.SS1.p1.5.m5.1" class="ltx_Math" alttext="1.887" display="inline"><semantics id="S4.SS1.p1.5.m5.1a"><mn id="S4.SS1.p1.5.m5.1.1" xref="S4.SS1.p1.5.m5.1.1.cmml">1.887</mn><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.5.m5.1b"><cn type="float" id="S4.SS1.p1.5.m5.1.1.cmml" xref="S4.SS1.p1.5.m5.1.1">1.887</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.5.m5.1c">1.887</annotation></semantics></math> for top-3 accuracy and CE loss, respectively.
+The larger model does not lead to significant gains.
+Momentum and adaptive clipping lead to faster convergence and more stable performance.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">Table <a href="#S4.T2" title="Table 2 ‣ 4.1 FL simulation on Reddit data ‣ 4 Results ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows the top 10 OOV words with their occurring probability in the Reddit dataset (left) and the generative model (right).
+The model generally learns the probability of word occurrences, where the absolute value and relative rank for top words are very close to the ground truth.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T2.3.1.1" class="ltx_tr">
+<th id="S4.T2.3.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">yea</th>
+<td id="S4.T2.3.1.1.2" class="ltx_td ltx_align_center ltx_border_r">0.0050</td>
+<th id="S4.T2.3.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">yea</th>
+<td id="S4.T2.3.1.1.4" class="ltx_td ltx_align_center">0.0057</td>
+</tr>
+<tr id="S4.T2.3.2.2" class="ltx_tr">
+<th id="S4.T2.3.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">upvote</th>
+<td id="S4.T2.3.2.2.2" class="ltx_td ltx_align_center ltx_border_r">0.0033</td>
+<th id="S4.T2.3.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">upvote</th>
+<td id="S4.T2.3.2.2.4" class="ltx_td ltx_align_center">0.0040</td>
+</tr>
+<tr id="S4.T2.3.3.3" class="ltx_tr">
+<th id="S4.T2.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvoted</th>
+<td id="S4.T2.3.3.3.2" class="ltx_td ltx_align_center ltx_border_r">0.0030</td>
+<th id="S4.T2.3.3.3.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvoted</th>
+<td id="S4.T2.3.3.3.4" class="ltx_td ltx_align_center">0.0033</td>
+</tr>
+<tr id="S4.T2.3.4.4" class="ltx_tr">
+<th id="S4.T2.3.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">alot</th>
+<td id="S4.T2.3.4.4.2" class="ltx_td ltx_align_center ltx_border_r">0.0026</td>
+<th id="S4.T2.3.4.4.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">alot</th>
+<td id="S4.T2.3.4.4.4" class="ltx_td ltx_align_center">0.0029</td>
+</tr>
+<tr id="S4.T2.3.5.5" class="ltx_tr">
+<th id="S4.T2.3.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvote</th>
+<td id="S4.T2.3.5.5.2" class="ltx_td ltx_align_center ltx_border_r">0.0023</td>
+<th id="S4.T2.3.5.5.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvote</th>
+<td id="S4.T2.3.5.5.4" class="ltx_td ltx_align_center">0.0026</td>
+</tr>
+<tr id="S4.T2.3.6.6" class="ltx_tr">
+<th id="S4.T2.3.6.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvotes</th>
+<td id="S4.T2.3.6.6.2" class="ltx_td ltx_align_center ltx_border_r">0.0018</td>
+<th id="S4.T2.3.6.6.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">downvotes</th>
+<td id="S4.T2.3.6.6.4" class="ltx_td ltx_align_center">0.0022</td>
+</tr>
+<tr id="S4.T2.3.7.7" class="ltx_tr">
+<th id="S4.T2.3.7.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">upvotes</th>
+<td id="S4.T2.3.7.7.2" class="ltx_td ltx_align_center ltx_border_r">0.0016</td>
+<th id="S4.T2.3.7.7.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">upvotes</th>
+<td id="S4.T2.3.7.7.4" class="ltx_td ltx_align_center">0.0021</td>
+</tr>
+<tr id="S4.T2.3.8.8" class="ltx_tr">
+<th id="S4.T2.3.8.8.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">wp-content</th>
+<td id="S4.T2.3.8.8.2" class="ltx_td ltx_align_center ltx_border_r">0.0016</td>
+<th id="S4.T2.3.8.8.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">op’s</th>
+<td id="S4.T2.3.8.8.4" class="ltx_td ltx_align_center">0.0019</td>
+</tr>
+<tr id="S4.T2.3.9.9" class="ltx_tr">
+<th id="S4.T2.3.9.9.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">op’s</th>
+<td id="S4.T2.3.9.9.2" class="ltx_td ltx_align_center ltx_border_r">0.0015</td>
+<th id="S4.T2.3.9.9.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">wp-content</th>
+<td id="S4.T2.3.9.9.4" class="ltx_td ltx_align_center">0.0017</td>
+</tr>
+<tr id="S4.T2.3.10.10" class="ltx_tr">
+<th id="S4.T2.3.10.10.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">restrict_sr</th>
+<td id="S4.T2.3.10.10.2" class="ltx_td ltx_align_center ltx_border_r">0.0014</td>
+<th id="S4.T2.3.10.10.3" class="ltx_td ltx_align_center ltx_th ltx_th_row">redditors</th>
+<td id="S4.T2.3.10.10.4" class="ltx_td ltx_align_center">0.0016</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Top 10 OOV words and their probabilities from ground truth (left) vs. samples (right) from simulated federated model <math id="S4.T2.2.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S4.T2.2.m1.1b"><msubsup id="S4.T2.2.m1.1.1" xref="S4.T2.2.m1.1.1.cmml"><mtext id="S4.T2.2.m1.1.1.2.2" xref="S4.T2.2.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S4.T2.2.m1.1.1.3" xref="S4.T2.2.m1.1.1.3a.cmml">L</mtext><mtext id="S4.T2.2.m1.1.1.2.3" xref="S4.T2.2.m1.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.T2.2.m1.1c"><apply id="S4.T2.2.m1.1.1.cmml" xref="S4.T2.2.m1.1.1"><csymbol cd="ambiguous" id="S4.T2.2.m1.1.1.1.cmml" xref="S4.T2.2.m1.1.1">subscript</csymbol><apply id="S4.T2.2.m1.1.1.2.cmml" xref="S4.T2.2.m1.1.1"><csymbol cd="ambiguous" id="S4.T2.2.m1.1.1.2.1.cmml" xref="S4.T2.2.m1.1.1">superscript</csymbol><ci id="S4.T2.2.m1.1.1.2.2a.cmml" xref="S4.T2.2.m1.1.1.2.2"><mtext id="S4.T2.2.m1.1.1.2.2.cmml" xref="S4.T2.2.m1.1.1.2.2">FL</mtext></ci><ci id="S4.T2.2.m1.1.1.2.3a.cmml" xref="S4.T2.2.m1.1.1.2.3"><mtext mathsize="70%" id="S4.T2.2.m1.1.1.2.3.cmml" xref="S4.T2.2.m1.1.1.2.3">M</mtext></ci></apply><ci id="S4.T2.2.m1.1.1.3a.cmml" xref="S4.T2.2.m1.1.1.3"><mtext mathsize="70%" id="S4.T2.2.m1.1.1.3.cmml" xref="S4.T2.2.m1.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.2.m1.1d">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> trained on Reddit data</figcaption>
+</figure>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.10" class="ltx_p">In figures <a href="#S3.F3" title="Figure 3 ‣ 3.3.1 Simulated FL on Reddit data ‣ 3.3 Federated learning settings ‣ 3 Experiments ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> and <a href="#S3.F3" title="Figure 3 ‣ 3.3.1 Simulated FL on Reddit data ‣ 3.3 Federated learning settings ‣ 3 Experiments ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>,
+PR are computed using the model checkpoint of <math id="S4.SS1.p3.1.m1.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S4.SS1.p3.1.m1.1a"><msubsup id="S4.SS1.p3.1.m1.1.1" xref="S4.SS1.p3.1.m1.1.1.cmml"><mtext id="S4.SS1.p3.1.m1.1.1.2.2" xref="S4.SS1.p3.1.m1.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS1.p3.1.m1.1.1.3" xref="S4.SS1.p3.1.m1.1.1.3a.cmml">L</mtext><mtext id="S4.SS1.p3.1.m1.1.1.2.3" xref="S4.SS1.p3.1.m1.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.1.m1.1b"><apply id="S4.SS1.p3.1.m1.1.1.cmml" xref="S4.SS1.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.1.m1.1.1.1.cmml" xref="S4.SS1.p3.1.m1.1.1">subscript</csymbol><apply id="S4.SS1.p3.1.m1.1.1.2.cmml" xref="S4.SS1.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.1.m1.1.1.2.1.cmml" xref="S4.SS1.p3.1.m1.1.1">superscript</csymbol><ci id="S4.SS1.p3.1.m1.1.1.2.2a.cmml" xref="S4.SS1.p3.1.m1.1.1.2.2"><mtext id="S4.SS1.p3.1.m1.1.1.2.2.cmml" xref="S4.SS1.p3.1.m1.1.1.2.2">FL</mtext></ci><ci id="S4.SS1.p3.1.m1.1.1.2.3a.cmml" xref="S4.SS1.p3.1.m1.1.1.2.3"><mtext mathsize="70%" id="S4.SS1.p3.1.m1.1.1.2.3.cmml" xref="S4.SS1.p3.1.m1.1.1.2.3">M</mtext></ci></apply><ci id="S4.SS1.p3.1.m1.1.1.3a.cmml" xref="S4.SS1.p3.1.m1.1.1.3"><mtext mathsize="70%" id="S4.SS1.p3.1.m1.1.1.3.cmml" xref="S4.SS1.p3.1.m1.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.1.m1.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> with <math id="S4.SS1.p3.2.m2.1" class="ltx_Math" alttext="{10^{8}}" display="inline"><semantics id="S4.SS1.p3.2.m2.1a"><msup id="S4.SS1.p3.2.m2.1.1" xref="S4.SS1.p3.2.m2.1.1.cmml"><mn id="S4.SS1.p3.2.m2.1.1.2" xref="S4.SS1.p3.2.m2.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.2.m2.1.1.3" xref="S4.SS1.p3.2.m2.1.1.3.cmml">8</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.2.m2.1b"><apply id="S4.SS1.p3.2.m2.1.1.cmml" xref="S4.SS1.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.2.m2.1.1.1.cmml" xref="S4.SS1.p3.2.m2.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.2.m2.1.1.2.cmml" xref="S4.SS1.p3.2.m2.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.2.m2.1.1.3.cmml" xref="S4.SS1.p3.2.m2.1.1.3">8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.2.m2.1c">{10^{8}}</annotation></semantics></math> after 3000 rounds, giving <math id="S4.SS1.p3.3.m3.1" class="ltx_Math" alttext="90.56\%" display="inline"><semantics id="S4.SS1.p3.3.m3.1a"><mrow id="S4.SS1.p3.3.m3.1.1" xref="S4.SS1.p3.3.m3.1.1.cmml"><mn id="S4.SS1.p3.3.m3.1.1.2" xref="S4.SS1.p3.3.m3.1.1.2.cmml">90.56</mn><mo id="S4.SS1.p3.3.m3.1.1.1" xref="S4.SS1.p3.3.m3.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.3.m3.1b"><apply id="S4.SS1.p3.3.m3.1.1.cmml" xref="S4.SS1.p3.3.m3.1.1"><csymbol cd="latexml" id="S4.SS1.p3.3.m3.1.1.1.cmml" xref="S4.SS1.p3.3.m3.1.1.1">percent</csymbol><cn type="float" id="S4.SS1.p3.3.m3.1.1.2.cmml" xref="S4.SS1.p3.3.m3.1.1.2">90.56</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.3.m3.1c">90.56\%</annotation></semantics></math> and <math id="S4.SS1.p3.4.m4.1" class="ltx_Math" alttext="81.22\%" display="inline"><semantics id="S4.SS1.p3.4.m4.1a"><mrow id="S4.SS1.p3.4.m4.1.1" xref="S4.SS1.p3.4.m4.1.1.cmml"><mn id="S4.SS1.p3.4.m4.1.1.2" xref="S4.SS1.p3.4.m4.1.1.2.cmml">81.22</mn><mo id="S4.SS1.p3.4.m4.1.1.1" xref="S4.SS1.p3.4.m4.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.4.m4.1b"><apply id="S4.SS1.p3.4.m4.1.1.cmml" xref="S4.SS1.p3.4.m4.1.1"><csymbol cd="latexml" id="S4.SS1.p3.4.m4.1.1.1.cmml" xref="S4.SS1.p3.4.m4.1.1.1">percent</csymbol><cn type="float" id="S4.SS1.p3.4.m4.1.1.2.cmml" xref="S4.SS1.p3.4.m4.1.1.2">81.22</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.4.m4.1c">81.22\%</annotation></semantics></math>, respectively.
+PR rate is plotted against the top <math id="S4.SS1.p3.5.m5.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S4.SS1.p3.5.m5.1a"><mi id="S4.SS1.p3.5.m5.1.1" xref="S4.SS1.p3.5.m5.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.5.m5.1b"><ci id="S4.SS1.p3.5.m5.1.1.cmml" xref="S4.SS1.p3.5.m5.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.5.m5.1c">K</annotation></semantics></math> unique words (x-axis).
+Curves shown in red, green, and blue represent <math id="S4.SS1.p3.6.m6.1" class="ltx_Math" alttext="{10}^{6}" display="inline"><semantics id="S4.SS1.p3.6.m6.1a"><msup id="S4.SS1.p3.6.m6.1.1" xref="S4.SS1.p3.6.m6.1.1.cmml"><mn id="S4.SS1.p3.6.m6.1.1.2" xref="S4.SS1.p3.6.m6.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.6.m6.1.1.3" xref="S4.SS1.p3.6.m6.1.1.3.cmml">6</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.6.m6.1b"><apply id="S4.SS1.p3.6.m6.1.1.cmml" xref="S4.SS1.p3.6.m6.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.6.m6.1.1.1.cmml" xref="S4.SS1.p3.6.m6.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.6.m6.1.1.2.cmml" xref="S4.SS1.p3.6.m6.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.6.m6.1.1.3.cmml" xref="S4.SS1.p3.6.m6.1.1.3">6</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.6.m6.1c">{10}^{6}</annotation></semantics></math>, <math id="S4.SS1.p3.7.m7.1" class="ltx_Math" alttext="{10}^{7}" display="inline"><semantics id="S4.SS1.p3.7.m7.1a"><msup id="S4.SS1.p3.7.m7.1.1" xref="S4.SS1.p3.7.m7.1.1.cmml"><mn id="S4.SS1.p3.7.m7.1.1.2" xref="S4.SS1.p3.7.m7.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.7.m7.1.1.3" xref="S4.SS1.p3.7.m7.1.1.3.cmml">7</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.7.m7.1b"><apply id="S4.SS1.p3.7.m7.1.1.cmml" xref="S4.SS1.p3.7.m7.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.7.m7.1.1.1.cmml" xref="S4.SS1.p3.7.m7.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.7.m7.1.1.2.cmml" xref="S4.SS1.p3.7.m7.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.7.m7.1.1.3.cmml" xref="S4.SS1.p3.7.m7.1.1.3">7</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.7.m7.1c">{10}^{7}</annotation></semantics></math> and <math id="S4.SS1.p3.8.m8.1" class="ltx_Math" alttext="{10}^{8}" display="inline"><semantics id="S4.SS1.p3.8.m8.1a"><msup id="S4.SS1.p3.8.m8.1.1" xref="S4.SS1.p3.8.m8.1.1.cmml"><mn id="S4.SS1.p3.8.m8.1.1.2" xref="S4.SS1.p3.8.m8.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.8.m8.1.1.3" xref="S4.SS1.p3.8.m8.1.1.3.cmml">8</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.8.m8.1b"><apply id="S4.SS1.p3.8.m8.1.1.cmml" xref="S4.SS1.p3.8.m8.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.8.m8.1.1.1.cmml" xref="S4.SS1.p3.8.m8.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.8.m8.1.1.2.cmml" xref="S4.SS1.p3.8.m8.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.8.m8.1.1.3.cmml" xref="S4.SS1.p3.8.m8.1.1.3">8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.8.m8.1c">{10}^{8}</annotation></semantics></math>
+number of independent samplings, respectively.
+Both the PR rate improve significantly when the amount of sampling is increased from <math id="S4.SS1.p3.9.m9.1" class="ltx_Math" alttext="{10}^{6}" display="inline"><semantics id="S4.SS1.p3.9.m9.1a"><msup id="S4.SS1.p3.9.m9.1.1" xref="S4.SS1.p3.9.m9.1.1.cmml"><mn id="S4.SS1.p3.9.m9.1.1.2" xref="S4.SS1.p3.9.m9.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.9.m9.1.1.3" xref="S4.SS1.p3.9.m9.1.1.3.cmml">6</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.9.m9.1b"><apply id="S4.SS1.p3.9.m9.1.1.cmml" xref="S4.SS1.p3.9.m9.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.9.m9.1.1.1.cmml" xref="S4.SS1.p3.9.m9.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.9.m9.1.1.2.cmml" xref="S4.SS1.p3.9.m9.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.9.m9.1.1.3.cmml" xref="S4.SS1.p3.9.m9.1.1.3">6</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.9.m9.1c">{10}^{6}</annotation></semantics></math> to <math id="S4.SS1.p3.10.m10.1" class="ltx_Math" alttext="{10}^{8}" display="inline"><semantics id="S4.SS1.p3.10.m10.1a"><msup id="S4.SS1.p3.10.m10.1.1" xref="S4.SS1.p3.10.m10.1.1.cmml"><mn id="S4.SS1.p3.10.m10.1.1.2" xref="S4.SS1.p3.10.m10.1.1.2.cmml">10</mn><mn id="S4.SS1.p3.10.m10.1.1.3" xref="S4.SS1.p3.10.m10.1.1.3.cmml">8</mn></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.10.m10.1b"><apply id="S4.SS1.p3.10.m10.1.1.cmml" xref="S4.SS1.p3.10.m10.1.1"><csymbol cd="ambiguous" id="S4.SS1.p3.10.m10.1.1.1.cmml" xref="S4.SS1.p3.10.m10.1.1">superscript</csymbol><cn type="integer" id="S4.SS1.p3.10.m10.1.1.2.cmml" xref="S4.SS1.p3.10.m10.1.1.2">10</cn><cn type="integer" id="S4.SS1.p3.10.m10.1.1.3.cmml" xref="S4.SS1.p3.10.m10.1.1.3">8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.10.m10.1c">{10}^{8}</annotation></semantics></math>.
+We also observe increased PR over the training rounds.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>FL on local client data</h3>
+
+<figure id="S4.F4" class="ltx_figure"><img src="/html/1903.10635/assets/figures/fl_ce_eval_loss_edited.png" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="314" height="178" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Cross entropy loss on live client evaluation data for three different FL settings for en_US.</figcaption>
+</figure>
+<figure id="S4.F5" class="ltx_figure"><img src="/html/1903.10635/assets/figures/fl_accuracy_eval_edited.png" id="S4.F5.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="314" height="178" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Top-3 Character-level prediction accuracy on live client evaluation data for three different FL settings for en_US.</figcaption>
+</figure>
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.6" class="ltx_p">For on-device settings, all the three models converge in about <math id="S4.SS2.p1.1.m1.1" class="ltx_Math" alttext="2000" display="inline"><semantics id="S4.SS2.p1.1.m1.1a"><mn id="S4.SS2.p1.1.m1.1.1" xref="S4.SS2.p1.1.m1.1.1.cmml">2000</mn><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.1.m1.1b"><cn type="integer" id="S4.SS2.p1.1.m1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1">2000</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.1.m1.1c">2000</annotation></semantics></math> rounds over the course of about 4 days.
+Figures <a href="#S4.F4" title="Figure 4 ‣ 4.2 FL on local client data ‣ 4 Results ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> and <a href="#S4.F5" title="Figure 5 ‣ 4.2 FL on local client data ‣ 4 Results ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> compare the CE loss and top-3 prediction accuracy on evaluation data for three FL settings.
+Similar to Reddit data, <math id="S4.SS2.p1.2.m2.1" class="ltx_Math" alttext="\text{FL}^{\text{M}}_{\text{L}}" display="inline"><semantics id="S4.SS2.p1.2.m2.1a"><msubsup id="S4.SS2.p1.2.m2.1.1" xref="S4.SS2.p1.2.m2.1.1.cmml"><mtext id="S4.SS2.p1.2.m2.1.1.2.2" xref="S4.SS2.p1.2.m2.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS2.p1.2.m2.1.1.3" xref="S4.SS2.p1.2.m2.1.1.3a.cmml">L</mtext><mtext id="S4.SS2.p1.2.m2.1.1.2.3" xref="S4.SS2.p1.2.m2.1.1.2.3a.cmml">M</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.2.m2.1b"><apply id="S4.SS2.p1.2.m2.1.1.cmml" xref="S4.SS2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.2.m2.1.1.1.cmml" xref="S4.SS2.p1.2.m2.1.1">subscript</csymbol><apply id="S4.SS2.p1.2.m2.1.1.2.cmml" xref="S4.SS2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.2.m2.1.1.2.1.cmml" xref="S4.SS2.p1.2.m2.1.1">superscript</csymbol><ci id="S4.SS2.p1.2.m2.1.1.2.2a.cmml" xref="S4.SS2.p1.2.m2.1.1.2.2"><mtext id="S4.SS2.p1.2.m2.1.1.2.2.cmml" xref="S4.SS2.p1.2.m2.1.1.2.2">FL</mtext></ci><ci id="S4.SS2.p1.2.m2.1.1.2.3a.cmml" xref="S4.SS2.p1.2.m2.1.1.2.3"><mtext mathsize="70%" id="S4.SS2.p1.2.m2.1.1.2.3.cmml" xref="S4.SS2.p1.2.m2.1.1.2.3">M</mtext></ci></apply><ci id="S4.SS2.p1.2.m2.1.1.3a.cmml" xref="S4.SS2.p1.2.m2.1.1.3"><mtext mathsize="70%" id="S4.SS2.p1.2.m2.1.1.3.cmml" xref="S4.SS2.p1.2.m2.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.2.m2.1c">\text{FL}^{\text{M}}_{\text{L}}</annotation></semantics></math> converges faster and better than <math id="S4.SS2.p1.3.m3.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{S}}" display="inline"><semantics id="S4.SS2.p1.3.m3.1a"><msubsup id="S4.SS2.p1.3.m3.1.1" xref="S4.SS2.p1.3.m3.1.1.cmml"><mtext id="S4.SS2.p1.3.m3.1.1.2.2" xref="S4.SS2.p1.3.m3.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS2.p1.3.m3.1.1.3" xref="S4.SS2.p1.3.m3.1.1.3a.cmml">S</mtext><mtext id="S4.SS2.p1.3.m3.1.1.2.3" xref="S4.SS2.p1.3.m3.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.3.m3.1b"><apply id="S4.SS2.p1.3.m3.1.1.cmml" xref="S4.SS2.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.3.m3.1.1.1.cmml" xref="S4.SS2.p1.3.m3.1.1">subscript</csymbol><apply id="S4.SS2.p1.3.m3.1.1.2.cmml" xref="S4.SS2.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.3.m3.1.1.2.1.cmml" xref="S4.SS2.p1.3.m3.1.1">superscript</csymbol><ci id="S4.SS2.p1.3.m3.1.1.2.2a.cmml" xref="S4.SS2.p1.3.m3.1.1.2.2"><mtext id="S4.SS2.p1.3.m3.1.1.2.2.cmml" xref="S4.SS2.p1.3.m3.1.1.2.2">FL</mtext></ci><ci id="S4.SS2.p1.3.m3.1.1.2.3a.cmml" xref="S4.SS2.p1.3.m3.1.1.2.3"><mtext mathsize="70%" id="S4.SS2.p1.3.m3.1.1.2.3.cmml" xref="S4.SS2.p1.3.m3.1.1.2.3">SGD</mtext></ci></apply><ci id="S4.SS2.p1.3.m3.1.1.3a.cmml" xref="S4.SS2.p1.3.m3.1.1.3"><mtext mathsize="70%" id="S4.SS2.p1.3.m3.1.1.3.cmml" xref="S4.SS2.p1.3.m3.1.1.3">S</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.3.m3.1c">\text{FL}^{\text{SGD}}_{\text{S}}</annotation></semantics></math> and <math id="S4.SS2.p1.4.m4.1" class="ltx_Math" alttext="\text{FL}^{\text{SGD}}_{\text{L}}" display="inline"><semantics id="S4.SS2.p1.4.m4.1a"><msubsup id="S4.SS2.p1.4.m4.1.1" xref="S4.SS2.p1.4.m4.1.1.cmml"><mtext id="S4.SS2.p1.4.m4.1.1.2.2" xref="S4.SS2.p1.4.m4.1.1.2.2a.cmml">FL</mtext><mtext id="S4.SS2.p1.4.m4.1.1.3" xref="S4.SS2.p1.4.m4.1.1.3a.cmml">L</mtext><mtext id="S4.SS2.p1.4.m4.1.1.2.3" xref="S4.SS2.p1.4.m4.1.1.2.3a.cmml">SGD</mtext></msubsup><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.4.m4.1b"><apply id="S4.SS2.p1.4.m4.1.1.cmml" xref="S4.SS2.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.4.m4.1.1.1.cmml" xref="S4.SS2.p1.4.m4.1.1">subscript</csymbol><apply id="S4.SS2.p1.4.m4.1.1.2.cmml" xref="S4.SS2.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.4.m4.1.1.2.1.cmml" xref="S4.SS2.p1.4.m4.1.1">superscript</csymbol><ci id="S4.SS2.p1.4.m4.1.1.2.2a.cmml" xref="S4.SS2.p1.4.m4.1.1.2.2"><mtext id="S4.SS2.p1.4.m4.1.1.2.2.cmml" xref="S4.SS2.p1.4.m4.1.1.2.2">FL</mtext></ci><ci id="S4.SS2.p1.4.m4.1.1.2.3a.cmml" xref="S4.SS2.p1.4.m4.1.1.2.3"><mtext mathsize="70%" id="S4.SS2.p1.4.m4.1.1.2.3.cmml" xref="S4.SS2.p1.4.m4.1.1.2.3">SGD</mtext></ci></apply><ci id="S4.SS2.p1.4.m4.1.1.3a.cmml" xref="S4.SS2.p1.4.m4.1.1.3"><mtext mathsize="70%" id="S4.SS2.p1.4.m4.1.1.3.cmml" xref="S4.SS2.p1.4.m4.1.1.3">L</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.4.m4.1c">\text{FL}^{\text{SGD}}_{\text{L}}</annotation></semantics></math>,
+achieving 55.8% and 2.35 for prediction accuracy and CE loss, respectively
+(compared to <math id="S4.SS2.p1.5.m5.1" class="ltx_Math" alttext="63.9\%" display="inline"><semantics id="S4.SS2.p1.5.m5.1a"><mrow id="S4.SS2.p1.5.m5.1.1" xref="S4.SS2.p1.5.m5.1.1.cmml"><mn id="S4.SS2.p1.5.m5.1.1.2" xref="S4.SS2.p1.5.m5.1.1.2.cmml">63.9</mn><mo id="S4.SS2.p1.5.m5.1.1.1" xref="S4.SS2.p1.5.m5.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.5.m5.1b"><apply id="S4.SS2.p1.5.m5.1.1.cmml" xref="S4.SS2.p1.5.m5.1.1"><csymbol cd="latexml" id="S4.SS2.p1.5.m5.1.1.1.cmml" xref="S4.SS2.p1.5.m5.1.1.1">percent</csymbol><cn type="float" id="S4.SS2.p1.5.m5.1.1.2.cmml" xref="S4.SS2.p1.5.m5.1.1.2">63.9</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.5.m5.1c">63.9\%</annotation></semantics></math> and <math id="S4.SS2.p1.6.m6.1" class="ltx_Math" alttext="2.01" display="inline"><semantics id="S4.SS2.p1.6.m6.1a"><mn id="S4.SS2.p1.6.m6.1.1" xref="S4.SS2.p1.6.m6.1.1.cmml">2.01</mn><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.6.m6.1b"><cn type="float" id="S4.SS2.p1.6.m6.1.1.cmml" xref="S4.SS2.p1.6.m6.1.1">2.01</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.6.m6.1c">2.01</annotation></semantics></math> in training).
+Experiments in pt_BR and in_ID shows a very similar pattern among the three settings.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">Table <a href="#S4.T3" title="Table 3 ‣ 4.2 FL on local client data ‣ 4 Results ‣ Federated Learning Of Out-Of-Vocabulary Words" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows sampled OOV words in the aforementioned three languages.
+Here “<span id="S4.SS2.p2.1.1" class="ltx_text ltx_font_bold">abbr.</span>” is short for abbreviations.
+“<span id="S4.SS2.p2.1.2" class="ltx_text ltx_font_bold">slang/typo</span>” refers to commonly spoken slang words and purposeful misspellings.
+“<span id="S4.SS2.p2.1.3" class="ltx_text ltx_font_bold">repetitive</span>” refers to interjections or words that people commonly misspell in a repetitive way intentionally.
+“<span id="S4.SS2.p2.1.4" class="ltx_text ltx_font_bold">foreign</span>” refers to words typed in a language foreign to the current language/region setting.
+“<span id="S4.SS2.p2.1.5" class="ltx_text ltx_font_bold">names</span>” refers to trending celebrities’ names.
+We also observed a lot of profanity learned by the model that is not shown here.
+Our future work will focus on better filtering out those OOV words, especially unintended typos.
+This can be accomplished by using a manually curated desirable and undesirable OOV blacklists,
+which can be updated with newer rounds of FL in an iterative process.
+As we sample words, those desirable or undesirable words can be continually incorporated and made available for all users in future.
+Thus the model can save more capacity to focus entirely on new words.</p>
+</div>
+<figure id="S4.T3" class="ltx_table">
+<table id="S4.T3.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.1.1" class="ltx_tr">
+<th id="S4.T3.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S4.T3.1.1.1.2" class="ltx_td ltx_align_left ltx_border_r"><span id="S4.T3.1.1.1.2.1" class="ltx_text ltx_font_bold">en_US</span></td>
+<td id="S4.T3.1.1.1.3" class="ltx_td ltx_align_left ltx_border_r"><span id="S4.T3.1.1.1.3.1" class="ltx_text ltx_font_bold">in_ID</span></td>
+<td id="S4.T3.1.1.1.4" class="ltx_td ltx_align_left"><span id="S4.T3.1.1.1.4.1" class="ltx_text ltx_font_bold">pt_BR</span></td>
+</tr>
+<tr id="S4.T3.1.2.2" class="ltx_tr">
+<th id="S4.T3.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="4"><span id="S4.T3.1.2.2.1.1" class="ltx_text ltx_font_bold">abbr.</span></th>
+<td id="S4.T3.1.2.2.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">rlly</td>
+<td id="S4.T3.1.2.2.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">noh</td>
+<td id="S4.T3.1.2.2.4" class="ltx_td ltx_align_left ltx_border_t">pqp</td>
+</tr>
+<tr id="S4.T3.1.3.3" class="ltx_tr">
+<td id="S4.T3.1.3.3.1" class="ltx_td ltx_align_left ltx_border_r">srry</td>
+<td id="S4.T3.1.3.3.2" class="ltx_td ltx_align_left ltx_border_r">yws</td>
+<td id="S4.T3.1.3.3.3" class="ltx_td ltx_align_left">pfv</td>
+</tr>
+<tr id="S4.T3.1.4.4" class="ltx_tr">
+<td id="S4.T3.1.4.4.1" class="ltx_td ltx_align_left ltx_border_r">lmaoo</td>
+<td id="S4.T3.1.4.4.2" class="ltx_td ltx_align_left ltx_border_r">gtw</td>
+<td id="S4.T3.1.4.4.3" class="ltx_td ltx_align_left">rlx</td>
+</tr>
+<tr id="S4.T3.1.5.5" class="ltx_tr">
+<td id="S4.T3.1.5.5.1" class="ltx_td ltx_align_left ltx_border_r">adip</td>
+<td id="S4.T3.1.5.5.2" class="ltx_td ltx_align_left ltx_border_r">tlpn</td>
+<td id="S4.T3.1.5.5.3" class="ltx_td ltx_align_left">sdds</td>
+</tr>
+<tr id="S4.T3.1.6.6" class="ltx_tr">
+<th id="S4.T3.1.6.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="4"><span id="S4.T3.1.6.6.1.1" class="ltx_text ltx_font_bold">slang/typo</span></th>
+<td id="S4.T3.1.6.6.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">yea</td>
+<td id="S4.T3.1.6.6.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">gimana</td>
+<td id="S4.T3.1.6.6.4" class="ltx_td ltx_align_left ltx_border_t">nois</td>
+</tr>
+<tr id="S4.T3.1.7.7" class="ltx_tr">
+<td id="S4.T3.1.7.7.1" class="ltx_td ltx_align_left ltx_border_r">tommorow</td>
+<td id="S4.T3.1.7.7.2" class="ltx_td ltx_align_left ltx_border_r">duwe</td>
+<td id="S4.T3.1.7.7.3" class="ltx_td ltx_align_left">perai</td>
+</tr>
+<tr id="S4.T3.1.8.8" class="ltx_tr">
+<td id="S4.T3.1.8.8.1" class="ltx_td ltx_align_left ltx_border_r">gunna</td>
+<td id="S4.T3.1.8.8.2" class="ltx_td ltx_align_left ltx_border_r">clan</td>
+<td id="S4.T3.1.8.8.3" class="ltx_td ltx_align_left">fuder</td>
+</tr>
+<tr id="S4.T3.1.9.9" class="ltx_tr">
+<td id="S4.T3.1.9.9.1" class="ltx_td ltx_align_left ltx_border_r">sumthin</td>
+<td id="S4.T3.1.9.9.2" class="ltx_td ltx_align_left ltx_border_r">beb</td>
+<td id="S4.T3.1.9.9.3" class="ltx_td ltx_align_left">ein</td>
+</tr>
+<tr id="S4.T3.1.10.10" class="ltx_tr">
+<th id="S4.T3.1.10.10.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="3"><span id="S4.T3.1.10.10.1.1" class="ltx_text ltx_font_bold">repetitive</span></th>
+<td id="S4.T3.1.10.10.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">ewwww</td>
+<td id="S4.T3.1.10.10.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">siim</td>
+<td id="S4.T3.1.10.10.4" class="ltx_td ltx_align_left ltx_border_t">tadii</td>
+</tr>
+<tr id="S4.T3.1.11.11" class="ltx_tr">
+<td id="S4.T3.1.11.11.1" class="ltx_td ltx_align_left ltx_border_r">hahah</td>
+<td id="S4.T3.1.11.11.2" class="ltx_td ltx_align_left ltx_border_r">rsrs</td>
+<td id="S4.T3.1.11.11.3" class="ltx_td ltx_align_left">lahh</td>
+</tr>
+<tr id="S4.T3.1.12.12" class="ltx_tr">
+<td id="S4.T3.1.12.12.1" class="ltx_td ltx_align_left ltx_border_r">youu</td>
+<td id="S4.T3.1.12.12.2" class="ltx_td ltx_align_left ltx_border_r">oww</td>
+<td id="S4.T3.1.12.12.3" class="ltx_td ltx_align_left">lohh</td>
+</tr>
+<tr id="S4.T3.1.13.13" class="ltx_tr">
+<th id="S4.T3.1.13.13.1" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S4.T3.1.13.13.2" class="ltx_td ltx_align_left ltx_border_r">yeahh</td>
+<td id="S4.T3.1.13.13.3" class="ltx_td ltx_align_left ltx_border_r">diaa</td>
+<td id="S4.T3.1.13.13.4" class="ltx_td ltx_align_left">kuyy</td>
+</tr>
+<tr id="S4.T3.1.14.14" class="ltx_tr">
+<th id="S4.T3.1.14.14.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="3"><span id="S4.T3.1.14.14.1.1" class="ltx_text ltx_font_bold">foreign</span></th>
+<td id="S4.T3.1.14.14.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">muertos</td>
+<td id="S4.T3.1.14.14.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">block</td>
+<td id="S4.T3.1.14.14.4" class="ltx_td ltx_align_left ltx_border_t">buenas</td>
+</tr>
+<tr id="S4.T3.1.15.15" class="ltx_tr">
+<td id="S4.T3.1.15.15.1" class="ltx_td ltx_align_left ltx_border_r">quiero</td>
+<td id="S4.T3.1.15.15.2" class="ltx_td ltx_align_left ltx_border_r">contract</td>
+<td id="S4.T3.1.15.15.3" class="ltx_td ltx_align_left">fake</td>
+</tr>
+<tr id="S4.T3.1.16.16" class="ltx_tr">
+<td id="S4.T3.1.16.16.1" class="ltx_td ltx_align_left ltx_border_r">bangaram</td>
+<td id="S4.T3.1.16.16.2" class="ltx_td ltx_align_left ltx_border_r">cream</td>
+<td id="S4.T3.1.16.16.3" class="ltx_td ltx_align_left">the</td>
+</tr>
+<tr id="S4.T3.1.17.17" class="ltx_tr">
+<th id="S4.T3.1.17.17.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="4"><span id="S4.T3.1.17.17.1.1" class="ltx_text ltx_font_bold">names</span></th>
+<td id="S4.T3.1.17.17.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">kavanaugh</td>
+<td id="S4.T3.1.17.17.3" class="ltx_td ltx_border_r ltx_border_t"></td>
+<td id="S4.T3.1.17.17.4" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S4.T3.1.18.18" class="ltx_tr">
+<td id="S4.T3.1.18.18.1" class="ltx_td ltx_align_left ltx_border_r">khabib</td>
+<td id="S4.T3.1.18.18.2" class="ltx_td ltx_align_left ltx_border_r">N.A.</td>
+<td id="S4.T3.1.18.18.3" class="ltx_td ltx_align_left">N.A.</td>
+</tr>
+<tr id="S4.T3.1.19.19" class="ltx_tr">
+<td id="S4.T3.1.19.19.1" class="ltx_td ltx_align_left ltx_border_r">cardi</td>
+<td id="S4.T3.1.19.19.2" class="ltx_td ltx_border_r"></td>
+<td id="S4.T3.1.19.19.3" class="ltx_td"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 3: </span>Sampled OOV words from FL models in three languages (en_US, pt_BR, in_ID).</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.3" class="ltx_p">In this paper, we present a method to discover OOV words through federated learning.
+The model relies on training a character-based model from which words can be generated via sampling.
+Compared with traditional server-side methods, our method learns OOV words on each device and transmits the learned knowledge by aggregating gradient updates from local SGD.
+We demonstrate the feasibility of this approach with simulated FL on a publicly-available corpus where we achieve <math id="S5.p1.1.m1.1" class="ltx_Math" alttext="90.56\%" display="inline"><semantics id="S5.p1.1.m1.1a"><mrow id="S5.p1.1.m1.1.1" xref="S5.p1.1.m1.1.1.cmml"><mn id="S5.p1.1.m1.1.1.2" xref="S5.p1.1.m1.1.1.2.cmml">90.56</mn><mo id="S5.p1.1.m1.1.1.1" xref="S5.p1.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p1.1.m1.1b"><apply id="S5.p1.1.m1.1.1.cmml" xref="S5.p1.1.m1.1.1"><csymbol cd="latexml" id="S5.p1.1.m1.1.1.1.cmml" xref="S5.p1.1.m1.1.1.1">percent</csymbol><cn type="float" id="S5.p1.1.m1.1.1.2.cmml" xref="S5.p1.1.m1.1.1.2">90.56</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.1.m1.1c">90.56\%</annotation></semantics></math> precision and <math id="S5.p1.2.m2.1" class="ltx_Math" alttext="81.22\%" display="inline"><semantics id="S5.p1.2.m2.1a"><mrow id="S5.p1.2.m2.1.1" xref="S5.p1.2.m2.1.1.cmml"><mn id="S5.p1.2.m2.1.1.2" xref="S5.p1.2.m2.1.1.2.cmml">81.22</mn><mo id="S5.p1.2.m2.1.1.1" xref="S5.p1.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p1.2.m2.1b"><apply id="S5.p1.2.m2.1.1.cmml" xref="S5.p1.2.m2.1.1"><csymbol cd="latexml" id="S5.p1.2.m2.1.1.1.cmml" xref="S5.p1.2.m2.1.1.1">percent</csymbol><cn type="float" id="S5.p1.2.m2.1.1.2.cmml" xref="S5.p1.2.m2.1.1.2">81.22</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.2.m2.1c">81.22\%</annotation></semantics></math> recall for top <math id="S5.p1.3.m3.1" class="ltx_Math" alttext="{10^{5}}" display="inline"><semantics id="S5.p1.3.m3.1a"><msup id="S5.p1.3.m3.1.1" xref="S5.p1.3.m3.1.1.cmml"><mn id="S5.p1.3.m3.1.1.2" xref="S5.p1.3.m3.1.1.2.cmml">10</mn><mn id="S5.p1.3.m3.1.1.3" xref="S5.p1.3.m3.1.1.3.cmml">5</mn></msup><annotation-xml encoding="MathML-Content" id="S5.p1.3.m3.1b"><apply id="S5.p1.3.m3.1.1.cmml" xref="S5.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S5.p1.3.m3.1.1.1.cmml" xref="S5.p1.3.m3.1.1">superscript</csymbol><cn type="integer" id="S5.p1.3.m3.1.1.2.cmml" xref="S5.p1.3.m3.1.1.2">10</cn><cn type="integer" id="S5.p1.3.m3.1.1.3.cmml" xref="S5.p1.3.m3.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.3.m3.1c">{10^{5}}</annotation></semantics></math> unique words.
+We also perform live experiments with on-device data from 3 populations of Gboard users and
+demonstrate that this method can learn OOV words effectively in a real-world setting.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Acknowledgments</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">The authors would like to thank colleagues in the Google AI team for providing
+the federated learning framework and for many helpful discussions.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Al-Rfou et al. (2016)</span>
+<span class="ltx_bibblock">
+Rami Al-Rfou, Marc Pickett, Javier Snaider, Yun-hsuan Sung, Brian Strope, and
+Ray Kurzweil. 2016.
+
+</span>
+<span class="ltx_bibblock">Conversational contextual cues: The case of personalization and
+history for response ranking.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1606.00372</em>.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bonawitz et al. (2016)</span>
+<span class="ltx_bibblock">
+Keith Bonawitz, Vladimir Ivanov, Ben Kreuter, Antonio Marcedone, H. Brendan
+McMahan, Sarvar Patel, Daniel Ramage, Aaron Segal, and Karn Seth. 2016.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1611.04482" title="" class="ltx_ref ltx_href">Practical secure aggregation
+for federated learning on user-held data</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, abs/1611.04482.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Carlini et al. (2018)</span>
+<span class="ltx_bibblock">
+Nicholas Carlini, Chang Liu, Jernej Kos, Úlfar Erlingsson, and Dawn Song.
+2018.
+
+</span>
+<span class="ltx_bibblock">The secret sharer: Measuring unintended neural network memorization
+&amp; extracting secrets.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1802.08232</em>.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Charikar et al. (2002)</span>
+<span class="ltx_bibblock">
+Moses Charikar, Kevin Chen, and Martin Farach-Colton. 2002.
+
+</span>
+<span class="ltx_bibblock">Finding frequent items in data streams.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">International Colloquium on Automata, Languages, and
+Programming</em>, pages 693–703. Springer.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Gers and Schmidhuber (2000)</span>
+<span class="ltx_bibblock">
+Felix A Gers and Jürgen Schmidhuber. 2000.
+
+</span>
+<span class="ltx_bibblock">Recurrent nets that time and count.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE-INNS-ENNS International Joint
+Conference on Neural Networks. IJCNN 2000. Neural Computing: New Challenges
+and Perspectives for the New Millennium</em>, volume 3, pages 189–194. IEEE.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Greff et al. (2017)</span>
+<span class="ltx_bibblock">
+Klaus Greff, Rupesh K Srivastava, Jan Koutník, Bas R Steunebrink, and
+Jürgen Schmidhuber. 2017.
+
+</span>
+<span class="ltx_bibblock">Lstm: A search space odyssey.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">IEEE transactions on neural networks and learning systems</em>,
+28(10):2222–2232.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Gunasinghe and Alahakoon (2012)</span>
+<span class="ltx_bibblock">
+Upuli Gunasinghe and Damminda Alahakoon. 2012.
+
+</span>
+<span class="ltx_bibblock">Sequence learning using the adaptive suffix trie algorithm.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Neural Networks (IJCNN), the 2012 International Joint
+Conference on</em>, pages 1–8. IEEE.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hard et al. (2018)</span>
+<span class="ltx_bibblock">
+Andrew Hard, Kanishka Rao, Rajiv Mathews, Françoise Beaufays, Sean
+Augenstein, Hubert Eichner, Chloé Kiddon, and Daniel Ramage. 2018.
+
+</span>
+<span class="ltx_bibblock">Federated learning for mobile keyboard prediction.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1811.03604</em>.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hochreiter and Schmidhuber (1997)</span>
+<span class="ltx_bibblock">
+Sepp Hochreiter and Jürgen Schmidhuber. 1997.
+
+</span>
+<span class="ltx_bibblock">Long short-term memory.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">Neural computation</em>, 9(8):1735–1780.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Konečnỳ et al. (2016)</span>
+<span class="ltx_bibblock">
+Jakub Konečnỳ, H Brendan McMahan, Felix X Yu, Peter Richtárik,
+Ananda Theertha Suresh, and Dave Bacon. 2016.
+
+</span>
+<span class="ltx_bibblock">Federated learning: Strategies for improving communication
+efficiency.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1610.05492</em>.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">McMahan et al. (2016)</span>
+<span class="ltx_bibblock">
+H Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, et al. 2016.
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of deep networks from decentralized
+data.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1602.05629</em>.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">McMahan et al. (2018)</span>
+<span class="ltx_bibblock">
+H. Brendan McMahan, Daniel Ramage, Kunal Talwar, and Li Zhang. 2018.
+
+</span>
+<span class="ltx_bibblock">Learning differentially private language models without losing
+accuracy.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nesterov (1983)</span>
+<span class="ltx_bibblock">
+Yurii E Nesterov. 1983.
+
+</span>
+<span class="ltx_bibblock">A method for solving the convex programming problem with convergence
+rate o (1/k^ 2).
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Dokl. Akad. Nauk SSSR</em>, volume 269, pages 543–547.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ouyang et al. (2017)</span>
+<span class="ltx_bibblock">
+Tom Ouyang, David Rybach, Françoise Beaufays, and Michael Riley. 2017.
+
+</span>
+<span class="ltx_bibblock">Mobile keyboard input decoding with finite-state transducers.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1704.03987</em>.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sak et al. (2014)</span>
+<span class="ltx_bibblock">
+Haşim Sak, Andrew Senior, and Françoise Beaufays. 2014.
+
+</span>
+<span class="ltx_bibblock">Long short-term memory recurrent neural network architectures for
+large scale acoustic modeling.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">Fifteenth annual conference of the international speech
+communication association</em>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sutskever et al. (2014)</span>
+<span class="ltx_bibblock">
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014.
+
+</span>
+<span class="ltx_bibblock">Sequence to sequence learning with neural networks.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, pages
+3104–3112.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2018)</span>
+<span class="ltx_bibblock">
+Timothy Yang, Galen Andrew, Hubert Eichner, Haicheng Sun, Wei Li, Nicholas
+Kong, Daniel Ramage, and Françoise Beaufays. 2018.
+
+</span>
+<span class="ltx_bibblock">Applied federated learning: Improving google keyboard query
+suggestions.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1812.02903</em>.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhu et al. (2019)</span>
+<span class="ltx_bibblock">
+Wennan Zhu, Peter Kairouz, Haicheng Sun, Brendan McMahan, and Wei Li. 2019.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1902.08534" title="" class="ltx_ref ltx_href">Federated heavy hitters
+discovery with differential privacy</a>.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1903.10634" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1903.10635" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1903.10635">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1903.10635" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1903.10636" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar 16 09:25:10 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

@@ -1,0 +1,1039 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2206.04585] Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding</title><meta property="og:description" content="Semantic 3D scene understanding is a problem of critical importance in robotics. While significant advances have been made in simultaneous localization and mapping algorithms, robots are still far from having the commo…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2206.04585">
+
+<!--Generated on Mon Mar 11 18:57:02 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">William Chen, Siyi Hu, Rajat Talak, Luca Carlone
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Laboratory for Information &amp; Decision Systems (LIDS)
+<br class="ltx_break">Massachusetts Institute of Technology
+<br class="ltx_break">Cambridge, Massachusetts 02139
+<br class="ltx_break">{verityw, siyi, talak, lcarlone}@mit.edu
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Semantic 3D scene understanding is a problem of critical importance in robotics. While significant advances have been made in simultaneous localization and mapping algorithms, robots are still far from having the common sense knowledge about household objects and their locations of an average human. We introduce a novel method for leveraging common sense embedded within large language models for labelling rooms given the objects contained within. This algorithm has the added benefits of (i) requiring no task-specific pre-training (operating entirely in the zero-shot regime) and (ii) generalizing to arbitrary room and object labels, including previously-unseen ones – both of which are highly desirable traits in robotic scene understanding algorithms. The proposed algorithm operates on 3D scene graphs produced by modern spatial perception systems, and we hope it will pave the way to more generalizable and scalable high-level 3D scene understanding for robotics.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">A key challenge in robotics is that of scene understanding. If robotic systems are to see widespread deployment, then they must be able to not only map and localize within a multitude of environments, but also have a semantic understanding of said environment and the entities within it. That is, if an autonomous agent is told to “go to the kitchen and fetch a spoon,” it should be able to (i) understand what a kitchen is and what objects are usually present within it, (ii) use that understanding to figure out what locations it has visited are likely to be kitchens, and (iii) segment out objects within the location to identify viable spoons to take.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">These aspects are typically inferred using metric-semantic simultaneous localization and mapping (SLAM) algorithms, wherein a robotic agent must create a map of its environment, determine its location within said map, and annotate the map with semantic information on objects and locations. Modern spatial perception systems, like Kimera <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> and Hydra <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, arrange such semantic information in a 3D scene graph – a data structure wherein nodes represent locations and entities, while edges represent paths or spatial relationships.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">SLAM pipelines can compute geometric information (such as position and bounding box) for entities and regions in the scene. However, attaching semantic labels to these nodes still remains a major open obstacle, especially for nodes corresponding to high-level spatial concepts, like rooms and buildings. To label a room node, the system must consider what objects are in the room (e.g. if it contains a stove, sink, and refrigerator, the considered room is likely a kitchen). This therefore necessitates some “common sense” mechanism to provide the system with such knowledge.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">One largely unexplored candidate method for imparting this common sense is by using language models. As systems like word embeddings and language models are trained on large text corpora, they might capture some of the semantic information contained within said datasets. For instance, a language model like BERT <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> may have learned that the sentence “Bathrooms often contain <span id="S1.p4.1.1" class="ltx_text ltx_framed ltx_framed_underline">     </span>.” is better completed with the word “toilets” rather than “stoves,” thereby containing some of the common sense needed for scene understanding – critically, even without any additional fine-tuning.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Likewise, being what <cite class="ltx_cite ltx_citemacro_citet">von Humboldt et al. [<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite> and <cite class="ltx_cite ltx_citemacro_citet">Chomsky [<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> famously called an “infinite use of finite means,” language provides a medium through which arbitrary common sense queries can be compactly made and evaluated, including ones containing novel concepts and entities. This is an attractive feature for spatial perception algorithms in robotics, since <span id="S1.p5.1.1" class="ltx_text ltx_font_italic">autonomous agents in general deployment will naturally come across a wide variety of unfamiliar objects – including ones that the engineer did not expect during development</span>. Being able to still perform generalizable inference over these new and unfamiliar object types would thus be highly beneficial.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">Previous papers like <cite class="ltx_cite ltx_citemacro_citet">Tellex et al. [<a href="#bib.bib21" title="" class="ltx_ref">21</a>], Sharma et al. [<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, and more <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> have mainly leveraged language for communicating goals or instructions to a robot to plan around or execute. To our knowledge, natural language processing tools have not been used for robot room categorization. Past works like <cite class="ltx_cite ltx_citemacro_citet">Chaves et al. [<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> instead use an explicit Bayesian probabilistic framework for determining room categories based on detected objects. However, these methods remain hard to generalize to new room and object categories, with <cite class="ltx_cite ltx_citemacro_citet">Chaves et al. [<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> only considering five room labels. In hopes of addressing these shortcomings and capitalizing on the previously outlined benefits of natural language, in this project, we explore the ability for large language models to be used as common sense mechanisms for robot scene understanding.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Contribution</span>
+</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">We provide a novel framework for querying large language models to identify room labels in 3D scene graphs (e.g. as generated by Kimera <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> or Hydra <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>) given the room’s contained objects. Specifically, we use a heuristic method for picking out a small number of semantically-informative objects present within a room, constructing a query string with those object labels acting as a description of the room, and passing the string through a language model in order to infer the room’s label (see Fig. <a href="#S2.F1" title="Figure 1 ‣ II Contribution ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>).</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">Because all inference over object and room labels occur by encoding the category names as strings, this method is able to handle arbitrary label input and output spaces. Additionally, we do not perform any training or fine-tuning, meaning all performance is entirely zero-shot.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2206.04585/assets/Images/DynamicLMQueries.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="71" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Example of experimental approach with <math id="S2.F1.3.m1.1" class="ltx_Math" alttext="k=2" display="inline"><semantics id="S2.F1.3.m1.1b"><mrow id="S2.F1.3.m1.1.1" xref="S2.F1.3.m1.1.1.cmml"><mi id="S2.F1.3.m1.1.1.2" xref="S2.F1.3.m1.1.1.2.cmml">k</mi><mo id="S2.F1.3.m1.1.1.1" xref="S2.F1.3.m1.1.1.1.cmml">=</mo><mn id="S2.F1.3.m1.1.1.3" xref="S2.F1.3.m1.1.1.3.cmml">2</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.F1.3.m1.1c"><apply id="S2.F1.3.m1.1.1.cmml" xref="S2.F1.3.m1.1.1"><eq id="S2.F1.3.m1.1.1.1.cmml" xref="S2.F1.3.m1.1.1.1"></eq><ci id="S2.F1.3.m1.1.1.2.cmml" xref="S2.F1.3.m1.1.1.2">𝑘</ci><cn type="integer" id="S2.F1.3.m1.1.1.3.cmml" xref="S2.F1.3.m1.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.3.m1.1d">k=2</annotation></semantics></math> and <math id="S2.F1.4.m2.1" class="ltx_Math" alttext="L_{R}=\{\text{Bathroom, Kitchen, Bedroom}\}" display="inline"><semantics id="S2.F1.4.m2.1b"><mrow id="S2.F1.4.m2.1.2" xref="S2.F1.4.m2.1.2.cmml"><msub id="S2.F1.4.m2.1.2.2" xref="S2.F1.4.m2.1.2.2.cmml"><mi id="S2.F1.4.m2.1.2.2.2" xref="S2.F1.4.m2.1.2.2.2.cmml">L</mi><mi id="S2.F1.4.m2.1.2.2.3" xref="S2.F1.4.m2.1.2.2.3.cmml">R</mi></msub><mo id="S2.F1.4.m2.1.2.1" xref="S2.F1.4.m2.1.2.1.cmml">=</mo><mrow id="S2.F1.4.m2.1.2.3.2" xref="S2.F1.4.m2.1.2.3.1.cmml"><mo stretchy="false" id="S2.F1.4.m2.1.2.3.2.1" xref="S2.F1.4.m2.1.2.3.1.cmml">{</mo><mtext id="S2.F1.4.m2.1.1" xref="S2.F1.4.m2.1.1a.cmml">Bathroom, Kitchen, Bedroom</mtext><mo stretchy="false" id="S2.F1.4.m2.1.2.3.2.2" xref="S2.F1.4.m2.1.2.3.1.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.F1.4.m2.1c"><apply id="S2.F1.4.m2.1.2.cmml" xref="S2.F1.4.m2.1.2"><eq id="S2.F1.4.m2.1.2.1.cmml" xref="S2.F1.4.m2.1.2.1"></eq><apply id="S2.F1.4.m2.1.2.2.cmml" xref="S2.F1.4.m2.1.2.2"><csymbol cd="ambiguous" id="S2.F1.4.m2.1.2.2.1.cmml" xref="S2.F1.4.m2.1.2.2">subscript</csymbol><ci id="S2.F1.4.m2.1.2.2.2.cmml" xref="S2.F1.4.m2.1.2.2.2">𝐿</ci><ci id="S2.F1.4.m2.1.2.2.3.cmml" xref="S2.F1.4.m2.1.2.2.3">𝑅</ci></apply><set id="S2.F1.4.m2.1.2.3.1.cmml" xref="S2.F1.4.m2.1.2.3.2"><ci id="S2.F1.4.m2.1.1a.cmml" xref="S2.F1.4.m2.1.1"><mtext id="S2.F1.4.m2.1.1.cmml" xref="S2.F1.4.m2.1.1">Bathroom, Kitchen, Bedroom</mtext></ci></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.4.m2.1d">L_{R}=\{\text{Bathroom, Kitchen, Bedroom}\}</annotation></semantics></math>. The most informative object labels within the room are dynamically put into the query strings, which are then evaluated via language model.</figcaption>
+</figure>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS1.5.1.1" class="ltx_text">II-A</span> </span><span id="S2.SS1.6.2" class="ltx_text ltx_font_italic">Language Model Evaluation</span>
+</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.4" class="ltx_p">Language models are commonly broken into two types: (i) masked language models (MLMs) like BERT <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> and RoBERTa <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite> and (ii) next-token prediction models, such as most GPT variants <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>. Both are able to score an input sentence based off of semantic and grammatical sensibility. For MLMs, this can be done with pseudo-log likelihoods <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>. For next token prediction models, which we focus on in this work, one can add up the log probabilities of each word/token in the sentence, given all previous ones, for the entire sentence. This effectively gives the log probability of the full sentence, as it is the factored probability distribution, as given by the (log) chain rule:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.7" class="ltx_Math" alttext="\log p(W)=\log p([W]_{1})+\sum_{i=2}^{|W|}\log p([W]_{i}\ |\ [W]_{1:i-1})" display="block"><semantics id="S2.E1.m1.7a"><mrow id="S2.E1.m1.7.7" xref="S2.E1.m1.7.7.cmml"><mrow id="S2.E1.m1.7.7.4" xref="S2.E1.m1.7.7.4.cmml"><mrow id="S2.E1.m1.7.7.4.2" xref="S2.E1.m1.7.7.4.2.cmml"><mi id="S2.E1.m1.7.7.4.2.1" xref="S2.E1.m1.7.7.4.2.1.cmml">log</mi><mo lspace="0.167em" id="S2.E1.m1.7.7.4.2a" xref="S2.E1.m1.7.7.4.2.cmml">⁡</mo><mi id="S2.E1.m1.7.7.4.2.2" xref="S2.E1.m1.7.7.4.2.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E1.m1.7.7.4.1" xref="S2.E1.m1.7.7.4.1.cmml">​</mo><mrow id="S2.E1.m1.7.7.4.3.2" xref="S2.E1.m1.7.7.4.cmml"><mo stretchy="false" id="S2.E1.m1.7.7.4.3.2.1" xref="S2.E1.m1.7.7.4.cmml">(</mo><mi id="S2.E1.m1.2.2" xref="S2.E1.m1.2.2.cmml">W</mi><mo stretchy="false" id="S2.E1.m1.7.7.4.3.2.2" xref="S2.E1.m1.7.7.4.cmml">)</mo></mrow></mrow><mo id="S2.E1.m1.7.7.3" xref="S2.E1.m1.7.7.3.cmml">=</mo><mrow id="S2.E1.m1.7.7.2" xref="S2.E1.m1.7.7.2.cmml"><mrow id="S2.E1.m1.6.6.1.1" xref="S2.E1.m1.6.6.1.1.cmml"><mrow id="S2.E1.m1.6.6.1.1.3" xref="S2.E1.m1.6.6.1.1.3.cmml"><mi id="S2.E1.m1.6.6.1.1.3.1" xref="S2.E1.m1.6.6.1.1.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.E1.m1.6.6.1.1.3a" xref="S2.E1.m1.6.6.1.1.3.cmml">⁡</mo><mi id="S2.E1.m1.6.6.1.1.3.2" xref="S2.E1.m1.6.6.1.1.3.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E1.m1.6.6.1.1.2" xref="S2.E1.m1.6.6.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.6.6.1.1.1.1" xref="S2.E1.m1.6.6.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.6.6.1.1.1.1.2" xref="S2.E1.m1.6.6.1.1.1.1.1.cmml">(</mo><msub id="S2.E1.m1.6.6.1.1.1.1.1" xref="S2.E1.m1.6.6.1.1.1.1.1.cmml"><mrow id="S2.E1.m1.6.6.1.1.1.1.1.2.2" xref="S2.E1.m1.6.6.1.1.1.1.1.2.1.cmml"><mo stretchy="false" id="S2.E1.m1.6.6.1.1.1.1.1.2.2.1" xref="S2.E1.m1.6.6.1.1.1.1.1.2.1.1.cmml">[</mo><mi id="S2.E1.m1.3.3" xref="S2.E1.m1.3.3.cmml">W</mi><mo stretchy="false" id="S2.E1.m1.6.6.1.1.1.1.1.2.2.2" xref="S2.E1.m1.6.6.1.1.1.1.1.2.1.1.cmml">]</mo></mrow><mn id="S2.E1.m1.6.6.1.1.1.1.1.3" xref="S2.E1.m1.6.6.1.1.1.1.1.3.cmml">1</mn></msub><mo stretchy="false" id="S2.E1.m1.6.6.1.1.1.1.3" xref="S2.E1.m1.6.6.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.055em" id="S2.E1.m1.7.7.2.3" xref="S2.E1.m1.7.7.2.3.cmml">+</mo><mrow id="S2.E1.m1.7.7.2.2" xref="S2.E1.m1.7.7.2.2.cmml"><munderover id="S2.E1.m1.7.7.2.2.2" xref="S2.E1.m1.7.7.2.2.2.cmml"><mo movablelimits="false" id="S2.E1.m1.7.7.2.2.2.2.2" xref="S2.E1.m1.7.7.2.2.2.2.2.cmml">∑</mo><mrow id="S2.E1.m1.7.7.2.2.2.2.3" xref="S2.E1.m1.7.7.2.2.2.2.3.cmml"><mi id="S2.E1.m1.7.7.2.2.2.2.3.2" xref="S2.E1.m1.7.7.2.2.2.2.3.2.cmml">i</mi><mo id="S2.E1.m1.7.7.2.2.2.2.3.1" xref="S2.E1.m1.7.7.2.2.2.2.3.1.cmml">=</mo><mn id="S2.E1.m1.7.7.2.2.2.2.3.3" xref="S2.E1.m1.7.7.2.2.2.2.3.3.cmml">2</mn></mrow><mrow id="S2.E1.m1.1.1.1.3" xref="S2.E1.m1.1.1.1.2.cmml"><mo stretchy="false" id="S2.E1.m1.1.1.1.3.1" xref="S2.E1.m1.1.1.1.2.1.cmml">|</mo><mi id="S2.E1.m1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.cmml">W</mi><mo stretchy="false" id="S2.E1.m1.1.1.1.3.2" xref="S2.E1.m1.1.1.1.2.1.cmml">|</mo></mrow></munderover><mrow id="S2.E1.m1.7.7.2.2.1" xref="S2.E1.m1.7.7.2.2.1.cmml"><mrow id="S2.E1.m1.7.7.2.2.1.3" xref="S2.E1.m1.7.7.2.2.1.3.cmml"><mi id="S2.E1.m1.7.7.2.2.1.3.1" xref="S2.E1.m1.7.7.2.2.1.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.E1.m1.7.7.2.2.1.3a" xref="S2.E1.m1.7.7.2.2.1.3.cmml">⁡</mo><mi id="S2.E1.m1.7.7.2.2.1.3.2" xref="S2.E1.m1.7.7.2.2.1.3.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E1.m1.7.7.2.2.1.2" xref="S2.E1.m1.7.7.2.2.1.2.cmml">​</mo><mrow id="S2.E1.m1.7.7.2.2.1.1.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.7.7.2.2.1.1.1.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.cmml"><msub id="S2.E1.m1.7.7.2.2.1.1.1.1.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.cmml"><mrow id="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.1.cmml"><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.2.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.1.1.cmml">[</mo><mi id="S2.E1.m1.4.4" xref="S2.E1.m1.4.4.cmml">W</mi><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.2.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.1.1.cmml">]</mo></mrow><mi id="S2.E1.m1.7.7.2.2.1.1.1.1.2.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.3.cmml">i</mi></msub><mo fence="false" rspace="0.778em" id="S2.E1.m1.7.7.2.2.1.1.1.1.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.1.cmml">|</mo><msub id="S2.E1.m1.7.7.2.2.1.1.1.1.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.cmml"><mrow id="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.1.cmml"><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.2.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.1.1.cmml">[</mo><mi id="S2.E1.m1.5.5" xref="S2.E1.m1.5.5.cmml">W</mi><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.2.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.1.1.cmml">]</mo></mrow><mrow id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.cmml"><mn id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.1.cmml">:</mo><mrow id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.cmml"><mi id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.2" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.2.cmml">i</mi><mo id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.1" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.1.cmml">−</mo><mn id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><mo stretchy="false" id="S2.E1.m1.7.7.2.2.1.1.1.3" xref="S2.E1.m1.7.7.2.2.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.7b"><apply id="S2.E1.m1.7.7.cmml" xref="S2.E1.m1.7.7"><eq id="S2.E1.m1.7.7.3.cmml" xref="S2.E1.m1.7.7.3"></eq><apply id="S2.E1.m1.7.7.4.cmml" xref="S2.E1.m1.7.7.4"><times id="S2.E1.m1.7.7.4.1.cmml" xref="S2.E1.m1.7.7.4.1"></times><apply id="S2.E1.m1.7.7.4.2.cmml" xref="S2.E1.m1.7.7.4.2"><log id="S2.E1.m1.7.7.4.2.1.cmml" xref="S2.E1.m1.7.7.4.2.1"></log><ci id="S2.E1.m1.7.7.4.2.2.cmml" xref="S2.E1.m1.7.7.4.2.2">𝑝</ci></apply><ci id="S2.E1.m1.2.2.cmml" xref="S2.E1.m1.2.2">𝑊</ci></apply><apply id="S2.E1.m1.7.7.2.cmml" xref="S2.E1.m1.7.7.2"><plus id="S2.E1.m1.7.7.2.3.cmml" xref="S2.E1.m1.7.7.2.3"></plus><apply id="S2.E1.m1.6.6.1.1.cmml" xref="S2.E1.m1.6.6.1.1"><times id="S2.E1.m1.6.6.1.1.2.cmml" xref="S2.E1.m1.6.6.1.1.2"></times><apply id="S2.E1.m1.6.6.1.1.3.cmml" xref="S2.E1.m1.6.6.1.1.3"><log id="S2.E1.m1.6.6.1.1.3.1.cmml" xref="S2.E1.m1.6.6.1.1.3.1"></log><ci id="S2.E1.m1.6.6.1.1.3.2.cmml" xref="S2.E1.m1.6.6.1.1.3.2">𝑝</ci></apply><apply id="S2.E1.m1.6.6.1.1.1.1.1.cmml" xref="S2.E1.m1.6.6.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.6.6.1.1.1.1.1.1.cmml" xref="S2.E1.m1.6.6.1.1.1.1">subscript</csymbol><apply id="S2.E1.m1.6.6.1.1.1.1.1.2.1.cmml" xref="S2.E1.m1.6.6.1.1.1.1.1.2.2"><csymbol cd="latexml" id="S2.E1.m1.6.6.1.1.1.1.1.2.1.1.cmml" xref="S2.E1.m1.6.6.1.1.1.1.1.2.2.1">delimited-[]</csymbol><ci id="S2.E1.m1.3.3.cmml" xref="S2.E1.m1.3.3">𝑊</ci></apply><cn type="integer" id="S2.E1.m1.6.6.1.1.1.1.1.3.cmml" xref="S2.E1.m1.6.6.1.1.1.1.1.3">1</cn></apply></apply><apply id="S2.E1.m1.7.7.2.2.cmml" xref="S2.E1.m1.7.7.2.2"><apply id="S2.E1.m1.7.7.2.2.2.cmml" xref="S2.E1.m1.7.7.2.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.7.7.2.2.2.1.cmml" xref="S2.E1.m1.7.7.2.2.2">superscript</csymbol><apply id="S2.E1.m1.7.7.2.2.2.2.cmml" xref="S2.E1.m1.7.7.2.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.7.7.2.2.2.2.1.cmml" xref="S2.E1.m1.7.7.2.2.2">subscript</csymbol><sum id="S2.E1.m1.7.7.2.2.2.2.2.cmml" xref="S2.E1.m1.7.7.2.2.2.2.2"></sum><apply id="S2.E1.m1.7.7.2.2.2.2.3.cmml" xref="S2.E1.m1.7.7.2.2.2.2.3"><eq id="S2.E1.m1.7.7.2.2.2.2.3.1.cmml" xref="S2.E1.m1.7.7.2.2.2.2.3.1"></eq><ci id="S2.E1.m1.7.7.2.2.2.2.3.2.cmml" xref="S2.E1.m1.7.7.2.2.2.2.3.2">𝑖</ci><cn type="integer" id="S2.E1.m1.7.7.2.2.2.2.3.3.cmml" xref="S2.E1.m1.7.7.2.2.2.2.3.3">2</cn></apply></apply><apply id="S2.E1.m1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.3"><abs id="S2.E1.m1.1.1.1.2.1.cmml" xref="S2.E1.m1.1.1.1.3.1"></abs><ci id="S2.E1.m1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1">𝑊</ci></apply></apply><apply id="S2.E1.m1.7.7.2.2.1.cmml" xref="S2.E1.m1.7.7.2.2.1"><times id="S2.E1.m1.7.7.2.2.1.2.cmml" xref="S2.E1.m1.7.7.2.2.1.2"></times><apply id="S2.E1.m1.7.7.2.2.1.3.cmml" xref="S2.E1.m1.7.7.2.2.1.3"><log id="S2.E1.m1.7.7.2.2.1.3.1.cmml" xref="S2.E1.m1.7.7.2.2.1.3.1"></log><ci id="S2.E1.m1.7.7.2.2.1.3.2.cmml" xref="S2.E1.m1.7.7.2.2.1.3.2">𝑝</ci></apply><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1"><csymbol cd="latexml" id="S2.E1.m1.7.7.2.2.1.1.1.1.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.1">conditional</csymbol><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.2.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.7.7.2.2.1.1.1.1.2.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2">subscript</csymbol><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.2"><csymbol cd="latexml" id="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.1.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.2.2.1">delimited-[]</csymbol><ci id="S2.E1.m1.4.4.cmml" xref="S2.E1.m1.4.4">𝑊</ci></apply><ci id="S2.E1.m1.7.7.2.2.1.1.1.1.2.3.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.2.3">𝑖</ci></apply><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.3.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3">subscript</csymbol><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.2"><csymbol cd="latexml" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.1.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.2.2.1">delimited-[]</csymbol><ci id="S2.E1.m1.5.5.cmml" xref="S2.E1.m1.5.5">𝑊</ci></apply><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3"><ci id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.1">:</ci><cn type="integer" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.2.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.2">1</cn><apply id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3"><minus id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.1.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.1"></minus><ci id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.2.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.2">𝑖</ci><cn type="integer" id="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.3.cmml" xref="S2.E1.m1.7.7.2.2.1.1.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.7c">\log p(W)=\log p([W]_{1})+\sum_{i=2}^{|W|}\log p([W]_{i}\ |\ [W]_{1:i-1})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p1.3" class="ltx_p">where <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="W" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mi id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml">W</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><ci id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">𝑊</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">W</annotation></semantics></math> is the sentence and <math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="[W]_{i}" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><msub id="S2.SS1.p1.2.m2.1.2" xref="S2.SS1.p1.2.m2.1.2.cmml"><mrow id="S2.SS1.p1.2.m2.1.2.2.2" xref="S2.SS1.p1.2.m2.1.2.2.1.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.1.2.2.2.1" xref="S2.SS1.p1.2.m2.1.2.2.1.1.cmml">[</mo><mi id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">W</mi><mo stretchy="false" id="S2.SS1.p1.2.m2.1.2.2.2.2" xref="S2.SS1.p1.2.m2.1.2.2.1.1.cmml">]</mo></mrow><mi id="S2.SS1.p1.2.m2.1.2.3" xref="S2.SS1.p1.2.m2.1.2.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><apply id="S2.SS1.p1.2.m2.1.2.cmml" xref="S2.SS1.p1.2.m2.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.1.2.1.cmml" xref="S2.SS1.p1.2.m2.1.2">subscript</csymbol><apply id="S2.SS1.p1.2.m2.1.2.2.1.cmml" xref="S2.SS1.p1.2.m2.1.2.2.2"><csymbol cd="latexml" id="S2.SS1.p1.2.m2.1.2.2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.2.2.2.1">delimited-[]</csymbol><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">𝑊</ci></apply><ci id="S2.SS1.p1.2.m2.1.2.3.cmml" xref="S2.SS1.p1.2.m2.1.2.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">[W]_{i}</annotation></semantics></math> is the <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><mi id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><ci id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">i</annotation></semantics></math>-th word/token. Negating this summation gives the entropy (which is a common training objective for such models) and subsequently exponentiating gives the <span id="S2.SS1.p1.3.1" class="ltx_text ltx_font_italic">perplexity</span> of the sentence for the given model.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">Returning to the example in Section <a href="#S1" title="I Introduction ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>, we expect a sentence like “Bathrooms often contain toilets.” to be scored as being more likely than the sentence “Bathrooms often contain stoves.” We thus can use the scores of strings containing common sense facts as a proxy measure for how likely it is for the given fact to be true.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS2.5.1.1" class="ltx_text">II-B</span> </span><span id="S2.SS2.6.2" class="ltx_text ltx_font_italic">Query Strings</span>
+</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">We now require a method of creating a query string summarizing a given room whose label we wish to infer. To do this, we assume access to a list of objects within each room. On an actual robotic platform, this would be produced as part of its metric-semantic SLAM pipeline <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>. However, for our experiments, we use the ground truth object labels from our considered dataset (see Section <a href="#S3.SS1" title="III-A Dataset ‣ III Experiments ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">III-A</span></span></a>).</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">Putting <span id="S2.SS2.p2.1.1" class="ltx_text ltx_font_italic">all</span> the objects in a room into the query may result in poor performance, as (i) long sentences are naturally less common and (ii) the queries may be dominated by objects that are present in many rooms (such as lights, doors, and windows). We thus wish to select only the <math id="S2.SS2.p2.1.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS2.p2.1.m1.1a"><mi id="S2.SS2.p2.1.m1.1.1" xref="S2.SS2.p2.1.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.1.m1.1b"><ci id="S2.SS2.p2.1.m1.1.1.cmml" xref="S2.SS2.p2.1.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.1.m1.1c">k</annotation></semantics></math> most semantically informative objects.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.4" class="ltx_p">To do this, we first note that objects which only appear in a few room types are more informative, since their presence heavily implies certain room labels. Quantitatively, these objects have highly <span id="S2.SS2.p3.4.1" class="ltx_text ltx_font_italic">non</span>-uniform distributions <math id="S2.SS2.p3.1.m1.1" class="ltx_Math" alttext="p(r_{j}\in L_{R}\ |\ o_{i}\in L_{O})" display="inline"><semantics id="S2.SS2.p3.1.m1.1a"><mrow id="S2.SS2.p3.1.m1.1.1" xref="S2.SS2.p3.1.m1.1.1.cmml"><mi id="S2.SS2.p3.1.m1.1.1.3" xref="S2.SS2.p3.1.m1.1.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.SS2.p3.1.m1.1.1.2" xref="S2.SS2.p3.1.m1.1.1.2.cmml">​</mo><mrow id="S2.SS2.p3.1.m1.1.1.1.1" xref="S2.SS2.p3.1.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS2.p3.1.m1.1.1.1.1.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS2.p3.1.m1.1.1.1.1.1" xref="S2.SS2.p3.1.m1.1.1.1.1.1.cmml"><msub id="S2.SS2.p3.1.m1.1.1.1.1.1.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2.cmml"><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.2.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2.2.cmml">r</mi><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.2.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2.3.cmml">j</mi></msub><mo id="S2.SS2.p3.1.m1.1.1.1.1.1.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.3.cmml">∈</mo><mrow id="S2.SS2.p3.1.m1.1.1.1.1.1.4" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.cmml"><msub id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.cmml"><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.2.cmml">L</mi><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.3.cmml">R</mi></msub><mo fence="false" rspace="0.778em" id="S2.SS2.p3.1.m1.1.1.1.1.1.4.1" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.1.cmml">|</mo><msub id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.cmml"><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.2.cmml">o</mi><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.3.cmml">i</mi></msub></mrow><mo id="S2.SS2.p3.1.m1.1.1.1.1.1.5" xref="S2.SS2.p3.1.m1.1.1.1.1.1.5.cmml">∈</mo><msub id="S2.SS2.p3.1.m1.1.1.1.1.1.6" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6.cmml"><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.6.2" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6.2.cmml">L</mi><mi id="S2.SS2.p3.1.m1.1.1.1.1.1.6.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6.3.cmml">O</mi></msub></mrow><mo stretchy="false" id="S2.SS2.p3.1.m1.1.1.1.1.3" xref="S2.SS2.p3.1.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.1.m1.1b"><apply id="S2.SS2.p3.1.m1.1.1.cmml" xref="S2.SS2.p3.1.m1.1.1"><times id="S2.SS2.p3.1.m1.1.1.2.cmml" xref="S2.SS2.p3.1.m1.1.1.2"></times><ci id="S2.SS2.p3.1.m1.1.1.3.cmml" xref="S2.SS2.p3.1.m1.1.1.3">𝑝</ci><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1"><and id="S2.SS2.p3.1.m1.1.1.1.1.1a.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1"></and><apply id="S2.SS2.p3.1.m1.1.1.1.1.1b.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1"><in id="S2.SS2.p3.1.m1.1.1.1.1.1.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.3"></in><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p3.1.m1.1.1.1.1.1.2.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2">subscript</csymbol><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.2.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2.2">𝑟</ci><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.2.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.2.3">𝑗</ci></apply><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.4.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4"><csymbol cd="latexml" id="S2.SS2.p3.1.m1.1.1.1.1.1.4.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.1">conditional</csymbol><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2"><csymbol cd="ambiguous" id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2">subscript</csymbol><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.2">𝐿</ci><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.2.3">𝑅</ci></apply><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3"><csymbol cd="ambiguous" id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3">subscript</csymbol><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.2">𝑜</ci><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.4.3.3">𝑖</ci></apply></apply></apply><apply id="S2.SS2.p3.1.m1.1.1.1.1.1c.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1"><in id="S2.SS2.p3.1.m1.1.1.1.1.1.5.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.5"></in><share href="#S2.SS2.p3.1.m1.1.1.1.1.1.4.cmml" id="S2.SS2.p3.1.m1.1.1.1.1.1d.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1"></share><apply id="S2.SS2.p3.1.m1.1.1.1.1.1.6.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6"><csymbol cd="ambiguous" id="S2.SS2.p3.1.m1.1.1.1.1.1.6.1.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6">subscript</csymbol><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.6.2.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6.2">𝐿</ci><ci id="S2.SS2.p3.1.m1.1.1.1.1.1.6.3.cmml" xref="S2.SS2.p3.1.m1.1.1.1.1.1.6.3">𝑂</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.1.m1.1c">p(r_{j}\in L_{R}\ |\ o_{i}\in L_{O})</annotation></semantics></math>, where <math id="S2.SS2.p3.2.m2.1" class="ltx_Math" alttext="o_{i}" display="inline"><semantics id="S2.SS2.p3.2.m2.1a"><msub id="S2.SS2.p3.2.m2.1.1" xref="S2.SS2.p3.2.m2.1.1.cmml"><mi id="S2.SS2.p3.2.m2.1.1.2" xref="S2.SS2.p3.2.m2.1.1.2.cmml">o</mi><mi id="S2.SS2.p3.2.m2.1.1.3" xref="S2.SS2.p3.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.2.m2.1b"><apply id="S2.SS2.p3.2.m2.1.1.cmml" xref="S2.SS2.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p3.2.m2.1.1.1.cmml" xref="S2.SS2.p3.2.m2.1.1">subscript</csymbol><ci id="S2.SS2.p3.2.m2.1.1.2.cmml" xref="S2.SS2.p3.2.m2.1.1.2">𝑜</ci><ci id="S2.SS2.p3.2.m2.1.1.3.cmml" xref="S2.SS2.p3.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.2.m2.1c">o_{i}</annotation></semantics></math> is the object label, <math id="S2.SS2.p3.3.m3.1" class="ltx_Math" alttext="r_{j}" display="inline"><semantics id="S2.SS2.p3.3.m3.1a"><msub id="S2.SS2.p3.3.m3.1.1" xref="S2.SS2.p3.3.m3.1.1.cmml"><mi id="S2.SS2.p3.3.m3.1.1.2" xref="S2.SS2.p3.3.m3.1.1.2.cmml">r</mi><mi id="S2.SS2.p3.3.m3.1.1.3" xref="S2.SS2.p3.3.m3.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.3.m3.1b"><apply id="S2.SS2.p3.3.m3.1.1.cmml" xref="S2.SS2.p3.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.p3.3.m3.1.1.1.cmml" xref="S2.SS2.p3.3.m3.1.1">subscript</csymbol><ci id="S2.SS2.p3.3.m3.1.1.2.cmml" xref="S2.SS2.p3.3.m3.1.1.2">𝑟</ci><ci id="S2.SS2.p3.3.m3.1.1.3.cmml" xref="S2.SS2.p3.3.m3.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.3.m3.1c">r_{j}</annotation></semantics></math> is the room label, and <math id="S2.SS2.p3.4.m4.2" class="ltx_Math" alttext="L_{R,O}" display="inline"><semantics id="S2.SS2.p3.4.m4.2a"><msub id="S2.SS2.p3.4.m4.2.3" xref="S2.SS2.p3.4.m4.2.3.cmml"><mi id="S2.SS2.p3.4.m4.2.3.2" xref="S2.SS2.p3.4.m4.2.3.2.cmml">L</mi><mrow id="S2.SS2.p3.4.m4.2.2.2.4" xref="S2.SS2.p3.4.m4.2.2.2.3.cmml"><mi id="S2.SS2.p3.4.m4.1.1.1.1" xref="S2.SS2.p3.4.m4.1.1.1.1.cmml">R</mi><mo id="S2.SS2.p3.4.m4.2.2.2.4.1" xref="S2.SS2.p3.4.m4.2.2.2.3.cmml">,</mo><mi id="S2.SS2.p3.4.m4.2.2.2.2" xref="S2.SS2.p3.4.m4.2.2.2.2.cmml">O</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.4.m4.2b"><apply id="S2.SS2.p3.4.m4.2.3.cmml" xref="S2.SS2.p3.4.m4.2.3"><csymbol cd="ambiguous" id="S2.SS2.p3.4.m4.2.3.1.cmml" xref="S2.SS2.p3.4.m4.2.3">subscript</csymbol><ci id="S2.SS2.p3.4.m4.2.3.2.cmml" xref="S2.SS2.p3.4.m4.2.3.2">𝐿</ci><list id="S2.SS2.p3.4.m4.2.2.2.3.cmml" xref="S2.SS2.p3.4.m4.2.2.2.4"><ci id="S2.SS2.p3.4.m4.1.1.1.1.cmml" xref="S2.SS2.p3.4.m4.1.1.1.1">𝑅</ci><ci id="S2.SS2.p3.4.m4.2.2.2.2.cmml" xref="S2.SS2.p3.4.m4.2.2.2.2">𝑂</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.4.m4.2c">L_{R,O}</annotation></semantics></math> are the sets of room and object labels respectively. We compute these conditional probabilities in two ways:</p>
+<ol id="S2.I1" class="ltx_enumerate">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p">Using ground truth co-occurrency frequencies, i.e. finding how many times each object label appears in each type of room and normalizing over rooms. However, this does naturally necessitate some task-specific data. When using these empirical conditional probabilities, we also use Laplace smoothing.</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.5" class="ltx_p">Using proxy co-occurrency probabilities by querying language models. Specifically, we use:</p>
+<table id="S2.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E2.m1.7" class="ltx_Math" alttext="p(r_{j}\ |\ o_{i})\approx\frac{\exp\log p(W_{i,j})}{\sum_{r_{j^{\prime}}\in L_{R}}\exp\log p(W_{i,j^{\prime}})}" display="block"><semantics id="S2.E2.m1.7a"><mrow id="S2.E2.m1.7.7" xref="S2.E2.m1.7.7.cmml"><mrow id="S2.E2.m1.7.7.1" xref="S2.E2.m1.7.7.1.cmml"><mi id="S2.E2.m1.7.7.1.3" xref="S2.E2.m1.7.7.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.E2.m1.7.7.1.2" xref="S2.E2.m1.7.7.1.2.cmml">​</mo><mrow id="S2.E2.m1.7.7.1.1.1" xref="S2.E2.m1.7.7.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.7.7.1.1.1.2" xref="S2.E2.m1.7.7.1.1.1.1.cmml">(</mo><mrow id="S2.E2.m1.7.7.1.1.1.1" xref="S2.E2.m1.7.7.1.1.1.1.cmml"><msub id="S2.E2.m1.7.7.1.1.1.1.2" xref="S2.E2.m1.7.7.1.1.1.1.2.cmml"><mi id="S2.E2.m1.7.7.1.1.1.1.2.2" xref="S2.E2.m1.7.7.1.1.1.1.2.2.cmml">r</mi><mi id="S2.E2.m1.7.7.1.1.1.1.2.3" xref="S2.E2.m1.7.7.1.1.1.1.2.3.cmml">j</mi></msub><mo fence="false" rspace="0.778em" id="S2.E2.m1.7.7.1.1.1.1.1" xref="S2.E2.m1.7.7.1.1.1.1.1.cmml">|</mo><msub id="S2.E2.m1.7.7.1.1.1.1.3" xref="S2.E2.m1.7.7.1.1.1.1.3.cmml"><mi id="S2.E2.m1.7.7.1.1.1.1.3.2" xref="S2.E2.m1.7.7.1.1.1.1.3.2.cmml">o</mi><mi id="S2.E2.m1.7.7.1.1.1.1.3.3" xref="S2.E2.m1.7.7.1.1.1.1.3.3.cmml">i</mi></msub></mrow><mo stretchy="false" id="S2.E2.m1.7.7.1.1.1.3" xref="S2.E2.m1.7.7.1.1.1.1.cmml">)</mo></mrow></mrow><mo id="S2.E2.m1.7.7.2" xref="S2.E2.m1.7.7.2.cmml">≈</mo><mfrac id="S2.E2.m1.6.6" xref="S2.E2.m1.6.6.cmml"><mrow id="S2.E2.m1.3.3.3" xref="S2.E2.m1.3.3.3.cmml"><mrow id="S2.E2.m1.3.3.3.5" xref="S2.E2.m1.3.3.3.5.cmml"><mi id="S2.E2.m1.3.3.3.5.1" xref="S2.E2.m1.3.3.3.5.1.cmml">exp</mi><mo lspace="0.167em" id="S2.E2.m1.3.3.3.5a" xref="S2.E2.m1.3.3.3.5.cmml">⁡</mo><mrow id="S2.E2.m1.3.3.3.5.2" xref="S2.E2.m1.3.3.3.5.2.cmml"><mi id="S2.E2.m1.3.3.3.5.2.1" xref="S2.E2.m1.3.3.3.5.2.1.cmml">log</mi><mo lspace="0.167em" id="S2.E2.m1.3.3.3.5.2a" xref="S2.E2.m1.3.3.3.5.2.cmml">⁡</mo><mi id="S2.E2.m1.3.3.3.5.2.2" xref="S2.E2.m1.3.3.3.5.2.2.cmml">p</mi></mrow></mrow><mo lspace="0em" rspace="0em" id="S2.E2.m1.3.3.3.4" xref="S2.E2.m1.3.3.3.4.cmml">​</mo><mrow id="S2.E2.m1.3.3.3.3.1" xref="S2.E2.m1.3.3.3.3.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.3.3.3.3.1.2" xref="S2.E2.m1.3.3.3.3.1.1.cmml">(</mo><msub id="S2.E2.m1.3.3.3.3.1.1" xref="S2.E2.m1.3.3.3.3.1.1.cmml"><mi id="S2.E2.m1.3.3.3.3.1.1.2" xref="S2.E2.m1.3.3.3.3.1.1.2.cmml">W</mi><mrow id="S2.E2.m1.2.2.2.2.2.4" xref="S2.E2.m1.2.2.2.2.2.3.cmml"><mi id="S2.E2.m1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.cmml">i</mi><mo id="S2.E2.m1.2.2.2.2.2.4.1" xref="S2.E2.m1.2.2.2.2.2.3.cmml">,</mo><mi id="S2.E2.m1.2.2.2.2.2.2" xref="S2.E2.m1.2.2.2.2.2.2.cmml">j</mi></mrow></msub><mo stretchy="false" id="S2.E2.m1.3.3.3.3.1.3" xref="S2.E2.m1.3.3.3.3.1.1.cmml">)</mo></mrow></mrow><mrow id="S2.E2.m1.6.6.6" xref="S2.E2.m1.6.6.6.cmml"><msub id="S2.E2.m1.6.6.6.4" xref="S2.E2.m1.6.6.6.4.cmml"><mo id="S2.E2.m1.6.6.6.4.2" xref="S2.E2.m1.6.6.6.4.2.cmml">∑</mo><mrow id="S2.E2.m1.6.6.6.4.3" xref="S2.E2.m1.6.6.6.4.3.cmml"><msub id="S2.E2.m1.6.6.6.4.3.2" xref="S2.E2.m1.6.6.6.4.3.2.cmml"><mi id="S2.E2.m1.6.6.6.4.3.2.2" xref="S2.E2.m1.6.6.6.4.3.2.2.cmml">r</mi><msup id="S2.E2.m1.6.6.6.4.3.2.3" xref="S2.E2.m1.6.6.6.4.3.2.3.cmml"><mi id="S2.E2.m1.6.6.6.4.3.2.3.2" xref="S2.E2.m1.6.6.6.4.3.2.3.2.cmml">j</mi><mo id="S2.E2.m1.6.6.6.4.3.2.3.3" xref="S2.E2.m1.6.6.6.4.3.2.3.3.cmml">′</mo></msup></msub><mo id="S2.E2.m1.6.6.6.4.3.1" xref="S2.E2.m1.6.6.6.4.3.1.cmml">∈</mo><msub id="S2.E2.m1.6.6.6.4.3.3" xref="S2.E2.m1.6.6.6.4.3.3.cmml"><mi id="S2.E2.m1.6.6.6.4.3.3.2" xref="S2.E2.m1.6.6.6.4.3.3.2.cmml">L</mi><mi id="S2.E2.m1.6.6.6.4.3.3.3" xref="S2.E2.m1.6.6.6.4.3.3.3.cmml">R</mi></msub></mrow></msub><mrow id="S2.E2.m1.6.6.6.3" xref="S2.E2.m1.6.6.6.3.cmml"><mrow id="S2.E2.m1.6.6.6.3.3" xref="S2.E2.m1.6.6.6.3.3.cmml"><mi id="S2.E2.m1.6.6.6.3.3.1" xref="S2.E2.m1.6.6.6.3.3.1.cmml">exp</mi><mo lspace="0.167em" id="S2.E2.m1.6.6.6.3.3a" xref="S2.E2.m1.6.6.6.3.3.cmml">⁡</mo><mrow id="S2.E2.m1.6.6.6.3.3.2" xref="S2.E2.m1.6.6.6.3.3.2.cmml"><mi id="S2.E2.m1.6.6.6.3.3.2.1" xref="S2.E2.m1.6.6.6.3.3.2.1.cmml">log</mi><mo lspace="0.167em" id="S2.E2.m1.6.6.6.3.3.2a" xref="S2.E2.m1.6.6.6.3.3.2.cmml">⁡</mo><mi id="S2.E2.m1.6.6.6.3.3.2.2" xref="S2.E2.m1.6.6.6.3.3.2.2.cmml">p</mi></mrow></mrow><mo lspace="0em" rspace="0em" id="S2.E2.m1.6.6.6.3.2" xref="S2.E2.m1.6.6.6.3.2.cmml">​</mo><mrow id="S2.E2.m1.6.6.6.3.1.1" xref="S2.E2.m1.6.6.6.3.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.6.6.6.3.1.1.2" xref="S2.E2.m1.6.6.6.3.1.1.1.cmml">(</mo><msub id="S2.E2.m1.6.6.6.3.1.1.1" xref="S2.E2.m1.6.6.6.3.1.1.1.cmml"><mi id="S2.E2.m1.6.6.6.3.1.1.1.2" xref="S2.E2.m1.6.6.6.3.1.1.1.2.cmml">W</mi><mrow id="S2.E2.m1.5.5.5.2.2.2" xref="S2.E2.m1.5.5.5.2.2.3.cmml"><mi id="S2.E2.m1.4.4.4.1.1.1" xref="S2.E2.m1.4.4.4.1.1.1.cmml">i</mi><mo id="S2.E2.m1.5.5.5.2.2.2.2" xref="S2.E2.m1.5.5.5.2.2.3.cmml">,</mo><msup id="S2.E2.m1.5.5.5.2.2.2.1" xref="S2.E2.m1.5.5.5.2.2.2.1.cmml"><mi id="S2.E2.m1.5.5.5.2.2.2.1.2" xref="S2.E2.m1.5.5.5.2.2.2.1.2.cmml">j</mi><mo id="S2.E2.m1.5.5.5.2.2.2.1.3" xref="S2.E2.m1.5.5.5.2.2.2.1.3.cmml">′</mo></msup></mrow></msub><mo stretchy="false" id="S2.E2.m1.6.6.6.3.1.1.3" xref="S2.E2.m1.6.6.6.3.1.1.1.cmml">)</mo></mrow></mrow></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m1.7b"><apply id="S2.E2.m1.7.7.cmml" xref="S2.E2.m1.7.7"><approx id="S2.E2.m1.7.7.2.cmml" xref="S2.E2.m1.7.7.2"></approx><apply id="S2.E2.m1.7.7.1.cmml" xref="S2.E2.m1.7.7.1"><times id="S2.E2.m1.7.7.1.2.cmml" xref="S2.E2.m1.7.7.1.2"></times><ci id="S2.E2.m1.7.7.1.3.cmml" xref="S2.E2.m1.7.7.1.3">𝑝</ci><apply id="S2.E2.m1.7.7.1.1.1.1.cmml" xref="S2.E2.m1.7.7.1.1.1"><csymbol cd="latexml" id="S2.E2.m1.7.7.1.1.1.1.1.cmml" xref="S2.E2.m1.7.7.1.1.1.1.1">conditional</csymbol><apply id="S2.E2.m1.7.7.1.1.1.1.2.cmml" xref="S2.E2.m1.7.7.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E2.m1.7.7.1.1.1.1.2.1.cmml" xref="S2.E2.m1.7.7.1.1.1.1.2">subscript</csymbol><ci id="S2.E2.m1.7.7.1.1.1.1.2.2.cmml" xref="S2.E2.m1.7.7.1.1.1.1.2.2">𝑟</ci><ci id="S2.E2.m1.7.7.1.1.1.1.2.3.cmml" xref="S2.E2.m1.7.7.1.1.1.1.2.3">𝑗</ci></apply><apply id="S2.E2.m1.7.7.1.1.1.1.3.cmml" xref="S2.E2.m1.7.7.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.7.7.1.1.1.1.3.1.cmml" xref="S2.E2.m1.7.7.1.1.1.1.3">subscript</csymbol><ci id="S2.E2.m1.7.7.1.1.1.1.3.2.cmml" xref="S2.E2.m1.7.7.1.1.1.1.3.2">𝑜</ci><ci id="S2.E2.m1.7.7.1.1.1.1.3.3.cmml" xref="S2.E2.m1.7.7.1.1.1.1.3.3">𝑖</ci></apply></apply></apply><apply id="S2.E2.m1.6.6.cmml" xref="S2.E2.m1.6.6"><divide id="S2.E2.m1.6.6.7.cmml" xref="S2.E2.m1.6.6"></divide><apply id="S2.E2.m1.3.3.3.cmml" xref="S2.E2.m1.3.3.3"><times id="S2.E2.m1.3.3.3.4.cmml" xref="S2.E2.m1.3.3.3.4"></times><apply id="S2.E2.m1.3.3.3.5.cmml" xref="S2.E2.m1.3.3.3.5"><exp id="S2.E2.m1.3.3.3.5.1.cmml" xref="S2.E2.m1.3.3.3.5.1"></exp><apply id="S2.E2.m1.3.3.3.5.2.cmml" xref="S2.E2.m1.3.3.3.5.2"><log id="S2.E2.m1.3.3.3.5.2.1.cmml" xref="S2.E2.m1.3.3.3.5.2.1"></log><ci id="S2.E2.m1.3.3.3.5.2.2.cmml" xref="S2.E2.m1.3.3.3.5.2.2">𝑝</ci></apply></apply><apply id="S2.E2.m1.3.3.3.3.1.1.cmml" xref="S2.E2.m1.3.3.3.3.1"><csymbol cd="ambiguous" id="S2.E2.m1.3.3.3.3.1.1.1.cmml" xref="S2.E2.m1.3.3.3.3.1">subscript</csymbol><ci id="S2.E2.m1.3.3.3.3.1.1.2.cmml" xref="S2.E2.m1.3.3.3.3.1.1.2">𝑊</ci><list id="S2.E2.m1.2.2.2.2.2.3.cmml" xref="S2.E2.m1.2.2.2.2.2.4"><ci id="S2.E2.m1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1.1">𝑖</ci><ci id="S2.E2.m1.2.2.2.2.2.2.cmml" xref="S2.E2.m1.2.2.2.2.2.2">𝑗</ci></list></apply></apply><apply id="S2.E2.m1.6.6.6.cmml" xref="S2.E2.m1.6.6.6"><apply id="S2.E2.m1.6.6.6.4.cmml" xref="S2.E2.m1.6.6.6.4"><csymbol cd="ambiguous" id="S2.E2.m1.6.6.6.4.1.cmml" xref="S2.E2.m1.6.6.6.4">subscript</csymbol><sum id="S2.E2.m1.6.6.6.4.2.cmml" xref="S2.E2.m1.6.6.6.4.2"></sum><apply id="S2.E2.m1.6.6.6.4.3.cmml" xref="S2.E2.m1.6.6.6.4.3"><in id="S2.E2.m1.6.6.6.4.3.1.cmml" xref="S2.E2.m1.6.6.6.4.3.1"></in><apply id="S2.E2.m1.6.6.6.4.3.2.cmml" xref="S2.E2.m1.6.6.6.4.3.2"><csymbol cd="ambiguous" id="S2.E2.m1.6.6.6.4.3.2.1.cmml" xref="S2.E2.m1.6.6.6.4.3.2">subscript</csymbol><ci id="S2.E2.m1.6.6.6.4.3.2.2.cmml" xref="S2.E2.m1.6.6.6.4.3.2.2">𝑟</ci><apply id="S2.E2.m1.6.6.6.4.3.2.3.cmml" xref="S2.E2.m1.6.6.6.4.3.2.3"><csymbol cd="ambiguous" id="S2.E2.m1.6.6.6.4.3.2.3.1.cmml" xref="S2.E2.m1.6.6.6.4.3.2.3">superscript</csymbol><ci id="S2.E2.m1.6.6.6.4.3.2.3.2.cmml" xref="S2.E2.m1.6.6.6.4.3.2.3.2">𝑗</ci><ci id="S2.E2.m1.6.6.6.4.3.2.3.3.cmml" xref="S2.E2.m1.6.6.6.4.3.2.3.3">′</ci></apply></apply><apply id="S2.E2.m1.6.6.6.4.3.3.cmml" xref="S2.E2.m1.6.6.6.4.3.3"><csymbol cd="ambiguous" id="S2.E2.m1.6.6.6.4.3.3.1.cmml" xref="S2.E2.m1.6.6.6.4.3.3">subscript</csymbol><ci id="S2.E2.m1.6.6.6.4.3.3.2.cmml" xref="S2.E2.m1.6.6.6.4.3.3.2">𝐿</ci><ci id="S2.E2.m1.6.6.6.4.3.3.3.cmml" xref="S2.E2.m1.6.6.6.4.3.3.3">𝑅</ci></apply></apply></apply><apply id="S2.E2.m1.6.6.6.3.cmml" xref="S2.E2.m1.6.6.6.3"><times id="S2.E2.m1.6.6.6.3.2.cmml" xref="S2.E2.m1.6.6.6.3.2"></times><apply id="S2.E2.m1.6.6.6.3.3.cmml" xref="S2.E2.m1.6.6.6.3.3"><exp id="S2.E2.m1.6.6.6.3.3.1.cmml" xref="S2.E2.m1.6.6.6.3.3.1"></exp><apply id="S2.E2.m1.6.6.6.3.3.2.cmml" xref="S2.E2.m1.6.6.6.3.3.2"><log id="S2.E2.m1.6.6.6.3.3.2.1.cmml" xref="S2.E2.m1.6.6.6.3.3.2.1"></log><ci id="S2.E2.m1.6.6.6.3.3.2.2.cmml" xref="S2.E2.m1.6.6.6.3.3.2.2">𝑝</ci></apply></apply><apply id="S2.E2.m1.6.6.6.3.1.1.1.cmml" xref="S2.E2.m1.6.6.6.3.1.1"><csymbol cd="ambiguous" id="S2.E2.m1.6.6.6.3.1.1.1.1.cmml" xref="S2.E2.m1.6.6.6.3.1.1">subscript</csymbol><ci id="S2.E2.m1.6.6.6.3.1.1.1.2.cmml" xref="S2.E2.m1.6.6.6.3.1.1.1.2">𝑊</ci><list id="S2.E2.m1.5.5.5.2.2.3.cmml" xref="S2.E2.m1.5.5.5.2.2.2"><ci id="S2.E2.m1.4.4.4.1.1.1.cmml" xref="S2.E2.m1.4.4.4.1.1.1">𝑖</ci><apply id="S2.E2.m1.5.5.5.2.2.2.1.cmml" xref="S2.E2.m1.5.5.5.2.2.2.1"><csymbol cd="ambiguous" id="S2.E2.m1.5.5.5.2.2.2.1.1.cmml" xref="S2.E2.m1.5.5.5.2.2.2.1">superscript</csymbol><ci id="S2.E2.m1.5.5.5.2.2.2.1.2.cmml" xref="S2.E2.m1.5.5.5.2.2.2.1.2">𝑗</ci><ci id="S2.E2.m1.5.5.5.2.2.2.1.3.cmml" xref="S2.E2.m1.5.5.5.2.2.2.1.3">′</ci></apply></list></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.7c">p(r_{j}\ |\ o_{i})\approx\frac{\exp\log p(W_{i,j})}{\sum_{r_{j^{\prime}}\in L_{R}}\exp\log p(W_{i,j^{\prime}})}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.I1.i2.p1.4" class="ltx_p">where <math id="S2.I1.i2.p1.1.m1.2" class="ltx_Math" alttext="W_{i,j}" display="inline"><semantics id="S2.I1.i2.p1.1.m1.2a"><msub id="S2.I1.i2.p1.1.m1.2.3" xref="S2.I1.i2.p1.1.m1.2.3.cmml"><mi id="S2.I1.i2.p1.1.m1.2.3.2" xref="S2.I1.i2.p1.1.m1.2.3.2.cmml">W</mi><mrow id="S2.I1.i2.p1.1.m1.2.2.2.4" xref="S2.I1.i2.p1.1.m1.2.2.2.3.cmml"><mi id="S2.I1.i2.p1.1.m1.1.1.1.1" xref="S2.I1.i2.p1.1.m1.1.1.1.1.cmml">i</mi><mo id="S2.I1.i2.p1.1.m1.2.2.2.4.1" xref="S2.I1.i2.p1.1.m1.2.2.2.3.cmml">,</mo><mi id="S2.I1.i2.p1.1.m1.2.2.2.2" xref="S2.I1.i2.p1.1.m1.2.2.2.2.cmml">j</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.1.m1.2b"><apply id="S2.I1.i2.p1.1.m1.2.3.cmml" xref="S2.I1.i2.p1.1.m1.2.3"><csymbol cd="ambiguous" id="S2.I1.i2.p1.1.m1.2.3.1.cmml" xref="S2.I1.i2.p1.1.m1.2.3">subscript</csymbol><ci id="S2.I1.i2.p1.1.m1.2.3.2.cmml" xref="S2.I1.i2.p1.1.m1.2.3.2">𝑊</ci><list id="S2.I1.i2.p1.1.m1.2.2.2.3.cmml" xref="S2.I1.i2.p1.1.m1.2.2.2.4"><ci id="S2.I1.i2.p1.1.m1.1.1.1.1.cmml" xref="S2.I1.i2.p1.1.m1.1.1.1.1">𝑖</ci><ci id="S2.I1.i2.p1.1.m1.2.2.2.2.cmml" xref="S2.I1.i2.p1.1.m1.2.2.2.2">𝑗</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.1.m1.2c">W_{i,j}</annotation></semantics></math> is the query string “A room containing <math id="S2.I1.i2.p1.2.m2.1" class="ltx_Math" alttext="o_{i}" display="inline"><semantics id="S2.I1.i2.p1.2.m2.1a"><msub id="S2.I1.i2.p1.2.m2.1.1" xref="S2.I1.i2.p1.2.m2.1.1.cmml"><mi id="S2.I1.i2.p1.2.m2.1.1.2" xref="S2.I1.i2.p1.2.m2.1.1.2.cmml">o</mi><mi id="S2.I1.i2.p1.2.m2.1.1.3" xref="S2.I1.i2.p1.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.2.m2.1b"><apply id="S2.I1.i2.p1.2.m2.1.1.cmml" xref="S2.I1.i2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.I1.i2.p1.2.m2.1.1.1.cmml" xref="S2.I1.i2.p1.2.m2.1.1">subscript</csymbol><ci id="S2.I1.i2.p1.2.m2.1.1.2.cmml" xref="S2.I1.i2.p1.2.m2.1.1.2">𝑜</ci><ci id="S2.I1.i2.p1.2.m2.1.1.3.cmml" xref="S2.I1.i2.p1.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.2.m2.1c">o_{i}</annotation></semantics></math> is called a(n) <math id="S2.I1.i2.p1.3.m3.1" class="ltx_Math" alttext="r_{j}" display="inline"><semantics id="S2.I1.i2.p1.3.m3.1a"><msub id="S2.I1.i2.p1.3.m3.1.1" xref="S2.I1.i2.p1.3.m3.1.1.cmml"><mi id="S2.I1.i2.p1.3.m3.1.1.2" xref="S2.I1.i2.p1.3.m3.1.1.2.cmml">r</mi><mi id="S2.I1.i2.p1.3.m3.1.1.3" xref="S2.I1.i2.p1.3.m3.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.3.m3.1b"><apply id="S2.I1.i2.p1.3.m3.1.1.cmml" xref="S2.I1.i2.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.I1.i2.p1.3.m3.1.1.1.cmml" xref="S2.I1.i2.p1.3.m3.1.1">subscript</csymbol><ci id="S2.I1.i2.p1.3.m3.1.1.2.cmml" xref="S2.I1.i2.p1.3.m3.1.1.2">𝑟</ci><ci id="S2.I1.i2.p1.3.m3.1.1.3.cmml" xref="S2.I1.i2.p1.3.m3.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.3.m3.1c">r_{j}</annotation></semantics></math>.” and the overall log probability <math id="S2.I1.i2.p1.4.m4.3" class="ltx_Math" alttext="\log p(W_{i,j})" display="inline"><semantics id="S2.I1.i2.p1.4.m4.3a"><mrow id="S2.I1.i2.p1.4.m4.3.3" xref="S2.I1.i2.p1.4.m4.3.3.cmml"><mrow id="S2.I1.i2.p1.4.m4.3.3.3" xref="S2.I1.i2.p1.4.m4.3.3.3.cmml"><mi id="S2.I1.i2.p1.4.m4.3.3.3.1" xref="S2.I1.i2.p1.4.m4.3.3.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.I1.i2.p1.4.m4.3.3.3a" xref="S2.I1.i2.p1.4.m4.3.3.3.cmml">⁡</mo><mi id="S2.I1.i2.p1.4.m4.3.3.3.2" xref="S2.I1.i2.p1.4.m4.3.3.3.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.I1.i2.p1.4.m4.3.3.2" xref="S2.I1.i2.p1.4.m4.3.3.2.cmml">​</mo><mrow id="S2.I1.i2.p1.4.m4.3.3.1.1" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.cmml"><mo stretchy="false" id="S2.I1.i2.p1.4.m4.3.3.1.1.2" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.cmml">(</mo><msub id="S2.I1.i2.p1.4.m4.3.3.1.1.1" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.cmml"><mi id="S2.I1.i2.p1.4.m4.3.3.1.1.1.2" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.2.cmml">W</mi><mrow id="S2.I1.i2.p1.4.m4.2.2.2.4" xref="S2.I1.i2.p1.4.m4.2.2.2.3.cmml"><mi id="S2.I1.i2.p1.4.m4.1.1.1.1" xref="S2.I1.i2.p1.4.m4.1.1.1.1.cmml">i</mi><mo id="S2.I1.i2.p1.4.m4.2.2.2.4.1" xref="S2.I1.i2.p1.4.m4.2.2.2.3.cmml">,</mo><mi id="S2.I1.i2.p1.4.m4.2.2.2.2" xref="S2.I1.i2.p1.4.m4.2.2.2.2.cmml">j</mi></mrow></msub><mo stretchy="false" id="S2.I1.i2.p1.4.m4.3.3.1.1.3" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.4.m4.3b"><apply id="S2.I1.i2.p1.4.m4.3.3.cmml" xref="S2.I1.i2.p1.4.m4.3.3"><times id="S2.I1.i2.p1.4.m4.3.3.2.cmml" xref="S2.I1.i2.p1.4.m4.3.3.2"></times><apply id="S2.I1.i2.p1.4.m4.3.3.3.cmml" xref="S2.I1.i2.p1.4.m4.3.3.3"><log id="S2.I1.i2.p1.4.m4.3.3.3.1.cmml" xref="S2.I1.i2.p1.4.m4.3.3.3.1"></log><ci id="S2.I1.i2.p1.4.m4.3.3.3.2.cmml" xref="S2.I1.i2.p1.4.m4.3.3.3.2">𝑝</ci></apply><apply id="S2.I1.i2.p1.4.m4.3.3.1.1.1.cmml" xref="S2.I1.i2.p1.4.m4.3.3.1.1"><csymbol cd="ambiguous" id="S2.I1.i2.p1.4.m4.3.3.1.1.1.1.cmml" xref="S2.I1.i2.p1.4.m4.3.3.1.1">subscript</csymbol><ci id="S2.I1.i2.p1.4.m4.3.3.1.1.1.2.cmml" xref="S2.I1.i2.p1.4.m4.3.3.1.1.1.2">𝑊</ci><list id="S2.I1.i2.p1.4.m4.2.2.2.3.cmml" xref="S2.I1.i2.p1.4.m4.2.2.2.4"><ci id="S2.I1.i2.p1.4.m4.1.1.1.1.cmml" xref="S2.I1.i2.p1.4.m4.1.1.1.1">𝑖</ci><ci id="S2.I1.i2.p1.4.m4.2.2.2.2.cmml" xref="S2.I1.i2.p1.4.m4.2.2.2.2">𝑗</ci></list></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.4.m4.3c">\log p(W_{i,j})</annotation></semantics></math> is computed using the method outlined in Section <a href="#S2.SS1" title="II-A Language Model Evaluation ‣ II Contribution ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-A</span></span></a>. These conditional probabilities can be pre-computed for every room/object label pair.</p>
+</div>
+</li>
+</ol>
+<p id="S2.SS2.p3.5" class="ltx_p">In either case, with <math id="S2.SS2.p3.5.m1.1" class="ltx_Math" alttext="p(r_{j}\ |\ o_{i})" display="inline"><semantics id="S2.SS2.p3.5.m1.1a"><mrow id="S2.SS2.p3.5.m1.1.1" xref="S2.SS2.p3.5.m1.1.1.cmml"><mi id="S2.SS2.p3.5.m1.1.1.3" xref="S2.SS2.p3.5.m1.1.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.SS2.p3.5.m1.1.1.2" xref="S2.SS2.p3.5.m1.1.1.2.cmml">​</mo><mrow id="S2.SS2.p3.5.m1.1.1.1.1" xref="S2.SS2.p3.5.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS2.p3.5.m1.1.1.1.1.2" xref="S2.SS2.p3.5.m1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS2.p3.5.m1.1.1.1.1.1" xref="S2.SS2.p3.5.m1.1.1.1.1.1.cmml"><msub id="S2.SS2.p3.5.m1.1.1.1.1.1.2" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2.cmml"><mi id="S2.SS2.p3.5.m1.1.1.1.1.1.2.2" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2.2.cmml">r</mi><mi id="S2.SS2.p3.5.m1.1.1.1.1.1.2.3" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2.3.cmml">j</mi></msub><mo fence="false" rspace="0.778em" id="S2.SS2.p3.5.m1.1.1.1.1.1.1" xref="S2.SS2.p3.5.m1.1.1.1.1.1.1.cmml">|</mo><msub id="S2.SS2.p3.5.m1.1.1.1.1.1.3" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3.cmml"><mi id="S2.SS2.p3.5.m1.1.1.1.1.1.3.2" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3.2.cmml">o</mi><mi id="S2.SS2.p3.5.m1.1.1.1.1.1.3.3" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3.3.cmml">i</mi></msub></mrow><mo stretchy="false" id="S2.SS2.p3.5.m1.1.1.1.1.3" xref="S2.SS2.p3.5.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.5.m1.1b"><apply id="S2.SS2.p3.5.m1.1.1.cmml" xref="S2.SS2.p3.5.m1.1.1"><times id="S2.SS2.p3.5.m1.1.1.2.cmml" xref="S2.SS2.p3.5.m1.1.1.2"></times><ci id="S2.SS2.p3.5.m1.1.1.3.cmml" xref="S2.SS2.p3.5.m1.1.1.3">𝑝</ci><apply id="S2.SS2.p3.5.m1.1.1.1.1.1.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1"><csymbol cd="latexml" id="S2.SS2.p3.5.m1.1.1.1.1.1.1.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.1">conditional</csymbol><apply id="S2.SS2.p3.5.m1.1.1.1.1.1.2.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p3.5.m1.1.1.1.1.1.2.1.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2">subscript</csymbol><ci id="S2.SS2.p3.5.m1.1.1.1.1.1.2.2.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2.2">𝑟</ci><ci id="S2.SS2.p3.5.m1.1.1.1.1.1.2.3.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.2.3">𝑗</ci></apply><apply id="S2.SS2.p3.5.m1.1.1.1.1.1.3.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p3.5.m1.1.1.1.1.1.3.1.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS2.p3.5.m1.1.1.1.1.1.3.2.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3.2">𝑜</ci><ci id="S2.SS2.p3.5.m1.1.1.1.1.1.3.3.cmml" xref="S2.SS2.p3.5.m1.1.1.1.1.1.3.3">𝑖</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.5.m1.1c">p(r_{j}\ |\ o_{i})</annotation></semantics></math> available, a natural measure of its non-uniformity is entropy:</p>
+<table id="S2.E3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E3.m1.2" class="ltx_Math" alttext="H_{i}=-\sum_{r_{j}\in L_{R}}p(r_{j}\ |\ o_{i})\log p(r_{j}\ |\ o_{i})" display="block"><semantics id="S2.E3.m1.2a"><mrow id="S2.E3.m1.2.2" xref="S2.E3.m1.2.2.cmml"><msub id="S2.E3.m1.2.2.4" xref="S2.E3.m1.2.2.4.cmml"><mi id="S2.E3.m1.2.2.4.2" xref="S2.E3.m1.2.2.4.2.cmml">H</mi><mi id="S2.E3.m1.2.2.4.3" xref="S2.E3.m1.2.2.4.3.cmml">i</mi></msub><mo id="S2.E3.m1.2.2.3" xref="S2.E3.m1.2.2.3.cmml">=</mo><mrow id="S2.E3.m1.2.2.2" xref="S2.E3.m1.2.2.2.cmml"><mo id="S2.E3.m1.2.2.2a" xref="S2.E3.m1.2.2.2.cmml">−</mo><mrow id="S2.E3.m1.2.2.2.2" xref="S2.E3.m1.2.2.2.2.cmml"><munder id="S2.E3.m1.2.2.2.2.3" xref="S2.E3.m1.2.2.2.2.3.cmml"><mo movablelimits="false" id="S2.E3.m1.2.2.2.2.3.2" xref="S2.E3.m1.2.2.2.2.3.2.cmml">∑</mo><mrow id="S2.E3.m1.2.2.2.2.3.3" xref="S2.E3.m1.2.2.2.2.3.3.cmml"><msub id="S2.E3.m1.2.2.2.2.3.3.2" xref="S2.E3.m1.2.2.2.2.3.3.2.cmml"><mi id="S2.E3.m1.2.2.2.2.3.3.2.2" xref="S2.E3.m1.2.2.2.2.3.3.2.2.cmml">r</mi><mi id="S2.E3.m1.2.2.2.2.3.3.2.3" xref="S2.E3.m1.2.2.2.2.3.3.2.3.cmml">j</mi></msub><mo id="S2.E3.m1.2.2.2.2.3.3.1" xref="S2.E3.m1.2.2.2.2.3.3.1.cmml">∈</mo><msub id="S2.E3.m1.2.2.2.2.3.3.3" xref="S2.E3.m1.2.2.2.2.3.3.3.cmml"><mi id="S2.E3.m1.2.2.2.2.3.3.3.2" xref="S2.E3.m1.2.2.2.2.3.3.3.2.cmml">L</mi><mi id="S2.E3.m1.2.2.2.2.3.3.3.3" xref="S2.E3.m1.2.2.2.2.3.3.3.3.cmml">R</mi></msub></mrow></munder><mrow id="S2.E3.m1.2.2.2.2.2" xref="S2.E3.m1.2.2.2.2.2.cmml"><mi id="S2.E3.m1.2.2.2.2.2.4" xref="S2.E3.m1.2.2.2.2.2.4.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.2.2.3" xref="S2.E3.m1.2.2.2.2.2.3.cmml">​</mo><mrow id="S2.E3.m1.1.1.1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E3.m1.1.1.1.1.1.1.1.2" xref="S2.E3.m1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E3.m1.1.1.1.1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.E3.m1.1.1.1.1.1.1.1.1.2" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2.cmml"><mi id="S2.E3.m1.1.1.1.1.1.1.1.1.2.2" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2.2.cmml">r</mi><mi id="S2.E3.m1.1.1.1.1.1.1.1.1.2.3" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2.3.cmml">j</mi></msub><mo fence="false" rspace="0.778em" id="S2.E3.m1.1.1.1.1.1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.1.1.1.1.1.cmml">|</mo><msub id="S2.E3.m1.1.1.1.1.1.1.1.1.3" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3.cmml"><mi id="S2.E3.m1.1.1.1.1.1.1.1.1.3.2" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3.2.cmml">o</mi><mi id="S2.E3.m1.1.1.1.1.1.1.1.1.3.3" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3.3.cmml">i</mi></msub></mrow><mo stretchy="false" id="S2.E3.m1.1.1.1.1.1.1.1.3" xref="S2.E3.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow><mo lspace="0.167em" rspace="0em" id="S2.E3.m1.2.2.2.2.2.3a" xref="S2.E3.m1.2.2.2.2.2.3.cmml">​</mo><mrow id="S2.E3.m1.2.2.2.2.2.5" xref="S2.E3.m1.2.2.2.2.2.5.cmml"><mi id="S2.E3.m1.2.2.2.2.2.5.1" xref="S2.E3.m1.2.2.2.2.2.5.1.cmml">log</mi><mo lspace="0.167em" id="S2.E3.m1.2.2.2.2.2.5a" xref="S2.E3.m1.2.2.2.2.2.5.cmml">⁡</mo><mi id="S2.E3.m1.2.2.2.2.2.5.2" xref="S2.E3.m1.2.2.2.2.2.5.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.2.2.3b" xref="S2.E3.m1.2.2.2.2.2.3.cmml">​</mo><mrow id="S2.E3.m1.2.2.2.2.2.2.1" xref="S2.E3.m1.2.2.2.2.2.2.1.1.cmml"><mo stretchy="false" id="S2.E3.m1.2.2.2.2.2.2.1.2" xref="S2.E3.m1.2.2.2.2.2.2.1.1.cmml">(</mo><mrow id="S2.E3.m1.2.2.2.2.2.2.1.1" xref="S2.E3.m1.2.2.2.2.2.2.1.1.cmml"><msub id="S2.E3.m1.2.2.2.2.2.2.1.1.2" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2.cmml"><mi id="S2.E3.m1.2.2.2.2.2.2.1.1.2.2" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2.2.cmml">r</mi><mi id="S2.E3.m1.2.2.2.2.2.2.1.1.2.3" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2.3.cmml">j</mi></msub><mo fence="false" rspace="0.778em" id="S2.E3.m1.2.2.2.2.2.2.1.1.1" xref="S2.E3.m1.2.2.2.2.2.2.1.1.1.cmml">|</mo><msub id="S2.E3.m1.2.2.2.2.2.2.1.1.3" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3.cmml"><mi id="S2.E3.m1.2.2.2.2.2.2.1.1.3.2" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3.2.cmml">o</mi><mi id="S2.E3.m1.2.2.2.2.2.2.1.1.3.3" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3.3.cmml">i</mi></msub></mrow><mo stretchy="false" id="S2.E3.m1.2.2.2.2.2.2.1.3" xref="S2.E3.m1.2.2.2.2.2.2.1.1.cmml">)</mo></mrow></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m1.2b"><apply id="S2.E3.m1.2.2.cmml" xref="S2.E3.m1.2.2"><eq id="S2.E3.m1.2.2.3.cmml" xref="S2.E3.m1.2.2.3"></eq><apply id="S2.E3.m1.2.2.4.cmml" xref="S2.E3.m1.2.2.4"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.4.1.cmml" xref="S2.E3.m1.2.2.4">subscript</csymbol><ci id="S2.E3.m1.2.2.4.2.cmml" xref="S2.E3.m1.2.2.4.2">𝐻</ci><ci id="S2.E3.m1.2.2.4.3.cmml" xref="S2.E3.m1.2.2.4.3">𝑖</ci></apply><apply id="S2.E3.m1.2.2.2.cmml" xref="S2.E3.m1.2.2.2"><minus id="S2.E3.m1.2.2.2.3.cmml" xref="S2.E3.m1.2.2.2"></minus><apply id="S2.E3.m1.2.2.2.2.cmml" xref="S2.E3.m1.2.2.2.2"><apply id="S2.E3.m1.2.2.2.2.3.cmml" xref="S2.E3.m1.2.2.2.2.3"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.2.3.1.cmml" xref="S2.E3.m1.2.2.2.2.3">subscript</csymbol><sum id="S2.E3.m1.2.2.2.2.3.2.cmml" xref="S2.E3.m1.2.2.2.2.3.2"></sum><apply id="S2.E3.m1.2.2.2.2.3.3.cmml" xref="S2.E3.m1.2.2.2.2.3.3"><in id="S2.E3.m1.2.2.2.2.3.3.1.cmml" xref="S2.E3.m1.2.2.2.2.3.3.1"></in><apply id="S2.E3.m1.2.2.2.2.3.3.2.cmml" xref="S2.E3.m1.2.2.2.2.3.3.2"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.2.3.3.2.1.cmml" xref="S2.E3.m1.2.2.2.2.3.3.2">subscript</csymbol><ci id="S2.E3.m1.2.2.2.2.3.3.2.2.cmml" xref="S2.E3.m1.2.2.2.2.3.3.2.2">𝑟</ci><ci id="S2.E3.m1.2.2.2.2.3.3.2.3.cmml" xref="S2.E3.m1.2.2.2.2.3.3.2.3">𝑗</ci></apply><apply id="S2.E3.m1.2.2.2.2.3.3.3.cmml" xref="S2.E3.m1.2.2.2.2.3.3.3"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.2.3.3.3.1.cmml" xref="S2.E3.m1.2.2.2.2.3.3.3">subscript</csymbol><ci id="S2.E3.m1.2.2.2.2.3.3.3.2.cmml" xref="S2.E3.m1.2.2.2.2.3.3.3.2">𝐿</ci><ci id="S2.E3.m1.2.2.2.2.3.3.3.3.cmml" xref="S2.E3.m1.2.2.2.2.3.3.3.3">𝑅</ci></apply></apply></apply><apply id="S2.E3.m1.2.2.2.2.2.cmml" xref="S2.E3.m1.2.2.2.2.2"><times id="S2.E3.m1.2.2.2.2.2.3.cmml" xref="S2.E3.m1.2.2.2.2.2.3"></times><ci id="S2.E3.m1.2.2.2.2.2.4.cmml" xref="S2.E3.m1.2.2.2.2.2.4">𝑝</ci><apply id="S2.E3.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.E3.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.1">conditional</csymbol><apply id="S2.E3.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2">subscript</csymbol><ci id="S2.E3.m1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2.2">𝑟</ci><ci id="S2.E3.m1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.2.3">𝑗</ci></apply><apply id="S2.E3.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.E3.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3.2">𝑜</ci><ci id="S2.E3.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E3.m1.1.1.1.1.1.1.1.1.3.3">𝑖</ci></apply></apply><apply id="S2.E3.m1.2.2.2.2.2.5.cmml" xref="S2.E3.m1.2.2.2.2.2.5"><log id="S2.E3.m1.2.2.2.2.2.5.1.cmml" xref="S2.E3.m1.2.2.2.2.2.5.1"></log><ci id="S2.E3.m1.2.2.2.2.2.5.2.cmml" xref="S2.E3.m1.2.2.2.2.2.5.2">𝑝</ci></apply><apply id="S2.E3.m1.2.2.2.2.2.2.1.1.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1"><csymbol cd="latexml" id="S2.E3.m1.2.2.2.2.2.2.1.1.1.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.1">conditional</csymbol><apply id="S2.E3.m1.2.2.2.2.2.2.1.1.2.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.2.2.2.1.1.2.1.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2">subscript</csymbol><ci id="S2.E3.m1.2.2.2.2.2.2.1.1.2.2.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2.2">𝑟</ci><ci id="S2.E3.m1.2.2.2.2.2.2.1.1.2.3.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.2.3">𝑗</ci></apply><apply id="S2.E3.m1.2.2.2.2.2.2.1.1.3.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.2.2.2.1.1.3.1.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3">subscript</csymbol><ci id="S2.E3.m1.2.2.2.2.2.2.1.1.3.2.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3.2">𝑜</ci><ci id="S2.E3.m1.2.2.2.2.2.2.1.1.3.3.cmml" xref="S2.E3.m1.2.2.2.2.2.2.1.1.3.3">𝑖</ci></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.2c">H_{i}=-\sum_{r_{j}\in L_{R}}p(r_{j}\ |\ o_{i})\log p(r_{j}\ |\ o_{i})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p3.6" class="ltx_p">Entropy is maximized when the considered distribution is uniform and minimized when it is a delta distribution, meaning more semantically-informative objects, which have less uniform distributions, have <span id="S2.SS2.p3.6.1" class="ltx_text ltx_font_italic">lower</span> corresponding <math id="S2.SS2.p3.6.m1.1" class="ltx_Math" alttext="H_{i}" display="inline"><semantics id="S2.SS2.p3.6.m1.1a"><msub id="S2.SS2.p3.6.m1.1.1" xref="S2.SS2.p3.6.m1.1.1.cmml"><mi id="S2.SS2.p3.6.m1.1.1.2" xref="S2.SS2.p3.6.m1.1.1.2.cmml">H</mi><mi id="S2.SS2.p3.6.m1.1.1.3" xref="S2.SS2.p3.6.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p3.6.m1.1b"><apply id="S2.SS2.p3.6.m1.1.1.cmml" xref="S2.SS2.p3.6.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p3.6.m1.1.1.1.cmml" xref="S2.SS2.p3.6.m1.1.1">subscript</csymbol><ci id="S2.SS2.p3.6.m1.1.1.2.cmml" xref="S2.SS2.p3.6.m1.1.1.2">𝐻</ci><ci id="S2.SS2.p3.6.m1.1.1.3.cmml" xref="S2.SS2.p3.6.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p3.6.m1.1c">H_{i}</annotation></semantics></math> values.</p>
+</div>
+<div id="S2.SS2.p4" class="ltx_para">
+<p id="S2.SS2.p4.1" class="ltx_p">Therefore, in order to pick which labels to include in the query string, we just take the <math id="S2.SS2.p4.1.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS2.p4.1.m1.1a"><mi id="S2.SS2.p4.1.m1.1.1" xref="S2.SS2.p4.1.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.1.m1.1b"><ci id="S2.SS2.p4.1.m1.1.1.cmml" xref="S2.SS2.p4.1.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.1.m1.1c">k</annotation></semantics></math> different lowest-entropy labels of present objects:</p>
+<table id="S2.E4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E4.m1.2" class="ltx_Math" alttext="O_{\text{best}}=\underset{o_{i}\in O}{\text{arg lowest\_$k$}}\ \left[H_{i}\right]" display="block"><semantics id="S2.E4.m1.2a"><mrow id="S2.E4.m1.2.2" xref="S2.E4.m1.2.2.cmml"><msub id="S2.E4.m1.2.2.3" xref="S2.E4.m1.2.2.3.cmml"><mi id="S2.E4.m1.2.2.3.2" xref="S2.E4.m1.2.2.3.2.cmml">O</mi><mtext id="S2.E4.m1.2.2.3.3" xref="S2.E4.m1.2.2.3.3a.cmml">best</mtext></msub><mo id="S2.E4.m1.2.2.2" xref="S2.E4.m1.2.2.2.cmml">=</mo><mrow id="S2.E4.m1.2.2.1" xref="S2.E4.m1.2.2.1.cmml"><munder accentunder="true" id="S2.E4.m1.1.1" xref="S2.E4.m1.1.1.cmml"><mrow id="S2.E4.m1.1.1.1" xref="S2.E4.m1.1.1.1b.cmml"><mtext id="S2.E4.m1.1.1.1a" xref="S2.E4.m1.1.1.1b.cmml">arg lowest_</mtext><mi id="S2.E4.m1.1.1.1.1.1.m1.1.1" xref="S2.E4.m1.1.1.1.1.1.m1.1.1.cmml">k</mi></mrow><mrow id="S2.E4.m1.1.1.2" xref="S2.E4.m1.1.1.2.cmml"><msub id="S2.E4.m1.1.1.2.2" xref="S2.E4.m1.1.1.2.2.cmml"><mi id="S2.E4.m1.1.1.2.2.2" xref="S2.E4.m1.1.1.2.2.2.cmml">o</mi><mi id="S2.E4.m1.1.1.2.2.3" xref="S2.E4.m1.1.1.2.2.3.cmml">i</mi></msub><mo id="S2.E4.m1.1.1.2.1" xref="S2.E4.m1.1.1.2.1.cmml">∈</mo><mi id="S2.E4.m1.1.1.2.3" xref="S2.E4.m1.1.1.2.3.cmml">O</mi></mrow></munder><mo lspace="0em" rspace="0em" id="S2.E4.m1.2.2.1.2" xref="S2.E4.m1.2.2.1.2.cmml">​</mo><mrow id="S2.E4.m1.2.2.1.1.1" xref="S2.E4.m1.2.2.1.1.2.cmml"><mo id="S2.E4.m1.2.2.1.1.1.2" xref="S2.E4.m1.2.2.1.1.2.1.cmml">[</mo><msub id="S2.E4.m1.2.2.1.1.1.1" xref="S2.E4.m1.2.2.1.1.1.1.cmml"><mi id="S2.E4.m1.2.2.1.1.1.1.2" xref="S2.E4.m1.2.2.1.1.1.1.2.cmml">H</mi><mi id="S2.E4.m1.2.2.1.1.1.1.3" xref="S2.E4.m1.2.2.1.1.1.1.3.cmml">i</mi></msub><mo id="S2.E4.m1.2.2.1.1.1.3" xref="S2.E4.m1.2.2.1.1.2.1.cmml">]</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E4.m1.2b"><apply id="S2.E4.m1.2.2.cmml" xref="S2.E4.m1.2.2"><eq id="S2.E4.m1.2.2.2.cmml" xref="S2.E4.m1.2.2.2"></eq><apply id="S2.E4.m1.2.2.3.cmml" xref="S2.E4.m1.2.2.3"><csymbol cd="ambiguous" id="S2.E4.m1.2.2.3.1.cmml" xref="S2.E4.m1.2.2.3">subscript</csymbol><ci id="S2.E4.m1.2.2.3.2.cmml" xref="S2.E4.m1.2.2.3.2">𝑂</ci><ci id="S2.E4.m1.2.2.3.3a.cmml" xref="S2.E4.m1.2.2.3.3"><mtext mathsize="70%" id="S2.E4.m1.2.2.3.3.cmml" xref="S2.E4.m1.2.2.3.3">best</mtext></ci></apply><apply id="S2.E4.m1.2.2.1.cmml" xref="S2.E4.m1.2.2.1"><times id="S2.E4.m1.2.2.1.2.cmml" xref="S2.E4.m1.2.2.1.2"></times><apply id="S2.E4.m1.1.1.cmml" xref="S2.E4.m1.1.1"><apply id="S2.E4.m1.1.1.2.cmml" xref="S2.E4.m1.1.1.2"><in id="S2.E4.m1.1.1.2.1.cmml" xref="S2.E4.m1.1.1.2.1"></in><apply id="S2.E4.m1.1.1.2.2.cmml" xref="S2.E4.m1.1.1.2.2"><csymbol cd="ambiguous" id="S2.E4.m1.1.1.2.2.1.cmml" xref="S2.E4.m1.1.1.2.2">subscript</csymbol><ci id="S2.E4.m1.1.1.2.2.2.cmml" xref="S2.E4.m1.1.1.2.2.2">𝑜</ci><ci id="S2.E4.m1.1.1.2.2.3.cmml" xref="S2.E4.m1.1.1.2.2.3">𝑖</ci></apply><ci id="S2.E4.m1.1.1.2.3.cmml" xref="S2.E4.m1.1.1.2.3">𝑂</ci></apply><ci id="S2.E4.m1.1.1.1b.cmml" xref="S2.E4.m1.1.1.1"><mrow id="S2.E4.m1.1.1.1.cmml" xref="S2.E4.m1.1.1.1"><mtext id="S2.E4.m1.1.1.1a.cmml" xref="S2.E4.m1.1.1.1">arg lowest_</mtext><mi id="S2.E4.m1.1.1.1.1.1.m1.1.1.cmml" xref="S2.E4.m1.1.1.1.1.1.m1.1.1">k</mi></mrow></ci></apply><apply id="S2.E4.m1.2.2.1.1.2.cmml" xref="S2.E4.m1.2.2.1.1.1"><csymbol cd="latexml" id="S2.E4.m1.2.2.1.1.2.1.cmml" xref="S2.E4.m1.2.2.1.1.1.2">delimited-[]</csymbol><apply id="S2.E4.m1.2.2.1.1.1.1.cmml" xref="S2.E4.m1.2.2.1.1.1.1"><csymbol cd="ambiguous" id="S2.E4.m1.2.2.1.1.1.1.1.cmml" xref="S2.E4.m1.2.2.1.1.1.1">subscript</csymbol><ci id="S2.E4.m1.2.2.1.1.1.1.2.cmml" xref="S2.E4.m1.2.2.1.1.1.1.2">𝐻</ci><ci id="S2.E4.m1.2.2.1.1.1.1.3.cmml" xref="S2.E4.m1.2.2.1.1.1.1.3">𝑖</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E4.m1.2c">O_{\text{best}}=\underset{o_{i}\in O}{\text{arg lowest\_$k$}}\ \left[H_{i}\right]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p4.2" class="ltx_p">where <math id="S2.SS2.p4.2.m1.1" class="ltx_Math" alttext="O" display="inline"><semantics id="S2.SS2.p4.2.m1.1a"><mi id="S2.SS2.p4.2.m1.1.1" xref="S2.SS2.p4.2.m1.1.1.cmml">O</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.2.m1.1b"><ci id="S2.SS2.p4.2.m1.1.1.cmml" xref="S2.SS2.p4.2.m1.1.1">𝑂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.2.m1.1c">O</annotation></semantics></math> is the set of all object labels contained within the considered room.</p>
+</div>
+<div id="S2.SS2.p5" class="ltx_para">
+<p id="S2.SS2.p5.1" class="ltx_p">Finally, for a given room, we construct <math id="S2.SS2.p5.1.m1.1" class="ltx_Math" alttext="|L_{R}|" display="inline"><semantics id="S2.SS2.p5.1.m1.1a"><mrow id="S2.SS2.p5.1.m1.1.1.1" xref="S2.SS2.p5.1.m1.1.1.2.cmml"><mo stretchy="false" id="S2.SS2.p5.1.m1.1.1.1.2" xref="S2.SS2.p5.1.m1.1.1.2.1.cmml">|</mo><msub id="S2.SS2.p5.1.m1.1.1.1.1" xref="S2.SS2.p5.1.m1.1.1.1.1.cmml"><mi id="S2.SS2.p5.1.m1.1.1.1.1.2" xref="S2.SS2.p5.1.m1.1.1.1.1.2.cmml">L</mi><mi id="S2.SS2.p5.1.m1.1.1.1.1.3" xref="S2.SS2.p5.1.m1.1.1.1.1.3.cmml">R</mi></msub><mo stretchy="false" id="S2.SS2.p5.1.m1.1.1.1.3" xref="S2.SS2.p5.1.m1.1.1.2.1.cmml">|</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p5.1.m1.1b"><apply id="S2.SS2.p5.1.m1.1.1.2.cmml" xref="S2.SS2.p5.1.m1.1.1.1"><abs id="S2.SS2.p5.1.m1.1.1.2.1.cmml" xref="S2.SS2.p5.1.m1.1.1.1.2"></abs><apply id="S2.SS2.p5.1.m1.1.1.1.1.cmml" xref="S2.SS2.p5.1.m1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p5.1.m1.1.1.1.1.1.cmml" xref="S2.SS2.p5.1.m1.1.1.1.1">subscript</csymbol><ci id="S2.SS2.p5.1.m1.1.1.1.1.2.cmml" xref="S2.SS2.p5.1.m1.1.1.1.1.2">𝐿</ci><ci id="S2.SS2.p5.1.m1.1.1.1.1.3.cmml" xref="S2.SS2.p5.1.m1.1.1.1.1.3">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p5.1.m1.1c">|L_{R}|</annotation></semantics></math> query strings, one per room label:</p>
+<table id="S2.E5" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E5.m1.7" class="ltx_Math" alttext="\begin{split}W_{j}=\ &amp;\text{``A room containing $o_{1}$, $o_{2}$... and $o_{k}$}\\
+&amp;\text{is called a(n) $r_{j}$.''}\end{split}" display="block"><semantics id="S2.E5.m1.7a"><mtable columnspacing="0pt" displaystyle="true" rowspacing="0pt" id="S2.E5.m1.7.7" xref="S2.E5.m1.7.8.1.cmml"><mtr id="S2.E5.m1.7.7a" xref="S2.E5.m1.7.8.1.cmml"><mtd class="ltx_align_right" columnalign="right" id="S2.E5.m1.7.7b" xref="S2.E5.m1.7.8.1.cmml"><mrow id="S2.E5.m1.7.7.7.6.3" xref="S2.E5.m1.7.8.1.cmml"><msub id="S2.E5.m1.7.7.7.6.3.4" xref="S2.E5.m1.7.8.1.cmml"><mi id="S2.E5.m1.5.5.5.4.1.1" xref="S2.E5.m1.5.5.5.4.1.1.cmml">W</mi><mi id="S2.E5.m1.6.6.6.5.2.2.1" xref="S2.E5.m1.6.6.6.5.2.2.1.cmml">j</mi></msub><mo id="S2.E5.m1.7.7.7.6.3.3" xref="S2.E5.m1.7.7.7.6.3.3.cmml">=</mo><mi id="S2.E5.m1.7.7.7.6.3.5" xref="S2.E5.m1.7.8.1.cmml"></mi></mrow></mtd><mtd class="ltx_align_left" columnalign="left" id="S2.E5.m1.7.7c" xref="S2.E5.m1.7.8.1.cmml"><mrow id="S2.E5.m1.3.3.3.3.3.3" xref="S2.E5.m1.3.3.3.3.3.3d.cmml"><mtext id="S2.E5.m1.3.3.3.3.3.3a" xref="S2.E5.m1.3.3.3.3.3.3d.cmml">“A room containing </mtext><msub id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.cmml"><mi id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.2" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.2.cmml">o</mi><mn id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.3" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.3.cmml">1</mn></msub><mtext id="S2.E5.m1.3.3.3.3.3.3b" xref="S2.E5.m1.3.3.3.3.3.3d.cmml">, </mtext><msub id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.cmml"><mi id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.2" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.2.cmml">o</mi><mn id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.3" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.3.cmml">2</mn></msub><mtext id="S2.E5.m1.3.3.3.3.3.3c" xref="S2.E5.m1.3.3.3.3.3.3d.cmml">… and </mtext><msub id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.cmml"><mi id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.2" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.2.cmml">o</mi><mi id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.3" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.3.cmml">k</mi></msub></mrow></mtd></mtr><mtr id="S2.E5.m1.7.7d" xref="S2.E5.m1.7.8.1.cmml"><mtd id="S2.E5.m1.7.7e" xref="S2.E5.m1.7.8.1.cmml"></mtd><mtd class="ltx_align_left" columnalign="left" id="S2.E5.m1.7.7f" xref="S2.E5.m1.7.8.1.cmml"><mrow id="S2.E5.m1.4.4.4.1.1.1" xref="S2.E5.m1.4.4.4.1.1.1c.cmml"><mtext id="S2.E5.m1.4.4.4.1.1.1a" xref="S2.E5.m1.4.4.4.1.1.1c.cmml">is called a(n) </mtext><msub id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.cmml"><mi id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.2" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.2.cmml">r</mi><mi id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.3" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.3.cmml">j</mi></msub><mtext id="S2.E5.m1.4.4.4.1.1.1b" xref="S2.E5.m1.4.4.4.1.1.1c.cmml">.”</mtext></mrow></mtd></mtr></mtable><annotation-xml encoding="MathML-Content" id="S2.E5.m1.7b"><apply id="S2.E5.m1.7.8.1.cmml" xref="S2.E5.m1.7.7"><eq id="S2.E5.m1.7.7.7.6.3.3.cmml" xref="S2.E5.m1.7.7.7.6.3.3"></eq><apply id="S2.E5.m1.7.8.1.2.cmml" xref="S2.E5.m1.7.7"><csymbol cd="ambiguous" id="S2.E5.m1.7.8.1.2.1.cmml" xref="S2.E5.m1.7.7">subscript</csymbol><ci id="S2.E5.m1.5.5.5.4.1.1.cmml" xref="S2.E5.m1.5.5.5.4.1.1">𝑊</ci><ci id="S2.E5.m1.6.6.6.5.2.2.1.cmml" xref="S2.E5.m1.6.6.6.5.2.2.1">𝑗</ci></apply><apply id="S2.E5.m1.7.8.1.3.cmml" xref="S2.E5.m1.7.7"><times id="S2.E5.m1.7.8.1.3.1.cmml" xref="S2.E5.m1.7.7"></times><ci id="S2.E5.m1.3.3.3.3.3.3d.cmml" xref="S2.E5.m1.3.3.3.3.3.3"><mrow id="S2.E5.m1.3.3.3.3.3.3.cmml" xref="S2.E5.m1.3.3.3.3.3.3"><mtext id="S2.E5.m1.3.3.3.3.3.3a.cmml" xref="S2.E5.m1.3.3.3.3.3.3">“A room containing </mtext><msub id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1"><mi id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.2.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.2">o</mi><mn id="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.3.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.m1.1.1.3">1</mn></msub><mtext id="S2.E5.m1.3.3.3.3.3.3b.cmml" xref="S2.E5.m1.3.3.3.3.3.3">, </mtext><msub id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.cmml" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1"><mi id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.2.cmml" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.2">o</mi><mn id="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.3.cmml" xref="S2.E5.m1.2.2.2.2.2.2.2.m2.1.1.3">2</mn></msub><mtext id="S2.E5.m1.3.3.3.3.3.3c.cmml" xref="S2.E5.m1.3.3.3.3.3.3">… and </mtext><msub id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.cmml" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1"><mi id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.2.cmml" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.2">o</mi><mi id="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.3.cmml" xref="S2.E5.m1.3.3.3.3.3.3.3.m3.1.1.3">k</mi></msub></mrow></ci><ci id="S2.E5.m1.4.4.4.1.1.1c.cmml" xref="S2.E5.m1.4.4.4.1.1.1"><mrow id="S2.E5.m1.4.4.4.1.1.1.cmml" xref="S2.E5.m1.4.4.4.1.1.1"><mtext id="S2.E5.m1.4.4.4.1.1.1a.cmml" xref="S2.E5.m1.4.4.4.1.1.1">is called a(n) </mtext><msub id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.cmml" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1"><mi id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.2.cmml" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.2">r</mi><mi id="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.3.cmml" xref="S2.E5.m1.4.4.4.1.1.1.1.m1.1.1.3">j</mi></msub><mtext id="S2.E5.m1.4.4.4.1.1.1b.cmml" xref="S2.E5.m1.4.4.4.1.1.1">.”</mtext></mrow></ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E5.m1.7c">\begin{split}W_{j}=\ &amp;\text{``A room containing $o_{1}$, $o_{2}$... and $o_{k}$}\\
+&amp;\text{is called a(n) $r_{j}$.''}\end{split}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(5)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p5.3" class="ltx_p"><math id="S2.SS2.p5.2.m1.1" class="ltx_Math" alttext="\forall r_{j}\in L_{R}" display="inline"><semantics id="S2.SS2.p5.2.m1.1a"><mrow id="S2.SS2.p5.2.m1.1.1" xref="S2.SS2.p5.2.m1.1.1.cmml"><mrow id="S2.SS2.p5.2.m1.1.1.2" xref="S2.SS2.p5.2.m1.1.1.2.cmml"><mo rspace="0.167em" id="S2.SS2.p5.2.m1.1.1.2.1" xref="S2.SS2.p5.2.m1.1.1.2.1.cmml">∀</mo><msub id="S2.SS2.p5.2.m1.1.1.2.2" xref="S2.SS2.p5.2.m1.1.1.2.2.cmml"><mi id="S2.SS2.p5.2.m1.1.1.2.2.2" xref="S2.SS2.p5.2.m1.1.1.2.2.2.cmml">r</mi><mi id="S2.SS2.p5.2.m1.1.1.2.2.3" xref="S2.SS2.p5.2.m1.1.1.2.2.3.cmml">j</mi></msub></mrow><mo id="S2.SS2.p5.2.m1.1.1.1" xref="S2.SS2.p5.2.m1.1.1.1.cmml">∈</mo><msub id="S2.SS2.p5.2.m1.1.1.3" xref="S2.SS2.p5.2.m1.1.1.3.cmml"><mi id="S2.SS2.p5.2.m1.1.1.3.2" xref="S2.SS2.p5.2.m1.1.1.3.2.cmml">L</mi><mi id="S2.SS2.p5.2.m1.1.1.3.3" xref="S2.SS2.p5.2.m1.1.1.3.3.cmml">R</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p5.2.m1.1b"><apply id="S2.SS2.p5.2.m1.1.1.cmml" xref="S2.SS2.p5.2.m1.1.1"><in id="S2.SS2.p5.2.m1.1.1.1.cmml" xref="S2.SS2.p5.2.m1.1.1.1"></in><apply id="S2.SS2.p5.2.m1.1.1.2.cmml" xref="S2.SS2.p5.2.m1.1.1.2"><csymbol cd="latexml" id="S2.SS2.p5.2.m1.1.1.2.1.cmml" xref="S2.SS2.p5.2.m1.1.1.2.1">for-all</csymbol><apply id="S2.SS2.p5.2.m1.1.1.2.2.cmml" xref="S2.SS2.p5.2.m1.1.1.2.2"><csymbol cd="ambiguous" id="S2.SS2.p5.2.m1.1.1.2.2.1.cmml" xref="S2.SS2.p5.2.m1.1.1.2.2">subscript</csymbol><ci id="S2.SS2.p5.2.m1.1.1.2.2.2.cmml" xref="S2.SS2.p5.2.m1.1.1.2.2.2">𝑟</ci><ci id="S2.SS2.p5.2.m1.1.1.2.2.3.cmml" xref="S2.SS2.p5.2.m1.1.1.2.2.3">𝑗</ci></apply></apply><apply id="S2.SS2.p5.2.m1.1.1.3.cmml" xref="S2.SS2.p5.2.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p5.2.m1.1.1.3.1.cmml" xref="S2.SS2.p5.2.m1.1.1.3">subscript</csymbol><ci id="S2.SS2.p5.2.m1.1.1.3.2.cmml" xref="S2.SS2.p5.2.m1.1.1.3.2">𝐿</ci><ci id="S2.SS2.p5.2.m1.1.1.3.3.cmml" xref="S2.SS2.p5.2.m1.1.1.3.3">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p5.2.m1.1c">\forall r_{j}\in L_{R}</annotation></semantics></math> and where <math id="S2.SS2.p5.3.m2.1" class="ltx_Math" alttext="o_{1...k}\in O_{\text{best}}" display="inline"><semantics id="S2.SS2.p5.3.m2.1a"><mrow id="S2.SS2.p5.3.m2.1.1" xref="S2.SS2.p5.3.m2.1.1.cmml"><msub id="S2.SS2.p5.3.m2.1.1.2" xref="S2.SS2.p5.3.m2.1.1.2.cmml"><mi id="S2.SS2.p5.3.m2.1.1.2.2" xref="S2.SS2.p5.3.m2.1.1.2.2.cmml">o</mi><mrow id="S2.SS2.p5.3.m2.1.1.2.3" xref="S2.SS2.p5.3.m2.1.1.2.3.cmml"><mn id="S2.SS2.p5.3.m2.1.1.2.3.2" xref="S2.SS2.p5.3.m2.1.1.2.3.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S2.SS2.p5.3.m2.1.1.2.3.1" xref="S2.SS2.p5.3.m2.1.1.2.3.1.cmml">​</mo><mi mathvariant="normal" id="S2.SS2.p5.3.m2.1.1.2.3.3" xref="S2.SS2.p5.3.m2.1.1.2.3.3.cmml">…</mi><mo lspace="0em" rspace="0em" id="S2.SS2.p5.3.m2.1.1.2.3.1a" xref="S2.SS2.p5.3.m2.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.p5.3.m2.1.1.2.3.4" xref="S2.SS2.p5.3.m2.1.1.2.3.4.cmml">k</mi></mrow></msub><mo id="S2.SS2.p5.3.m2.1.1.1" xref="S2.SS2.p5.3.m2.1.1.1.cmml">∈</mo><msub id="S2.SS2.p5.3.m2.1.1.3" xref="S2.SS2.p5.3.m2.1.1.3.cmml"><mi id="S2.SS2.p5.3.m2.1.1.3.2" xref="S2.SS2.p5.3.m2.1.1.3.2.cmml">O</mi><mtext id="S2.SS2.p5.3.m2.1.1.3.3" xref="S2.SS2.p5.3.m2.1.1.3.3a.cmml">best</mtext></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p5.3.m2.1b"><apply id="S2.SS2.p5.3.m2.1.1.cmml" xref="S2.SS2.p5.3.m2.1.1"><in id="S2.SS2.p5.3.m2.1.1.1.cmml" xref="S2.SS2.p5.3.m2.1.1.1"></in><apply id="S2.SS2.p5.3.m2.1.1.2.cmml" xref="S2.SS2.p5.3.m2.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p5.3.m2.1.1.2.1.cmml" xref="S2.SS2.p5.3.m2.1.1.2">subscript</csymbol><ci id="S2.SS2.p5.3.m2.1.1.2.2.cmml" xref="S2.SS2.p5.3.m2.1.1.2.2">𝑜</ci><apply id="S2.SS2.p5.3.m2.1.1.2.3.cmml" xref="S2.SS2.p5.3.m2.1.1.2.3"><times id="S2.SS2.p5.3.m2.1.1.2.3.1.cmml" xref="S2.SS2.p5.3.m2.1.1.2.3.1"></times><cn type="integer" id="S2.SS2.p5.3.m2.1.1.2.3.2.cmml" xref="S2.SS2.p5.3.m2.1.1.2.3.2">1</cn><ci id="S2.SS2.p5.3.m2.1.1.2.3.3.cmml" xref="S2.SS2.p5.3.m2.1.1.2.3.3">…</ci><ci id="S2.SS2.p5.3.m2.1.1.2.3.4.cmml" xref="S2.SS2.p5.3.m2.1.1.2.3.4">𝑘</ci></apply></apply><apply id="S2.SS2.p5.3.m2.1.1.3.cmml" xref="S2.SS2.p5.3.m2.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p5.3.m2.1.1.3.1.cmml" xref="S2.SS2.p5.3.m2.1.1.3">subscript</csymbol><ci id="S2.SS2.p5.3.m2.1.1.3.2.cmml" xref="S2.SS2.p5.3.m2.1.1.3.2">𝑂</ci><ci id="S2.SS2.p5.3.m2.1.1.3.3a.cmml" xref="S2.SS2.p5.3.m2.1.1.3.3"><mtext mathsize="70%" id="S2.SS2.p5.3.m2.1.1.3.3.cmml" xref="S2.SS2.p5.3.m2.1.1.3.3">best</mtext></ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p5.3.m2.1c">o_{1...k}\in O_{\text{best}}</annotation></semantics></math>, ordered by ascending entropy.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS3.5.1.1" class="ltx_text">II-C</span> </span><span id="S2.SS3.6.2" class="ltx_text ltx_font_italic">Evaluation</span>
+</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">Lastly, to evaluate all the strings and make the final room label inference, we pass all the query strings <math id="S2.SS3.p1.1.m1.2" class="ltx_Math" alttext="W_{j},\ \forall r_{j}\in L_{R}" display="inline"><semantics id="S2.SS3.p1.1.m1.2a"><mrow id="S2.SS3.p1.1.m1.2.2" xref="S2.SS3.p1.1.m1.2.2.cmml"><mrow id="S2.SS3.p1.1.m1.2.2.2.2" xref="S2.SS3.p1.1.m1.2.2.2.3.cmml"><msub id="S2.SS3.p1.1.m1.1.1.1.1.1" xref="S2.SS3.p1.1.m1.1.1.1.1.1.cmml"><mi id="S2.SS3.p1.1.m1.1.1.1.1.1.2" xref="S2.SS3.p1.1.m1.1.1.1.1.1.2.cmml">W</mi><mi id="S2.SS3.p1.1.m1.1.1.1.1.1.3" xref="S2.SS3.p1.1.m1.1.1.1.1.1.3.cmml">j</mi></msub><mo rspace="0.667em" id="S2.SS3.p1.1.m1.2.2.2.2.3" xref="S2.SS3.p1.1.m1.2.2.2.3.cmml">,</mo><mrow id="S2.SS3.p1.1.m1.2.2.2.2.2" xref="S2.SS3.p1.1.m1.2.2.2.2.2.cmml"><mo rspace="0.167em" id="S2.SS3.p1.1.m1.2.2.2.2.2.1" xref="S2.SS3.p1.1.m1.2.2.2.2.2.1.cmml">∀</mo><msub id="S2.SS3.p1.1.m1.2.2.2.2.2.2" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2.cmml"><mi id="S2.SS3.p1.1.m1.2.2.2.2.2.2.2" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2.2.cmml">r</mi><mi id="S2.SS3.p1.1.m1.2.2.2.2.2.2.3" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2.3.cmml">j</mi></msub></mrow></mrow><mo id="S2.SS3.p1.1.m1.2.2.3" xref="S2.SS3.p1.1.m1.2.2.3.cmml">∈</mo><msub id="S2.SS3.p1.1.m1.2.2.4" xref="S2.SS3.p1.1.m1.2.2.4.cmml"><mi id="S2.SS3.p1.1.m1.2.2.4.2" xref="S2.SS3.p1.1.m1.2.2.4.2.cmml">L</mi><mi id="S2.SS3.p1.1.m1.2.2.4.3" xref="S2.SS3.p1.1.m1.2.2.4.3.cmml">R</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.1.m1.2b"><apply id="S2.SS3.p1.1.m1.2.2.cmml" xref="S2.SS3.p1.1.m1.2.2"><in id="S2.SS3.p1.1.m1.2.2.3.cmml" xref="S2.SS3.p1.1.m1.2.2.3"></in><list id="S2.SS3.p1.1.m1.2.2.2.3.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2"><apply id="S2.SS3.p1.1.m1.1.1.1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.1.m1.1.1.1.1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1.1.1.1">subscript</csymbol><ci id="S2.SS3.p1.1.m1.1.1.1.1.1.2.cmml" xref="S2.SS3.p1.1.m1.1.1.1.1.1.2">𝑊</ci><ci id="S2.SS3.p1.1.m1.1.1.1.1.1.3.cmml" xref="S2.SS3.p1.1.m1.1.1.1.1.1.3">𝑗</ci></apply><apply id="S2.SS3.p1.1.m1.2.2.2.2.2.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2"><csymbol cd="latexml" id="S2.SS3.p1.1.m1.2.2.2.2.2.1.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2.1">for-all</csymbol><apply id="S2.SS3.p1.1.m1.2.2.2.2.2.2.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2"><csymbol cd="ambiguous" id="S2.SS3.p1.1.m1.2.2.2.2.2.2.1.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2">subscript</csymbol><ci id="S2.SS3.p1.1.m1.2.2.2.2.2.2.2.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2.2">𝑟</ci><ci id="S2.SS3.p1.1.m1.2.2.2.2.2.2.3.cmml" xref="S2.SS3.p1.1.m1.2.2.2.2.2.2.3">𝑗</ci></apply></apply></list><apply id="S2.SS3.p1.1.m1.2.2.4.cmml" xref="S2.SS3.p1.1.m1.2.2.4"><csymbol cd="ambiguous" id="S2.SS3.p1.1.m1.2.2.4.1.cmml" xref="S2.SS3.p1.1.m1.2.2.4">subscript</csymbol><ci id="S2.SS3.p1.1.m1.2.2.4.2.cmml" xref="S2.SS3.p1.1.m1.2.2.4.2">𝐿</ci><ci id="S2.SS3.p1.1.m1.2.2.4.3.cmml" xref="S2.SS3.p1.1.m1.2.2.4.3">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.1.m1.2c">W_{j},\ \forall r_{j}\in L_{R}</annotation></semantics></math> into a language model to produce a set of scores:</p>
+<table id="S2.E6" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E6.m1.2" class="ltx_Math" alttext="S(W_{j})=\log p(W_{j})" display="block"><semantics id="S2.E6.m1.2a"><mrow id="S2.E6.m1.2.2" xref="S2.E6.m1.2.2.cmml"><mrow id="S2.E6.m1.1.1.1" xref="S2.E6.m1.1.1.1.cmml"><mi id="S2.E6.m1.1.1.1.3" xref="S2.E6.m1.1.1.1.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S2.E6.m1.1.1.1.2" xref="S2.E6.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E6.m1.1.1.1.1.1" xref="S2.E6.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E6.m1.1.1.1.1.1.2" xref="S2.E6.m1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E6.m1.1.1.1.1.1.1" xref="S2.E6.m1.1.1.1.1.1.1.cmml"><mi id="S2.E6.m1.1.1.1.1.1.1.2" xref="S2.E6.m1.1.1.1.1.1.1.2.cmml">W</mi><mi id="S2.E6.m1.1.1.1.1.1.1.3" xref="S2.E6.m1.1.1.1.1.1.1.3.cmml">j</mi></msub><mo stretchy="false" id="S2.E6.m1.1.1.1.1.1.3" xref="S2.E6.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo id="S2.E6.m1.2.2.3" xref="S2.E6.m1.2.2.3.cmml">=</mo><mrow id="S2.E6.m1.2.2.2" xref="S2.E6.m1.2.2.2.cmml"><mrow id="S2.E6.m1.2.2.2.3" xref="S2.E6.m1.2.2.2.3.cmml"><mi id="S2.E6.m1.2.2.2.3.1" xref="S2.E6.m1.2.2.2.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.E6.m1.2.2.2.3a" xref="S2.E6.m1.2.2.2.3.cmml">⁡</mo><mi id="S2.E6.m1.2.2.2.3.2" xref="S2.E6.m1.2.2.2.3.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E6.m1.2.2.2.2" xref="S2.E6.m1.2.2.2.2.cmml">​</mo><mrow id="S2.E6.m1.2.2.2.1.1" xref="S2.E6.m1.2.2.2.1.1.1.cmml"><mo stretchy="false" id="S2.E6.m1.2.2.2.1.1.2" xref="S2.E6.m1.2.2.2.1.1.1.cmml">(</mo><msub id="S2.E6.m1.2.2.2.1.1.1" xref="S2.E6.m1.2.2.2.1.1.1.cmml"><mi id="S2.E6.m1.2.2.2.1.1.1.2" xref="S2.E6.m1.2.2.2.1.1.1.2.cmml">W</mi><mi id="S2.E6.m1.2.2.2.1.1.1.3" xref="S2.E6.m1.2.2.2.1.1.1.3.cmml">j</mi></msub><mo stretchy="false" id="S2.E6.m1.2.2.2.1.1.3" xref="S2.E6.m1.2.2.2.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E6.m1.2b"><apply id="S2.E6.m1.2.2.cmml" xref="S2.E6.m1.2.2"><eq id="S2.E6.m1.2.2.3.cmml" xref="S2.E6.m1.2.2.3"></eq><apply id="S2.E6.m1.1.1.1.cmml" xref="S2.E6.m1.1.1.1"><times id="S2.E6.m1.1.1.1.2.cmml" xref="S2.E6.m1.1.1.1.2"></times><ci id="S2.E6.m1.1.1.1.3.cmml" xref="S2.E6.m1.1.1.1.3">𝑆</ci><apply id="S2.E6.m1.1.1.1.1.1.1.cmml" xref="S2.E6.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E6.m1.1.1.1.1.1.1.1.cmml" xref="S2.E6.m1.1.1.1.1.1">subscript</csymbol><ci id="S2.E6.m1.1.1.1.1.1.1.2.cmml" xref="S2.E6.m1.1.1.1.1.1.1.2">𝑊</ci><ci id="S2.E6.m1.1.1.1.1.1.1.3.cmml" xref="S2.E6.m1.1.1.1.1.1.1.3">𝑗</ci></apply></apply><apply id="S2.E6.m1.2.2.2.cmml" xref="S2.E6.m1.2.2.2"><times id="S2.E6.m1.2.2.2.2.cmml" xref="S2.E6.m1.2.2.2.2"></times><apply id="S2.E6.m1.2.2.2.3.cmml" xref="S2.E6.m1.2.2.2.3"><log id="S2.E6.m1.2.2.2.3.1.cmml" xref="S2.E6.m1.2.2.2.3.1"></log><ci id="S2.E6.m1.2.2.2.3.2.cmml" xref="S2.E6.m1.2.2.2.3.2">𝑝</ci></apply><apply id="S2.E6.m1.2.2.2.1.1.1.cmml" xref="S2.E6.m1.2.2.2.1.1"><csymbol cd="ambiguous" id="S2.E6.m1.2.2.2.1.1.1.1.cmml" xref="S2.E6.m1.2.2.2.1.1">subscript</csymbol><ci id="S2.E6.m1.2.2.2.1.1.1.2.cmml" xref="S2.E6.m1.2.2.2.1.1.1.2">𝑊</ci><ci id="S2.E6.m1.2.2.2.1.1.1.3.cmml" xref="S2.E6.m1.2.2.2.1.1.1.3">𝑗</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E6.m1.2c">S(W_{j})=\log p(W_{j})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(6)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS3.p1.2" class="ltx_p">The final inferred label is thus just the highest-scoring one, <math id="S2.SS3.p1.2.m1.1" class="ltx_Math" alttext="\operatorname*{arg\,max}_{r_{j}}S(W_{j})" display="inline"><semantics id="S2.SS3.p1.2.m1.1a"><mrow id="S2.SS3.p1.2.m1.1.1" xref="S2.SS3.p1.2.m1.1.1.cmml"><mrow id="S2.SS3.p1.2.m1.1.1.3" xref="S2.SS3.p1.2.m1.1.1.3.cmml"><msub id="S2.SS3.p1.2.m1.1.1.3.1" xref="S2.SS3.p1.2.m1.1.1.3.1.cmml"><mrow id="S2.SS3.p1.2.m1.1.1.3.1.2" xref="S2.SS3.p1.2.m1.1.1.3.1.2.cmml"><mi id="S2.SS3.p1.2.m1.1.1.3.1.2.2" xref="S2.SS3.p1.2.m1.1.1.3.1.2.2.cmml">arg</mi><mo lspace="0.170em" rspace="0em" id="S2.SS3.p1.2.m1.1.1.3.1.2.1" xref="S2.SS3.p1.2.m1.1.1.3.1.2.1.cmml">​</mo><mi id="S2.SS3.p1.2.m1.1.1.3.1.2.3" xref="S2.SS3.p1.2.m1.1.1.3.1.2.3.cmml">max</mi></mrow><msub id="S2.SS3.p1.2.m1.1.1.3.1.3" xref="S2.SS3.p1.2.m1.1.1.3.1.3.cmml"><mi id="S2.SS3.p1.2.m1.1.1.3.1.3.2" xref="S2.SS3.p1.2.m1.1.1.3.1.3.2.cmml">r</mi><mi id="S2.SS3.p1.2.m1.1.1.3.1.3.3" xref="S2.SS3.p1.2.m1.1.1.3.1.3.3.cmml">j</mi></msub></msub><mo lspace="0.167em" id="S2.SS3.p1.2.m1.1.1.3a" xref="S2.SS3.p1.2.m1.1.1.3.cmml">⁡</mo><mi id="S2.SS3.p1.2.m1.1.1.3.2" xref="S2.SS3.p1.2.m1.1.1.3.2.cmml">S</mi></mrow><mo lspace="0em" rspace="0em" id="S2.SS3.p1.2.m1.1.1.2" xref="S2.SS3.p1.2.m1.1.1.2.cmml">​</mo><mrow id="S2.SS3.p1.2.m1.1.1.1.1" xref="S2.SS3.p1.2.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS3.p1.2.m1.1.1.1.1.2" xref="S2.SS3.p1.2.m1.1.1.1.1.1.cmml">(</mo><msub id="S2.SS3.p1.2.m1.1.1.1.1.1" xref="S2.SS3.p1.2.m1.1.1.1.1.1.cmml"><mi id="S2.SS3.p1.2.m1.1.1.1.1.1.2" xref="S2.SS3.p1.2.m1.1.1.1.1.1.2.cmml">W</mi><mi id="S2.SS3.p1.2.m1.1.1.1.1.1.3" xref="S2.SS3.p1.2.m1.1.1.1.1.1.3.cmml">j</mi></msub><mo stretchy="false" id="S2.SS3.p1.2.m1.1.1.1.1.3" xref="S2.SS3.p1.2.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.2.m1.1b"><apply id="S2.SS3.p1.2.m1.1.1.cmml" xref="S2.SS3.p1.2.m1.1.1"><times id="S2.SS3.p1.2.m1.1.1.2.cmml" xref="S2.SS3.p1.2.m1.1.1.2"></times><apply id="S2.SS3.p1.2.m1.1.1.3.cmml" xref="S2.SS3.p1.2.m1.1.1.3"><apply id="S2.SS3.p1.2.m1.1.1.3.1.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1"><csymbol cd="ambiguous" id="S2.SS3.p1.2.m1.1.1.3.1.1.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1">subscript</csymbol><apply id="S2.SS3.p1.2.m1.1.1.3.1.2.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.2"><times id="S2.SS3.p1.2.m1.1.1.3.1.2.1.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.2.1"></times><ci id="S2.SS3.p1.2.m1.1.1.3.1.2.2.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.2.2">arg</ci><ci id="S2.SS3.p1.2.m1.1.1.3.1.2.3.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.2.3">max</ci></apply><apply id="S2.SS3.p1.2.m1.1.1.3.1.3.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.3"><csymbol cd="ambiguous" id="S2.SS3.p1.2.m1.1.1.3.1.3.1.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.3">subscript</csymbol><ci id="S2.SS3.p1.2.m1.1.1.3.1.3.2.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.3.2">𝑟</ci><ci id="S2.SS3.p1.2.m1.1.1.3.1.3.3.cmml" xref="S2.SS3.p1.2.m1.1.1.3.1.3.3">𝑗</ci></apply></apply><ci id="S2.SS3.p1.2.m1.1.1.3.2.cmml" xref="S2.SS3.p1.2.m1.1.1.3.2">𝑆</ci></apply><apply id="S2.SS3.p1.2.m1.1.1.1.1.1.cmml" xref="S2.SS3.p1.2.m1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.2.m1.1.1.1.1.1.1.cmml" xref="S2.SS3.p1.2.m1.1.1.1.1">subscript</csymbol><ci id="S2.SS3.p1.2.m1.1.1.1.1.1.2.cmml" xref="S2.SS3.p1.2.m1.1.1.1.1.1.2">𝑊</ci><ci id="S2.SS3.p1.2.m1.1.1.1.1.1.3.cmml" xref="S2.SS3.p1.2.m1.1.1.1.1.1.3">𝑗</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.2.m1.1c">\operatorname*{arg\,max}_{r_{j}}S(W_{j})</annotation></semantics></math>.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Experiments</span>
+</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS1.5.1.1" class="ltx_text">III-A</span> </span><span id="S3.SS1.6.2" class="ltx_text ltx_font_italic">Dataset</span>
+</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">We evaluate the above zero-shot algorithm on a scene graph dataset produced from the Matterport3D dataset <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, which is commonly used in robot semantic navigation tasks <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>. The Matterport3D dataset contains regions (rooms) and the objects contained within each room. Each region and object also has a semantic label and bounding box.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">To convert these semantic meshes into scene graphs, we create a node for each region and object. Then, we connect all object nodes assigned to a region to that region’s room node. Additional scene graph creation details are outlined in the Appendix.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">We also filter out some regions. While Matterport3D contains outdoor regions as well (“yard,” “balcony,” and “porch”), we do not perform inference over them, since they are not true rooms and thus would require an alternate query string structure. In addition to outdoor regions, we also remove all rooms with no objects within or with the label of “none.” In total, after these filters, there are 1878 rooms.</p>
+</div>
+<div id="S3.SS1.p4" class="ltx_para">
+<p id="S3.SS1.p4.1" class="ltx_p">Each object is assigned labels from several label spaces. We consider the original labels used by Matterport3D (mpcat40) and the labels used by NYU (nyuClass) <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>. For both, we filter out nodes belonging to the mpcat40 categories “ceiling,” “wall,” “floor,” “miscellaneous,” “object,” and any other unlabeled nodes. We remove these categories because they are either not objects within the room or they are ambiguous to the point of being semantically uninformative. However, for nyuClass, we do <span id="S3.SS1.p4.1.1" class="ltx_text ltx_font_italic">not</span> reject objects classified by mpcat40 as “object,” since nyuClass has many more fine-grained and semantically-rich categories which all are mapped to this category. After pre-processing the label spaces in this way, mpcat40 has 35 object labels and nyuClass has 201. Both datasets share a room label space with 23 labels. See Table <a href="#S3.T1" title="TABLE I ‣ III-A Dataset ‣ III Experiments ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a> for a breakdown of room label frequencies.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">TABLE I: </span>Room Label Frequencies in Pre-processed Dataset</figcaption>
+<div id="S3.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:330pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(13.4pt,-10.2pt) scale(1.06602187050681,1.06602187050681) ;">
+<table id="S3.T1.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.1.1" class="ltx_text ltx_font_bold">Room Label</span></td>
+<td id="S3.T1.1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.2.1" class="ltx_text ltx_font_italic">Bar</span></td>
+<td id="S3.T1.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.3.1" class="ltx_text ltx_font_italic">Bathroom</span></td>
+<td id="S3.T1.1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.4.1" class="ltx_text ltx_font_italic">Bedroom</span></td>
+<td id="S3.T1.1.1.1.1.5" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.5.1" class="ltx_text ltx_font_italic">Classroom</span></td>
+<td id="S3.T1.1.1.1.1.6" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.1.1.1.6.1" class="ltx_text ltx_font_italic">Closet</span></td>
+<td id="S3.T1.1.1.1.1.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_tt">
+<table id="S3.T1.1.1.1.1.7.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.1.1.7.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.1.1.7.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.1.1.7.1.1.1.1" class="ltx_text ltx_font_italic">Conference</span></td>
+</tr>
+<tr id="S3.T1.1.1.1.1.7.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.1.1.7.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.1.1.7.1.2.1.1" class="ltx_text ltx_font_italic">Auditorium</span></td>
+</tr>
+</table>
+</td>
+</tr>
+<tr id="S3.T1.1.1.2.2" class="ltx_tr">
+<td id="S3.T1.1.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.2.2.1.1" class="ltx_text ltx_font_bold">Occurrences</span></td>
+<td id="S3.T1.1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">3</td>
+<td id="S3.T1.1.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">365</td>
+<td id="S3.T1.1.1.2.2.4" class="ltx_td ltx_align_center ltx_border_t">251</td>
+<td id="S3.T1.1.1.2.2.5" class="ltx_td ltx_align_center ltx_border_t">2</td>
+<td id="S3.T1.1.1.2.2.6" class="ltx_td ltx_align_center ltx_border_t">99</td>
+<td id="S3.T1.1.1.2.2.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">16</td>
+</tr>
+<tr id="S3.T1.1.1.3.3" class="ltx_tr">
+<td id="S3.T1.1.1.3.3.1" class="ltx_td ltx_align_center"><span id="S3.T1.1.1.3.3.1.1" class="ltx_text ltx_font_bold">Percentage</span></td>
+<td id="S3.T1.1.1.3.3.2" class="ltx_td ltx_align_center">0.16%</td>
+<td id="S3.T1.1.1.3.3.3" class="ltx_td ltx_align_center">19.43%</td>
+<td id="S3.T1.1.1.3.3.4" class="ltx_td ltx_align_center">13.37%</td>
+<td id="S3.T1.1.1.3.3.5" class="ltx_td ltx_align_center">0.11%</td>
+<td id="S3.T1.1.1.3.3.6" class="ltx_td ltx_align_center">5.27%</td>
+<td id="S3.T1.1.1.3.3.7" class="ltx_td ltx_nopad_r ltx_align_center">0.85%</td>
+</tr>
+<tr id="S3.T1.1.1.4.4" class="ltx_tr">
+<td id="S3.T1.1.1.4.4.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.4.4.1.1" class="ltx_text ltx_font_bold">Room Label</span></td>
+<td id="S3.T1.1.1.4.4.2" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.4.4.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.4.4.2.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.4.4.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.4.4.2.1.1.1.1" class="ltx_text ltx_font_italic">Dining</span></td>
+</tr>
+<tr id="S3.T1.1.1.4.4.2.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.4.4.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.4.4.2.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.4.4.3" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.4.4.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.4.4.3.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.4.4.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.4.4.3.1.1.1.1" class="ltx_text ltx_font_italic">Family</span></td>
+</tr>
+<tr id="S3.T1.1.1.4.4.3.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.4.4.3.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.4.4.3.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.4.4.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.4.4.4.1" class="ltx_text ltx_font_italic">Game Room</span></td>
+<td id="S3.T1.1.1.4.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.4.4.5.1" class="ltx_text ltx_font_italic">Garage</span></td>
+<td id="S3.T1.1.1.4.4.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.4.4.6.1" class="ltx_text ltx_font_italic">Gym</span></td>
+<td id="S3.T1.1.1.4.4.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><span id="S3.T1.1.1.4.4.7.1" class="ltx_text ltx_font_italic">Hallway</span></td>
+</tr>
+<tr id="S3.T1.1.1.5.5" class="ltx_tr">
+<td id="S3.T1.1.1.5.5.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.5.5.1.1" class="ltx_text ltx_font_bold">Occurrences</span></td>
+<td id="S3.T1.1.1.5.5.2" class="ltx_td ltx_align_center ltx_border_t">74</td>
+<td id="S3.T1.1.1.5.5.3" class="ltx_td ltx_align_center ltx_border_t">61</td>
+<td id="S3.T1.1.1.5.5.4" class="ltx_td ltx_align_center ltx_border_t">17</td>
+<td id="S3.T1.1.1.5.5.5" class="ltx_td ltx_align_center ltx_border_t">14</td>
+<td id="S3.T1.1.1.5.5.6" class="ltx_td ltx_align_center ltx_border_t">16</td>
+<td id="S3.T1.1.1.5.5.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">326</td>
+</tr>
+<tr id="S3.T1.1.1.6.6" class="ltx_tr">
+<td id="S3.T1.1.1.6.6.1" class="ltx_td ltx_align_center"><span id="S3.T1.1.1.6.6.1.1" class="ltx_text ltx_font_bold">Percentage</span></td>
+<td id="S3.T1.1.1.6.6.2" class="ltx_td ltx_align_center">3.94%</td>
+<td id="S3.T1.1.1.6.6.3" class="ltx_td ltx_align_center">3.25%</td>
+<td id="S3.T1.1.1.6.6.4" class="ltx_td ltx_align_center">0.91%</td>
+<td id="S3.T1.1.1.6.6.5" class="ltx_td ltx_align_center">0.75%</td>
+<td id="S3.T1.1.1.6.6.6" class="ltx_td ltx_align_center">0.85%</td>
+<td id="S3.T1.1.1.6.6.7" class="ltx_td ltx_nopad_r ltx_align_center">17.36%</td>
+</tr>
+<tr id="S3.T1.1.1.7.7" class="ltx_tr">
+<td id="S3.T1.1.1.7.7.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.7.7.1.1" class="ltx_text ltx_font_bold">Room Label</span></td>
+<td id="S3.T1.1.1.7.7.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.7.7.2.1" class="ltx_text ltx_font_italic">Kitchen</span></td>
+<td id="S3.T1.1.1.7.7.3" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.7.7.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.7.7.3.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.7.7.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.7.7.3.1.1.1.1" class="ltx_text ltx_font_italic">Laundry</span></td>
+</tr>
+<tr id="S3.T1.1.1.7.7.3.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.7.7.3.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.7.7.3.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.7.7.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.7.7.4.1" class="ltx_text ltx_font_italic">Library</span></td>
+<td id="S3.T1.1.1.7.7.5" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.7.7.5.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.7.7.5.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.7.7.5.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.7.7.5.1.1.1.1" class="ltx_text ltx_font_italic">Living</span></td>
+</tr>
+<tr id="S3.T1.1.1.7.7.5.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.7.7.5.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.7.7.5.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.7.7.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.7.7.6.1" class="ltx_text ltx_font_italic">Lobby</span></td>
+<td id="S3.T1.1.1.7.7.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><span id="S3.T1.1.1.7.7.7.1" class="ltx_text ltx_font_italic">Lounge</span></td>
+</tr>
+<tr id="S3.T1.1.1.8.8" class="ltx_tr">
+<td id="S3.T1.1.1.8.8.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.8.8.1.1" class="ltx_text ltx_font_bold">Occurrences</span></td>
+<td id="S3.T1.1.1.8.8.2" class="ltx_td ltx_align_center ltx_border_t">78</td>
+<td id="S3.T1.1.1.8.8.3" class="ltx_td ltx_align_center ltx_border_t">35</td>
+<td id="S3.T1.1.1.8.8.4" class="ltx_td ltx_align_center ltx_border_t">1</td>
+<td id="S3.T1.1.1.8.8.5" class="ltx_td ltx_align_center ltx_border_t">71</td>
+<td id="S3.T1.1.1.8.8.6" class="ltx_td ltx_align_center ltx_border_t">62</td>
+<td id="S3.T1.1.1.8.8.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">64</td>
+</tr>
+<tr id="S3.T1.1.1.9.9" class="ltx_tr">
+<td id="S3.T1.1.1.9.9.1" class="ltx_td ltx_align_center"><span id="S3.T1.1.1.9.9.1.1" class="ltx_text ltx_font_bold">Percentage</span></td>
+<td id="S3.T1.1.1.9.9.2" class="ltx_td ltx_align_center">4.15%</td>
+<td id="S3.T1.1.1.9.9.3" class="ltx_td ltx_align_center">1.86%</td>
+<td id="S3.T1.1.1.9.9.4" class="ltx_td ltx_align_center">0.05%</td>
+<td id="S3.T1.1.1.9.9.5" class="ltx_td ltx_align_center">3.78%</td>
+<td id="S3.T1.1.1.9.9.6" class="ltx_td ltx_align_center">3.30%</td>
+<td id="S3.T1.1.1.9.9.7" class="ltx_td ltx_nopad_r ltx_align_center">3.41%</td>
+</tr>
+<tr id="S3.T1.1.1.10.10" class="ltx_tr">
+<td id="S3.T1.1.1.10.10.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.10.10.1.1" class="ltx_text ltx_font_bold">Room Label</span></td>
+<td id="S3.T1.1.1.10.10.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.10.10.2.1" class="ltx_text ltx_font_italic">Office</span></td>
+<td id="S3.T1.1.1.10.10.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.10.10.3.1" class="ltx_text ltx_font_italic">Spa</span></td>
+<td id="S3.T1.1.1.10.10.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.10.10.4.1" class="ltx_text ltx_font_italic">Staircase</span></td>
+<td id="S3.T1.1.1.10.10.5" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.10.10.5.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.10.10.5.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.10.10.5.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.10.10.5.1.1.1.1" class="ltx_text ltx_font_italic">Television</span></td>
+</tr>
+<tr id="S3.T1.1.1.10.10.5.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.10.10.5.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.10.10.5.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.10.10.6" class="ltx_td ltx_align_center ltx_border_t">
+<table id="S3.T1.1.1.10.10.6.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.1.1.10.10.6.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.10.10.6.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.10.10.6.1.1.1.1" class="ltx_text ltx_font_italic">Utility</span></td>
+</tr>
+<tr id="S3.T1.1.1.10.10.6.1.2" class="ltx_tr">
+<td id="S3.T1.1.1.10.10.6.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T1.1.1.10.10.6.1.2.1.1" class="ltx_text ltx_font_italic">Room</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T1.1.1.10.10.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><span id="S3.T1.1.1.10.10.7.1" class="ltx_text ltx_font_bold ltx_font_italic">Total</span></td>
+</tr>
+<tr id="S3.T1.1.1.11.11" class="ltx_tr">
+<td id="S3.T1.1.1.11.11.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.11.11.1.1" class="ltx_text ltx_font_bold">Occurrences</span></td>
+<td id="S3.T1.1.1.11.11.2" class="ltx_td ltx_align_center ltx_border_t">98</td>
+<td id="S3.T1.1.1.11.11.3" class="ltx_td ltx_align_center ltx_border_t">44</td>
+<td id="S3.T1.1.1.11.11.4" class="ltx_td ltx_align_center ltx_border_t">152</td>
+<td id="S3.T1.1.1.11.11.5" class="ltx_td ltx_align_center ltx_border_t">13</td>
+<td id="S3.T1.1.1.11.11.6" class="ltx_td ltx_align_center ltx_border_t">16</td>
+<td id="S3.T1.1.1.11.11.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><span id="S3.T1.1.1.11.11.7.1" class="ltx_text ltx_font_bold">1878</span></td>
+</tr>
+<tr id="S3.T1.1.1.12.12" class="ltx_tr">
+<td id="S3.T1.1.1.12.12.1" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T1.1.1.12.12.1.1" class="ltx_text ltx_font_bold">Percentage</span></td>
+<td id="S3.T1.1.1.12.12.2" class="ltx_td ltx_align_center ltx_border_bb">5.22%</td>
+<td id="S3.T1.1.1.12.12.3" class="ltx_td ltx_align_center ltx_border_bb">2.34%</td>
+<td id="S3.T1.1.1.12.12.4" class="ltx_td ltx_align_center ltx_border_bb">8.09%</td>
+<td id="S3.T1.1.1.12.12.5" class="ltx_td ltx_align_center ltx_border_bb">0.69%</td>
+<td id="S3.T1.1.1.12.12.6" class="ltx_td ltx_align_center ltx_border_bb">0.85%</td>
+<td id="S3.T1.1.1.12.12.7" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb"><span id="S3.T1.1.1.12.12.7.1" class="ltx_text ltx_font_bold">100%</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS2.5.1.1" class="ltx_text">III-B</span> </span><span id="S3.SS2.6.2" class="ltx_text ltx_font_italic">Trial Specifications</span>
+</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">We vary both whether we are using ground truth or proxy object/room label co-occurrencies (see Section <a href="#S2.SS2" title="II-B Query Strings ‣ II Contribution ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-B</span></span></a>) and whether we are using the mpcat40 or nyuClass object label spaces, for a total of four trial conditions. We test on all rooms in our dataset, choosing <math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="k=3" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><mrow id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml"><mi id="S3.SS2.p1.1.m1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.2.cmml">k</mi><mo id="S3.SS2.p1.1.m1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.cmml">=</mo><mn id="S3.SS2.p1.1.m1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.3.cmml">3</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><apply id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1"><eq id="S3.SS2.p1.1.m1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1.1"></eq><ci id="S3.SS2.p1.1.m1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.2">𝑘</ci><cn type="integer" id="S3.SS2.p1.1.m1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.3">3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">k=3</annotation></semantics></math> objects per room to create the corresponding query sentences. For rooms containing fewer than three objects, we simply include as many as we can in the query string.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">For all trials, we use the GPT-J next-token prediction language model, the largest open-source GPT-style model currently available <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>. This model was used for both evaluating query strings and generating proxy co-occurrencies. Due to hardware limitations, we use the half-precision GPU release of the model. All experiments are run in PyTorch 1.8.0 <cite class="ltx_cite ltx_citemacro_citep">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS3.5.1.1" class="ltx_text">III-C</span> </span><span id="S3.SS3.6.2" class="ltx_text ltx_font_italic">Results</span>
+</h3>
+
+<figure id="S3.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">TABLE II: </span>Inference Accuracies for All Four Conditions</figcaption>
+<div id="S3.T2.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:260.2pt;height:144.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(39.5pt,-22.0pt) scale(1.43566418899286,1.43566418899286) ;">
+<table id="S3.T2.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T2.1.1.1.1" class="ltx_tr">
+<th id="S3.T2.1.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt"></th>
+<th id="S3.T2.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T2.1.1.1.1.2.1" class="ltx_text ltx_font_bold">nyuClass</span></th>
+<th id="S3.T2.1.1.1.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T2.1.1.1.1.3.1" class="ltx_text ltx_font_bold">mpcat40</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T2.1.1.2.1" class="ltx_tr">
+<th id="S3.T2.1.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_t">
+<table id="S3.T2.1.1.2.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T2.1.1.2.1.1.1.1" class="ltx_tr">
+<td id="S3.T2.1.1.2.1.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T2.1.1.2.1.1.1.1.1.1" class="ltx_text ltx_font_bold">Ground Truth</span></td>
+</tr>
+<tr id="S3.T2.1.1.2.1.1.1.2" class="ltx_tr">
+<td id="S3.T2.1.1.2.1.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T2.1.1.2.1.1.1.2.1.1" class="ltx_text ltx_font_bold">Co-occurrencies</span></td>
+</tr>
+</table>
+</th>
+<td id="S3.T2.1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">52.41%</td>
+<td id="S3.T2.1.1.2.1.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t">49.36%</td>
+</tr>
+<tr id="S3.T2.1.1.3.2" class="ltx_tr">
+<th id="S3.T2.1.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_t">
+<table id="S3.T2.1.1.3.2.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T2.1.1.3.2.1.1.1" class="ltx_tr">
+<td id="S3.T2.1.1.3.2.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T2.1.1.3.2.1.1.1.1.1" class="ltx_text ltx_font_bold">Proxy</span></td>
+</tr>
+<tr id="S3.T2.1.1.3.2.1.1.2" class="ltx_tr">
+<td id="S3.T2.1.1.3.2.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T2.1.1.3.2.1.1.2.1.1" class="ltx_text ltx_font_bold">Co-occurrencies</span></td>
+</tr>
+</table>
+</th>
+<td id="S3.T2.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">28.14%</td>
+<td id="S3.T2.1.1.3.2.3" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_bb ltx_border_t">27.00%</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S3.F2" class="ltx_figure"><img src="/html/2206.04585/assets/Images/CategoricalAccs.png" id="S3.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="568" height="201" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Inference accuracies of all four conditions, broken down by room label. Generally, ground truth co-occurrencies perform better than the proxy method. Additionally, note that nyuClass has higher performance in several room labels (e.g. kitchen) due to its more fine-grained object labels providing additional helpful information for inference.</figcaption>
+</figure>
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.3" class="ltx_p">Table <a href="#S3.T2" title="TABLE II ‣ III-C Results ‣ III Experiments ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a> shows that all four of our trials showed relatively high inference accuracies (<math id="S3.SS3.p1.1.m1.1" class="ltx_Math" alttext="27-52.41\%" display="inline"><semantics id="S3.SS3.p1.1.m1.1a"><mrow id="S3.SS3.p1.1.m1.1.1" xref="S3.SS3.p1.1.m1.1.1.cmml"><mn id="S3.SS3.p1.1.m1.1.1.2" xref="S3.SS3.p1.1.m1.1.1.2.cmml">27</mn><mo id="S3.SS3.p1.1.m1.1.1.1" xref="S3.SS3.p1.1.m1.1.1.1.cmml">−</mo><mrow id="S3.SS3.p1.1.m1.1.1.3" xref="S3.SS3.p1.1.m1.1.1.3.cmml"><mn id="S3.SS3.p1.1.m1.1.1.3.2" xref="S3.SS3.p1.1.m1.1.1.3.2.cmml">52.41</mn><mo id="S3.SS3.p1.1.m1.1.1.3.1" xref="S3.SS3.p1.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.1.m1.1b"><apply id="S3.SS3.p1.1.m1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1"><minus id="S3.SS3.p1.1.m1.1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1.1"></minus><cn type="integer" id="S3.SS3.p1.1.m1.1.1.2.cmml" xref="S3.SS3.p1.1.m1.1.1.2">27</cn><apply id="S3.SS3.p1.1.m1.1.1.3.cmml" xref="S3.SS3.p1.1.m1.1.1.3"><csymbol cd="latexml" id="S3.SS3.p1.1.m1.1.1.3.1.cmml" xref="S3.SS3.p1.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S3.SS3.p1.1.m1.1.1.3.2.cmml" xref="S3.SS3.p1.1.m1.1.1.3.2">52.41</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.1.m1.1c">27-52.41\%</annotation></semantics></math>), scoring higher than both random chance (uniform over rooms, so <math id="S3.SS3.p1.2.m2.1" class="ltx_Math" alttext="4.35\%" display="inline"><semantics id="S3.SS3.p1.2.m2.1a"><mrow id="S3.SS3.p1.2.m2.1.1" xref="S3.SS3.p1.2.m2.1.1.cmml"><mn id="S3.SS3.p1.2.m2.1.1.2" xref="S3.SS3.p1.2.m2.1.1.2.cmml">4.35</mn><mo id="S3.SS3.p1.2.m2.1.1.1" xref="S3.SS3.p1.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.2.m2.1b"><apply id="S3.SS3.p1.2.m2.1.1.cmml" xref="S3.SS3.p1.2.m2.1.1"><csymbol cd="latexml" id="S3.SS3.p1.2.m2.1.1.1.cmml" xref="S3.SS3.p1.2.m2.1.1.1">percent</csymbol><cn type="float" id="S3.SS3.p1.2.m2.1.1.2.cmml" xref="S3.SS3.p1.2.m2.1.1.2">4.35</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.2.m2.1c">4.35\%</annotation></semantics></math>) and a naive baseline of always choosing the most frequent room label (bathroom, which is <math id="S3.SS3.p1.3.m3.1" class="ltx_Math" alttext="19.44\%" display="inline"><semantics id="S3.SS3.p1.3.m3.1a"><mrow id="S3.SS3.p1.3.m3.1.1" xref="S3.SS3.p1.3.m3.1.1.cmml"><mn id="S3.SS3.p1.3.m3.1.1.2" xref="S3.SS3.p1.3.m3.1.1.2.cmml">19.44</mn><mo id="S3.SS3.p1.3.m3.1.1.1" xref="S3.SS3.p1.3.m3.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.3.m3.1b"><apply id="S3.SS3.p1.3.m3.1.1.cmml" xref="S3.SS3.p1.3.m3.1.1"><csymbol cd="latexml" id="S3.SS3.p1.3.m3.1.1.1.cmml" xref="S3.SS3.p1.3.m3.1.1.1">percent</csymbol><cn type="float" id="S3.SS3.p1.3.m3.1.1.2.cmml" xref="S3.SS3.p1.3.m3.1.1.2">19.44</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.3.m3.1c">19.44\%</annotation></semantics></math> of the rooms in our dataset).</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">Looking at Fig. <a href="#S3.F2" title="Figure 2 ‣ III-C Results ‣ III Experiments ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, our algorithm achieves very high identification accuracies for several common household room types (“bathroom,” “bedroom,” “kitchen,” and “living room”). For the best-performing trial, nyuClass with ground truth co-occurrencies, accuracies for these key rooms range from <math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="79.22-97.14\%" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mrow id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml"><mn id="S3.SS3.p2.1.m1.1.1.2" xref="S3.SS3.p2.1.m1.1.1.2.cmml">79.22</mn><mo id="S3.SS3.p2.1.m1.1.1.1" xref="S3.SS3.p2.1.m1.1.1.1.cmml">−</mo><mrow id="S3.SS3.p2.1.m1.1.1.3" xref="S3.SS3.p2.1.m1.1.1.3.cmml"><mn id="S3.SS3.p2.1.m1.1.1.3.2" xref="S3.SS3.p2.1.m1.1.1.3.2.cmml">97.14</mn><mo id="S3.SS3.p2.1.m1.1.1.3.1" xref="S3.SS3.p2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><apply id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1"><minus id="S3.SS3.p2.1.m1.1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1.1"></minus><cn type="float" id="S3.SS3.p2.1.m1.1.1.2.cmml" xref="S3.SS3.p2.1.m1.1.1.2">79.22</cn><apply id="S3.SS3.p2.1.m1.1.1.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3"><csymbol cd="latexml" id="S3.SS3.p2.1.m1.1.1.3.1.cmml" xref="S3.SS3.p2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S3.SS3.p2.1.m1.1.1.3.2.cmml" xref="S3.SS3.p2.1.m1.1.1.3.2">97.14</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">79.22-97.14\%</annotation></semantics></math>. Furthermore, there seem to be two general trends for when a room will <span id="S3.SS3.p2.1.1" class="ltx_text ltx_font_italic">not</span> be classified correctly:</p>
+<ol id="S3.I1" class="ltx_enumerate">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p"><span id="S3.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">If the room does not have disambiguating objects:</span> Bathrooms, staircases, and bedrooms all have good performance because they have objects that are almost exclusively found in them (e.g. showers/toilets, stairs/railing, and beds respectively). Rooms like conference auditoriums and family rooms, however, instead often just contain objects commonly found in many other rooms (tables, chairs, etc), and so are harder to identify.</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S3.I1.i2.p1" class="ltx_para">
+<p id="S3.I1.i2.p1.2" class="ltx_p"><span id="S3.I1.i2.p1.2.1" class="ltx_text ltx_font_bold">If the room is not a “standard” room:</span> In our room label space <math id="S3.I1.i2.p1.1.m1.1" class="ltx_Math" alttext="L_{R}" display="inline"><semantics id="S3.I1.i2.p1.1.m1.1a"><msub id="S3.I1.i2.p1.1.m1.1.1" xref="S3.I1.i2.p1.1.m1.1.1.cmml"><mi id="S3.I1.i2.p1.1.m1.1.1.2" xref="S3.I1.i2.p1.1.m1.1.1.2.cmml">L</mi><mi id="S3.I1.i2.p1.1.m1.1.1.3" xref="S3.I1.i2.p1.1.m1.1.1.3.cmml">R</mi></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.1.m1.1b"><apply id="S3.I1.i2.p1.1.m1.1.1.cmml" xref="S3.I1.i2.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.I1.i2.p1.1.m1.1.1.1.cmml" xref="S3.I1.i2.p1.1.m1.1.1">subscript</csymbol><ci id="S3.I1.i2.p1.1.m1.1.1.2.cmml" xref="S3.I1.i2.p1.1.m1.1.1.2">𝐿</ci><ci id="S3.I1.i2.p1.1.m1.1.1.3.cmml" xref="S3.I1.i2.p1.1.m1.1.1.3">𝑅</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.1.m1.1c">L_{R}</annotation></semantics></math>, we have “bars,” “libraries,” and “spas,” all of which more commmonly refer to <span id="S3.I1.i2.p1.2.2" class="ltx_text ltx_font_italic">buildings</span>, not rooms. Thus, query sentences <math id="S3.I1.i2.p1.2.m2.1" class="ltx_Math" alttext="W_{j}" display="inline"><semantics id="S3.I1.i2.p1.2.m2.1a"><msub id="S3.I1.i2.p1.2.m2.1.1" xref="S3.I1.i2.p1.2.m2.1.1.cmml"><mi id="S3.I1.i2.p1.2.m2.1.1.2" xref="S3.I1.i2.p1.2.m2.1.1.2.cmml">W</mi><mi id="S3.I1.i2.p1.2.m2.1.1.3" xref="S3.I1.i2.p1.2.m2.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.2.m2.1b"><apply id="S3.I1.i2.p1.2.m2.1.1.cmml" xref="S3.I1.i2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S3.I1.i2.p1.2.m2.1.1.1.cmml" xref="S3.I1.i2.p1.2.m2.1.1">subscript</csymbol><ci id="S3.I1.i2.p1.2.m2.1.1.2.cmml" xref="S3.I1.i2.p1.2.m2.1.1.2">𝑊</ci><ci id="S3.I1.i2.p1.2.m2.1.1.3.cmml" xref="S3.I1.i2.p1.2.m2.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.2.m2.1c">W_{j}</annotation></semantics></math> for those rooms (e.g. “A room containing … is called a bar.”) are likely to be scored worse than ones with room labels that are unambiguously rooms. “Gym” should also fall into this category, but it has highly disambiguating object labels (e.g. “gym equipment” in mpcat40), so our algorithm identifies it correctly nonetheless.</p>
+</div>
+</li>
+</ol>
+<p id="S3.SS3.p2.2" class="ltx_p">For the rest of the rooms, however, the language model does demonstrate the desired common sense when classifying them based off of objects typically found within each category of room.</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p">Finally, the results demonstrate significant zero-shot generalization performance, as our model is able to handle both the smaller, 35-object label space (mpcat40) and the much larger, 201-object label space (nyuClass) as well. In fact, the nyuClass trials both resulted in higher accuracies than their mpcat40 counterparts (see Table <a href="#S3.T2" title="TABLE II ‣ III-C Results ‣ III Experiments ‣ Extracting Zero-shot Common Sense from Large Language Models for Robot 3D Scene Understanding" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a>). This is because nyuClass’s labels are more specific and, therefore, more semantically-informative.</p>
+</div>
+<div id="S3.SS3.p4" class="ltx_para">
+<p id="S3.SS3.p4.1" class="ltx_p">This benefit is best demonstrated when identifying four room labels: kitchens, laundry rooms, game rooms, and garages.</p>
+<ol id="S3.I2" class="ltx_enumerate">
+<li id="S3.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S3.I2.i1.p1" class="ltx_para">
+<p id="S3.I2.i1.p1.1" class="ltx_p"><span id="S3.I2.i1.p1.1.1" class="ltx_text ltx_font_bold">Kitchens and laundry rooms:</span> Both these rooms are characterized by the appliances they contain. For nyuClass, objects like stoves and refrigerators are almost exclusively found in the former while washing machines are found in the latter. However, mpcat40 groups all those objects under the very broad and ambiguous category of “appliances,” making differentiation between the two room labels more difficult.</p>
+</div>
+</li>
+<li id="S3.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S3.I2.i2.p1" class="ltx_para">
+<p id="S3.I2.i2.p1.1" class="ltx_p"><span id="S3.I2.i2.p1.1.1" class="ltx_text ltx_font_bold">Game rooms:</span> Game rooms are characterized by recreational objects, such as ping-pong tables and foosball tables. Both of these categories appear in nyuClass, but are simply classified as “tables” by mpcat40, again making it easier to identify when using the larger label space.</p>
+</div>
+</li>
+<li id="S3.I2.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S3.I2.i3.p1" class="ltx_para">
+<p id="S3.I2.i3.p1.1" class="ltx_p"><span id="S3.I2.i3.p1.1.1" class="ltx_text ltx_font_bold">Garages:</span> Similar to the previous case, garage doors (which appear in nyuClass) are classified as just “doors” in mpcat40, again making garages easier to identify when using the larger label space.</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">Conclusion</span>
+</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">We show how large language models can be used for robot scene understanding by introducing a novel algorithm for inferring room labels given its contained objects in 3D scene graphs. We show that this procedure is able to achieve good inference accuracy even in the zero-shot regime. Moreover, we also demonstrate that, not only can it <span id="S4.p1.1.1" class="ltx_text ltx_font_italic">handle</span> different label spaces, both large and small, it actively <span id="S4.p1.1.2" class="ltx_text ltx_font_italic">benefits</span> from the added semantic informativeness of more fine-grained and specific object labels. These traits make it a promising avenue of development for scalable, sample-efficient, and generalizable robot spatial perception systems.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_font_smallcaps ltx_title_section">Acknowledgments</h2>
+
+<div id="Sx1.p1" class="ltx_para ltx_noindent">
+<p id="Sx1.p1.1" class="ltx_p">We thank Prof. Jacob Andreas for his valuable feedback, discussion inputs, and suggestions. This work was partially funded by ARL DCIST CRA W911NF-17-2-0181 and ONR RAIDER N00014-18-1-2828.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Black et al. [2021]</span>
+<span class="ltx_bibblock">
+Sid Black, Leo Gao, Phil Wang, Connor Leahy, and Stella Biderman.
+
+</span>
+<span class="ltx_bibblock">GPT-Neo: Large Scale Autoregressive Language Modeling with
+Mesh-Tensorflow, March 2021.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://doi.org/10.5281/zenodo.5297715" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.5281/zenodo.5297715</a>.
+
+</span>
+<span class="ltx_bibblock">If you use this software, please cite it using these metadata.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chang et al. [2017]</span>
+<span class="ltx_bibblock">
+Angel Chang, Angela Dai, Thomas Funkhouser, Maciej Halber, Matthias Niessner,
+Manolis Savva, Shuran Song, Andy Zeng, and Yinda Zhang.
+
+</span>
+<span class="ltx_bibblock">Matterport3d: Learning from rgb-d data in indoor environments.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">International Conference on 3D Vision (3DV)</em>, 2017.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chaves et al. [2020]</span>
+<span class="ltx_bibblock">
+David Chaves, J.R. Ruiz-Sarmiento, Nicolai Petkov, and Javier
+González-Jiménez.
+
+</span>
+<span class="ltx_bibblock">From object detection to room categorization in robotics.
+
+</span>
+<span class="ltx_bibblock">pages 1–6, 01 2020.
+
+</span>
+<span class="ltx_bibblock">doi: <span class="ltx_ref ltx_nolink ltx_Url ltx_ref_self">10.1145/3378184.3378230</span>.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chomsky [1965]</span>
+<span class="ltx_bibblock">
+Noam Chomsky.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Aspects of the Theory of Syntax</em>.
+
+</span>
+<span class="ltx_bibblock">The MIT Press, Cambridge, 1965.
+
+</span>
+<span class="ltx_bibblock">URL
+<a target="_blank" href="http://www.amazon.com/Aspects-Theory-Syntax-Noam-Chomsky/dp/0262530074" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://www.amazon.com/Aspects-Theory-Syntax-Noam-Chomsky/dp/0262530074</a>.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Devlin et al. [2019]</span>
+<span class="ltx_bibblock">
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+
+</span>
+<span class="ltx_bibblock">Bert: Pre-training of deep bidirectional transformers for language
+understanding, 2019.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Howard et al. [2014]</span>
+<span class="ltx_bibblock">
+Thomas M. Howard, Stefanie Tellex, and Nicholas Roy.
+
+</span>
+<span class="ltx_bibblock">A natural language planner interface for mobile manipulators.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">2014 IEEE International Conference on Robotics and
+Automation (ICRA)</em>, pages 6652–6659, 2014.
+
+</span>
+<span class="ltx_bibblock">doi: <span class="ltx_ref ltx_nolink ltx_Url ltx_ref_self">10.1109/ICRA.2014.6907841</span>.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hughes et al. [2022]</span>
+<span class="ltx_bibblock">
+Nathan Hughes, Yun Chang, and Luca Carlone.
+
+</span>
+<span class="ltx_bibblock">Hydra: A real-time spatial perception engine for 3d scene graph
+construction and optimization, 2022.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/2201.11360" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2201.11360</a>.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kollar et al. [2010]</span>
+<span class="ltx_bibblock">
+Thomas Kollar, Stefanie Tellex, Deb K. Roy, and Nicholas Roy.
+
+</span>
+<span class="ltx_bibblock">Toward understanding natural language directions.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">HRI 2010</em>, 2010.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Liu et al. [2019]</span>
+<span class="ltx_bibblock">
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer
+Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov.
+
+</span>
+<span class="ltx_bibblock">Roberta: A robustly optimized bert pretraining approach, 2019.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/1907.11692" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/1907.11692</a>.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lynch and Sermanet [2020]</span>
+<span class="ltx_bibblock">
+Corey Lynch and Pierre Sermanet.
+
+</span>
+<span class="ltx_bibblock">Language conditioned imitation learning over unstructured data, 2020.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/2005.07648" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2005.07648</a>.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Manolis Savva* et al. [2019]</span>
+<span class="ltx_bibblock">
+Manolis Savva*, Abhishek Kadian*, Oleksandr Maksymets*, Yili Zhao, Erik
+Wijmans, Bhavana Jain, Julian Straub, Jia Liu, Vladlen Koltun, Jitendra
+Malik, Devi Parikh, and Dhruv Batra.
+
+</span>
+<span class="ltx_bibblock">Habitat: A Platform for Embodied AI Research.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF International Conference on
+Computer Vision (ICCV)</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Matuszek et al. [2013]</span>
+<span class="ltx_bibblock">
+Cynthia Matuszek, Evan Herbst, Luke Zettlemoyer, and Dieter Fox.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">Learning to Parse Natural Language Commands to a Robot Control
+System</em>, pages 403–415.
+
+</span>
+<span class="ltx_bibblock">Springer International Publishing, Heidelberg, 2013.
+
+</span>
+<span class="ltx_bibblock">ISBN 978-3-319-00065-7.
+
+</span>
+<span class="ltx_bibblock">doi: <span class="ltx_ref ltx_nolink ltx_Url ltx_ref_self">10.1007/978-3-319-00065-7˙28</span>.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://doi.org/10.1007/978-3-319-00065-7_28" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.1007/978-3-319-00065-7_28</a>.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nathan Silberman and Fergus [2012]</span>
+<span class="ltx_bibblock">
+Pushmeet Kohli Nathan Silberman, Derek Hoiem and Rob Fergus.
+
+</span>
+<span class="ltx_bibblock">Indoor segmentation and support inference from rgbd images.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">ECCV</em>, 2012.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Paszke et al. [2019]</span>
+<span class="ltx_bibblock">
+Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory
+Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, Alban
+Desmaison, Andreas Kopf, Edward Yang, Zachary DeVito, Martin Raison, Alykhan
+Tejani, Sasank Chilamkurthy, Benoit Steiner, Lu Fang, Junjie Bai, and Soumith
+Chintala.
+
+</span>
+<span class="ltx_bibblock">Pytorch: An imperative style, high-performance deep learning library.
+
+</span>
+<span class="ltx_bibblock">In H. Wallach, H. Larochelle, A. Beygelzimer, F. d'Alché-Buc, E. Fox, and R. Garnett, editors, <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Advances in Neural
+Information Processing Systems 32</em>, pages 8024–8035. Curran Associates,
+Inc., 2019.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Radford et al. [2018]</span>
+<span class="ltx_bibblock">
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya
+Sutskever.
+
+</span>
+<span class="ltx_bibblock">Language models are unsupervised multitask learners, 2018.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Rosinol et al. [2021]</span>
+<span class="ltx_bibblock">
+Antoni Rosinol, Andrew Violette, Marcus Abate, Nathan Hughes, Yun Chang,
+Jingnan Shi, Arjun Gupta, and Luca Carlone.
+
+</span>
+<span class="ltx_bibblock">Kimera: from slam to spatial perception with 3d dynamic scene graphs,
+2021.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/2101.06894" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2101.06894</a>.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Salazar et al. [2020]</span>
+<span class="ltx_bibblock">
+Julian Salazar, Davis Liang, Toan Q. Nguyen, and Katrin Kirchhoff.
+
+</span>
+<span class="ltx_bibblock">Masked language model scoring.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>. Association for Computational Linguistics,
+2020.
+
+</span>
+<span class="ltx_bibblock">doi: <span class="ltx_ref ltx_nolink ltx_Url ltx_ref_self">10.18653/v1/2020.acl-main.240</span>.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://doi.org/10.18653%2Fv1%2F2020.acl-main.240" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://doi.org/10.18653%2Fv1%2F2020.acl-main.240</a>.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sharma et al. [2022]</span>
+<span class="ltx_bibblock">
+Pratyusha Sharma, Balakumar Sundaralingam, Valts Blukis, Chris Paxton, Tucker
+Hermans, Antonio Torralba, Jacob Andreas, and Dieter Fox.
+
+</span>
+<span class="ltx_bibblock">Correcting robot plans with natural language feedback, 2022.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/2204.05186" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2204.05186</a>.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shridhar et al. [2021]</span>
+<span class="ltx_bibblock">
+Mohit Shridhar, Lucas Manuelli, and Dieter Fox.
+
+</span>
+<span class="ltx_bibblock">Cliport: What and where pathways for robotic manipulation, 2021.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://arxiv.org/abs/2109.12098" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2109.12098</a>.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Szot et al. [2021]</span>
+<span class="ltx_bibblock">
+Andrew Szot, Alex Clegg, Eric Undersander, Erik Wijmans, Yili Zhao, John
+Turner, Noah Maestre, Mustafa Mukadam, Devendra Chaplot, Oleksandr Maksymets,
+Aaron Gokaslan, Vladimir Vondrus, Sameer Dharur, Franziska Meier, Wojciech
+Galuba, Angel Chang, Zsolt Kira, Vladlen Koltun, Jitendra Malik, Manolis
+Savva, and Dhruv Batra.
+
+</span>
+<span class="ltx_bibblock">Habitat 2.0: Training home assistants to rearrange their habitat.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems
+(NeurIPS)</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tellex et al. [2011]</span>
+<span class="ltx_bibblock">
+Stefanie Tellex, Thomas Kollar, Steven Dickerson, Matthew R. Walter,
+Ashis Gopal Banerjee, Seth J. Teller, and Nicholas Roy.
+
+</span>
+<span class="ltx_bibblock">Understanding natural language commands for robotic navigation and
+mobile manipulation.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">AAAI</em>, 2011.
+
+</span>
+<span class="ltx_bibblock">URL
+<a target="_blank" href="http://www.aaai.org/ocs/index.php/AAAI/AAAI11/paper/view/3623" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://www.aaai.org/ocs/index.php/AAAI/AAAI11/paper/view/3623</a>.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">von Humboldt et al. [1988]</span>
+<span class="ltx_bibblock">
+W.F. von Humboldt, P. Heath, and H. Aarsleff.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">On Language: The Diversity of Human Language-Structure and its
+Influence on the Mental Development of Mankind</em>.
+
+</span>
+<span class="ltx_bibblock">Texts in German Philosophy. Cambridge University Press, 1988.
+
+</span>
+<span class="ltx_bibblock">ISBN 9780521315135.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="https://books.google.com/books?id=0CXEQwAACAAJ" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://books.google.com/books?id=0CXEQwAACAAJ</a>.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang and Komatsuzaki [2021]</span>
+<span class="ltx_bibblock">
+Ben Wang and Aran Komatsuzaki.
+
+</span>
+<span class="ltx_bibblock">GPT-J-6B: A 6 Billion Parameter Autoregressive Language Model.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://github.com/kingoflolz/mesh-transformer-jax" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/kingoflolz/mesh-transformer-jax</a>, May 2021.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yadav et al. [2022]</span>
+<span class="ltx_bibblock">
+Karmesh Yadav, Santhosh Kumar Ramakrishnan, John Turner, Aaron Gokaslan,
+Oleksandr Maksymets, Rishabh Jain, Ram Ramrakhya, Angel X Chang, Alexander
+Clegg, Manolis Savva, Eric Undersander, Devendra Singh Chaplot, and Dhruv
+Batra.
+
+</span>
+<span class="ltx_bibblock">Habitat challenge 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://aihabitat.org/challenge/2022/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://aihabitat.org/challenge/2022/</a>, 2022.
+
+</span>
+</li>
+</ul>
+</section>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p">We perform a few additional dataset pre-processing steps to produce the final scene graph dataset with 1878 rooms. First, since some objects are assigned an incorrect region (e.g. toilets are assigned to living rooms, despite (i) that being non-sensible and (ii) the toilet not being within the bounding box of the living room), we check to see if each object is within the bounding box of its assigned region. If not, then it is re-assigned to whichever region’s bounding box contains it, and the corresponding scene-graph connection is also made.</p>
+</div>
+<div id="p2" class="ltx_para">
+<p id="p2.1" class="ltx_p">Second, nyuClass has some misspelled labels (e.g. “refridgerator” instead of “refrigerator”), so we correct all of those too.</p>
+</div>
+<div id="p3" class="ltx_para">
+<p id="p3.1" class="ltx_p">Lastly, sometimes, a single nyuClass label may be erroneously assigned to multiple mpcat40 labels. This is most problematic when one of the mpcat40 labels is rejected and the other is not. To address this, we use the first mpcat40 label for each nyuClass label that is <span id="p3.1.1" class="ltx_text ltx_font_italic">not</span> rejected (e.g. nyuClass label “stairs” is mapped to mpcat40 “miscellaneous,” which is rejected, and “stairs,” which is not, so we keep the latter). However, this means some labels which <span id="p3.1.2" class="ltx_text ltx_font_italic">should</span> be rejected are not rejected, so we also manually filter out all nyuClass object labels that are the <span id="p3.1.3" class="ltx_text ltx_font_italic">same</span> as those of rejected mpcat40 labels: “ceiling,” “floor,” and “wall”.</p>
+</div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2206.04584" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2206.04585" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2206.04585">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2206.04585" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2206.04586" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Mon Mar 11 18:57:02 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

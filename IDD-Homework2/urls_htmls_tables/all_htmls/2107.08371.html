@@ -1,0 +1,944 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2107.08371] An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging</title><meta property="og:description" content="Federated learning enables multiple institutions to collaboratively train machine learning models on their local data in a privacy-preserving way. However, its distributed nature often leads to significant heterogeneit…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2107.08371">
+
+<!--Generated on Sat Mar  9 01:40:04 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line ltx_fleqn">
+<h1 class="ltx_title ltx_title_document">An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Liangqiong Qu
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Department of Biomedical Data Science at Stanford University, Stanford, CA 94305,
+USA
+</span></span></span>
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Niranjan Balachandar
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Department of Biomedical Data Science at Stanford University, Stanford, CA 94305,
+USA
+</span></span></span>
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Daniel L Rubin
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Department of Biomedical Data Science and Department of Radiology at Stanford
+University, Stanford, CA 94305, USA.
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Federated learning enables multiple institutions to collaboratively train machine learning models on their local data in a privacy-preserving way. However, its distributed nature often leads to significant heterogeneity in data distributions across institutions. In this paper, we investigate the deleterious impact of a taxonomy of data heterogeneity regimes on federated learning methods, including quantity skew, label distribution skew, and imaging acquisition skew. We show that the performance degrades with the increasing degrees of data heterogeneity. We present several mitigation strategies to overcome performance drops from data heterogeneity, including weighted average for data quantity skew, weighted loss and batch normalization averaging for label distribution skew.
+The proposed optimizations to federated learning methods improve their capability of handling heterogeneity across institutions, which provides valuable guidance for the deployment of federated learning in real clinical applications.</p>
+</div>
+<section id="S1" class="ltx_section" lang="en">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Deep learning techniques have demonstrated state-of-the-art performances in a wide range of computer vision and automatic clinical tasks, such as classification of natural images, detection and diagnosis of cancer, and clinical prediction <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>.
+However, the advancement of deep learning techniques is heavily dependent on the amount and diversity of the data in the training dataset. Many deep learning models are currently trained using data from few centers and generally do not perform well in new data or in clinical practice. Cohort sizes at single institution or even in public data repositories such as The Cancer Imaging Archive (TCIA) are often small, especially for rarer diseases or for certain patient populations (e.g., molecular variants in gliomas) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Aggregating data from multiple institutions is not always feasible due to regulatory, technical and patient privacy concerns.
+Federated learning, where computations are performed locally at each institution without sharing data, is promising for accessing large, representative data to train robust deep learning models that have greater generalizability and lower risk of model bias.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Numerous federated learning methods have emerged in past decades <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, such as Federated stochastic gradient descent (FedSGD) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, Federated averaging algorithm (FedAVG) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, and Cyclical weight transfer (CWT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>. Despite the promising progress, existing methods generally do not account for the presence of data heterogeneity among institutions.
+Most federated learning methods usually assume independent and identically distributed (IID) data among institutions, which is unlikely to hold in real federated learning settings in healthcare. Few recent studies have explored the performance of federated learning methods on non-IID data partitions that have label distribution skew <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>. For example, Hsieh <em id="S1.p2.1.1" class="ltx_emph ltx_font_italic">et al.</em> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> conducted a series of experimental studies to show the impact of label distribution skew on federated learning methods. However, in addition to label distribution skew, the data at different institutions are usually heterogeneous in other ways, such as data quantity skew and imaging acquisition skew. For example, large academic university hospitals generally have substantially larger datasets than small community hospitals, and they differ in equipment vendors and imaging equipment parameters.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In this paper, we present an experimental study on two medical image classification tasks, to investigate the impact of a taxonomy of data heterogeneity regimes on federated learning methods, including quantity skew, label distribution skew, and imaging acquisition skew (e.g., different hospitals may use different imaging equipment vendors and acquisition protocols). Contributions of this paper are summarized as follows.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">1) We present the first thorough research to study the impact of a taxonomy of data
+heterogeneity regimes on several widely used federated learning methods with medical image data. Our study provides valuable guidance for the deployment of federated learning in real clinical applications.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">2) We show that the performance of the federated learning methods in our study degrades with the increasing degrees of data heterogeneity, and
+the rate of decrease in performance is determined by the degree of deviation from homogenous distributions.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">3) We propose a variety of optimization strategies to mitigate the performance loss for quantity skew and label distribution skew,
+including weighted average strategy for data quantity skew, and weighted loss strategy for label distribution skew.</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">4) We study the influence of the Batch Normalization (BN) for FedAVG, we show that averaging the mean and variance of BN across institutions during FedAVG training is a simple and flexible alternative to mitigate skew-induced performance loss of BN.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section" lang="en">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Study Materials and Experimental Setup</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Study Methods</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">We employed three popular federated learning methods in our study: two parallel federated learning methods (FedSGD <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> and FedAVG <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>), and CWT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>.
+We used the model trained with the centrally hosted data as a baseline method, termed as centrally hosted.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p"><span id="S2.SS1.p2.1.1" class="ltx_text ltx_font_bold">FedSGD <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite></span>, involves frequent transferring of gradients from individual institutions to a central server, computing weight updates using institutional gradients at the central server, and transferring updated weights back to individual institutions.</p>
+</div>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.1" class="ltx_p"><span id="S2.SS1.p3.1.1" class="ltx_text ltx_font_bold">FedAVG <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite></span>, involves frequent transferring of weights from individual institutions to a central parameter server, averaging weight computation at the central server, and transferring averaged weights back to individual institutions.</p>
+</div>
+<div id="S2.SS1.p4" class="ltx_para">
+<p id="S2.SS1.p4.1" class="ltx_p"><span id="S2.SS1.p4.1.1" class="ltx_text ltx_font_bold">CWT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite></span>, involves training for a fixed number of iterations at one institution, and cyclically transferring weights to the next training institution until model convergence.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Dataset</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">We evaluated on Alzheimer’s Disease Neuroimaging Initiative (ADNI) Dataset <span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><a target="_blank" href="http://adni.loni.usc.edu/" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://adni.loni.usc.edu/</a></span></span></span> and Diabetic Retinopathy (Retina) Dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>:</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p"><span id="S2.SS2.p2.1.1" class="ltx_text ltx_font_bold">ADNI Dataset</span> provides a longitudinal multi-institutional observation study on Alzheimer’s disease patients, mild cognitive impairment subjects, and healthy elders controls. For simplicity, we only use PET scans from (18F)-fluorode-oxyglucose PET to predict the summary standard uptake value ratios (SUVRs) status. Specifically, we discretized the continuous SUVRs into 4 classes, 2 classes of equal size for SUVR values below the 1.11 cutoff <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, and 2 classes for the SUVR values above. We utilized a total of 2603 florbetapir PET scans (from 1235 subjects) in our study. We randomly divided the scans into 3 subsets: 1896 scans for training, 314 scans for validation, and the remaining for testing. The scans for the same subject were divided into same subset.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p"><span id="S2.SS2.p3.1.1" class="ltx_text ltx_font_bold">Retina Dataset</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> consists of 17,563 pairs of right and left color digital retinal fundus images. Each image provided by this dataset includes a rating on a scale of 0 to 4 according to the presence of diabetic retinopathy. Following the setting in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>, the labels were binarized to Healthy (scale 0) and Diseased (scale 2, 3 or 4) in our study, while the mild diabetic retinopathy images (scale 1) were excluded. Additionally, only left eye images were used to remove the confusion from using multiple images for the same patient. We utilized a total of 6000 subjects for training, 3000 for validation, and 3000 for testing.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Experimental Setup</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.7" class="ltx_p">We used a full communication setting for FedSGD, i.e., update the gradients between individual institutions and central server every iteration.
+For FedAVG, we set the number of training passes on each local institution to <math id="S2.SS3.p1.1.m1.1" class="ltx_Math" alttext="Q_{i}/B" display="inline"><semantics id="S2.SS3.p1.1.m1.1a"><mrow id="S2.SS3.p1.1.m1.1.1" xref="S2.SS3.p1.1.m1.1.1.cmml"><msub id="S2.SS3.p1.1.m1.1.1.2" xref="S2.SS3.p1.1.m1.1.1.2.cmml"><mi id="S2.SS3.p1.1.m1.1.1.2.2" xref="S2.SS3.p1.1.m1.1.1.2.2.cmml">Q</mi><mi id="S2.SS3.p1.1.m1.1.1.2.3" xref="S2.SS3.p1.1.m1.1.1.2.3.cmml">i</mi></msub><mo id="S2.SS3.p1.1.m1.1.1.1" xref="S2.SS3.p1.1.m1.1.1.1.cmml">/</mo><mi id="S2.SS3.p1.1.m1.1.1.3" xref="S2.SS3.p1.1.m1.1.1.3.cmml">B</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.1.m1.1b"><apply id="S2.SS3.p1.1.m1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1"><divide id="S2.SS3.p1.1.m1.1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1.1"></divide><apply id="S2.SS3.p1.1.m1.1.1.2.cmml" xref="S2.SS3.p1.1.m1.1.1.2"><csymbol cd="ambiguous" id="S2.SS3.p1.1.m1.1.1.2.1.cmml" xref="S2.SS3.p1.1.m1.1.1.2">subscript</csymbol><ci id="S2.SS3.p1.1.m1.1.1.2.2.cmml" xref="S2.SS3.p1.1.m1.1.1.2.2">𝑄</ci><ci id="S2.SS3.p1.1.m1.1.1.2.3.cmml" xref="S2.SS3.p1.1.m1.1.1.2.3">𝑖</ci></apply><ci id="S2.SS3.p1.1.m1.1.1.3.cmml" xref="S2.SS3.p1.1.m1.1.1.3">𝐵</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.1.m1.1c">Q_{i}/B</annotation></semantics></math>, where <math id="S2.SS3.p1.2.m2.1" class="ltx_Math" alttext="{Q_{i}}" display="inline"><semantics id="S2.SS3.p1.2.m2.1a"><msub id="S2.SS3.p1.2.m2.1.1" xref="S2.SS3.p1.2.m2.1.1.cmml"><mi id="S2.SS3.p1.2.m2.1.1.2" xref="S2.SS3.p1.2.m2.1.1.2.cmml">Q</mi><mi id="S2.SS3.p1.2.m2.1.1.3" xref="S2.SS3.p1.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.2.m2.1b"><apply id="S2.SS3.p1.2.m2.1.1.cmml" xref="S2.SS3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.2.m2.1.1.1.cmml" xref="S2.SS3.p1.2.m2.1.1">subscript</csymbol><ci id="S2.SS3.p1.2.m2.1.1.2.cmml" xref="S2.SS3.p1.2.m2.1.1.2">𝑄</ci><ci id="S2.SS3.p1.2.m2.1.1.3.cmml" xref="S2.SS3.p1.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.2.m2.1c">{Q_{i}}</annotation></semantics></math> is the quantity of training samples in local institution <math id="S2.SS3.p1.3.m3.1" class="ltx_Math" alttext="I_{i}" display="inline"><semantics id="S2.SS3.p1.3.m3.1a"><msub id="S2.SS3.p1.3.m3.1.1" xref="S2.SS3.p1.3.m3.1.1.cmml"><mi id="S2.SS3.p1.3.m3.1.1.2" xref="S2.SS3.p1.3.m3.1.1.2.cmml">I</mi><mi id="S2.SS3.p1.3.m3.1.1.3" xref="S2.SS3.p1.3.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.3.m3.1b"><apply id="S2.SS3.p1.3.m3.1.1.cmml" xref="S2.SS3.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.3.m3.1.1.1.cmml" xref="S2.SS3.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS3.p1.3.m3.1.1.2.cmml" xref="S2.SS3.p1.3.m3.1.1.2">𝐼</ci><ci id="S2.SS3.p1.3.m3.1.1.3.cmml" xref="S2.SS3.p1.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.3.m3.1c">I_{i}</annotation></semantics></math> and <math id="S2.SS3.p1.4.m4.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S2.SS3.p1.4.m4.1a"><mi id="S2.SS3.p1.4.m4.1.1" xref="S2.SS3.p1.4.m4.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.4.m4.1b"><ci id="S2.SS3.p1.4.m4.1.1.cmml" xref="S2.SS3.p1.4.m4.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.4.m4.1c">B</annotation></semantics></math> is the local minibatch size. CWT involves training the same fixed number of iterations on each institutions. Here we set the number of iterations to <math id="S2.SS3.p1.5.m5.1" class="ltx_Math" alttext="Q/(B\times n)" display="inline"><semantics id="S2.SS3.p1.5.m5.1a"><mrow id="S2.SS3.p1.5.m5.1.1" xref="S2.SS3.p1.5.m5.1.1.cmml"><mi id="S2.SS3.p1.5.m5.1.1.3" xref="S2.SS3.p1.5.m5.1.1.3.cmml">Q</mi><mo id="S2.SS3.p1.5.m5.1.1.2" xref="S2.SS3.p1.5.m5.1.1.2.cmml">/</mo><mrow id="S2.SS3.p1.5.m5.1.1.1.1" xref="S2.SS3.p1.5.m5.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS3.p1.5.m5.1.1.1.1.2" xref="S2.SS3.p1.5.m5.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS3.p1.5.m5.1.1.1.1.1" xref="S2.SS3.p1.5.m5.1.1.1.1.1.cmml"><mi id="S2.SS3.p1.5.m5.1.1.1.1.1.2" xref="S2.SS3.p1.5.m5.1.1.1.1.1.2.cmml">B</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS3.p1.5.m5.1.1.1.1.1.1" xref="S2.SS3.p1.5.m5.1.1.1.1.1.1.cmml">×</mo><mi id="S2.SS3.p1.5.m5.1.1.1.1.1.3" xref="S2.SS3.p1.5.m5.1.1.1.1.1.3.cmml">n</mi></mrow><mo stretchy="false" id="S2.SS3.p1.5.m5.1.1.1.1.3" xref="S2.SS3.p1.5.m5.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.5.m5.1b"><apply id="S2.SS3.p1.5.m5.1.1.cmml" xref="S2.SS3.p1.5.m5.1.1"><divide id="S2.SS3.p1.5.m5.1.1.2.cmml" xref="S2.SS3.p1.5.m5.1.1.2"></divide><ci id="S2.SS3.p1.5.m5.1.1.3.cmml" xref="S2.SS3.p1.5.m5.1.1.3">𝑄</ci><apply id="S2.SS3.p1.5.m5.1.1.1.1.1.cmml" xref="S2.SS3.p1.5.m5.1.1.1.1"><times id="S2.SS3.p1.5.m5.1.1.1.1.1.1.cmml" xref="S2.SS3.p1.5.m5.1.1.1.1.1.1"></times><ci id="S2.SS3.p1.5.m5.1.1.1.1.1.2.cmml" xref="S2.SS3.p1.5.m5.1.1.1.1.1.2">𝐵</ci><ci id="S2.SS3.p1.5.m5.1.1.1.1.1.3.cmml" xref="S2.SS3.p1.5.m5.1.1.1.1.1.3">𝑛</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.5.m5.1c">Q/(B\times n)</annotation></semantics></math>, where <math id="S2.SS3.p1.6.m6.1" class="ltx_Math" alttext="Q" display="inline"><semantics id="S2.SS3.p1.6.m6.1a"><mi id="S2.SS3.p1.6.m6.1.1" xref="S2.SS3.p1.6.m6.1.1.cmml">Q</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.6.m6.1b"><ci id="S2.SS3.p1.6.m6.1.1.cmml" xref="S2.SS3.p1.6.m6.1.1">𝑄</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.6.m6.1c">Q</annotation></semantics></math> is the quantity of training samples of centrally hosted data, <math id="S2.SS3.p1.7.m7.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS3.p1.7.m7.1a"><mi id="S2.SS3.p1.7.m7.1.1" xref="S2.SS3.p1.7.m7.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.7.m7.1b"><ci id="S2.SS3.p1.7.m7.1.1.cmml" xref="S2.SS3.p1.7.m7.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.7.m7.1c">n</annotation></semantics></math> is the number of institutions involving in federated learning.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p">We applied ResNet34 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> as our baseline DNN architecture. All the methods were implemented in Pytorch and optimized with SGD. The training parameters (such as learning rate and minibatch size) were tuned to make sure the baseline centrally hosted achieved best performance. For a fair comparison, we then used these training parameters in all the federated learning methods we compared. All methods were trained with enough epochs until model convergence.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section" lang="en">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments and Results</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">In this section, we study the impact of a taxonomy of data heterogeneity regimes on federated learning methods, including quantity skew, label distribution skew
+and imaging acquisition skew. We then present several mitigation strategies to overcome performance drops from data heterogeneity.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Quantity Skew</h3>
+
+<figure id="S3.F1" class="ltx_figure">
+<table id="S3.F1.2.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.F1.2.2.2" class="ltx_tr">
+<th id="S3.F1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row">
+<span id="S3.F1.1.1.1.1.1" class="ltx_text" style="font-size:70%;">
+</span><img src="/html/2107.08371/assets/picture/ADNI_size_var.jpg" id="S3.F1.1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="281" height="162" alt="Refer to caption">
+</th>
+<td id="S3.F1.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/Retina_size_var.jpg" id="S3.F1.2.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="269" height="162" alt="Refer to caption"></td>
+</tr>
+<tr id="S3.F1.2.2.3.1" class="ltx_tr">
+<th id="S3.F1.2.2.3.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row"><span id="S3.F1.2.2.3.1.1.1" class="ltx_text" style="font-size:70%;">ADNI</span></th>
+<td id="S3.F1.2.2.3.1.2" class="ltx_td ltx_align_center"><span id="S3.F1.2.2.3.1.2.1" class="ltx_text" style="font-size:70%;">Retina</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Test accuracy on data partitions with quantity skew<span id="footnotex2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note"><span id="footnotex2.1.1.1" class="ltx_text" style="font-size:143%;">2</span></span>Mean and standard deviation test accuracies were obtained with 4 runs. We use the same setting for the following experiments.</span></span></span>. The performance drop rate of data partitions with quantity skew from homogenous data split 1 is shown when it is larger than 1%. </figcaption>
+</figure>
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">Quantity skew is one common way that causes data to deviate from a homogenous distribution. Large academic university hospitals generally have substantially larger datasets than small community hospitals. We created 4 sets of data partitions with variable sample sizes across simulated institutions to study the impact of quantity skew on federated learning methods (see supplementary file for detailed data partitions). Each data partition consists of 4 stimulated institutions and each institution shares the same feature distribution and label distribution.
+We use sample standard deviation (STD) of the sample size across institutions to measure the degree of quantity skew.
+</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">Fig. <a href="#footnotex2" title="footnote 2 ‣ Figure 1 ‣ 3.1 Quantity Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="font-size:143%;">2</span></span></a> shows that all the federated learning methods achieve comparable performance to the centrally hosted baseline in homogenous data split 1. However, the performance of FedSGD and CWT degrade with the increasing degree of skew, e.g, 7.0% and 8.9% drop rates of FedSGD and CWT on ADNI dataset with split 4.
+All the institutions at FedSGD contributed equally on the gradient update at each training iteration, ignoring the impact of quantity skew. Different from FedSGD, FedAVG averages the model weights after one epoch train on the whole local institutional dataset, without reusing the small dataset for weights update, thus works well on quantity skew. We then introduced a weighted average strategy for FedSGD, termed as FedSGD+WP, where gradients from each institutions were not treated equally but proportional to the institutional training sample size. Similarly, we applied proportional training sample sizes <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> to CWT for addressing quantity skew, termed as CWT+WP. Shown in Fig. <a href="#footnotex2" title="footnote 2 ‣ Figure 1 ‣ 3.1 Quantity Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="font-size:143%;">2</span></span></a>, with the proposed weighted average strategy and proportional training sample sizes strategy, both FedSGD and CWT achieve promising performance on data partitions with quantity skew.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Label Distribution Skew</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">Our study on quantity skew assumes homogenous label distribution across institutions, which is not always true in real applications.
+In fact, label distribution may vary across institutions even when they share the same label annotations. For example, lupus is much more common in Black, Asian people than White people.
+We created 4 sets of data partitions with label distribution skew (same data quantity) by controlling the fraction of non-IID data. We used the mean Kolmogorov-Smirnov (KS) statistic between every two institutions to measure the degree of label distribution skew. Specifically, KS=0 indicates homogenous label distributions, and 1 indicates totally different label distributions across institutions. See supplementary file for detailed data partitions and its corresponding KS value.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure">
+<table id="S3.F2.2.2" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.F2.2.2.2" class="ltx_tr">
+<td id="S3.F2.1.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/ADNI_label_var.jpg" id="S3.F2.1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="299" height="175" alt="Refer to caption"></td>
+<td id="S3.F2.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/Retina_label_var.jpg" id="S3.F2.2.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="299" height="175" alt="Refer to caption"></td>
+</tr>
+<tr id="S3.F2.2.2.3.1" class="ltx_tr">
+<td id="S3.F2.2.2.3.1.1" class="ltx_td ltx_align_center"><span id="S3.F2.2.2.3.1.1.1" class="ltx_text" style="font-size:70%;">ADNI</span></td>
+<td id="S3.F2.2.2.3.1.2" class="ltx_td ltx_align_center"><span id="S3.F2.2.2.3.1.2.1" class="ltx_text" style="font-size:70%;">Retina</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Test accuracy on data partitions with label distribution skew. The performance drop rate of data partitions with label distribution skew from homogenous data split 1 is shown when it is larger than 1%. </figcaption>
+</figure>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.10" class="ltx_p">Fig. <a href="#S3.F2" title="Figure 2 ‣ 3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows that all the compared federated learning methods are vulnerable to label distribution skew. The performance drop rates on split 4 (with KS = 0.90) of ADNI dataset reaches to 26.0%, 23.0%, and 32.0% of FedSGD, FedAVG, and CWT, respectively.
+One common approach for addressing class imbalance in standard DNNs is to introduce weighted factors into loss function. Similarly, we also applied a class weighted cross-entropy loss (WL) to tackle the label distribution skew in federated learning methods:</p>
+<table id="S3.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_left_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_left"><math id="S3.E1.m1.6" class="ltx_Math" alttext="\text{WL}=-\Sigma_{j=1}^{c}\alpha_{j}y_{x,j}\log(p_{x,j})," display="block"><semantics id="S3.E1.m1.6a"><mrow id="S3.E1.m1.6.6.1" xref="S3.E1.m1.6.6.1.1.cmml"><mrow id="S3.E1.m1.6.6.1.1" xref="S3.E1.m1.6.6.1.1.cmml"><mtext id="S3.E1.m1.6.6.1.1.3" xref="S3.E1.m1.6.6.1.1.3a.cmml">WL</mtext><mo id="S3.E1.m1.6.6.1.1.2" xref="S3.E1.m1.6.6.1.1.2.cmml">=</mo><mrow id="S3.E1.m1.6.6.1.1.1" xref="S3.E1.m1.6.6.1.1.1.cmml"><mo id="S3.E1.m1.6.6.1.1.1a" xref="S3.E1.m1.6.6.1.1.1.cmml">−</mo><mrow id="S3.E1.m1.6.6.1.1.1.1" xref="S3.E1.m1.6.6.1.1.1.1.cmml"><msubsup id="S3.E1.m1.6.6.1.1.1.1.3" xref="S3.E1.m1.6.6.1.1.1.1.3.cmml"><mi mathvariant="normal" id="S3.E1.m1.6.6.1.1.1.1.3.2.2" xref="S3.E1.m1.6.6.1.1.1.1.3.2.2.cmml">Σ</mi><mrow id="S3.E1.m1.6.6.1.1.1.1.3.2.3" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.cmml"><mi id="S3.E1.m1.6.6.1.1.1.1.3.2.3.2" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.2.cmml">j</mi><mo id="S3.E1.m1.6.6.1.1.1.1.3.2.3.1" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.1.cmml">=</mo><mn id="S3.E1.m1.6.6.1.1.1.1.3.2.3.3" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.3.cmml">1</mn></mrow><mi id="S3.E1.m1.6.6.1.1.1.1.3.3" xref="S3.E1.m1.6.6.1.1.1.1.3.3.cmml">c</mi></msubsup><mo lspace="0em" rspace="0em" id="S3.E1.m1.6.6.1.1.1.1.2" xref="S3.E1.m1.6.6.1.1.1.1.2.cmml">​</mo><msub id="S3.E1.m1.6.6.1.1.1.1.4" xref="S3.E1.m1.6.6.1.1.1.1.4.cmml"><mi id="S3.E1.m1.6.6.1.1.1.1.4.2" xref="S3.E1.m1.6.6.1.1.1.1.4.2.cmml">α</mi><mi id="S3.E1.m1.6.6.1.1.1.1.4.3" xref="S3.E1.m1.6.6.1.1.1.1.4.3.cmml">j</mi></msub><mo lspace="0em" rspace="0em" id="S3.E1.m1.6.6.1.1.1.1.2a" xref="S3.E1.m1.6.6.1.1.1.1.2.cmml">​</mo><msub id="S3.E1.m1.6.6.1.1.1.1.5" xref="S3.E1.m1.6.6.1.1.1.1.5.cmml"><mi id="S3.E1.m1.6.6.1.1.1.1.5.2" xref="S3.E1.m1.6.6.1.1.1.1.5.2.cmml">y</mi><mrow id="S3.E1.m1.2.2.2.4" xref="S3.E1.m1.2.2.2.3.cmml"><mi id="S3.E1.m1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.cmml">x</mi><mo id="S3.E1.m1.2.2.2.4.1" xref="S3.E1.m1.2.2.2.3.cmml">,</mo><mi id="S3.E1.m1.2.2.2.2" xref="S3.E1.m1.2.2.2.2.cmml">j</mi></mrow></msub><mo lspace="0.167em" rspace="0em" id="S3.E1.m1.6.6.1.1.1.1.2b" xref="S3.E1.m1.6.6.1.1.1.1.2.cmml">​</mo><mrow id="S3.E1.m1.6.6.1.1.1.1.1.1" xref="S3.E1.m1.6.6.1.1.1.1.1.2.cmml"><mi id="S3.E1.m1.5.5" xref="S3.E1.m1.5.5.cmml">log</mi><mo id="S3.E1.m1.6.6.1.1.1.1.1.1a" xref="S3.E1.m1.6.6.1.1.1.1.1.2.cmml">⁡</mo><mrow id="S3.E1.m1.6.6.1.1.1.1.1.1.1" xref="S3.E1.m1.6.6.1.1.1.1.1.2.cmml"><mo stretchy="false" id="S3.E1.m1.6.6.1.1.1.1.1.1.1.2" xref="S3.E1.m1.6.6.1.1.1.1.1.2.cmml">(</mo><msub id="S3.E1.m1.6.6.1.1.1.1.1.1.1.1" xref="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.cmml"><mi id="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.2" xref="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.2.cmml">p</mi><mrow id="S3.E1.m1.4.4.2.4" xref="S3.E1.m1.4.4.2.3.cmml"><mi id="S3.E1.m1.3.3.1.1" xref="S3.E1.m1.3.3.1.1.cmml">x</mi><mo id="S3.E1.m1.4.4.2.4.1" xref="S3.E1.m1.4.4.2.3.cmml">,</mo><mi id="S3.E1.m1.4.4.2.2" xref="S3.E1.m1.4.4.2.2.cmml">j</mi></mrow></msub><mo stretchy="false" id="S3.E1.m1.6.6.1.1.1.1.1.1.1.3" xref="S3.E1.m1.6.6.1.1.1.1.1.2.cmml">)</mo></mrow></mrow></mrow></mrow></mrow><mo id="S3.E1.m1.6.6.1.2" xref="S3.E1.m1.6.6.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.E1.m1.6b"><apply id="S3.E1.m1.6.6.1.1.cmml" xref="S3.E1.m1.6.6.1"><eq id="S3.E1.m1.6.6.1.1.2.cmml" xref="S3.E1.m1.6.6.1.1.2"></eq><ci id="S3.E1.m1.6.6.1.1.3a.cmml" xref="S3.E1.m1.6.6.1.1.3"><mtext id="S3.E1.m1.6.6.1.1.3.cmml" xref="S3.E1.m1.6.6.1.1.3">WL</mtext></ci><apply id="S3.E1.m1.6.6.1.1.1.cmml" xref="S3.E1.m1.6.6.1.1.1"><minus id="S3.E1.m1.6.6.1.1.1.2.cmml" xref="S3.E1.m1.6.6.1.1.1"></minus><apply id="S3.E1.m1.6.6.1.1.1.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1"><times id="S3.E1.m1.6.6.1.1.1.1.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.2"></times><apply id="S3.E1.m1.6.6.1.1.1.1.3.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E1.m1.6.6.1.1.1.1.3.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3">superscript</csymbol><apply id="S3.E1.m1.6.6.1.1.1.1.3.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E1.m1.6.6.1.1.1.1.3.2.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3">subscript</csymbol><ci id="S3.E1.m1.6.6.1.1.1.1.3.2.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.2.2">Σ</ci><apply id="S3.E1.m1.6.6.1.1.1.1.3.2.3.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3"><eq id="S3.E1.m1.6.6.1.1.1.1.3.2.3.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.1"></eq><ci id="S3.E1.m1.6.6.1.1.1.1.3.2.3.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.2">𝑗</ci><cn type="integer" id="S3.E1.m1.6.6.1.1.1.1.3.2.3.3.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.2.3.3">1</cn></apply></apply><ci id="S3.E1.m1.6.6.1.1.1.1.3.3.cmml" xref="S3.E1.m1.6.6.1.1.1.1.3.3">𝑐</ci></apply><apply id="S3.E1.m1.6.6.1.1.1.1.4.cmml" xref="S3.E1.m1.6.6.1.1.1.1.4"><csymbol cd="ambiguous" id="S3.E1.m1.6.6.1.1.1.1.4.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.4">subscript</csymbol><ci id="S3.E1.m1.6.6.1.1.1.1.4.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.4.2">𝛼</ci><ci id="S3.E1.m1.6.6.1.1.1.1.4.3.cmml" xref="S3.E1.m1.6.6.1.1.1.1.4.3">𝑗</ci></apply><apply id="S3.E1.m1.6.6.1.1.1.1.5.cmml" xref="S3.E1.m1.6.6.1.1.1.1.5"><csymbol cd="ambiguous" id="S3.E1.m1.6.6.1.1.1.1.5.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.5">subscript</csymbol><ci id="S3.E1.m1.6.6.1.1.1.1.5.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.5.2">𝑦</ci><list id="S3.E1.m1.2.2.2.3.cmml" xref="S3.E1.m1.2.2.2.4"><ci id="S3.E1.m1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1">𝑥</ci><ci id="S3.E1.m1.2.2.2.2.cmml" xref="S3.E1.m1.2.2.2.2">𝑗</ci></list></apply><apply id="S3.E1.m1.6.6.1.1.1.1.1.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.1.1"><log id="S3.E1.m1.5.5.cmml" xref="S3.E1.m1.5.5"></log><apply id="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.6.6.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.6.6.1.1.1.1.1.1.1.1.2">𝑝</ci><list id="S3.E1.m1.4.4.2.3.cmml" xref="S3.E1.m1.4.4.2.4"><ci id="S3.E1.m1.3.3.1.1.cmml" xref="S3.E1.m1.3.3.1.1">𝑥</ci><ci id="S3.E1.m1.4.4.2.2.cmml" xref="S3.E1.m1.4.4.2.2">𝑗</ci></list></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E1.m1.6c">\text{WL}=-\Sigma_{j=1}^{c}\alpha_{j}y_{x,j}\log(p_{x,j}),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_left_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S3.SS2.p2.9" class="ltx_p">where <math id="S3.SS2.p2.1.m1.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S3.SS2.p2.1.m1.1a"><mi id="S3.SS2.p2.1.m1.1.1" xref="S3.SS2.p2.1.m1.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.1.m1.1b"><ci id="S3.SS2.p2.1.m1.1.1.cmml" xref="S3.SS2.p2.1.m1.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.1.m1.1c">C</annotation></semantics></math> is the number of categories, <math id="S3.SS2.p2.2.m2.2" class="ltx_Math" alttext="y_{x,j}" display="inline"><semantics id="S3.SS2.p2.2.m2.2a"><msub id="S3.SS2.p2.2.m2.2.3" xref="S3.SS2.p2.2.m2.2.3.cmml"><mi id="S3.SS2.p2.2.m2.2.3.2" xref="S3.SS2.p2.2.m2.2.3.2.cmml">y</mi><mrow id="S3.SS2.p2.2.m2.2.2.2.4" xref="S3.SS2.p2.2.m2.2.2.2.3.cmml"><mi id="S3.SS2.p2.2.m2.1.1.1.1" xref="S3.SS2.p2.2.m2.1.1.1.1.cmml">x</mi><mo id="S3.SS2.p2.2.m2.2.2.2.4.1" xref="S3.SS2.p2.2.m2.2.2.2.3.cmml">,</mo><mi id="S3.SS2.p2.2.m2.2.2.2.2" xref="S3.SS2.p2.2.m2.2.2.2.2.cmml">j</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.2.m2.2b"><apply id="S3.SS2.p2.2.m2.2.3.cmml" xref="S3.SS2.p2.2.m2.2.3"><csymbol cd="ambiguous" id="S3.SS2.p2.2.m2.2.3.1.cmml" xref="S3.SS2.p2.2.m2.2.3">subscript</csymbol><ci id="S3.SS2.p2.2.m2.2.3.2.cmml" xref="S3.SS2.p2.2.m2.2.3.2">𝑦</ci><list id="S3.SS2.p2.2.m2.2.2.2.3.cmml" xref="S3.SS2.p2.2.m2.2.2.2.4"><ci id="S3.SS2.p2.2.m2.1.1.1.1.cmml" xref="S3.SS2.p2.2.m2.1.1.1.1">𝑥</ci><ci id="S3.SS2.p2.2.m2.2.2.2.2.cmml" xref="S3.SS2.p2.2.m2.2.2.2.2">𝑗</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.2.m2.2c">y_{x,j}</annotation></semantics></math> is the ground-truth binary indicator with 1 when class label <math id="S3.SS2.p2.3.m3.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S3.SS2.p2.3.m3.1a"><mi id="S3.SS2.p2.3.m3.1.1" xref="S3.SS2.p2.3.m3.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.3.m3.1b"><ci id="S3.SS2.p2.3.m3.1.1.cmml" xref="S3.SS2.p2.3.m3.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.3.m3.1c">j</annotation></semantics></math> is the correct category for sample <math id="S3.SS2.p2.4.m4.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS2.p2.4.m4.1a"><mi id="S3.SS2.p2.4.m4.1.1" xref="S3.SS2.p2.4.m4.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.4.m4.1b"><ci id="S3.SS2.p2.4.m4.1.1.cmml" xref="S3.SS2.p2.4.m4.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.4.m4.1c">x</annotation></semantics></math> and 0 else, and <math id="S3.SS2.p2.5.m5.2" class="ltx_Math" alttext="p_{x,j}" display="inline"><semantics id="S3.SS2.p2.5.m5.2a"><msub id="S3.SS2.p2.5.m5.2.3" xref="S3.SS2.p2.5.m5.2.3.cmml"><mi id="S3.SS2.p2.5.m5.2.3.2" xref="S3.SS2.p2.5.m5.2.3.2.cmml">p</mi><mrow id="S3.SS2.p2.5.m5.2.2.2.4" xref="S3.SS2.p2.5.m5.2.2.2.3.cmml"><mi id="S3.SS2.p2.5.m5.1.1.1.1" xref="S3.SS2.p2.5.m5.1.1.1.1.cmml">x</mi><mo id="S3.SS2.p2.5.m5.2.2.2.4.1" xref="S3.SS2.p2.5.m5.2.2.2.3.cmml">,</mo><mi id="S3.SS2.p2.5.m5.2.2.2.2" xref="S3.SS2.p2.5.m5.2.2.2.2.cmml">j</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.5.m5.2b"><apply id="S3.SS2.p2.5.m5.2.3.cmml" xref="S3.SS2.p2.5.m5.2.3"><csymbol cd="ambiguous" id="S3.SS2.p2.5.m5.2.3.1.cmml" xref="S3.SS2.p2.5.m5.2.3">subscript</csymbol><ci id="S3.SS2.p2.5.m5.2.3.2.cmml" xref="S3.SS2.p2.5.m5.2.3.2">𝑝</ci><list id="S3.SS2.p2.5.m5.2.2.2.3.cmml" xref="S3.SS2.p2.5.m5.2.2.2.4"><ci id="S3.SS2.p2.5.m5.1.1.1.1.cmml" xref="S3.SS2.p2.5.m5.1.1.1.1">𝑥</ci><ci id="S3.SS2.p2.5.m5.2.2.2.2.cmml" xref="S3.SS2.p2.5.m5.2.2.2.2">𝑗</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.5.m5.2c">p_{x,j}</annotation></semantics></math> is the model prediction probability that sample <math id="S3.SS2.p2.6.m6.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS2.p2.6.m6.1a"><mi id="S3.SS2.p2.6.m6.1.1" xref="S3.SS2.p2.6.m6.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.6.m6.1b"><ci id="S3.SS2.p2.6.m6.1.1.cmml" xref="S3.SS2.p2.6.m6.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.6.m6.1c">x</annotation></semantics></math> has class label <math id="S3.SS2.p2.7.m7.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S3.SS2.p2.7.m7.1a"><mi id="S3.SS2.p2.7.m7.1.1" xref="S3.SS2.p2.7.m7.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.7.m7.1b"><ci id="S3.SS2.p2.7.m7.1.1.cmml" xref="S3.SS2.p2.7.m7.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.7.m7.1c">j</annotation></semantics></math>,
+<math id="S3.SS2.p2.8.m8.1" class="ltx_Math" alttext="\alpha_{j}" display="inline"><semantics id="S3.SS2.p2.8.m8.1a"><msub id="S3.SS2.p2.8.m8.1.1" xref="S3.SS2.p2.8.m8.1.1.cmml"><mi id="S3.SS2.p2.8.m8.1.1.2" xref="S3.SS2.p2.8.m8.1.1.2.cmml">α</mi><mi id="S3.SS2.p2.8.m8.1.1.3" xref="S3.SS2.p2.8.m8.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.8.m8.1b"><apply id="S3.SS2.p2.8.m8.1.1.cmml" xref="S3.SS2.p2.8.m8.1.1"><csymbol cd="ambiguous" id="S3.SS2.p2.8.m8.1.1.1.cmml" xref="S3.SS2.p2.8.m8.1.1">subscript</csymbol><ci id="S3.SS2.p2.8.m8.1.1.2.cmml" xref="S3.SS2.p2.8.m8.1.1.2">𝛼</ci><ci id="S3.SS2.p2.8.m8.1.1.3.cmml" xref="S3.SS2.p2.8.m8.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.8.m8.1c">\alpha_{j}</annotation></semantics></math> is the weighted factor for class label <math id="S3.SS2.p2.9.m9.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S3.SS2.p2.9.m9.1a"><mi id="S3.SS2.p2.9.m9.1.1" xref="S3.SS2.p2.9.m9.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.9.m9.1b"><ci id="S3.SS2.p2.9.m9.1.1.cmml" xref="S3.SS2.p2.9.m9.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.9.m9.1c">j</annotation></semantics></math> and is defined as:</p>
+</div>
+<div id="S3.SS2.p3" class="ltx_para">
+<table id="S3.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_left_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_left"><math id="S3.E2.m1.5" class="ltx_Math" alttext="\alpha_{j}=\frac{\mathop{\max}\{n_{1},n_{2},...,n_{C}\}}{n_{j}}," display="block"><semantics id="S3.E2.m1.5a"><mrow id="S3.E2.m1.5.5.1" xref="S3.E2.m1.5.5.1.1.cmml"><mrow id="S3.E2.m1.5.5.1.1" xref="S3.E2.m1.5.5.1.1.cmml"><msub id="S3.E2.m1.5.5.1.1.2" xref="S3.E2.m1.5.5.1.1.2.cmml"><mi id="S3.E2.m1.5.5.1.1.2.2" xref="S3.E2.m1.5.5.1.1.2.2.cmml">α</mi><mi id="S3.E2.m1.5.5.1.1.2.3" xref="S3.E2.m1.5.5.1.1.2.3.cmml">j</mi></msub><mo id="S3.E2.m1.5.5.1.1.1" xref="S3.E2.m1.5.5.1.1.1.cmml">=</mo><mfrac id="S3.E2.m1.4.4" xref="S3.E2.m1.4.4.cmml"><mrow id="S3.E2.m1.4.4.4" xref="S3.E2.m1.4.4.4.cmml"><mo rspace="0em" id="S3.E2.m1.4.4.4.5" xref="S3.E2.m1.4.4.4.5.cmml">max</mo><mrow id="S3.E2.m1.4.4.4.4.3" xref="S3.E2.m1.4.4.4.4.4.cmml"><mo stretchy="false" id="S3.E2.m1.4.4.4.4.3.4" xref="S3.E2.m1.4.4.4.4.4.cmml">{</mo><msub id="S3.E2.m1.2.2.2.2.1.1" xref="S3.E2.m1.2.2.2.2.1.1.cmml"><mi id="S3.E2.m1.2.2.2.2.1.1.2" xref="S3.E2.m1.2.2.2.2.1.1.2.cmml">n</mi><mn id="S3.E2.m1.2.2.2.2.1.1.3" xref="S3.E2.m1.2.2.2.2.1.1.3.cmml">1</mn></msub><mo id="S3.E2.m1.4.4.4.4.3.5" xref="S3.E2.m1.4.4.4.4.4.cmml">,</mo><msub id="S3.E2.m1.3.3.3.3.2.2" xref="S3.E2.m1.3.3.3.3.2.2.cmml"><mi id="S3.E2.m1.3.3.3.3.2.2.2" xref="S3.E2.m1.3.3.3.3.2.2.2.cmml">n</mi><mn id="S3.E2.m1.3.3.3.3.2.2.3" xref="S3.E2.m1.3.3.3.3.2.2.3.cmml">2</mn></msub><mo id="S3.E2.m1.4.4.4.4.3.6" xref="S3.E2.m1.4.4.4.4.4.cmml">,</mo><mi mathvariant="normal" id="S3.E2.m1.1.1.1.1" xref="S3.E2.m1.1.1.1.1.cmml">…</mi><mo id="S3.E2.m1.4.4.4.4.3.7" xref="S3.E2.m1.4.4.4.4.4.cmml">,</mo><msub id="S3.E2.m1.4.4.4.4.3.3" xref="S3.E2.m1.4.4.4.4.3.3.cmml"><mi id="S3.E2.m1.4.4.4.4.3.3.2" xref="S3.E2.m1.4.4.4.4.3.3.2.cmml">n</mi><mi id="S3.E2.m1.4.4.4.4.3.3.3" xref="S3.E2.m1.4.4.4.4.3.3.3.cmml">C</mi></msub><mo stretchy="false" id="S3.E2.m1.4.4.4.4.3.8" xref="S3.E2.m1.4.4.4.4.4.cmml">}</mo></mrow></mrow><msub id="S3.E2.m1.4.4.6" xref="S3.E2.m1.4.4.6.cmml"><mi id="S3.E2.m1.4.4.6.2" xref="S3.E2.m1.4.4.6.2.cmml">n</mi><mi id="S3.E2.m1.4.4.6.3" xref="S3.E2.m1.4.4.6.3.cmml">j</mi></msub></mfrac></mrow><mo id="S3.E2.m1.5.5.1.2" xref="S3.E2.m1.5.5.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.E2.m1.5b"><apply id="S3.E2.m1.5.5.1.1.cmml" xref="S3.E2.m1.5.5.1"><eq id="S3.E2.m1.5.5.1.1.1.cmml" xref="S3.E2.m1.5.5.1.1.1"></eq><apply id="S3.E2.m1.5.5.1.1.2.cmml" xref="S3.E2.m1.5.5.1.1.2"><csymbol cd="ambiguous" id="S3.E2.m1.5.5.1.1.2.1.cmml" xref="S3.E2.m1.5.5.1.1.2">subscript</csymbol><ci id="S3.E2.m1.5.5.1.1.2.2.cmml" xref="S3.E2.m1.5.5.1.1.2.2">𝛼</ci><ci id="S3.E2.m1.5.5.1.1.2.3.cmml" xref="S3.E2.m1.5.5.1.1.2.3">𝑗</ci></apply><apply id="S3.E2.m1.4.4.cmml" xref="S3.E2.m1.4.4"><divide id="S3.E2.m1.4.4.5.cmml" xref="S3.E2.m1.4.4"></divide><apply id="S3.E2.m1.4.4.4.cmml" xref="S3.E2.m1.4.4.4"><max id="S3.E2.m1.4.4.4.5.cmml" xref="S3.E2.m1.4.4.4.5"></max><set id="S3.E2.m1.4.4.4.4.4.cmml" xref="S3.E2.m1.4.4.4.4.3"><apply id="S3.E2.m1.2.2.2.2.1.1.cmml" xref="S3.E2.m1.2.2.2.2.1.1"><csymbol cd="ambiguous" id="S3.E2.m1.2.2.2.2.1.1.1.cmml" xref="S3.E2.m1.2.2.2.2.1.1">subscript</csymbol><ci id="S3.E2.m1.2.2.2.2.1.1.2.cmml" xref="S3.E2.m1.2.2.2.2.1.1.2">𝑛</ci><cn type="integer" id="S3.E2.m1.2.2.2.2.1.1.3.cmml" xref="S3.E2.m1.2.2.2.2.1.1.3">1</cn></apply><apply id="S3.E2.m1.3.3.3.3.2.2.cmml" xref="S3.E2.m1.3.3.3.3.2.2"><csymbol cd="ambiguous" id="S3.E2.m1.3.3.3.3.2.2.1.cmml" xref="S3.E2.m1.3.3.3.3.2.2">subscript</csymbol><ci id="S3.E2.m1.3.3.3.3.2.2.2.cmml" xref="S3.E2.m1.3.3.3.3.2.2.2">𝑛</ci><cn type="integer" id="S3.E2.m1.3.3.3.3.2.2.3.cmml" xref="S3.E2.m1.3.3.3.3.2.2.3">2</cn></apply><ci id="S3.E2.m1.1.1.1.1.cmml" xref="S3.E2.m1.1.1.1.1">…</ci><apply id="S3.E2.m1.4.4.4.4.3.3.cmml" xref="S3.E2.m1.4.4.4.4.3.3"><csymbol cd="ambiguous" id="S3.E2.m1.4.4.4.4.3.3.1.cmml" xref="S3.E2.m1.4.4.4.4.3.3">subscript</csymbol><ci id="S3.E2.m1.4.4.4.4.3.3.2.cmml" xref="S3.E2.m1.4.4.4.4.3.3.2">𝑛</ci><ci id="S3.E2.m1.4.4.4.4.3.3.3.cmml" xref="S3.E2.m1.4.4.4.4.3.3.3">𝐶</ci></apply></set></apply><apply id="S3.E2.m1.4.4.6.cmml" xref="S3.E2.m1.4.4.6"><csymbol cd="ambiguous" id="S3.E2.m1.4.4.6.1.cmml" xref="S3.E2.m1.4.4.6">subscript</csymbol><ci id="S3.E2.m1.4.4.6.2.cmml" xref="S3.E2.m1.4.4.6.2">𝑛</ci><ci id="S3.E2.m1.4.4.6.3.cmml" xref="S3.E2.m1.4.4.6.3">𝑗</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E2.m1.5c">\alpha_{j}=\frac{\mathop{\max}\{n_{1},n_{2},...,n_{C}\}}{n_{j}},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_left_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S3.SS2.p3.2" class="ltx_p">where <math id="S3.SS2.p3.1.m1.1" class="ltx_Math" alttext="n_{j}" display="inline"><semantics id="S3.SS2.p3.1.m1.1a"><msub id="S3.SS2.p3.1.m1.1.1" xref="S3.SS2.p3.1.m1.1.1.cmml"><mi id="S3.SS2.p3.1.m1.1.1.2" xref="S3.SS2.p3.1.m1.1.1.2.cmml">n</mi><mi id="S3.SS2.p3.1.m1.1.1.3" xref="S3.SS2.p3.1.m1.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p3.1.m1.1b"><apply id="S3.SS2.p3.1.m1.1.1.cmml" xref="S3.SS2.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS2.p3.1.m1.1.1.1.cmml" xref="S3.SS2.p3.1.m1.1.1">subscript</csymbol><ci id="S3.SS2.p3.1.m1.1.1.2.cmml" xref="S3.SS2.p3.1.m1.1.1.2">𝑛</ci><ci id="S3.SS2.p3.1.m1.1.1.3.cmml" xref="S3.SS2.p3.1.m1.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p3.1.m1.1c">n_{j}</annotation></semantics></math> indicates the number of samples with class label <math id="S3.SS2.p3.2.m2.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S3.SS2.p3.2.m2.1a"><mi id="S3.SS2.p3.2.m2.1.1" xref="S3.SS2.p3.2.m2.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p3.2.m2.1b"><ci id="S3.SS2.p3.2.m2.1.1.cmml" xref="S3.SS2.p3.2.m2.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p3.2.m2.1c">j</annotation></semantics></math>. WL is applied on both the training stage and the cross-validation model selection stage for better convergence.</p>
+</div>
+<div id="S3.SS2.p4" class="ltx_para">
+<p id="S3.SS2.p4.1" class="ltx_p">WL mitigates the performance drops on data partitions with certain degrees of label distribution skew (see Fig. <a href="#S3.F2" title="Figure 2 ‣ 3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>). For example, the performance drop rate of CWT+WL is increased from 32.0%, and 12.0% to 17.0% and 3.9% on split 4 of ADNI and Retina dataset, respectively. However, the improvement on parallel federated learning (FedSGD and FedAVG) with large degree of skew is limited. FedAVG+WL even works worse than FedAVG on split 4 of ADNI dataset, e.g., a 28.0% drop rate compared to original 23%. Note that WL has also been described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, but they only applied them to CWT for 2-label classification tasks. Here, we extend it to general federated learning approaches and multi-label classification tasks.</p>
+</div>
+<div id="S3.SS2.p5" class="ltx_para">
+<p id="S3.SS2.p5.1" class="ltx_p">To investigate the worse performance of FedAVG+WL, we show the prediction accuracy of each institutional model on each institutional test dataset<span id="footnotex4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>Same label distribution for local institutional testing and training dataset.</span></span></span> (see Fig. <a href="#S3.F3" title="Figure 3 ‣ 3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>(a)).
+It is worth noting that the institutional model performs even worse on its own testing dataset than the models from other institutions, e.g., worse diagonal performance of row 1 and row 3 in Fig. <a href="#S3.F3" title="Figure 3 ‣ 3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>(a).</p>
+</div>
+<div id="S3.SS2.p6" class="ltx_para">
+<p id="S3.SS2.p6.1" class="ltx_p">This then raises the question: why the institutional models after model average differ a lot? Actually, the models across institutions only differ in the BN layer after model averaging on central server. Thus, BN is the main factor that causes the discrepancy between models across institutions. BN is a widely used technique aiming to stabilize and accelerate the DNN training. It normalizes each layer’s inputs with minibatch mean and variance during training, and an estimated global mean and variance is used during testing.
+In standard implementation, FedAVG and FedSGD do not average the estimated mean and variance of each layer, which then causes the discrepancy between models across institutions. To this end, we modified the averaging setting of BN, also averaged the estimated mean and variance across institutions during federal training. Fig. <a href="#S3.F3" title="Figure 3 ‣ 3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows results with averaged BN settings. FedAVG+WL+BN generates superior performance than the standard FedAVG+WL setting, e.g., a 16.0% percentage increase is shown on split 4 of ADNI dataset. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> also indicates that DNNs with BN is vulnerable to label distribution skew, they show that group normalization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> avoids the skew-induced accuracy loss of BN. Our experiments are complementary to theirs and provide a simple and flexible alternative to help mitigate the skew-induced performance loss of BN in federated learning settings.</p>
+</div>
+<figure id="S3.F3" class="ltx_figure">
+<table id="S3.F3.3.3" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.F3.3.3.3" class="ltx_tr">
+<td id="S3.F3.1.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/CM_model_AVG_ADNI_1.png" id="S3.F3.1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="198" height="150" alt="Refer to caption"></td>
+<td id="S3.F3.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/FedAVG+BN_ADNI_2.jpg" id="S3.F3.2.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="198" height="150" alt="Refer to caption"></td>
+<td id="S3.F3.3.3.3.3" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/FedAVG+BN_Retina_2.jpg" id="S3.F3.3.3.3.3.g1" class="ltx_graphics ltx_img_landscape" width="198" height="150" alt="Refer to caption"></td>
+</tr>
+<tr id="S3.F3.3.3.4.1" class="ltx_tr">
+<td id="S3.F3.3.3.4.1.1" class="ltx_td ltx_align_center"><span id="S3.F3.3.3.4.1.1.1" class="ltx_text" style="font-size:70%;">(a) Split 4 of ADNI</span></td>
+<td id="S3.F3.3.3.4.1.2" class="ltx_td ltx_align_center"><span id="S3.F3.3.3.4.1.2.1" class="ltx_text" style="font-size:70%;">(b) ADNI</span></td>
+<td id="S3.F3.3.3.4.1.3" class="ltx_td ltx_align_center"><span id="S3.F3.3.3.4.1.3.1" class="ltx_text" style="font-size:70%;">(c)Retina</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>(a): Prediction accuracy of each institutional model on each institutional test dataset of split 4 on ADNI datasest. (b) and (c): Performance analysis with different averaging settings of BN in FedAVG on ADNI and Retina dataset, respectively. FedAVG+WL+BN helps mitigate the skew-induced accuracy loss of BN by averaging the estimated mean and variance of BN.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Imaging Acquisition Skew</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">In medical domain, there has been a longstanding debate about applying medical imaging standardization throughout the imaging industry <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. Modern X-Ray, MR imaging, and PET units allow for wide variations in imaging acquisition settings, which may result in significant differences in the generated images across institutions, even for the same underlying disease.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">In this section, we show the impact of imaging acquisition skew on federated learning methods with two sets of experiments.
+We first simulated three sets of data partitions (split 1 - split 3), and then generated a real data partition on ADNI dataset according to scanner vendors (split 4).</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p"><span id="S3.SS3.p3.1.1" class="ltx_text ltx_font_bold">Split 1</span> (Simulated IID partition): Same as split 1 in Sec. <a href="#S3.SS1" title="3.1 Quantity Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.1</span></a> and Sec. <a href="#S3.SS2" title="3.2 Label Distribution Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.2</span></a>.</p>
+</div>
+<div id="S3.SS3.p4" class="ltx_para">
+<p id="S3.SS3.p4.1" class="ltx_p"><span id="S3.SS3.p4.1.1" class="ltx_text ltx_font_bold">Split 2</span> (Simulated partition with resolution skew): Decreasing image resolution in Institution 1 to 4 of split 1 with a factor of 4, 3, 2, 1, respectively.</p>
+</div>
+<div id="S3.SS3.p5" class="ltx_para">
+<p id="S3.SS3.p5.1" class="ltx_p"><span id="S3.SS3.p5.1.1" class="ltx_text ltx_font_bold">Split 3</span> (Simulated partition with signal-to-noise-ratio (SNR) skew): Degrading images in split 1 with various types of noises and blurring, such as Gaussian, Speckle, Poisson noise and motion blur. Institution 1: Gaussian noise, Institution 2: motion blur, Institution 3: mixture of
+noise/blurring but dominated by gaussian noise, Institution 4: mixture of noise/blurring but dominated by motion blur. Examples of synthetic gaussian noise and motion blur are shown in Fig. <a href="#S3.F4" title="Figure 4 ‣ 3.3 Imaging Acquisition Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+</div>
+<div id="S3.SS3.p6" class="ltx_para">
+<p id="S3.SS3.p6.1" class="ltx_p"><span id="S3.SS3.p6.1.1" class="ltx_text ltx_font_bold">Split 4</span> (Real partition according to scanner vendors): ADNI dataset were acquired from 7 manufacturers, such as GE Healthcare, Philips Healthcare, Siemens Healthcare and etc. We resplit the dataset into 4 institutions according to the scanner vendors. Least quantity skew and label distribution skew across institutions are ensured in this new split.</p>
+</div>
+<figure id="S3.F4" class="ltx_figure">
+<table id="S3.F4.4.4" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.F4.4.4.4" class="ltx_tr">
+<td id="S3.F4.1.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/img_orig.png" id="S3.F4.1.1.1.1.g1" class="ltx_graphics ltx_img_square" width="129" height="135" alt="Refer to caption"></td>
+<td id="S3.F4.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/img_noise.png" id="S3.F4.2.2.2.2.g1" class="ltx_graphics ltx_img_square" width="129" height="135" alt="Refer to caption"></td>
+<td id="S3.F4.3.3.3.3" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/9157_right_orig.png" id="S3.F4.3.3.3.3.g1" class="ltx_graphics ltx_img_square" width="138" height="135" alt="Refer to caption"></td>
+<td id="S3.F4.4.4.4.4" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/9157_right_var.png" id="S3.F4.4.4.4.4.g1" class="ltx_graphics ltx_img_square" width="138" height="135" alt="Refer to caption"></td>
+</tr>
+<tr id="S3.F4.4.4.5.1" class="ltx_tr">
+<td id="S3.F4.4.4.5.1.1" class="ltx_td ltx_align_center"><span id="S3.F4.4.4.5.1.1.1" class="ltx_text" style="font-size:70%;">Orig img.</span></td>
+<td id="S3.F4.4.4.5.1.2" class="ltx_td ltx_align_center"><span id="S3.F4.4.4.5.1.2.1" class="ltx_text" style="font-size:70%;">Orig img. + Gaussian</span></td>
+<td id="S3.F4.4.4.5.1.3" class="ltx_td ltx_align_center"><span id="S3.F4.4.4.5.1.3.1" class="ltx_text" style="font-size:70%;">Orig img.</span></td>
+<td id="S3.F4.4.4.5.1.4" class="ltx_td ltx_align_center"><span id="S3.F4.4.4.5.1.4.1" class="ltx_text" style="font-size:70%;">Orig. img + motion blur</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Examples of images with synthetic gaussian noise and motion blur. </figcaption>
+</figure>
+<figure id="S3.F5" class="ltx_figure">
+<table id="S3.F5.2.2" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.F5.2.2.2" class="ltx_tr">
+<td id="S3.F5.1.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/Im_var_ADNI-1.jpg" id="S3.F5.1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="240" height="170" alt="Refer to caption"></td>
+<td id="S3.F5.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/Im_var_Retina-1.jpg" id="S3.F5.2.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="222" height="170" alt="Refer to caption"></td>
+</tr>
+<tr id="S3.F5.2.2.3.1" class="ltx_tr">
+<td id="S3.F5.2.2.3.1.1" class="ltx_td ltx_align_center"><span id="S3.F5.2.2.3.1.1.1" class="ltx_text" style="font-size:70%;">ADNI</span></td>
+<td id="S3.F5.2.2.3.1.2" class="ltx_td ltx_align_center"><span id="S3.F5.2.2.3.1.2.1" class="ltx_text" style="font-size:70%;">Retina</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Test accuracy on data partitions with imaging acquisition skew. The performance decrease rate compared to the baseline centrally hosted is also shown. </figcaption>
+</figure>
+<div id="S3.SS3.p7" class="ltx_para">
+<p id="S3.SS3.p7.1" class="ltx_p">Experimental results in Fig. <a href="#S3.F5" title="Figure 5 ‣ 3.3 Imaging Acquisition Skew ‣ 3 Experiments and Results ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> indicate that, in addition to the label distribution skew, the imaging acquisition skew is also a critical hurdle that prevents the deployment of federated learning in real applications. Strategies such as super-resolution, image denoising and histogram matching may be applied to deal with the imaging acquisition skew, which will remains to be undertaken in our future work.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section" lang="en">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In this paper, we conduct extensive experiments to study the impact of data heterogeneity on federated learning methods. Our study covers three widely used federated learning methods, a taxonomy of data heterogeneity regimes, data heterogeneity with different degrees of skewness.
+We show that the federated learning methods in our study are vulnerable to data partitions with a high degree of skew. We then present several optimization strategies to overcome the performance loss from data heterogeneity.</p>
+</div>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.1" class="ltx_p">Extensive experiments demonstrate that: 1) the proposed weighted average for FedSGD can recover performance loss from introducing quantity skew; 2) weighted loss helps mitigate the performance loss from introducing label distribution skew; 3) averaging the mean and variance of BN across institutions in FedAVG training is an attractive alternative to mitigate skew-induced performance loss of BN.
+We anticipate that our detailed analysis provided herein will provide guidance for the deployment of federated learning in real clinical applications, and that our findings will provide useful hints towards the construction of better federated learning methods.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography" lang="en">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Krizhevsky, A., Sutskever, I. &amp;
+Hinton, G. E.
+
+</span>
+<span class="ltx_bibblock">Imagenet classification with deep
+convolutional neural networks.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib1.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Advances in neural information processing
+systems</em> <span id="bib.bib1.2.2" class="ltx_text ltx_font_bold">25</span>, 1097–1105
+(2012).
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Coudray, N. <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Classification and mutation
+prediction from non–small cell lung cancer histopathology images using deep
+learning.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib2.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib2.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Nature medicine</em>
+<span id="bib.bib2.3.2" class="ltx_text ltx_font_bold">24</span>, 1559–1567
+(2018).
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Qu, L., Zhang, Y., Wang,
+S., Yap, P.-T. &amp; Shen, D.
+
+</span>
+<span class="ltx_bibblock">Synthesized 7t mri from 3t mri via
+deep learning in spatial and wavelet domains.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib3.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Medical Image Analysis</em>
+101663 (2020).
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Mobadersany, P. <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Predicting cancer outcomes from
+histology and genomics using convolutional networks.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib4.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib4.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Proceedings of the National Academy of
+Sciences</em> <span id="bib.bib4.3.2" class="ltx_text ltx_font_bold">115</span>, E2970–E2979
+(2018).
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Wang, G., Ye, J. C. &amp;
+De Man, B.
+
+</span>
+<span class="ltx_bibblock">Deep learning for tomographic image
+reconstruction.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib5.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Nature Machine Intelligence</em>
+<span id="bib.bib5.2.2" class="ltx_text ltx_font_bold">2</span>, 737–748
+(2020).
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Clark, K. <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">The cancer imaging archive (tcia):
+maintaining and operating a public information repository.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib6.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib6.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Journal of digital imaging</em>
+<span id="bib.bib6.3.2" class="ltx_text ltx_font_bold">26</span>, 1045–1057
+(2013).
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Qu, L., Wang, S., Yap,
+P.-T. &amp; Shen, D.
+
+</span>
+<span class="ltx_bibblock">Wavelet-based semi-supervised adversarial learning
+for synthesizing realistic 7t from 3t mri.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">International Conference on Medical
+Image Computing and Computer-Assisted Intervention</em>,
+786–794 (Springer,
+2019).
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Kaushal, A., Altman, R. &amp;
+Langlotz, C.
+
+</span>
+<span class="ltx_bibblock">Geographic distribution of us
+cohorts used to train deep learning algorithms.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib8.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Jama</em> <span id="bib.bib8.2.2" class="ltx_text ltx_font_bold">324</span>,
+1212–1213 (2020).
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Su, H. &amp; Chen, H.
+
+</span>
+<span class="ltx_bibblock">Experiments on parallel training of
+deep neural network using model averaging.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib9.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1507.01239</em>
+(2015).
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+McMahan, H. B., Moore, E.,
+Ramage, D., Hampson, S. <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of
+deep networks from decentralized data.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib10.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib10.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1602.05629</em>
+(2016).
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Lin, Y., Han, S., Mao,
+H., Wang, Y. &amp; Dally, W. J.
+
+</span>
+<span class="ltx_bibblock">Deep gradient compression: Reducing
+the communication bandwidth for distributed training.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib11.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1712.01887</em>
+(2017).
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Chang, K. <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Distributed deep learning networks
+among institutions for medical imaging.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib12.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib12.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Journal of the American Medical Informatics
+Association</em> <span id="bib.bib12.3.2" class="ltx_text ltx_font_bold">25</span>, 945–954
+(2018).
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Vepakomma, P., Gupta, O.,
+Swedish, T. &amp; Raskar, R.
+
+</span>
+<span class="ltx_bibblock">Split learning for health:
+Distributed deep learning without sharing raw patient data.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib13.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1812.00564</em>
+(2018).
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Hsu, T.-M. H., Qi, H. &amp;
+Brown, M.
+
+</span>
+<span class="ltx_bibblock">Measuring the effects of
+non-identical data distribution for federated visual classification.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib14.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1909.06335</em>
+(2019).
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Hsieh, K., Phanishayee, A.,
+Mutlu, O. &amp; Gibbons, P. B.
+
+</span>
+<span class="ltx_bibblock">The non-iid data quagmire of
+decentralized machine learning.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib15.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>arXiv preprint arXiv:1910.00189</em>
+(2019).
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Balachandar, N., Chang, K.,
+Kalpathy-Cramer, J. &amp; Rubin, D. L.
+
+</span>
+<span class="ltx_bibblock">Accounting for data variability in
+multi-institutional distributed deep learning for medical imaging.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib16.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Journal of the American Medical Informatics
+Association</em> (2020).
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Kaggle.
+
+</span>
+<span class="ltx_bibblock">Diabetic retinopathy detection.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib17.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>https://www.kaggle.com/c/diabetic-retinopathy-detection</em>
+(2017).
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Landau, S. M. <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Amyloid deposition, hypometabolism,
+and longitudinal cognitive decline.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib18.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib18.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Annals of neurology</em>
+<span id="bib.bib18.3.2" class="ltx_text ltx_font_bold">72</span>, 578–586
+(2012).
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+He, K., Zhang, X., Ren,
+S. &amp; Sun, J.
+
+</span>
+<span class="ltx_bibblock">Deep residual learning for image recognition.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE conference on
+computer vision and pattern recognition</em>, 770–778
+(2016).
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Wu, Y. &amp; He, K.
+
+</span>
+<span class="ltx_bibblock">Group normalization.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Proceedings of the European Conference
+on Computer Vision (ECCV)</em>, 3–19 (2018).
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Gillies, R. J., Kinahan, P. E. &amp;
+Hricak, H.
+
+</span>
+<span class="ltx_bibblock">Radiomics: images are more than
+pictures, they are data.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic"><span id="bib.bib21.1.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Radiology</em> <span id="bib.bib21.2.2" class="ltx_text ltx_font_bold">278</span>,
+563–577 (2016).
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Lambin, P. <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">et al.</em>
+
+</span>
+<span class="ltx_bibblock">Radiomics: the bridge between
+medical imaging and personalized medicine.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib22.2.1" class="ltx_emph ltx_font_italic"><span id="bib.bib22.2.1.1" class="ltx_ERROR undefined">\JournalTitle</span>Nature reviews Clinical oncology</em>
+<span id="bib.bib22.3.2" class="ltx_text ltx_font_bold">14</span>, 749 (2017).
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<section id="Sx1" class="ltx_section" lang="en">
+<h2 class="ltx_title ltx_title_section">Supplementary Material</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">We detail our simulated data partitions in this supplementary file. Table  <a href="#Sx1.T1" title="Table 1 ‣ Supplementary Material ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the simulated data partitions with quantity skew.
+Fig. <a href="#Sx1.F6" title="Figure 6 ‣ Supplementary Material ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> and Fig. <a href="#Sx1.F7" title="Figure 7 ‣ Supplementary Material ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> show the simulated data partitions with label distribution skew on ADNI and Retina dataset, respectively. Fig. <a href="#Sx1.F8" title="Figure 8 ‣ Supplementary Material ‣ An Experimental Study of Data Heterogeneity in Federated Learning Methods for Medical Imaging" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a> shows an example of PET cases imaged with different scanner vendors in ADNI dataset. These PET images differ in either resolution, contrast, or intensity distributions.</p>
+</div>
+<figure id="Sx1.T1" class="ltx_table">
+
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Data partitions with quantity skew. The number of training samples in each institution is shown. STD is sample standard deviation of the training sample size across institutions.</figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="Sx1.T1.sf1" class="ltx_table ltx_figure_panel ltx_align_center">
+<table id="Sx1.T1.sf1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="Sx1.T1.sf1.1.1.1" class="ltx_tr">
+<th id="Sx1.T1.sf1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_l ltx_border_r ltx_border_t">Splits</th>
+<th id="Sx1.T1.sf1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst1</th>
+<th id="Sx1.T1.sf1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst2</th>
+<th id="Sx1.T1.sf1.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst3</th>
+<th id="Sx1.T1.sf1.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst4</th>
+<th id="Sx1.T1.sf1.1.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">STD</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="Sx1.T1.sf1.1.2.1" class="ltx_tr">
+<td id="Sx1.T1.sf1.1.2.1.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_tt">Split 1</td>
+<td id="Sx1.T1.sf1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">474</td>
+<td id="Sx1.T1.sf1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">474</td>
+<td id="Sx1.T1.sf1.1.2.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">474</td>
+<td id="Sx1.T1.sf1.1.2.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">474</td>
+<td id="Sx1.T1.sf1.1.2.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0</td>
+</tr>
+<tr id="Sx1.T1.sf1.1.3.2" class="ltx_tr">
+<td id="Sx1.T1.sf1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r">Split 2</td>
+<td id="Sx1.T1.sf1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r">299</td>
+<td id="Sx1.T1.sf1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r">317</td>
+<td id="Sx1.T1.sf1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_r">385</td>
+<td id="Sx1.T1.sf1.1.3.2.5" class="ltx_td ltx_align_center ltx_border_r">895</td>
+<td id="Sx1.T1.sf1.1.3.2.6" class="ltx_td ltx_align_center ltx_border_r">283.1</td>
+</tr>
+<tr id="Sx1.T1.sf1.1.4.3" class="ltx_tr">
+<td id="Sx1.T1.sf1.1.4.3.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r">Split 3</td>
+<td id="Sx1.T1.sf1.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r">113</td>
+<td id="Sx1.T1.sf1.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r">211</td>
+<td id="Sx1.T1.sf1.1.4.3.4" class="ltx_td ltx_align_center ltx_border_r">579</td>
+<td id="Sx1.T1.sf1.1.4.3.5" class="ltx_td ltx_align_center ltx_border_r">993</td>
+<td id="Sx1.T1.sf1.1.4.3.6" class="ltx_td ltx_align_center ltx_border_r">399.9</td>
+</tr>
+<tr id="Sx1.T1.sf1.1.5.4" class="ltx_tr">
+<td id="Sx1.T1.sf1.1.5.4.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_l ltx_border_r">Split 4</td>
+<td id="Sx1.T1.sf1.1.5.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">66</td>
+<td id="Sx1.T1.sf1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">111</td>
+<td id="Sx1.T1.sf1.1.5.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">282</td>
+<td id="Sx1.T1.sf1.1.5.4.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">1437</td>
+<td id="Sx1.T1.sf1.1.5.4.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">648.7</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">(a) </span>Partitions on ADNI</figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="Sx1.T1.sf2" class="ltx_table ltx_figure_panel ltx_align_center">
+<table id="Sx1.T1.sf2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="Sx1.T1.sf2.1.1.1" class="ltx_tr">
+<th id="Sx1.T1.sf2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Splits</th>
+<th id="Sx1.T1.sf2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst1</th>
+<th id="Sx1.T1.sf2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst2</th>
+<th id="Sx1.T1.sf2.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst2</th>
+<th id="Sx1.T1.sf2.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Inst2</th>
+<th id="Sx1.T1.sf2.1.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">STD</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="Sx1.T1.sf2.1.2.1" class="ltx_tr">
+<th id="Sx1.T1.sf2.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt">Split 1</th>
+<td id="Sx1.T1.sf2.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">1500</td>
+<td id="Sx1.T1.sf2.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">1500</td>
+<td id="Sx1.T1.sf2.1.2.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">1500</td>
+<td id="Sx1.T1.sf2.1.2.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">1500</td>
+<td id="Sx1.T1.sf2.1.2.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">0</td>
+</tr>
+<tr id="Sx1.T1.sf2.1.3.2" class="ltx_tr">
+<th id="Sx1.T1.sf2.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r">Split 2</th>
+<td id="Sx1.T1.sf2.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r">750</td>
+<td id="Sx1.T1.sf2.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r">960</td>
+<td id="Sx1.T1.sf2.1.3.2.4" class="ltx_td ltx_align_center ltx_border_r">1800</td>
+<td id="Sx1.T1.sf2.1.3.2.5" class="ltx_td ltx_align_center ltx_border_r">2490</td>
+<td id="Sx1.T1.sf2.1.3.2.6" class="ltx_td ltx_align_center ltx_border_r">800.8</td>
+</tr>
+<tr id="Sx1.T1.sf2.1.4.3" class="ltx_tr">
+<th id="Sx1.T1.sf2.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r">Split 3</th>
+<td id="Sx1.T1.sf2.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r">315</td>
+<td id="Sx1.T1.sf2.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r">850</td>
+<td id="Sx1.T1.sf2.1.4.3.4" class="ltx_td ltx_align_center ltx_border_r">1750</td>
+<td id="Sx1.T1.sf2.1.4.3.5" class="ltx_td ltx_align_center ltx_border_r">3085</td>
+<td id="Sx1.T1.sf2.1.4.3.6" class="ltx_td ltx_align_center ltx_border_r">1211</td>
+</tr>
+<tr id="Sx1.T1.sf2.1.5.4" class="ltx_tr">
+<th id="Sx1.T1.sf2.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">Split 4</th>
+<td id="Sx1.T1.sf2.1.5.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">208</td>
+<td id="Sx1.T1.sf2.1.5.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">350</td>
+<td id="Sx1.T1.sf2.1.5.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">889</td>
+<td id="Sx1.T1.sf2.1.5.4.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4553</td>
+<td id="Sx1.T1.sf2.1.5.4.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">2056</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">(b) </span>Partitions on Retina</figcaption>
+</figure>
+</div>
+</div>
+</figure>
+<figure id="Sx1.F6" class="ltx_figure"><img src="/html/2107.08371/assets/picture/data_statis_label_var_ADNI-2.png" id="Sx1.F6.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="568" height="107" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>Data partitions on ADNI dataset with label distribution skew. Large Kolmogorov-Smirnov (KS) indicates higher degree of label distribution skew.</figcaption>
+</figure>
+<figure id="Sx1.F7" class="ltx_figure"><img src="/html/2107.08371/assets/picture/data_statis_Retina.png" id="Sx1.F7.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="568" height="106" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>Data partitions on Retina dataset with label distribution skew. Large KS indicates higher degree of label distribution skew.</figcaption>
+</figure>
+<figure id="Sx1.F8" class="ltx_figure">
+<table id="Sx1.F8.5.5" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="Sx1.F8.5.5.5" class="ltx_tr">
+<td id="Sx1.F8.1.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/I212892.png" id="Sx1.F8.1.1.1.1.g1" class="ltx_graphics ltx_img_square" width="108" height="123" alt="Refer to caption"></td>
+<td id="Sx1.F8.2.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/I411272.png" id="Sx1.F8.2.2.2.2.g1" class="ltx_graphics ltx_img_square" width="108" height="123" alt="Refer to caption"></td>
+<td id="Sx1.F8.3.3.3.3" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/I195573.png" id="Sx1.F8.3.3.3.3.g1" class="ltx_graphics ltx_img_square" width="108" height="123" alt="Refer to caption"></td>
+<td id="Sx1.F8.4.4.4.4" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/I337063.png" id="Sx1.F8.4.4.4.4.g1" class="ltx_graphics ltx_img_square" width="108" height="123" alt="Refer to caption"></td>
+<td id="Sx1.F8.5.5.5.5" class="ltx_td ltx_align_center"><img src="/html/2107.08371/assets/picture/I711382.png" id="Sx1.F8.5.5.5.5.g1" class="ltx_graphics ltx_img_square" width="108" height="123" alt="Refer to caption"></td>
+</tr>
+<tr id="Sx1.F8.5.5.6.1" class="ltx_tr">
+<td id="Sx1.F8.5.5.6.1.1" class="ltx_td ltx_align_center"><span id="Sx1.F8.5.5.6.1.1.1" class="ltx_text" style="font-size:70%;">Philips</span></td>
+<td id="Sx1.F8.5.5.6.1.2" class="ltx_td ltx_align_center"><span id="Sx1.F8.5.5.6.1.2.1" class="ltx_text" style="font-size:70%;">Siemens</span></td>
+<td id="Sx1.F8.5.5.6.1.3" class="ltx_td ltx_align_center"><span id="Sx1.F8.5.5.6.1.3.1" class="ltx_text" style="font-size:70%;">CPS</span></td>
+<td id="Sx1.F8.5.5.6.1.4" class="ltx_td ltx_align_center"><span id="Sx1.F8.5.5.6.1.4.1" class="ltx_text" style="font-size:70%;">GEMS</span></td>
+<td id="Sx1.F8.5.5.6.1.5" class="ltx_td ltx_align_center"><span id="Sx1.F8.5.5.6.1.5.1" class="ltx_text" style="font-size:70%;">MiE</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:70%;"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>PET cases imaged with different scanner vendors in ADNI dataset. </figcaption>
+</figure>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2107.08370" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2107.08371" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2107.08371">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2107.08371" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2107.08372" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar  9 01:40:04 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

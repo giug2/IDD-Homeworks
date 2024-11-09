@@ -1,0 +1,933 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2408.02178] StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion</title><meta property="og:description" content="StreamVoice has recently pushed the boundaries of zero-shot voice conversion (VC) in the streaming domain. It uses a streamable language model (LM) with a context-aware approach to convert semantic features from automa…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2408.02178">
+
+<!--Generated on Thu Sep  5 16:59:51 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="
+streaming voice conversion,  end-to-end,  zero-shot,  language model,  parameter-efficient fine-tuning
+">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Zhichao Wang,
+Yuanzhe Chen,
+Xinsheng Wang,
+Lei Xie, ,
+and Yuping Wang
+</span><span class="ltx_author_notes">Zhichao Wang, Xinsheng Wang, and Lei Xie are with the ASLP Lab, School of Computer Science, Northwestern Polytechnical University, Xi’an 710129, China (email: zcwang_aslp@mail.nwpu.edu.cn; w.xinshawn@gmail.com; lxie@nwpu.edu.cn)Yuanzhe Chen and Yuping Wang are with the ByteDance, China (email: chenyuanzhe@bytedance.com; wangyuping@bytedance.com)</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">StreamVoice has recently pushed the boundaries of zero-shot voice conversion (VC) in the streaming domain. It uses a streamable language model (LM) with a context-aware approach to convert semantic features from automatic speech recognition (ASR) into acoustic features with the desired speaker timbre. Despite its innovations, StreamVoice faces challenges due to its dependency on a streaming ASR within a cascaded framework, which complicates system deployment and optimization, affects VC system’s design and performance based on the choice of ASR, and struggles with conversion stability when faced with low-quality semantic inputs. To overcome these limitations, we introduce StreamVoice+, an enhanced LM-based end-to-end streaming framework that operates independently of streaming ASR. StreamVoice+ integrates a semantic encoder and a connector with the original StreamVoice framework, now trained using a non-streaming ASR. This model undergoes a two-stage training process: initially, the StreamVoice backbone is pre-trained for voice conversion and the semantic encoder for robust semantic extraction. Subsequently, the system is fine-tuned end-to-end, incorporating a LoRA matrix to activate comprehensive streaming functionality. Furthermore, StreamVoice+ mainly introduces two strategic enhancements to boost conversion quality: a residual compensation mechanism in the connector to ensure effective semantic transmission and a self-refinement strategy that leverages pseudo-parallel speech pairs generated by the conversion backbone to improve speech decoupling. Experiments demonstrate that StreamVoice+ not only achieves higher naturalness and speaker similarity in voice conversion than its predecessor but also provides versatile support for both streaming and non-streaming conversion scenarios.</p>
+</div>
+<div class="ltx_keywords">
+<h6 class="ltx_title ltx_title_keywords">Index Terms: </h6>
+streaming voice conversion, end-to-end, zero-shot, language model, parameter-efficient fine-tuning
+
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Voice conversion (VC) aims to convert a speaker’s voice to that of a target speaker without altering the linguistic content. This technique is applied in various real-world scenarios, e.g., movie dubbing, privacy protection, pronunciation correction, etc. Meanwhile, zero-shot VC, which enables conversion to any target speaker using only one utterance from that speaker, has drawn much attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. However, the increasing demand for streaming capabilities in real-time applications, like live broadcasting and online meetings, poses a new challenge to zero-shot VC, which mainly focuses on offline processing. This letter focuses on <span id="S1.p1.1.1" class="ltx_text ltx_font_italic">streaming zero-shot VC</span>, which performs real-time conversion given any speakers.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">To achieve streaming capability, causal processing and streamable structures are essential. However, the typical absence of future information in streaming models may inevitably degrade performance. Common approaches to mitigate this degradation include enhancing semantic information <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> and distilling knowledge <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite> from a non-streaming model through parameter sharing or guided training. Nonetheless, previous streaming VC methods mainly focus on pre-defined speakers. To enable conversion for any speaker, the fundamental strategy involves the disentanglement and recombination of speech components, e.g. semantic content and speaker timbre, employing either pre-training techniques <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> or jointly trained encoders <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>. Recent advancements <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> integrate streaming capability with zero-shot VC, either by adapting non-streaming models to be streamable or by using streaming pre-trained models like ASR and speaker verification (SV) models.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Inspired by the success of LM-based VC models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> in offline conversion, LM-based StreamVoice <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> represents a significant advancement in streaming zero-shot VC. Building on a recognition-synthesis framework <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, where speech is represented as semantic and acoustic features extracted via a streaming ASR and an audio codec respectively, StreamVoice transforms source semantic information into acoustic features with the target speaker’s timbre. To enhance historical context learning and anticipate missing future information, semantic masking and teacher-guided context foresight are employed in StreamVoice. Despite its good zero-shot performance, StreamVoice shows a strong dependency on cascaded streaming pipelines leading to several disadvantages. 1) <span id="S1.p3.1.1" class="ltx_text ltx_font_italic">Complexity</span>: The integration of multiple models with various structures complicates optimization and deployment. 2) <span id="S1.p3.1.2" class="ltx_text ltx_font_italic">Flexibility</span>: The choice of streaming ASR affects VC design and performance, limiting implementation and further extension flexibility. 3) <span id="S1.p3.1.3" class="ltx_text ltx_font_italic">Stability</span>: Low-quality semantic information from streaming ASR, which may include unexpected speaker timbre and noise, leads to unstable conversion for diverse inputs.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">To overcome these issues in StreamVoice, we propose StreamVoice+, a concise LM-based streaming framework for ASR-free end-to-end zero-shot VC. Inspired by the capability for modality or embedding alignment via backbone pre-training &amp; task-orient fine-tuning paradigm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>,
+the core concept behind StreamVoice+ involves leveraging a high-performance StreamVoice, originally trained on a non-streaming ASR, as the foundational model. We extend the capabilities of this backbone by attaching a semantic encoder and a connector via end-to-end fine-tuning. This integration facilitates an ASR-free, end-to-end streaming conversion. To be specific, StreamVoice+ employs a two-stage training process: first, pre-training the StreamVoice backbone for conversion and a semantic encoder for semantic extraction using high-quality semantic information from a non-streaming ASR, and then fine-tuning the entire model with additional LoRA adapters to unlock end-to-end conversion capability. To enhance decoupling and conversion quality, we mainly introduce two strategies: 1) <span id="S1.p4.1.1" class="ltx_text ltx_font_bold">r</span>esidual compensation with a <span id="S1.p4.1.2" class="ltx_text ltx_font_bold">b</span>ottleneck in the connector, referred to as the R-B connector, which is designed to ensure the transmission of semantic content while minimizing the influence of the source speaker’s timbre; and 2) a self-refinement strategy that uses pseudo-parallel speech pairs generated by the backbone to aid in decoupling training. Experimental results show that StreamVoice+ achieves end-to-end streaming conversion with superior performance compared to StreamVoice. The total pipeline latency is 112 ms, making it 1.7x faster than real-time on a single A100 GPU without engineering optimizations. We also show that StreamVoice+ can easily be extended to support non-streaming and streaming conversion with simple modifications. Converted samples can be found in <a target="_blank" href="https://kerwinchao.github.io/StreamVoice_Plus/" title="" class="ltx_ref ltx_href"><span class="ltx_ref ltx_url ltx_font_typewriter">https://kerwinchao.github.io/StreamVoice_Plus/</span></a>.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S1.F1.sf1" class="ltx_figure ltx_figure_panel ltx_minipage ltx_align_center ltx_align_middle" style="width:186.5pt;"><img src="/html/2408.02178/assets/x1.png" id="S1.F1.sf1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="367" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S1.F1.sf1.2.1.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="S1.F1.sf1.3.2" class="ltx_text" style="font-size:80%;">StreamVoice+</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S1.F1.sf2" class="ltx_figure ltx_figure_panel ltx_minipage ltx_align_center ltx_align_middle" style="width:95.4pt;"><img src="/html/2408.02178/assets/x2.png" id="S1.F1.sf2.g1" class="ltx_graphics ltx_img_portrait" width="462" height="707" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S1.F1.sf2.2.1.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="S1.F1.sf2.3.2" class="ltx_text" style="font-size:80%;">Training Stage: Pre-training</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S1.F1.sf3" class="ltx_figure ltx_figure_panel ltx_minipage ltx_align_center ltx_align_middle" style="width:104.1pt;"><img src="/html/2408.02178/assets/x3.png" id="S1.F1.sf3.g1" class="ltx_graphics ltx_img_portrait" width="461" height="643" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S1.F1.sf3.2.1.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="S1.F1.sf3.3.2" class="ltx_text" style="font-size:80%;">Training Stage: Fine-tuning</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>The framework of (a) StreamVoice+, which employs two-stage training procedura: (b) pre-training and (c) fine-tuning, to achieve end-to-end conversion.</figcaption>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Proposed Approach</span>
+</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS1.5.1.1" class="ltx_text">II-A</span> </span><span id="S2.SS1.6.2" class="ltx_text ltx_font_italic">Architecture of StreamVoice+</span>
+</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.13" class="ltx_p">As shown in Fig. <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>a, StreamVoice+ consists of a semantic encoder, a connector, and a StreamVoice backbone with built-in LoRA adapters <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite>.
+In this framework, speech is represented as acoustic feature <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{a}\in\mathbb{R}^{T\times L}" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mrow id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml"><mi id="S2.SS1.p1.1.m1.1.1.2" xref="S2.SS1.p1.1.m1.1.1.2.cmml">𝐚</mi><mo id="S2.SS1.p1.1.m1.1.1.1" xref="S2.SS1.p1.1.m1.1.1.1.cmml">∈</mo><msup id="S2.SS1.p1.1.m1.1.1.3" xref="S2.SS1.p1.1.m1.1.1.3.cmml"><mi id="S2.SS1.p1.1.m1.1.1.3.2" xref="S2.SS1.p1.1.m1.1.1.3.2.cmml">ℝ</mi><mrow id="S2.SS1.p1.1.m1.1.1.3.3" xref="S2.SS1.p1.1.m1.1.1.3.3.cmml"><mi id="S2.SS1.p1.1.m1.1.1.3.3.2" xref="S2.SS1.p1.1.m1.1.1.3.3.2.cmml">T</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS1.p1.1.m1.1.1.3.3.1" xref="S2.SS1.p1.1.m1.1.1.3.3.1.cmml">×</mo><mi id="S2.SS1.p1.1.m1.1.1.3.3.3" xref="S2.SS1.p1.1.m1.1.1.3.3.3.cmml">L</mi></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><apply id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1"><in id="S2.SS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1.1"></in><ci id="S2.SS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.2">𝐚</ci><apply id="S2.SS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.1.1.3.1.cmml" xref="S2.SS1.p1.1.m1.1.1.3">superscript</csymbol><ci id="S2.SS1.p1.1.m1.1.1.3.2.cmml" xref="S2.SS1.p1.1.m1.1.1.3.2">ℝ</ci><apply id="S2.SS1.p1.1.m1.1.1.3.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3.3"><times id="S2.SS1.p1.1.m1.1.1.3.3.1.cmml" xref="S2.SS1.p1.1.m1.1.1.3.3.1"></times><ci id="S2.SS1.p1.1.m1.1.1.3.3.2.cmml" xref="S2.SS1.p1.1.m1.1.1.3.3.2">𝑇</ci><ci id="S2.SS1.p1.1.m1.1.1.3.3.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3.3.3">𝐿</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">\mathbf{a}\in\mathbb{R}^{T\times L}</annotation></semantics></math> by a speech codec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>, where <math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><mi id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">T</annotation></semantics></math> denotes the sequence length and <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><mi id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><ci id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">L</annotation></semantics></math> represents the number of quantizers in the codec.
+With the acoustic feature <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="\mathbf{\tilde{a}}" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><mover accent="true" id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml"><mi id="S2.SS1.p1.4.m4.1.1.2" xref="S2.SS1.p1.4.m4.1.1.2.cmml">𝐚</mi><mo id="S2.SS1.p1.4.m4.1.1.1" xref="S2.SS1.p1.4.m4.1.1.1.cmml">~</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><apply id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1"><ci id="S2.SS1.p1.4.m4.1.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1.1">~</ci><ci id="S2.SS1.p1.4.m4.1.1.2.cmml" xref="S2.SS1.p1.4.m4.1.1.2">𝐚</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">\mathbf{\tilde{a}}</annotation></semantics></math> from the target speaker, StreamVoice+ casually converts source acoustic feature <math id="S2.SS1.p1.5.m5.1" class="ltx_Math" alttext="\mathbf{a}" display="inline"><semantics id="S2.SS1.p1.5.m5.1a"><mi id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml">𝐚</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.1b"><ci id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">𝐚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.1c">\mathbf{a}</annotation></semantics></math> to the output <math id="S2.SS1.p1.6.m6.1" class="ltx_Math" alttext="\hat{\mathbf{a}}" display="inline"><semantics id="S2.SS1.p1.6.m6.1a"><mover accent="true" id="S2.SS1.p1.6.m6.1.1" xref="S2.SS1.p1.6.m6.1.1.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2" xref="S2.SS1.p1.6.m6.1.1.2.cmml">𝐚</mi><mo id="S2.SS1.p1.6.m6.1.1.1" xref="S2.SS1.p1.6.m6.1.1.1.cmml">^</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m6.1b"><apply id="S2.SS1.p1.6.m6.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1"><ci id="S2.SS1.p1.6.m6.1.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1.1">^</ci><ci id="S2.SS1.p1.6.m6.1.1.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2">𝐚</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m6.1c">\hat{\mathbf{a}}</annotation></semantics></math>. To be specific, <math id="S2.SS1.p1.7.m7.1" class="ltx_Math" alttext="\mathbf{\tilde{a}}" display="inline"><semantics id="S2.SS1.p1.7.m7.1a"><mover accent="true" id="S2.SS1.p1.7.m7.1.1" xref="S2.SS1.p1.7.m7.1.1.cmml"><mi id="S2.SS1.p1.7.m7.1.1.2" xref="S2.SS1.p1.7.m7.1.1.2.cmml">𝐚</mi><mo id="S2.SS1.p1.7.m7.1.1.1" xref="S2.SS1.p1.7.m7.1.1.1.cmml">~</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m7.1b"><apply id="S2.SS1.p1.7.m7.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1"><ci id="S2.SS1.p1.7.m7.1.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1.1">~</ci><ci id="S2.SS1.p1.7.m7.1.1.2.cmml" xref="S2.SS1.p1.7.m7.1.1.2">𝐚</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m7.1c">\mathbf{\tilde{a}}</annotation></semantics></math> and <math id="S2.SS1.p1.8.m8.1" class="ltx_Math" alttext="\mathbf{a}" display="inline"><semantics id="S2.SS1.p1.8.m8.1a"><mi id="S2.SS1.p1.8.m8.1.1" xref="S2.SS1.p1.8.m8.1.1.cmml">𝐚</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.8.m8.1b"><ci id="S2.SS1.p1.8.m8.1.1.cmml" xref="S2.SS1.p1.8.m8.1.1">𝐚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.8.m8.1c">\mathbf{a}</annotation></semantics></math> are first processed by the semantic encoder and connector to extract the continuous semantic information <math id="S2.SS1.p1.9.m9.1" class="ltx_Math" alttext="\mathbf{\tilde{s}_{e}}" display="inline"><semantics id="S2.SS1.p1.9.m9.1a"><msub id="S2.SS1.p1.9.m9.1.1" xref="S2.SS1.p1.9.m9.1.1.cmml"><mover accent="true" id="S2.SS1.p1.9.m9.1.1.2" xref="S2.SS1.p1.9.m9.1.1.2.cmml"><mi id="S2.SS1.p1.9.m9.1.1.2.2" xref="S2.SS1.p1.9.m9.1.1.2.2.cmml">𝐬</mi><mo id="S2.SS1.p1.9.m9.1.1.2.1" xref="S2.SS1.p1.9.m9.1.1.2.1.cmml">~</mo></mover><mi id="S2.SS1.p1.9.m9.1.1.3" xref="S2.SS1.p1.9.m9.1.1.3.cmml">𝐞</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.9.m9.1b"><apply id="S2.SS1.p1.9.m9.1.1.cmml" xref="S2.SS1.p1.9.m9.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.9.m9.1.1.1.cmml" xref="S2.SS1.p1.9.m9.1.1">subscript</csymbol><apply id="S2.SS1.p1.9.m9.1.1.2.cmml" xref="S2.SS1.p1.9.m9.1.1.2"><ci id="S2.SS1.p1.9.m9.1.1.2.1.cmml" xref="S2.SS1.p1.9.m9.1.1.2.1">~</ci><ci id="S2.SS1.p1.9.m9.1.1.2.2.cmml" xref="S2.SS1.p1.9.m9.1.1.2.2">𝐬</ci></apply><ci id="S2.SS1.p1.9.m9.1.1.3.cmml" xref="S2.SS1.p1.9.m9.1.1.3">𝐞</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.9.m9.1c">\mathbf{\tilde{s}_{e}}</annotation></semantics></math> and <math id="S2.SS1.p1.10.m10.1" class="ltx_Math" alttext="\mathbf{s_{e}}" display="inline"><semantics id="S2.SS1.p1.10.m10.1a"><msub id="S2.SS1.p1.10.m10.1.1" xref="S2.SS1.p1.10.m10.1.1.cmml"><mi id="S2.SS1.p1.10.m10.1.1.2" xref="S2.SS1.p1.10.m10.1.1.2.cmml">𝐬</mi><mi id="S2.SS1.p1.10.m10.1.1.3" xref="S2.SS1.p1.10.m10.1.1.3.cmml">𝐞</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.10.m10.1b"><apply id="S2.SS1.p1.10.m10.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.10.m10.1.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1">subscript</csymbol><ci id="S2.SS1.p1.10.m10.1.1.2.cmml" xref="S2.SS1.p1.10.m10.1.1.2">𝐬</ci><ci id="S2.SS1.p1.10.m10.1.1.3.cmml" xref="S2.SS1.p1.10.m10.1.1.3">𝐞</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.10.m10.1c">\mathbf{s_{e}}</annotation></semantics></math>. Using the speaker prompt <math id="S2.SS1.p1.11.m11.2" class="ltx_Math" alttext="\{\mathbf{\tilde{s}},\mathbf{\tilde{a}}\}" display="inline"><semantics id="S2.SS1.p1.11.m11.2a"><mrow id="S2.SS1.p1.11.m11.2.3.2" xref="S2.SS1.p1.11.m11.2.3.1.cmml"><mo stretchy="false" id="S2.SS1.p1.11.m11.2.3.2.1" xref="S2.SS1.p1.11.m11.2.3.1.cmml">{</mo><mover accent="true" id="S2.SS1.p1.11.m11.1.1" xref="S2.SS1.p1.11.m11.1.1.cmml"><mi id="S2.SS1.p1.11.m11.1.1.2" xref="S2.SS1.p1.11.m11.1.1.2.cmml">𝐬</mi><mo id="S2.SS1.p1.11.m11.1.1.1" xref="S2.SS1.p1.11.m11.1.1.1.cmml">~</mo></mover><mo id="S2.SS1.p1.11.m11.2.3.2.2" xref="S2.SS1.p1.11.m11.2.3.1.cmml">,</mo><mover accent="true" id="S2.SS1.p1.11.m11.2.2" xref="S2.SS1.p1.11.m11.2.2.cmml"><mi id="S2.SS1.p1.11.m11.2.2.2" xref="S2.SS1.p1.11.m11.2.2.2.cmml">𝐚</mi><mo id="S2.SS1.p1.11.m11.2.2.1" xref="S2.SS1.p1.11.m11.2.2.1.cmml">~</mo></mover><mo stretchy="false" id="S2.SS1.p1.11.m11.2.3.2.3" xref="S2.SS1.p1.11.m11.2.3.1.cmml">}</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.11.m11.2b"><set id="S2.SS1.p1.11.m11.2.3.1.cmml" xref="S2.SS1.p1.11.m11.2.3.2"><apply id="S2.SS1.p1.11.m11.1.1.cmml" xref="S2.SS1.p1.11.m11.1.1"><ci id="S2.SS1.p1.11.m11.1.1.1.cmml" xref="S2.SS1.p1.11.m11.1.1.1">~</ci><ci id="S2.SS1.p1.11.m11.1.1.2.cmml" xref="S2.SS1.p1.11.m11.1.1.2">𝐬</ci></apply><apply id="S2.SS1.p1.11.m11.2.2.cmml" xref="S2.SS1.p1.11.m11.2.2"><ci id="S2.SS1.p1.11.m11.2.2.1.cmml" xref="S2.SS1.p1.11.m11.2.2.1">~</ci><ci id="S2.SS1.p1.11.m11.2.2.2.cmml" xref="S2.SS1.p1.11.m11.2.2.2">𝐚</ci></apply></set></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.11.m11.2c">\{\mathbf{\tilde{s}},\mathbf{\tilde{a}}\}</annotation></semantics></math>, StreamVoice backbone transforms the source semantic information <math id="S2.SS1.p1.12.m12.1" class="ltx_Math" alttext="\mathbf{s_{e}}" display="inline"><semantics id="S2.SS1.p1.12.m12.1a"><msub id="S2.SS1.p1.12.m12.1.1" xref="S2.SS1.p1.12.m12.1.1.cmml"><mi id="S2.SS1.p1.12.m12.1.1.2" xref="S2.SS1.p1.12.m12.1.1.2.cmml">𝐬</mi><mi id="S2.SS1.p1.12.m12.1.1.3" xref="S2.SS1.p1.12.m12.1.1.3.cmml">𝐞</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.12.m12.1b"><apply id="S2.SS1.p1.12.m12.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.1.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1">subscript</csymbol><ci id="S2.SS1.p1.12.m12.1.1.2.cmml" xref="S2.SS1.p1.12.m12.1.1.2">𝐬</ci><ci id="S2.SS1.p1.12.m12.1.1.3.cmml" xref="S2.SS1.p1.12.m12.1.1.3">𝐞</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.12.m12.1c">\mathbf{s_{e}}</annotation></semantics></math> into final output <math id="S2.SS1.p1.13.m13.1" class="ltx_Math" alttext="\hat{\mathbf{a}}" display="inline"><semantics id="S2.SS1.p1.13.m13.1a"><mover accent="true" id="S2.SS1.p1.13.m13.1.1" xref="S2.SS1.p1.13.m13.1.1.cmml"><mi id="S2.SS1.p1.13.m13.1.1.2" xref="S2.SS1.p1.13.m13.1.1.2.cmml">𝐚</mi><mo id="S2.SS1.p1.13.m13.1.1.1" xref="S2.SS1.p1.13.m13.1.1.1.cmml">^</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.13.m13.1b"><apply id="S2.SS1.p1.13.m13.1.1.cmml" xref="S2.SS1.p1.13.m13.1.1"><ci id="S2.SS1.p1.13.m13.1.1.1.cmml" xref="S2.SS1.p1.13.m13.1.1.1">^</ci><ci id="S2.SS1.p1.13.m13.1.1.2.cmml" xref="S2.SS1.p1.13.m13.1.1.2">𝐚</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.13.m13.1c">\hat{\mathbf{a}}</annotation></semantics></math>.</p>
+</div>
+<section id="S2.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S2.SS1.SSS1.5.1.1" class="ltx_text">II-A</span>1 </span>Semantic Encoder</h4>
+
+<div id="S2.SS1.SSS1.p1" class="ltx_para">
+<p id="S2.SS1.SSS1.p1.5" class="ltx_p">As shown in Fig. <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>a, the semantic encoder extracts the semantic information from the acoustic input, resulting in the hidden semantic output <math id="S2.SS1.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{h}^{s}" display="inline"><semantics id="S2.SS1.SSS1.p1.1.m1.1a"><msup id="S2.SS1.SSS1.p1.1.m1.1.1" xref="S2.SS1.SSS1.p1.1.m1.1.1.cmml"><mi id="S2.SS1.SSS1.p1.1.m1.1.1.2" xref="S2.SS1.SSS1.p1.1.m1.1.1.2.cmml">𝐡</mi><mi id="S2.SS1.SSS1.p1.1.m1.1.1.3" xref="S2.SS1.SSS1.p1.1.m1.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.1.m1.1b"><apply id="S2.SS1.SSS1.p1.1.m1.1.1.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1">superscript</csymbol><ci id="S2.SS1.SSS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1.2">𝐡</ci><ci id="S2.SS1.SSS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.SSS1.p1.1.m1.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.1.m1.1c">\mathbf{h}^{s}</annotation></semantics></math>. To meet the streaming requirement, the encoder is achieved by <math id="S2.SS1.SSS1.p1.2.m2.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S2.SS1.SSS1.p1.2.m2.1a"><mi id="S2.SS1.SSS1.p1.2.m2.1.1" xref="S2.SS1.SSS1.p1.2.m2.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.2.m2.1b"><ci id="S2.SS1.SSS1.p1.2.m2.1.1.cmml" xref="S2.SS1.SSS1.p1.2.m2.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.2.m2.1c">N</annotation></semantics></math>-layer Transformer blocks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> with unidirectional attention and a linear projection. Additionally, a behavior of k-step output delay is introduced in the encoder to generate <math id="S2.SS1.SSS1.p1.3.m3.1" class="ltx_Math" alttext="h_{t}^{s}" display="inline"><semantics id="S2.SS1.SSS1.p1.3.m3.1a"><msubsup id="S2.SS1.SSS1.p1.3.m3.1.1" xref="S2.SS1.SSS1.p1.3.m3.1.1.cmml"><mi id="S2.SS1.SSS1.p1.3.m3.1.1.2.2" xref="S2.SS1.SSS1.p1.3.m3.1.1.2.2.cmml">h</mi><mi id="S2.SS1.SSS1.p1.3.m3.1.1.2.3" xref="S2.SS1.SSS1.p1.3.m3.1.1.2.3.cmml">t</mi><mi id="S2.SS1.SSS1.p1.3.m3.1.1.3" xref="S2.SS1.SSS1.p1.3.m3.1.1.3.cmml">s</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.3.m3.1b"><apply id="S2.SS1.SSS1.p1.3.m3.1.1.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1">superscript</csymbol><apply id="S2.SS1.SSS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.3.m3.1.1.2.1.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS1.SSS1.p1.3.m3.1.1.2.2.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1.2.2">ℎ</ci><ci id="S2.SS1.SSS1.p1.3.m3.1.1.2.3.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1.2.3">𝑡</ci></apply><ci id="S2.SS1.SSS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.SSS1.p1.3.m3.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.3.m3.1c">h_{t}^{s}</annotation></semantics></math> when getting future <math id="S2.SS1.SSS1.p1.4.m4.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS1.SSS1.p1.4.m4.1a"><mi id="S2.SS1.SSS1.p1.4.m4.1.1" xref="S2.SS1.SSS1.p1.4.m4.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.4.m4.1b"><ci id="S2.SS1.SSS1.p1.4.m4.1.1.cmml" xref="S2.SS1.SSS1.p1.4.m4.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.4.m4.1c">k</annotation></semantics></math>-step acoustic input <math id="S2.SS1.SSS1.p1.5.m5.1" class="ltx_Math" alttext="\mathbf{a}_{t:t+k}" display="inline"><semantics id="S2.SS1.SSS1.p1.5.m5.1a"><msub id="S2.SS1.SSS1.p1.5.m5.1.1" xref="S2.SS1.SSS1.p1.5.m5.1.1.cmml"><mi id="S2.SS1.SSS1.p1.5.m5.1.1.2" xref="S2.SS1.SSS1.p1.5.m5.1.1.2.cmml">𝐚</mi><mrow id="S2.SS1.SSS1.p1.5.m5.1.1.3" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.cmml"><mi id="S2.SS1.SSS1.p1.5.m5.1.1.3.2" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.2.cmml">t</mi><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.SSS1.p1.5.m5.1.1.3.1" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.1.cmml">:</mo><mrow id="S2.SS1.SSS1.p1.5.m5.1.1.3.3" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.cmml"><mi id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.2" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.2.cmml">t</mi><mo id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.1" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.1.cmml">+</mo><mi id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.3" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.3.cmml">k</mi></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS1.p1.5.m5.1b"><apply id="S2.SS1.SSS1.p1.5.m5.1.1.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS1.p1.5.m5.1.1.1.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1">subscript</csymbol><ci id="S2.SS1.SSS1.p1.5.m5.1.1.2.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.2">𝐚</ci><apply id="S2.SS1.SSS1.p1.5.m5.1.1.3.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3"><ci id="S2.SS1.SSS1.p1.5.m5.1.1.3.1.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.1">:</ci><ci id="S2.SS1.SSS1.p1.5.m5.1.1.3.2.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.2">𝑡</ci><apply id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3"><plus id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.1.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.1"></plus><ci id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.2.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.2">𝑡</ci><ci id="S2.SS1.SSS1.p1.5.m5.1.1.3.3.3.cmml" xref="S2.SS1.SSS1.p1.5.m5.1.1.3.3.3">𝑘</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS1.p1.5.m5.1c">\mathbf{a}_{t:t+k}</annotation></semantics></math>, achieving a better trade-off between latency and performance of semantic extraction.</p>
+</div>
+</section>
+<section id="S2.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S2.SS1.SSS2.5.1.1" class="ltx_text">II-A</span>2 </span>StreamVoice Backbone with LoRA</h4>
+
+<div id="S2.SS1.SSS2.p1" class="ltx_para">
+<p id="S2.SS1.SSS2.p1.1" class="ltx_p">Inspired by the recent LM advance <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>, StreamVoice+ adapts the pre-trained StreamVoice <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> as its conversion backbone and extends the capability of StreamVoice with LoRA adapters for end-to-end conversion, in which LoRA is only plugged into the key, query, and value projections in the self-attention mechanism. Following the original version <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>, StreamVoice backbone integrates a full causal LM that generates acoustic codecs in collaboration with an acoustic predictor. By alternating the input of semantic and acoustic features at each time step, StreamVoice ensures streaming behavior.</p>
+</div>
+</section>
+<section id="S2.SS1.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S2.SS1.SSS3.5.1.1" class="ltx_text">II-A</span>3 </span>R(esidual)-B(ottleneck) Connector</h4>
+
+<div id="S2.SS1.SSS3.p1" class="ltx_para">
+<p id="S2.SS1.SSS3.p1.4" class="ltx_p">The connector transforms the output from the semantic encoder into embeddings that are compatible with the backbone model, as shown in Fig. <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>a. In other words, the linear-based connector ensures that the semantic output <math id="S2.SS1.SSS3.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{h}^{s}" display="inline"><semantics id="S2.SS1.SSS3.p1.1.m1.1a"><msup id="S2.SS1.SSS3.p1.1.m1.1.1" xref="S2.SS1.SSS3.p1.1.m1.1.1.cmml"><mi id="S2.SS1.SSS3.p1.1.m1.1.1.2" xref="S2.SS1.SSS3.p1.1.m1.1.1.2.cmml">𝐡</mi><mi id="S2.SS1.SSS3.p1.1.m1.1.1.3" xref="S2.SS1.SSS3.p1.1.m1.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS3.p1.1.m1.1b"><apply id="S2.SS1.SSS3.p1.1.m1.1.1.cmml" xref="S2.SS1.SSS3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS3.p1.1.m1.1.1.1.cmml" xref="S2.SS1.SSS3.p1.1.m1.1.1">superscript</csymbol><ci id="S2.SS1.SSS3.p1.1.m1.1.1.2.cmml" xref="S2.SS1.SSS3.p1.1.m1.1.1.2">𝐡</ci><ci id="S2.SS1.SSS3.p1.1.m1.1.1.3.cmml" xref="S2.SS1.SSS3.p1.1.m1.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS3.p1.1.m1.1c">\mathbf{h}^{s}</annotation></semantics></math> from the semantic encoder closely approximates the original semantic input <math id="S2.SS1.SSS3.p1.2.m2.1" class="ltx_Math" alttext="\mathbf{s}" display="inline"><semantics id="S2.SS1.SSS3.p1.2.m2.1a"><mi id="S2.SS1.SSS3.p1.2.m2.1.1" xref="S2.SS1.SSS3.p1.2.m2.1.1.cmml">𝐬</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS3.p1.2.m2.1b"><ci id="S2.SS1.SSS3.p1.2.m2.1.1.cmml" xref="S2.SS1.SSS3.p1.2.m2.1.1">𝐬</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS3.p1.2.m2.1c">\mathbf{s}</annotation></semantics></math> of StreamVoice in the continuous embedding space. Since <math id="S2.SS1.SSS3.p1.3.m3.1" class="ltx_Math" alttext="\mathbf{h}^{s}" display="inline"><semantics id="S2.SS1.SSS3.p1.3.m3.1a"><msup id="S2.SS1.SSS3.p1.3.m3.1.1" xref="S2.SS1.SSS3.p1.3.m3.1.1.cmml"><mi id="S2.SS1.SSS3.p1.3.m3.1.1.2" xref="S2.SS1.SSS3.p1.3.m3.1.1.2.cmml">𝐡</mi><mi id="S2.SS1.SSS3.p1.3.m3.1.1.3" xref="S2.SS1.SSS3.p1.3.m3.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS3.p1.3.m3.1b"><apply id="S2.SS1.SSS3.p1.3.m3.1.1.cmml" xref="S2.SS1.SSS3.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS3.p1.3.m3.1.1.1.cmml" xref="S2.SS1.SSS3.p1.3.m3.1.1">superscript</csymbol><ci id="S2.SS1.SSS3.p1.3.m3.1.1.2.cmml" xref="S2.SS1.SSS3.p1.3.m3.1.1.2">𝐡</ci><ci id="S2.SS1.SSS3.p1.3.m3.1.1.3.cmml" xref="S2.SS1.SSS3.p1.3.m3.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS3.p1.3.m3.1c">\mathbf{h}^{s}</annotation></semantics></math> contains not only semantic information but also undesired speaker timbre, a softmax function, which is also used in CE-based optimization of the semantic encoder (See Section <a href="#S2.SS2" title="II-B Two-stage Training Procedure ‣ II Proposed Approach ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-B</span></span></a>), is applied in the connector. However, this normalization may compromise the semantic content. To mitigate this effect and enhance semantic quality, the connector is designed to deliver residual information via a bottleneck employing a skip connection way.
+This residual information is subsequently combined with the main branch to compensate for the loss in semantic information, resulting in <math id="S2.SS1.SSS3.p1.4.m4.1" class="ltx_Math" alttext="\mathbf{s_{e}}" display="inline"><semantics id="S2.SS1.SSS3.p1.4.m4.1a"><msub id="S2.SS1.SSS3.p1.4.m4.1.1" xref="S2.SS1.SSS3.p1.4.m4.1.1.cmml"><mi id="S2.SS1.SSS3.p1.4.m4.1.1.2" xref="S2.SS1.SSS3.p1.4.m4.1.1.2.cmml">𝐬</mi><mi id="S2.SS1.SSS3.p1.4.m4.1.1.3" xref="S2.SS1.SSS3.p1.4.m4.1.1.3.cmml">𝐞</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.SSS3.p1.4.m4.1b"><apply id="S2.SS1.SSS3.p1.4.m4.1.1.cmml" xref="S2.SS1.SSS3.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS1.SSS3.p1.4.m4.1.1.1.cmml" xref="S2.SS1.SSS3.p1.4.m4.1.1">subscript</csymbol><ci id="S2.SS1.SSS3.p1.4.m4.1.1.2.cmml" xref="S2.SS1.SSS3.p1.4.m4.1.1.2">𝐬</ci><ci id="S2.SS1.SSS3.p1.4.m4.1.1.3.cmml" xref="S2.SS1.SSS3.p1.4.m4.1.1.3">𝐞</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.SSS3.p1.4.m4.1c">\mathbf{s_{e}}</annotation></semantics></math>.</p>
+</div>
+</section>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS2.5.1.1" class="ltx_text">II-B</span> </span><span id="S2.SS2.6.2" class="ltx_text ltx_font_italic">Two-stage Training Procedure</span>
+</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">In StreamVoice+, the basic idea is to employ a high-performance backbone model, such as non-streaming StreamVoice, and then augment its functionality by attaching a semantic encoder and a connector via end-to-end fine-tuning. This integration enables ASR-free end-to-end streaming conversion. StreamVoice+ employs a two-stage training procedure, which includes pre-training and end-to-end fine-tuning, as described below.</p>
+</div>
+<section id="S2.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S2.SS2.SSS1.5.1.1" class="ltx_text">II-B</span>1 </span>Pre-training</h4>
+
+<div id="S2.SS2.SSS1.p1" class="ltx_para">
+<p id="S2.SS2.SSS1.p1.8" class="ltx_p">As shown in Fig. <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>b, we separately train StreamVoice for conversion and semantic encoder for semantic extraction, using high-quality semantic information from a non-streaming ASR as input or supervision.
+In this stage, discrete semantic feature <math id="S2.SS2.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{s}\in\mathbb{R}^{T\times 1}" display="inline"><semantics id="S2.SS2.SSS1.p1.1.m1.1a"><mrow id="S2.SS2.SSS1.p1.1.m1.1.1" xref="S2.SS2.SSS1.p1.1.m1.1.1.cmml"><mi id="S2.SS2.SSS1.p1.1.m1.1.1.2" xref="S2.SS2.SSS1.p1.1.m1.1.1.2.cmml">𝐬</mi><mo id="S2.SS2.SSS1.p1.1.m1.1.1.1" xref="S2.SS2.SSS1.p1.1.m1.1.1.1.cmml">∈</mo><msup id="S2.SS2.SSS1.p1.1.m1.1.1.3" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.1.m1.1.1.3.2" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.2.cmml">ℝ</mi><mrow id="S2.SS2.SSS1.p1.1.m1.1.1.3.3" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.cmml"><mi id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.2" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.2.cmml">T</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.1" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.1.cmml">×</mo><mn id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.3" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.3.cmml">1</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.1.m1.1b"><apply id="S2.SS2.SSS1.p1.1.m1.1.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1"><in id="S2.SS2.SSS1.p1.1.m1.1.1.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.1"></in><ci id="S2.SS2.SSS1.p1.1.m1.1.1.2.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.2">𝐬</ci><apply id="S2.SS2.SSS1.p1.1.m1.1.1.3.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.1.m1.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3">superscript</csymbol><ci id="S2.SS2.SSS1.p1.1.m1.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.2">ℝ</ci><apply id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3"><times id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.1.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.1"></times><ci id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.2.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.2">𝑇</ci><cn type="integer" id="S2.SS2.SSS1.p1.1.m1.1.1.3.3.3.cmml" xref="S2.SS2.SSS1.p1.1.m1.1.1.3.3.3">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.1.m1.1c">\mathbf{s}\in\mathbb{R}^{T\times 1}</annotation></semantics></math> is extracted from the speech utterance. Here, non-streaming ASR aggregates the continuous semantic information, which is then discretized by modified RepCode <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> with <span id="S2.SS2.SSS1.p1.8.1" class="ltx_text ltx_font_italic">causal</span> convolution. For the StreamVoice backbone, we follow the original configuration <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>, which minimizes the cross entropy (CE) loss for codec prediction <math id="S2.SS2.SSS1.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{L}^{a}_{ce}" display="inline"><semantics id="S2.SS2.SSS1.p1.2.m2.1a"><msubsup id="S2.SS2.SSS1.p1.2.m2.1.1" xref="S2.SS2.SSS1.p1.2.m2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.2.m2.1.1.2.2" xref="S2.SS2.SSS1.p1.2.m2.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.2.m2.1.1.3" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.2.m2.1.1.3.2" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.2.m2.1.1.3.1" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.2.m2.1.1.3.3" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.2.m2.1.1.2.3" xref="S2.SS2.SSS1.p1.2.m2.1.1.2.3.cmml">a</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.2.m2.1b"><apply id="S2.SS2.SSS1.p1.2.m2.1.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.2.m2.1.1.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1">subscript</csymbol><apply id="S2.SS2.SSS1.p1.2.m2.1.1.2.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.2.m2.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1">superscript</csymbol><ci id="S2.SS2.SSS1.p1.2.m2.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.2.m2.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.2.3">𝑎</ci></apply><apply id="S2.SS2.SSS1.p1.2.m2.1.1.3.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.3"><times id="S2.SS2.SSS1.p1.2.m2.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.1"></times><ci id="S2.SS2.SSS1.p1.2.m2.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.2.m2.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.2.m2.1.1.3.3">𝑒</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.2.m2.1c">\mathcal{L}^{a}_{ce}</annotation></semantics></math> and teacher foresight loss <math id="S2.SS2.SSS1.p1.3.m3.1" class="ltx_Math" alttext="\mathcal{L}_{TF}" display="inline"><semantics id="S2.SS2.SSS1.p1.3.m3.1a"><msub id="S2.SS2.SSS1.p1.3.m3.1.1" xref="S2.SS2.SSS1.p1.3.m3.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.3.m3.1.1.2" xref="S2.SS2.SSS1.p1.3.m3.1.1.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.3.m3.1.1.3" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.3.m3.1.1.3.2" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.3.m3.1.1.3.1" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.3.m3.1.1.3.3" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.3.cmml">F</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.3.m3.1b"><apply id="S2.SS2.SSS1.p1.3.m3.1.1.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.3.m3.1.1.1.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS2.SSS1.p1.3.m3.1.1.2.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.2">ℒ</ci><apply id="S2.SS2.SSS1.p1.3.m3.1.1.3.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.3"><times id="S2.SS2.SSS1.p1.3.m3.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.1"></times><ci id="S2.SS2.SSS1.p1.3.m3.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.2">𝑇</ci><ci id="S2.SS2.SSS1.p1.3.m3.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.3.m3.1.1.3.3">𝐹</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.3.m3.1c">\mathcal{L}_{TF}</annotation></semantics></math>. Additionally, semantic prediction loss <math id="S2.SS2.SSS1.p1.4.m4.1" class="ltx_Math" alttext="\mathcal{L}^{s}_{ce}" display="inline"><semantics id="S2.SS2.SSS1.p1.4.m4.1a"><msubsup id="S2.SS2.SSS1.p1.4.m4.1.1" xref="S2.SS2.SSS1.p1.4.m4.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.4.m4.1.1.2.2" xref="S2.SS2.SSS1.p1.4.m4.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.4.m4.1.1.3" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.4.m4.1.1.3.2" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.4.m4.1.1.3.1" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.4.m4.1.1.3.3" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.4.m4.1.1.2.3" xref="S2.SS2.SSS1.p1.4.m4.1.1.2.3.cmml">s</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.4.m4.1b"><apply id="S2.SS2.SSS1.p1.4.m4.1.1.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.4.m4.1.1.1.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1">subscript</csymbol><apply id="S2.SS2.SSS1.p1.4.m4.1.1.2.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.4.m4.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1">superscript</csymbol><ci id="S2.SS2.SSS1.p1.4.m4.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.4.m4.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.4.m4.1.1.3.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.3"><times id="S2.SS2.SSS1.p1.4.m4.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.1"></times><ci id="S2.SS2.SSS1.p1.4.m4.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.4.m4.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.4.m4.1.1.3.3">𝑒</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.4.m4.1c">\mathcal{L}^{s}_{ce}</annotation></semantics></math> is also implemented to enhance performance.
+For the semantic encoder, we optimize it with CE loss <math id="S2.SS2.SSS1.p1.5.m5.1" class="ltx_Math" alttext="\mathcal{L}^{s}_{ce}" display="inline"><semantics id="S2.SS2.SSS1.p1.5.m5.1a"><msubsup id="S2.SS2.SSS1.p1.5.m5.1.1" xref="S2.SS2.SSS1.p1.5.m5.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.5.m5.1.1.2.2" xref="S2.SS2.SSS1.p1.5.m5.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.5.m5.1.1.3" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.5.m5.1.1.3.2" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.5.m5.1.1.3.1" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.5.m5.1.1.3.3" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.5.m5.1.1.2.3" xref="S2.SS2.SSS1.p1.5.m5.1.1.2.3.cmml">s</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.5.m5.1b"><apply id="S2.SS2.SSS1.p1.5.m5.1.1.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.5.m5.1.1.1.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1">subscript</csymbol><apply id="S2.SS2.SSS1.p1.5.m5.1.1.2.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.5.m5.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1">superscript</csymbol><ci id="S2.SS2.SSS1.p1.5.m5.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.5.m5.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.5.m5.1.1.3.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.3"><times id="S2.SS2.SSS1.p1.5.m5.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.1"></times><ci id="S2.SS2.SSS1.p1.5.m5.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.5.m5.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.5.m5.1.1.3.3">𝑒</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.5.m5.1c">\mathcal{L}^{s}_{ce}</annotation></semantics></math> for semantic prediction. We also introduce intermediate layer supervision <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite>, which uses the continuous semantic feature to supervise the layer outputs by mean square error (MSE) <math id="S2.SS2.SSS1.p1.6.m6.1" class="ltx_Math" alttext="\mathcal{L}^{s}_{mse}" display="inline"><semantics id="S2.SS2.SSS1.p1.6.m6.1a"><msubsup id="S2.SS2.SSS1.p1.6.m6.1.1" xref="S2.SS2.SSS1.p1.6.m6.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.6.m6.1.1.2.2" xref="S2.SS2.SSS1.p1.6.m6.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.6.m6.1.1.3" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.cmml"><mi id="S2.SS2.SSS1.p1.6.m6.1.1.3.2" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.6.m6.1.1.3.1" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.6.m6.1.1.3.3" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.3.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.6.m6.1.1.3.1a" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.6.m6.1.1.3.4" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.4.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.6.m6.1.1.2.3" xref="S2.SS2.SSS1.p1.6.m6.1.1.2.3.cmml">s</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.6.m6.1b"><apply id="S2.SS2.SSS1.p1.6.m6.1.1.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.6.m6.1.1.1.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1">subscript</csymbol><apply id="S2.SS2.SSS1.p1.6.m6.1.1.2.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.6.m6.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1">superscript</csymbol><ci id="S2.SS2.SSS1.p1.6.m6.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.6.m6.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.6.m6.1.1.3.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.3"><times id="S2.SS2.SSS1.p1.6.m6.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.1"></times><ci id="S2.SS2.SSS1.p1.6.m6.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.2">𝑚</ci><ci id="S2.SS2.SSS1.p1.6.m6.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.3">𝑠</ci><ci id="S2.SS2.SSS1.p1.6.m6.1.1.3.4.cmml" xref="S2.SS2.SSS1.p1.6.m6.1.1.3.4">𝑒</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.6.m6.1c">\mathcal{L}^{s}_{mse}</annotation></semantics></math>, encouraging intermediate layers to learn semantic knowledge. The total loss in pre-training can be defined as
+<math id="S2.SS2.SSS1.p1.7.m7.1" class="ltx_Math" alttext="\mathcal{L}_{Backbone}=\mathcal{L}^{s}_{ce}+\mathcal{L}^{a}_{ce}+\mathcal{L}_{TF}" display="inline"><semantics id="S2.SS2.SSS1.p1.7.m7.1a"><mrow id="S2.SS2.SSS1.p1.7.m7.1.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.cmml"><msub id="S2.SS2.SSS1.p1.7.m7.1.1.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.7.m7.1.1.2.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.7.m7.1.1.2.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.cmml"><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.2.cmml">B</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1a" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.4" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1b" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.5" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.5.cmml">k</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1c" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.6" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.6.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1d" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.7" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1e" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.8" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.8.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1f" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.9" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.9.cmml">e</mi></mrow></msub><mo id="S2.SS2.SSS1.p1.7.m7.1.1.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.1.cmml">=</mo><mrow id="S2.SS2.SSS1.p1.7.m7.1.1.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.cmml"><msubsup id="S2.SS2.SSS1.p1.7.m7.1.1.3.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.cmml"><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.3.cmml">s</mi></msubsup><mo id="S2.SS2.SSS1.p1.7.m7.1.1.3.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.1.cmml">+</mo><msubsup id="S2.SS2.SSS1.p1.7.m7.1.1.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.cmml"><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.3.cmml">a</mi></msubsup><mo id="S2.SS2.SSS1.p1.7.m7.1.1.3.1a" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.1.cmml">+</mo><msub id="S2.SS2.SSS1.p1.7.m7.1.1.3.4" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.cmml"><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.2" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.1" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.3" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.3.cmml">F</mi></mrow></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.7.m7.1b"><apply id="S2.SS2.SSS1.p1.7.m7.1.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1"><eq id="S2.SS2.SSS1.p1.7.m7.1.1.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.1"></eq><apply id="S2.SS2.SSS1.p1.7.m7.1.1.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2">subscript</csymbol><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.2">ℒ</ci><apply id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3"><times id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.1"></times><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.2">𝐵</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.3">𝑎</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.4.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.4">𝑐</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.5.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.5">𝑘</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.6.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.6">𝑏</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.7.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.7">𝑜</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.8.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.8">𝑛</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.2.3.9.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.2.3.9">𝑒</ci></apply></apply><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3"><plus id="S2.SS2.SSS1.p1.7.m7.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.1"></plus><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2">subscript</csymbol><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2">superscript</csymbol><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3"><times id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.1"></times><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.2.3.3">𝑒</ci></apply></apply><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3">subscript</csymbol><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3">superscript</csymbol><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.2.3">𝑎</ci></apply><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3"><times id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.1"></times><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.3.3.3">𝑒</ci></apply></apply><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4">subscript</csymbol><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.2">ℒ</ci><apply id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3"><times id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.1.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.1"></times><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.2.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.2">𝑇</ci><ci id="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.3.cmml" xref="S2.SS2.SSS1.p1.7.m7.1.1.3.4.3.3">𝐹</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.7.m7.1c">\mathcal{L}_{Backbone}=\mathcal{L}^{s}_{ce}+\mathcal{L}^{a}_{ce}+\mathcal{L}_{TF}</annotation></semantics></math> and <math id="S2.SS2.SSS1.p1.8.m8.1" class="ltx_Math" alttext="\mathcal{L}_{Encoder}=\mathcal{L}^{s}_{ce}+\mathcal{L}^{s}_{mse}" display="inline"><semantics id="S2.SS2.SSS1.p1.8.m8.1a"><mrow id="S2.SS2.SSS1.p1.8.m8.1.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.cmml"><msub id="S2.SS2.SSS1.p1.8.m8.1.1.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.8.m8.1.1.2.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.8.m8.1.1.2.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.cmml"><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.2.cmml">E</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.3.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1a" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.4" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1b" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.5" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.5.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1c" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.6" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.6.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1d" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.7" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.7.cmml">e</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1e" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.8" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.8.cmml">r</mi></mrow></msub><mo id="S2.SS2.SSS1.p1.8.m8.1.1.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.1.cmml">=</mo><mrow id="S2.SS2.SSS1.p1.8.m8.1.1.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.cmml"><msubsup id="S2.SS2.SSS1.p1.8.m8.1.1.3.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.cmml"><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.2.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.3.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.3.cmml">s</mi></msubsup><mo id="S2.SS2.SSS1.p1.8.m8.1.1.3.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.1.cmml">+</mo><msubsup id="S2.SS2.SSS1.p1.8.m8.1.1.3.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.cmml"><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.2" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.3.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1a" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1.cmml">​</mo><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.4" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.4.cmml">e</mi></mrow><mi id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.3" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.3.cmml">s</mi></msubsup></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS1.p1.8.m8.1b"><apply id="S2.SS2.SSS1.p1.8.m8.1.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1"><eq id="S2.SS2.SSS1.p1.8.m8.1.1.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.1"></eq><apply id="S2.SS2.SSS1.p1.8.m8.1.1.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.8.m8.1.1.2.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2">subscript</csymbol><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.2">ℒ</ci><apply id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3"><times id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.1"></times><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.2">𝐸</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.3">𝑛</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.4.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.4">𝑐</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.5.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.5">𝑜</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.6.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.6">𝑑</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.7.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.7">𝑒</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.2.3.8.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.2.3.8">𝑟</ci></apply></apply><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3"><plus id="S2.SS2.SSS1.p1.8.m8.1.1.3.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.1"></plus><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2">subscript</csymbol><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2">superscript</csymbol><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3"><times id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.1"></times><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.2">𝑐</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.2.3.3">𝑒</ci></apply></apply><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3">subscript</csymbol><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3">superscript</csymbol><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.2">ℒ</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.2.3">𝑠</ci></apply><apply id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3"><times id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.1"></times><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.2.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.2">𝑚</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.3.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.3">𝑠</ci><ci id="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.4.cmml" xref="S2.SS2.SSS1.p1.8.m8.1.1.3.3.3.4">𝑒</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS1.p1.8.m8.1c">\mathcal{L}_{Encoder}=\mathcal{L}^{s}_{ce}+\mathcal{L}^{s}_{mse}</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S2.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S2.SS2.SSS2.5.1.1" class="ltx_text">II-B</span>2 </span>Fine-tuning with self-refinement strategy</h4>
+
+<div id="S2.SS2.SSS2.p1" class="ltx_para">
+<p id="S2.SS2.SSS2.p1.1" class="ltx_p">Integrating the pre-trained capabilities into StreamVoice+, we fine-tune the whole model with LoRA adapters to unlock the end-to-end conversion ability. As presented in Fig. <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>c, the semantic encoder and backbone are frozen in this stage, while the connector and LoRA are responsible for the end-to-end training. Following the attempt in SpearTTS <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>, the last linear layer in the semantic encoder is also optimized for better performance. This fine-tuning only updates <span id="S2.SS2.SSS2.p1.1.1" class="ltx_text ltx_font_italic">3.9M</span> parameters of <span id="S2.SS2.SSS2.p1.1.2" class="ltx_text ltx_font_italic">153M</span> StreamVoice+. Generally, in VC,
+a single speech utterance is used simultaneously as source and target speech, which may encourage the model to focus solely on reconstruction, thereby neglecting speech decoupling and resulting in poor conversion stability. This issue is exacerbated in end-to-end training.
+To mitigate this issue, the intuitive way is to create a parallel speech pair with the same content but different speaker timbre. To this end, we introduce a self-refinement strategy, which employs the pre-trained backbone to perform conversion on the training dataset for creating parallel pairs. In practice, we randomly replace the source or target speech with the synthetic speech and optimize StreamVoice+ in both conversion and reconstruction behavior. In the fine-tuning stage, StreamVoice+ is only optimized by <math id="S2.SS2.SSS2.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{L}_{Backbone}" display="inline"><semantics id="S2.SS2.SSS2.p1.1.m1.1a"><msub id="S2.SS2.SSS2.p1.1.m1.1.1" xref="S2.SS2.SSS2.p1.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS2.SSS2.p1.1.m1.1.1.2" xref="S2.SS2.SSS2.p1.1.m1.1.1.2.cmml">ℒ</mi><mrow id="S2.SS2.SSS2.p1.1.m1.1.1.3" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.cmml"><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.2" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.2.cmml">B</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.3" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1a" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.4" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1b" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.5" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.5.cmml">k</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1c" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.6" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.6.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1d" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.7" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1e" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.8" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.8.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSS2.p1.1.m1.1.1.3.1f" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSS2.p1.1.m1.1.1.3.9" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.9.cmml">e</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSS2.p1.1.m1.1b"><apply id="S2.SS2.SSS2.p1.1.m1.1.1.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSS2.p1.1.m1.1.1.1.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS2.SSS2.p1.1.m1.1.1.2.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.2">ℒ</ci><apply id="S2.SS2.SSS2.p1.1.m1.1.1.3.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3"><times id="S2.SS2.SSS2.p1.1.m1.1.1.3.1.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.1"></times><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.2.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.2">𝐵</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.3.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.3">𝑎</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.4.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.4">𝑐</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.5.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.5">𝑘</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.6.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.6">𝑏</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.7.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.7">𝑜</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.8.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.8">𝑛</ci><ci id="S2.SS2.SSS2.p1.1.m1.1.1.3.9.cmml" xref="S2.SS2.SSS2.p1.1.m1.1.1.3.9">𝑒</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSS2.p1.1.m1.1c">\mathcal{L}_{Backbone}</annotation></semantics></math>.</p>
+</div>
+</section>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS3.5.1.1" class="ltx_text">II-C</span> </span><span id="S2.SS3.6.2" class="ltx_text ltx_font_italic">Dual-mode Extension: Streaming &amp; Non-streaming</span>
+</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">With the architecture of StreamVoice+, there is a straightforward way to unify streaming and non-streaming conversion into a single framework, which can reduce the cost of practical applications. The core idea involves the integration of task-specific parameters into StreamVoice+.
+Specifically, after the pre-training stage, we further freeze the semantic encoder and continue training the semantic encoder for non-streaming scenarios by incorporating <span id="S2.SS3.p1.1.1" class="ltx_text ltx_font_italic">bidirectional</span> attention and additional LoRA parameters. Then, similar to the fine-tuning stage described in Section <a href="#S2.SS2" title="II-B Two-stage Training Procedure ‣ II Proposed Approach ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-B</span></span></a>, another set of linear layer, connector, and LoRA adapters of the backbone are optimized for the non-streaming conversion task. Compared with the original StreamVoice+, only an additional <span id="S2.SS3.p1.1.2" class="ltx_text ltx_font_italic">4.8M</span> task-specific parameters need to be stored.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Experiments</span>
+</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS1.5.1.1" class="ltx_text">III-A</span> </span><span id="S3.SS1.6.2" class="ltx_text ltx_font_italic">Experimental Setup</span>
+</h3>
+
+<section id="S3.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS1.SSS1.5.1.1" class="ltx_text">III-A</span>1 </span>Corpus</h4>
+
+<div id="S3.SS1.SSS1.p1" class="ltx_para">
+<p id="S3.SS1.SSS1.p1.1" class="ltx_p">WenetSpeech4TTS Basic <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>, Aishell3 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite> and an internal dataset, in total 8,700 hours of 16kHz recordings, are used to train StreamVoice+, Repcodec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite>, and Audiodec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>. For semantic extraction, we incorporate a non-streaming ASR<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>https://github.com/wenet-e2e/wenet/tree/main/examples/wenetspeech/s0</span></span></span> trained on WenetSpeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite>. For testing, 600 testing pairs are selected from DIDISpeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>, EMIME <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib37" title="" class="ltx_ref">37</a>]</cite>, and an internal dataset, each with a source and target speaker utterance. During inference, a 3s speaker prompt is used. The duration of testing utterances ranges between 3s and 7s.</p>
+</div>
+</section>
+<section id="S3.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS1.SSS2.5.1.1" class="ltx_text">III-A</span>2 </span>Details</h4>
+
+<div id="S3.SS1.SSS2.p1" class="ltx_para">
+<p id="S3.SS1.SSS2.p1.3" class="ltx_p">Audiodec<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>https://github.com/facebookresearch/AudioDec</span></span></span> we used has 4 quantizers with a 1024 codebook, representing a 24kHz waveform in 20ms frame length. The ASR model and RepCodec<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>https://github.com/mct10/RepCodec</span></span></span> extract a discrete semantic feature with a 40ms frame length. For StreamVoice+, the StreamVoice backbone uses the original configuration <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> containing 6-layer LLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib38" title="" class="ltx_ref">38</a>]</cite> and a single Transformer-layer acoustic predictor. Semantic masking of StreamVoice is also kept in training. The LoRA adapters in the backbone use 32-rank and <math id="S3.SS1.SSS2.p1.1.m1.1" class="ltx_Math" alttext="\alpha=1" display="inline"><semantics id="S3.SS1.SSS2.p1.1.m1.1a"><mrow id="S3.SS1.SSS2.p1.1.m1.1.1" xref="S3.SS1.SSS2.p1.1.m1.1.1.cmml"><mi id="S3.SS1.SSS2.p1.1.m1.1.1.2" xref="S3.SS1.SSS2.p1.1.m1.1.1.2.cmml">α</mi><mo id="S3.SS1.SSS2.p1.1.m1.1.1.1" xref="S3.SS1.SSS2.p1.1.m1.1.1.1.cmml">=</mo><mn id="S3.SS1.SSS2.p1.1.m1.1.1.3" xref="S3.SS1.SSS2.p1.1.m1.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS2.p1.1.m1.1b"><apply id="S3.SS1.SSS2.p1.1.m1.1.1.cmml" xref="S3.SS1.SSS2.p1.1.m1.1.1"><eq id="S3.SS1.SSS2.p1.1.m1.1.1.1.cmml" xref="S3.SS1.SSS2.p1.1.m1.1.1.1"></eq><ci id="S3.SS1.SSS2.p1.1.m1.1.1.2.cmml" xref="S3.SS1.SSS2.p1.1.m1.1.1.2">𝛼</ci><cn type="integer" id="S3.SS1.SSS2.p1.1.m1.1.1.3.cmml" xref="S3.SS1.SSS2.p1.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS2.p1.1.m1.1c">\alpha=1</annotation></semantics></math>. The semantic encoder is implemented by a 3-layer LLaMA with 8 heads. The hidden and intermediate sizes are 1024 and 4096. The connector’s unit size is 1024 and the bottleneck dimension is 16. The delay is set to 80ms (k=4). Eight V100 GPUs are used to pre-train the backbone and semantic encoder for 500k steps. We use the AdamW optimizer with a learning rate of <math id="S3.SS1.SSS2.p1.2.m2.1" class="ltx_Math" alttext="5\times 10^{-4}" display="inline"><semantics id="S3.SS1.SSS2.p1.2.m2.1a"><mrow id="S3.SS1.SSS2.p1.2.m2.1.1" xref="S3.SS1.SSS2.p1.2.m2.1.1.cmml"><mn id="S3.SS1.SSS2.p1.2.m2.1.1.2" xref="S3.SS1.SSS2.p1.2.m2.1.1.2.cmml">5</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS1.SSS2.p1.2.m2.1.1.1" xref="S3.SS1.SSS2.p1.2.m2.1.1.1.cmml">×</mo><msup id="S3.SS1.SSS2.p1.2.m2.1.1.3" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.cmml"><mn id="S3.SS1.SSS2.p1.2.m2.1.1.3.2" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.2.cmml">10</mn><mrow id="S3.SS1.SSS2.p1.2.m2.1.1.3.3" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3.cmml"><mo id="S3.SS1.SSS2.p1.2.m2.1.1.3.3a" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3.cmml">−</mo><mn id="S3.SS1.SSS2.p1.2.m2.1.1.3.3.2" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS2.p1.2.m2.1b"><apply id="S3.SS1.SSS2.p1.2.m2.1.1.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1"><times id="S3.SS1.SSS2.p1.2.m2.1.1.1.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.1"></times><cn type="integer" id="S3.SS1.SSS2.p1.2.m2.1.1.2.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.2">5</cn><apply id="S3.SS1.SSS2.p1.2.m2.1.1.3.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3"><csymbol cd="ambiguous" id="S3.SS1.SSS2.p1.2.m2.1.1.3.1.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS1.SSS2.p1.2.m2.1.1.3.2.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.2">10</cn><apply id="S3.SS1.SSS2.p1.2.m2.1.1.3.3.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3"><minus id="S3.SS1.SSS2.p1.2.m2.1.1.3.3.1.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3"></minus><cn type="integer" id="S3.SS1.SSS2.p1.2.m2.1.1.3.3.2.cmml" xref="S3.SS1.SSS2.p1.2.m2.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS2.p1.2.m2.1c">5\times 10^{-4}</annotation></semantics></math>. Exponential decay updates the learning rate after each epoch. During fine-tuning, StreamVoice+ is trained for 100k steps with <math id="S3.SS1.SSS2.p1.3.m3.1" class="ltx_Math" alttext="4\times 10^{-4}" display="inline"><semantics id="S3.SS1.SSS2.p1.3.m3.1a"><mrow id="S3.SS1.SSS2.p1.3.m3.1.1" xref="S3.SS1.SSS2.p1.3.m3.1.1.cmml"><mn id="S3.SS1.SSS2.p1.3.m3.1.1.2" xref="S3.SS1.SSS2.p1.3.m3.1.1.2.cmml">4</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS1.SSS2.p1.3.m3.1.1.1" xref="S3.SS1.SSS2.p1.3.m3.1.1.1.cmml">×</mo><msup id="S3.SS1.SSS2.p1.3.m3.1.1.3" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.cmml"><mn id="S3.SS1.SSS2.p1.3.m3.1.1.3.2" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.2.cmml">10</mn><mrow id="S3.SS1.SSS2.p1.3.m3.1.1.3.3" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3.cmml"><mo id="S3.SS1.SSS2.p1.3.m3.1.1.3.3a" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3.cmml">−</mo><mn id="S3.SS1.SSS2.p1.3.m3.1.1.3.3.2" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS2.p1.3.m3.1b"><apply id="S3.SS1.SSS2.p1.3.m3.1.1.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1"><times id="S3.SS1.SSS2.p1.3.m3.1.1.1.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.1"></times><cn type="integer" id="S3.SS1.SSS2.p1.3.m3.1.1.2.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.2">4</cn><apply id="S3.SS1.SSS2.p1.3.m3.1.1.3.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3"><csymbol cd="ambiguous" id="S3.SS1.SSS2.p1.3.m3.1.1.3.1.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS1.SSS2.p1.3.m3.1.1.3.2.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.2">10</cn><apply id="S3.SS1.SSS2.p1.3.m3.1.1.3.3.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3"><minus id="S3.SS1.SSS2.p1.3.m3.1.1.3.3.1.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3"></minus><cn type="integer" id="S3.SS1.SSS2.p1.3.m3.1.1.3.3.2.cmml" xref="S3.SS1.SSS2.p1.3.m3.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS2.p1.3.m3.1c">4\times 10^{-4}</annotation></semantics></math> learning rate with a decay period of 10k steps.</p>
+</div>
+</section>
+<section id="S3.SS1.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS1.SSS3.5.1.1" class="ltx_text">III-A</span>3 </span>Evaluation metrics</h4>
+
+<div id="S3.SS1.SSS3.p1" class="ltx_para">
+<p id="S3.SS1.SSS3.p1.1" class="ltx_p">The mean opinion score (MOS) subjectively measures speech naturalness (NMOS) and speaker similarity (SMOS), calculated with 95<math id="S3.SS1.SSS3.p1.1.m1.1" class="ltx_Math" alttext="\%" display="inline"><semantics id="S3.SS1.SSS3.p1.1.m1.1a"><mo id="S3.SS1.SSS3.p1.1.m1.1.1" xref="S3.SS1.SSS3.p1.1.m1.1.1.cmml">%</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS3.p1.1.m1.1b"><csymbol cd="latexml" id="S3.SS1.SSS3.p1.1.m1.1.1.cmml" xref="S3.SS1.SSS3.p1.1.m1.1.1">percent</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS3.p1.1.m1.1c">\%</annotation></semantics></math> confidence intervals. We randomly select 120 testing pairs for subjective evaluations involving a group of 15 listeners. For objective evaluations, a neural network-based system<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span>https://github.com/AndreevP/wvmos</span></span></span> is used to measure speech quality (WVMOS). Character error rate (CER) measured by an ASR model <a href="#footnote1" title="footnote 1 ‣ III-A1 Corpus ‣ III-A Experimental Setup ‣ III Experiments ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> indicates speech intelligibility.
+Pearson correlation coefficient (PCC) of fundamental frequency measures the speaking style reservation after conversion. Speaker cosine similarity (SSIM) is calculated by an SV model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib39" title="" class="ltx_ref">39</a>]</cite> to determine if the converted speech matches the target speaker.</p>
+</div>
+</section>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS2.5.1.1" class="ltx_text">III-B</span> </span><span id="S3.SS2.6.2" class="ltx_text ltx_font_italic">Zero-shot Evaluation</span>
+</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.2" class="ltx_p">We select one LM-based zero-shot VC system, <span id="S3.SS2.p1.2.1" class="ltx_text ltx_font_italic">LM-VC</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, as the topline system. Additionally, we compare the non-streaming <span id="S3.SS2.p1.2.2" class="ltx_text ltx_font_italic">backbone</span> model of StreamVoice+ and the streaming predecessor StreamVoice <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>. We implement the proposed system <span id="S3.SS2.p1.2.3" class="ltx_text ltx_font_italic">StreamVoice+</span>, and also involve the non-streaming part of the dual-mode <span id="S3.SS2.p1.2.4" class="ltx_text ltx_font_italic">N-StreamVoice+</span> in the evaluation. Please note that all comparison systems are trained on the same dataset. Table <a href="#S3.T1" title="TABLE I ‣ III-B Zero-shot Evaluation ‣ III Experiments ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a> presents both subjective and objective results. As we can see, compared with the non-streaming LM-VC and backbone model, StreamVoice+ can achieve comparable results in terms of subjective NMOS and SMOS. From the aspect of objective results, there is still a performance gap in CER and SSIM between StreamVoice+ and the non-streaming models, and meanwhile, StreamVoice+ demonstrates superior performance in NMOS and PCC, benefiting from end-to-end training. Additionally, the non-streaming model of dual-mode StreamVoice+ even surpasses the topline models in most aspects, indicating the effectiveness of our end-to-end streaming framework. Among the streaming models, StreamVoice+ surpasses StreamVoice in almost all metrics, although CER is slightly lower. This can be attributed to the robustness of semantic extraction, which can be mitigated by speech augmentation and scaling up the dataset.
+Real-time factor (RTF) of StreamVoice+ and codec are 0.58 and 0.004, meeting the real-time requirement. With an 80ms designed delay and a 20ms token length, the overall pipeline latency of StreamVoice+ is <math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="111.6ms=80+20+20\times(0.58+0.004)" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><mrow id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml"><mrow id="S3.SS2.p1.1.m1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.3.cmml"><mn id="S3.SS2.p1.1.m1.1.1.3.2" xref="S3.SS2.p1.1.m1.1.1.3.2.cmml">111.6</mn><mo lspace="0em" rspace="0em" id="S3.SS2.p1.1.m1.1.1.3.1" xref="S3.SS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS2.p1.1.m1.1.1.3.3" xref="S3.SS2.p1.1.m1.1.1.3.3.cmml">m</mi><mo lspace="0em" rspace="0em" id="S3.SS2.p1.1.m1.1.1.3.1a" xref="S3.SS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS2.p1.1.m1.1.1.3.4" xref="S3.SS2.p1.1.m1.1.1.3.4.cmml">s</mi></mrow><mo id="S3.SS2.p1.1.m1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.2.cmml">=</mo><mrow id="S3.SS2.p1.1.m1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.cmml"><mn id="S3.SS2.p1.1.m1.1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.1.3.cmml">80</mn><mo id="S3.SS2.p1.1.m1.1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.1.2.cmml">+</mo><mn id="S3.SS2.p1.1.m1.1.1.1.4" xref="S3.SS2.p1.1.m1.1.1.1.4.cmml">20</mn><mo id="S3.SS2.p1.1.m1.1.1.1.2a" xref="S3.SS2.p1.1.m1.1.1.1.2.cmml">+</mo><mrow id="S3.SS2.p1.1.m1.1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.1.cmml"><mn id="S3.SS2.p1.1.m1.1.1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.1.1.3.cmml">20</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS2.p1.1.m1.1.1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.1.1.2.cmml">×</mo><mrow id="S3.SS2.p1.1.m1.1.1.1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S3.SS2.p1.1.m1.1.1.1.1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.cmml"><mn id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.2" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.2.cmml">0.58</mn><mo id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.1" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.1.cmml">+</mo><mn id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.3.cmml">0.004</mn></mrow><mo stretchy="false" id="S3.SS2.p1.1.m1.1.1.1.1.1.1.3" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><apply id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1"><eq id="S3.SS2.p1.1.m1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.2"></eq><apply id="S3.SS2.p1.1.m1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.3"><times id="S3.SS2.p1.1.m1.1.1.3.1.cmml" xref="S3.SS2.p1.1.m1.1.1.3.1"></times><cn type="float" id="S3.SS2.p1.1.m1.1.1.3.2.cmml" xref="S3.SS2.p1.1.m1.1.1.3.2">111.6</cn><ci id="S3.SS2.p1.1.m1.1.1.3.3.cmml" xref="S3.SS2.p1.1.m1.1.1.3.3">𝑚</ci><ci id="S3.SS2.p1.1.m1.1.1.3.4.cmml" xref="S3.SS2.p1.1.m1.1.1.3.4">𝑠</ci></apply><apply id="S3.SS2.p1.1.m1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1.1"><plus id="S3.SS2.p1.1.m1.1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.1.2"></plus><cn type="integer" id="S3.SS2.p1.1.m1.1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.1.3">80</cn><cn type="integer" id="S3.SS2.p1.1.m1.1.1.1.4.cmml" xref="S3.SS2.p1.1.m1.1.1.1.4">20</cn><apply id="S3.SS2.p1.1.m1.1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1"><times id="S3.SS2.p1.1.m1.1.1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.2"></times><cn type="integer" id="S3.SS2.p1.1.m1.1.1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.3">20</cn><apply id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1"><plus id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.1"></plus><cn type="float" id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.2">0.58</cn><cn type="float" id="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.3.cmml" xref="S3.SS2.p1.1.m1.1.1.1.1.1.1.1.3">0.004</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">111.6ms=80+20+20\times(0.58+0.004)</annotation></semantics></math> on an A100 GPU. Compared with StreamVoice (<math id="S3.SS2.p1.2.m2.1" class="ltx_Math" alttext="124.3ms" display="inline"><semantics id="S3.SS2.p1.2.m2.1a"><mrow id="S3.SS2.p1.2.m2.1.1" xref="S3.SS2.p1.2.m2.1.1.cmml"><mn id="S3.SS2.p1.2.m2.1.1.2" xref="S3.SS2.p1.2.m2.1.1.2.cmml">124.3</mn><mo lspace="0em" rspace="0em" id="S3.SS2.p1.2.m2.1.1.1" xref="S3.SS2.p1.2.m2.1.1.1.cmml">​</mo><mi id="S3.SS2.p1.2.m2.1.1.3" xref="S3.SS2.p1.2.m2.1.1.3.cmml">m</mi><mo lspace="0em" rspace="0em" id="S3.SS2.p1.2.m2.1.1.1a" xref="S3.SS2.p1.2.m2.1.1.1.cmml">​</mo><mi id="S3.SS2.p1.2.m2.1.1.4" xref="S3.SS2.p1.2.m2.1.1.4.cmml">s</mi></mrow><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.2.m2.1b"><apply id="S3.SS2.p1.2.m2.1.1.cmml" xref="S3.SS2.p1.2.m2.1.1"><times id="S3.SS2.p1.2.m2.1.1.1.cmml" xref="S3.SS2.p1.2.m2.1.1.1"></times><cn type="float" id="S3.SS2.p1.2.m2.1.1.2.cmml" xref="S3.SS2.p1.2.m2.1.1.2">124.3</cn><ci id="S3.SS2.p1.2.m2.1.1.3.cmml" xref="S3.SS2.p1.2.m2.1.1.3">𝑚</ci><ci id="S3.SS2.p1.2.m2.1.1.4.cmml" xref="S3.SS2.p1.2.m2.1.1.4">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.2.m2.1c">124.3ms</annotation></semantics></math>), StreamVoice+ is built on an end-to-end framework and has a concise streaming pipeline without dependency on streaming ASR. These results demonstrate the powerful capability of StreamVoice+ in streaming zero-shot VC.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE I: </span>Zero-shot performance</figcaption>
+<table id="S3.T1.16" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.16.17" class="ltx_tr">
+<td id="S3.T1.16.17.1" class="ltx_td ltx_align_left ltx_border_t" style="padding:0.9pt 2.3pt;" rowspan="2"><span id="S3.T1.16.17.1.1" class="ltx_text" style="font-size:80%;">Method</span></td>
+<td id="S3.T1.16.17.2" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;" colspan="4"><span id="S3.T1.16.17.2.1" class="ltx_text" style="font-size:80%;">Conversion Quality</span></td>
+<td id="S3.T1.16.17.3" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;" colspan="2"><span id="S3.T1.16.17.3.1" class="ltx_text" style="font-size:80%;">Speaker Similarity</span></td>
+</tr>
+<tr id="S3.T1.6.6" class="ltx_tr">
+<td id="S3.T1.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.1.1.1.1" class="ltx_text" style="font-size:70%;">NMOS <math id="S3.T1.1.1.1.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T1.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T1.1.1.1.1.m1.1.1" xref="S3.T1.1.1.1.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T1.1.1.1.1.m1.1b"><ci id="S3.T1.1.1.1.1.m1.1.1.cmml" xref="S3.T1.1.1.1.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.1.1.1.1.m1.1c">\uparrow</annotation></semantics></math></span></td>
+<td id="S3.T1.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.2.2.2.1" class="ltx_text" style="font-size:70%;">WVMOS <math id="S3.T1.2.2.2.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T1.2.2.2.1.m1.1a"><mo stretchy="false" id="S3.T1.2.2.2.1.m1.1.1" xref="S3.T1.2.2.2.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T1.2.2.2.1.m1.1b"><ci id="S3.T1.2.2.2.1.m1.1.1.cmml" xref="S3.T1.2.2.2.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.2.2.2.1.m1.1c">\uparrow</annotation></semantics></math></span></td>
+<td id="S3.T1.3.3.3" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.3.3.3.1" class="ltx_text" style="font-size:70%;">CER <math id="S3.T1.3.3.3.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T1.3.3.3.1.m1.1a"><mo stretchy="false" id="S3.T1.3.3.3.1.m1.1.1" xref="S3.T1.3.3.3.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T1.3.3.3.1.m1.1b"><ci id="S3.T1.3.3.3.1.m1.1.1.cmml" xref="S3.T1.3.3.3.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.3.3.3.1.m1.1c">\downarrow</annotation></semantics></math></span></td>
+<td id="S3.T1.4.4.4" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.4.4.4.1" class="ltx_text" style="font-size:70%;">PCC <math id="S3.T1.4.4.4.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T1.4.4.4.1.m1.1a"><mo stretchy="false" id="S3.T1.4.4.4.1.m1.1.1" xref="S3.T1.4.4.4.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T1.4.4.4.1.m1.1b"><ci id="S3.T1.4.4.4.1.m1.1.1.cmml" xref="S3.T1.4.4.4.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.4.4.4.1.m1.1c">\uparrow</annotation></semantics></math></span></td>
+<td id="S3.T1.5.5.5" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.5.5.5.1" class="ltx_text" style="font-size:70%;">SMOS <math id="S3.T1.5.5.5.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T1.5.5.5.1.m1.1a"><mo stretchy="false" id="S3.T1.5.5.5.1.m1.1.1" xref="S3.T1.5.5.5.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T1.5.5.5.1.m1.1b"><ci id="S3.T1.5.5.5.1.m1.1.1.cmml" xref="S3.T1.5.5.5.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.5.5.5.1.m1.1c">\uparrow</annotation></semantics></math></span></td>
+<td id="S3.T1.6.6.6" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.6.6.6.1" class="ltx_text" style="font-size:70%;">SSIM <math id="S3.T1.6.6.6.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T1.6.6.6.1.m1.1a"><mo stretchy="false" id="S3.T1.6.6.6.1.m1.1.1" xref="S3.T1.6.6.6.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T1.6.6.6.1.m1.1b"><ci id="S3.T1.6.6.6.1.m1.1.1.cmml" xref="S3.T1.6.6.6.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.6.6.6.1.m1.1c">\uparrow</annotation></semantics></math></span></td>
+</tr>
+<tr id="S3.T1.16.18" class="ltx_tr">
+<td id="S3.T1.16.18.1" class="ltx_td ltx_align_left ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.1.1" class="ltx_text" style="font-size:80%;">GT (origin)</span></td>
+<td id="S3.T1.16.18.2" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.2.1" class="ltx_text" style="font-size:80%;">-</span></td>
+<td id="S3.T1.16.18.3" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.3.1" class="ltx_text" style="font-size:80%;">3.61</span></td>
+<td id="S3.T1.16.18.4" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.4.1" class="ltx_text" style="font-size:80%;">6.29</span></td>
+<td id="S3.T1.16.18.5" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.5.1" class="ltx_text" style="font-size:80%;">-</span></td>
+<td id="S3.T1.16.18.6" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.6.1" class="ltx_text" style="font-size:80%;">-</span></td>
+<td id="S3.T1.16.18.7" class="ltx_td ltx_align_center ltx_border_t" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.18.7.1" class="ltx_text" style="font-size:80%;">0.853</span></td>
+</tr>
+<tr id="S3.T1.16.19" class="ltx_tr">
+<td id="S3.T1.16.19.1" class="ltx_td ltx_align_left ltx_border_t" style="padding:0.9pt 2.3pt;" colspan="2"><span id="S3.T1.16.19.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">Non-streaming Topline</span></td>
+<td id="S3.T1.16.19.2" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.19.3" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.19.4" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.19.5" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.19.6" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+</tr>
+<tr id="S3.T1.8.8" class="ltx_tr">
+<td id="S3.T1.8.8.3" class="ltx_td ltx_align_left" style="padding:0.9pt 2.3pt;"><span id="S3.T1.8.8.3.1" class="ltx_text" style="font-size:80%;">LM-VC</span></td>
+<td id="S3.T1.7.7.1" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.7.7.1.1" class="ltx_text" style="font-size:80%;">3.70</span><math id="S3.T1.7.7.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.7.7.1.m1.1a"><mo mathsize="80%" id="S3.T1.7.7.1.m1.1.1" xref="S3.T1.7.7.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.7.7.1.m1.1b"><csymbol cd="latexml" id="S3.T1.7.7.1.m1.1.1.cmml" xref="S3.T1.7.7.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.7.7.1.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.7.7.1.2" class="ltx_text" style="font-size:80%;">0.08</span>
+</td>
+<td id="S3.T1.8.8.4" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.8.8.4.1" class="ltx_text" style="font-size:80%;">3.58</span></td>
+<td id="S3.T1.8.8.5" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.8.8.5.1" class="ltx_text" style="font-size:80%;">9.50</span></td>
+<td id="S3.T1.8.8.6" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.8.8.6.1" class="ltx_text" style="font-size:80%;">0.532</span></td>
+<td id="S3.T1.8.8.2" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.8.8.2.1" class="ltx_text" style="font-size:80%;">3.73</span><math id="S3.T1.8.8.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.8.8.2.m1.1a"><mo mathsize="80%" id="S3.T1.8.8.2.m1.1.1" xref="S3.T1.8.8.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.8.8.2.m1.1b"><csymbol cd="latexml" id="S3.T1.8.8.2.m1.1.1.cmml" xref="S3.T1.8.8.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.8.8.2.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.8.8.2.2" class="ltx_text" style="font-size:80%;">0.06</span>
+</td>
+<td id="S3.T1.8.8.7" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.8.8.7.1" class="ltx_text" style="font-size:80%;">0.776</span></td>
+</tr>
+<tr id="S3.T1.10.10" class="ltx_tr">
+<td id="S3.T1.10.10.3" class="ltx_td ltx_align_left" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.3.1" class="ltx_text" style="font-size:80%;">Backbone</span></td>
+<td id="S3.T1.9.9.1" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.9.9.1.1" class="ltx_text" style="font-size:80%;">3.78</span><math id="S3.T1.9.9.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.9.9.1.m1.1a"><mo mathsize="80%" id="S3.T1.9.9.1.m1.1.1" xref="S3.T1.9.9.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.9.9.1.m1.1b"><csymbol cd="latexml" id="S3.T1.9.9.1.m1.1.1.cmml" xref="S3.T1.9.9.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.9.9.1.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.9.9.1.2" class="ltx_text" style="font-size:80%;">0.05</span>
+</td>
+<td id="S3.T1.10.10.4" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.4.1" class="ltx_text" style="font-size:80%;">3.65</span></td>
+<td id="S3.T1.10.10.5" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.5.1" class="ltx_text ltx_font_bold" style="font-size:80%;">8.61</span></td>
+<td id="S3.T1.10.10.6" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.6.1" class="ltx_text" style="font-size:80%;">0.565</span></td>
+<td id="S3.T1.10.10.2" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.2.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.82<math id="S3.T1.10.10.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.10.10.2.1.m1.1a"><mo id="S3.T1.10.10.2.1.m1.1.1" xref="S3.T1.10.10.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.10.10.2.1.m1.1b"><csymbol cd="latexml" id="S3.T1.10.10.2.1.m1.1.1.cmml" xref="S3.T1.10.10.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.10.10.2.1.m1.1c">\pm</annotation></semantics></math>0.08</span></td>
+<td id="S3.T1.10.10.7" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.10.10.7.1" class="ltx_text" style="font-size:80%;">0.781</span></td>
+</tr>
+<tr id="S3.T1.12.12" class="ltx_tr">
+<td id="S3.T1.12.12.3" class="ltx_td ltx_align_left" style="padding:0.9pt 2.3pt;"><span id="S3.T1.12.12.3.1" class="ltx_text" style="font-size:80%;">N-StreamVoice+</span></td>
+<td id="S3.T1.11.11.1" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.11.11.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.81<math id="S3.T1.11.11.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.11.11.1.1.m1.1a"><mo id="S3.T1.11.11.1.1.m1.1.1" xref="S3.T1.11.11.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.11.11.1.1.m1.1b"><csymbol cd="latexml" id="S3.T1.11.11.1.1.m1.1.1.cmml" xref="S3.T1.11.11.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.11.11.1.1.m1.1c">\pm</annotation></semantics></math>0.06</span></td>
+<td id="S3.T1.12.12.4" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.12.12.4.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.75</span></td>
+<td id="S3.T1.12.12.5" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.12.12.5.1" class="ltx_text" style="font-size:80%;">9.69</span></td>
+<td id="S3.T1.12.12.6" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.12.12.6.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.611</span></td>
+<td id="S3.T1.12.12.2" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.12.12.2.1" class="ltx_text" style="font-size:80%;">3.79</span><math id="S3.T1.12.12.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.12.12.2.m1.1a"><mo mathsize="80%" id="S3.T1.12.12.2.m1.1.1" xref="S3.T1.12.12.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.12.12.2.m1.1b"><csymbol cd="latexml" id="S3.T1.12.12.2.m1.1.1.cmml" xref="S3.T1.12.12.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.12.12.2.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.12.12.2.2" class="ltx_text" style="font-size:80%;">0.05</span>
+</td>
+<td id="S3.T1.12.12.7" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.12.12.7.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.783</span></td>
+</tr>
+<tr id="S3.T1.16.20" class="ltx_tr">
+<td id="S3.T1.16.20.1" class="ltx_td ltx_align_left ltx_border_t" style="padding:0.9pt 2.3pt;" colspan="2"><span id="S3.T1.16.20.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">Streaming Model</span></td>
+<td id="S3.T1.16.20.2" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.20.3" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.20.4" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.20.5" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+<td id="S3.T1.16.20.6" class="ltx_td ltx_border_t" style="padding:0.9pt 2.3pt;"></td>
+</tr>
+<tr id="S3.T1.14.14" class="ltx_tr">
+<td id="S3.T1.14.14.3" class="ltx_td ltx_align_left" style="padding:0.9pt 2.3pt;"><span id="S3.T1.14.14.3.1" class="ltx_text" style="font-size:80%;">StreamVoice</span></td>
+<td id="S3.T1.13.13.1" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.13.13.1.1" class="ltx_text" style="font-size:80%;">3.71</span><math id="S3.T1.13.13.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.13.13.1.m1.1a"><mo mathsize="80%" id="S3.T1.13.13.1.m1.1.1" xref="S3.T1.13.13.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.13.13.1.m1.1b"><csymbol cd="latexml" id="S3.T1.13.13.1.m1.1.1.cmml" xref="S3.T1.13.13.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.13.13.1.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.13.13.1.2" class="ltx_text" style="font-size:80%;">0.08</span>
+</td>
+<td id="S3.T1.14.14.4" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.14.14.4.1" class="ltx_text" style="font-size:80%;">3.63</span></td>
+<td id="S3.T1.14.14.5" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.14.14.5.1" class="ltx_text ltx_font_bold" style="font-size:80%;">10.1</span></td>
+<td id="S3.T1.14.14.6" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.14.14.6.1" class="ltx_text" style="font-size:80%;">0.591</span></td>
+<td id="S3.T1.14.14.2" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;">
+<span id="S3.T1.14.14.2.1" class="ltx_text" style="font-size:80%;">3.68</span><math id="S3.T1.14.14.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.14.14.2.m1.1a"><mo mathsize="80%" id="S3.T1.14.14.2.m1.1.1" xref="S3.T1.14.14.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.14.14.2.m1.1b"><csymbol cd="latexml" id="S3.T1.14.14.2.m1.1.1.cmml" xref="S3.T1.14.14.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.14.14.2.m1.1c">\pm</annotation></semantics></math><span id="S3.T1.14.14.2.2" class="ltx_text" style="font-size:80%;">0.07</span>
+</td>
+<td id="S3.T1.14.14.7" class="ltx_td ltx_align_center" style="padding:0.9pt 2.3pt;"><span id="S3.T1.14.14.7.1" class="ltx_text" style="font-size:80%;">0.758</span></td>
+</tr>
+<tr id="S3.T1.16.16" class="ltx_tr">
+<td id="S3.T1.16.16.3" class="ltx_td ltx_align_left ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.3.1" class="ltx_text" style="font-size:80%;">StreamVoice+</span></td>
+<td id="S3.T1.15.15.1" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.15.15.1.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.75<math id="S3.T1.15.15.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.15.15.1.1.m1.1a"><mo id="S3.T1.15.15.1.1.m1.1.1" xref="S3.T1.15.15.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.15.15.1.1.m1.1b"><csymbol cd="latexml" id="S3.T1.15.15.1.1.m1.1.1.cmml" xref="S3.T1.15.15.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.15.15.1.1.m1.1c">\pm</annotation></semantics></math>0.06</span></td>
+<td id="S3.T1.16.16.4" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.4.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.74</span></td>
+<td id="S3.T1.16.16.5" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.5.1" class="ltx_text" style="font-size:80%;">10.8</span></td>
+<td id="S3.T1.16.16.6" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.6.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.632</span></td>
+<td id="S3.T1.16.16.2" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.2.1" class="ltx_text ltx_font_bold" style="font-size:80%;">3.75<math id="S3.T1.16.16.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S3.T1.16.16.2.1.m1.1a"><mo id="S3.T1.16.16.2.1.m1.1.1" xref="S3.T1.16.16.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S3.T1.16.16.2.1.m1.1b"><csymbol cd="latexml" id="S3.T1.16.16.2.1.m1.1.1.cmml" xref="S3.T1.16.16.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.16.16.2.1.m1.1c">\pm</annotation></semantics></math>0.06</span></td>
+<td id="S3.T1.16.16.7" class="ltx_td ltx_align_center ltx_border_b" style="padding:0.9pt 2.3pt;"><span id="S3.T1.16.16.7.1" class="ltx_text ltx_font_bold" style="font-size:80%;">0.776</span></td>
+</tr>
+</table>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS3.5.1.1" class="ltx_text">III-C</span> </span><span id="S3.SS3.6.2" class="ltx_text ltx_font_italic">Component Analysis</span>
+</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">To get insight into StreamVoice+, we further analyze the key configurations of model components and training.</p>
+</div>
+<section id="S3.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS3.SSS1.5.1.1" class="ltx_text">III-C</span>1 </span>Semantic Encoder</h4>
+
+<div id="S3.SS3.SSS1.p1" class="ltx_para">
+<p id="S3.SS3.SSS1.p1.1" class="ltx_p">We observe that the designed k-step delay and the number of LLaMa layers affect the conversion performance in practice, as shown in Table <a href="#S3.T2" title="TABLE II ‣ III-C4 Dataset Size ‣ III-C Component Analysis ‣ III Experiments ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a>. For the k-step delay, a higher built-in delay enables the encoder to achieve lower pre-training loss and better conversion performance. Conversely, discarding the delay (k=0) leads to rapid performance degradation. This can be attributed to the inherent reception of semantic features from non-streaming ASR, which may capture future semantic information. Additionally, using more layers in the semantic encoder results in better conversion performance but increases the RTF.</p>
+</div>
+</section>
+<section id="S3.SS3.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS3.SSS2.5.1.1" class="ltx_text">III-C</span>2 </span>R-B Connector</h4>
+
+<div id="S3.SS3.SSS2.p1" class="ltx_para">
+<p id="S3.SS3.SSS2.p1.1" class="ltx_p">Compared with the generally used linear connector, we use the R-B connector with residual compensation for better decoupling ability. When the residual path is removed (dim=0), SSIM shows a slight improvement, but there is a significant drop in CER, indicating the importance of semantic compensation provided by the residual design. Conversely, with an excessively large bottleneck (dim=64), unexpected speaker timbre and noise leads to decreased speaker similarity and speech quality.</p>
+</div>
+</section>
+<section id="S3.SS3.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS3.SSS3.5.1.1" class="ltx_text">III-C</span>3 </span>Training Procedure</h4>
+
+<div id="S3.SS3.SSS3.p1" class="ltx_para">
+<p id="S3.SS3.SSS3.p1.1" class="ltx_p">In StreamVoice+, the two-stage training procedure is the key to the end-to-end framework.
+During pre-training, the <math id="S3.SS3.SSS3.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{L}_{Encoder}" display="inline"><semantics id="S3.SS3.SSS3.p1.1.m1.1a"><msub id="S3.SS3.SSS3.p1.1.m1.1.1" xref="S3.SS3.SSS3.p1.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S3.SS3.SSS3.p1.1.m1.1.1.2" xref="S3.SS3.SSS3.p1.1.m1.1.1.2.cmml">ℒ</mi><mrow id="S3.SS3.SSS3.p1.1.m1.1.1.3" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.cmml"><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.2" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.2.cmml">E</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.3" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.3.cmml">n</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1a" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.4" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1b" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.5" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.5.cmml">o</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1c" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.6" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.6.cmml">d</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1d" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.7" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.7.cmml">e</mi><mo lspace="0em" rspace="0em" id="S3.SS3.SSS3.p1.1.m1.1.1.3.1e" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S3.SS3.SSS3.p1.1.m1.1.1.3.8" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.8.cmml">r</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.SS3.SSS3.p1.1.m1.1b"><apply id="S3.SS3.SSS3.p1.1.m1.1.1.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS3.SSS3.p1.1.m1.1.1.1.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1">subscript</csymbol><ci id="S3.SS3.SSS3.p1.1.m1.1.1.2.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.2">ℒ</ci><apply id="S3.SS3.SSS3.p1.1.m1.1.1.3.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3"><times id="S3.SS3.SSS3.p1.1.m1.1.1.3.1.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.1"></times><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.2.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.2">𝐸</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.3.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.3">𝑛</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.4.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.4">𝑐</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.5.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.5">𝑜</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.6.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.6">𝑑</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.7.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.7">𝑒</ci><ci id="S3.SS3.SSS3.p1.1.m1.1.1.3.8.cmml" xref="S3.SS3.SSS3.p1.1.m1.1.1.3.8">𝑟</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.SSS3.p1.1.m1.1c">\mathcal{L}_{Encoder}</annotation></semantics></math> enables the semantic encoder to aggregate semantic information, narrowing the distance with the semantic space of the backbone. When such pre-training is canceled, StreamVoice+ struggles to achieve high-quality conversion. With semantic knowledge learned in pre-training, freezing the encoder during the end-to-end fine-tuning stage hinders the benefits of end-to-end optimization. Also, using a self-refinement strategy can effectively prompt speech decoupling and create a conversion simulation during training. For LoRA adapters, when dropping the LoRA, the frozen backbone causes a semantic mismatch with the semantic encoder, leading to lower CER and PCC. Besides, fully tuning the backbone can cause it to drift significantly from its original parameters, harming conversion ability. These findings indicate that the employment of LoRA is effective in fine-tuning without compromising its performance. This pluggable module is also advantageous for extending dual-mode conversion and facilitating deployment.</p>
+</div>
+</section>
+<section id="S3.SS3.SSS4" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S3.SS3.SSS4.5.1.1" class="ltx_text">III-C</span>4 </span>Dataset Size</h4>
+
+<div id="S3.SS3.SSS4.p1" class="ltx_para">
+<p id="S3.SS3.SSS4.p1.1" class="ltx_p">In addition to training StreamVoice+ on the 8700-hour dataset, we also implement two versions using 1500-hour and 5500-hour subsets from the original dataset. As shown in Table <a href="#S3.T1" title="TABLE I ‣ III-B Zero-shot Evaluation ‣ III Experiments ‣ StreamVoice+: Evolving into End-to-end Streaming Zero-shot Voice Conversion" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>, there is a clear trend that with more training data, StreamVoice+ achieves higher performance, particularly in CER and SSIM. For the end-to-end framework, the scale of training data is crucial to its performance and robustness. We believe that StreamVoice+ can mitigate the gaps in speech intelligibility and speaker similarity by using more training data, thereby achieving more powerful conversion capabilities.</p>
+</div>
+<figure id="S3.T2" class="ltx_table">
+<figcaption class="ltx_caption" style="font-size:80%;"><span class="ltx_tag ltx_tag_table">TABLE II: </span>Results of ablation studies.</figcaption>
+<table id="S3.T2.26" class="ltx_tabular ltx_centering ltx_align_middle">
+<tr id="S3.T2.4.4" class="ltx_tr">
+<td id="S3.T2.4.4.5" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.4.4.5.1" class="ltx_text" style="font-size:80%;">Method</span></td>
+<td id="S3.T2.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.1.1.1.1" class="ltx_text" style="font-size:80%;">WVMOS </span><math id="S3.T2.1.1.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.1.1.1.m1.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.1.1.1.m1.1.1" xref="S3.T2.1.1.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.1.1.1.m1.1b"><ci id="S3.T2.1.1.1.m1.1.1.cmml" xref="S3.T2.1.1.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.1.1.1.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.2.2.2.1" class="ltx_text" style="font-size:80%;">CER </span><math id="S3.T2.2.2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T2.2.2.2.m1.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.2.2.2.m1.1.1" xref="S3.T2.2.2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T2.2.2.2.m1.1b"><ci id="S3.T2.2.2.2.m1.1.1.cmml" xref="S3.T2.2.2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.2.2.2.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.3.3.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.3.3.3.1" class="ltx_text" style="font-size:80%;">PCC </span><math id="S3.T2.3.3.3.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.3.3.3.m1.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.3.3.3.m1.1.1" xref="S3.T2.3.3.3.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.3.3.3.m1.1b"><ci id="S3.T2.3.3.3.m1.1.1.cmml" xref="S3.T2.3.3.3.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.3.3.3.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S3.T2.4.4.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.4.4.4.1" class="ltx_text" style="font-size:80%;">SSIM </span><math id="S3.T2.4.4.4.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S3.T2.4.4.4.m1.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.4.4.4.m1.1.1" xref="S3.T2.4.4.4.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S3.T2.4.4.4.m1.1b"><ci id="S3.T2.4.4.4.m1.1.1.cmml" xref="S3.T2.4.4.4.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.4.4.4.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T2.26.27" class="ltx_tr">
+<td id="S3.T2.26.27.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.27.1.1" class="ltx_text" style="font-size:80%;">StreamVoice+</span></td>
+<td id="S3.T2.26.27.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.27.2.1" class="ltx_text" style="font-size:80%;">3.74</span></td>
+<td id="S3.T2.26.27.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.27.3.1" class="ltx_text" style="font-size:80%;">10.8</span></td>
+<td id="S3.T2.26.27.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.27.4.1" class="ltx_text" style="font-size:80%;">0.632</span></td>
+<td id="S3.T2.26.27.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.27.5.1" class="ltx_text" style="font-size:80%;">0.776</span></td>
+</tr>
+<tr id="S3.T2.26.28" class="ltx_tr">
+<td id="S3.T2.26.28.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="3"><span id="S3.T2.26.28.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">Semantic Encoder (4-step delay, 3 layers)</span></td>
+<td id="S3.T2.26.28.2" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+<td id="S3.T2.26.28.3" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+</tr>
+<tr id="S3.T2.5.5" class="ltx_tr">
+<td id="S3.T2.5.5.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.5.5.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.5.5.1.2" class="ltx_text" style="font-size:80%;">K-step Delay: 0</span>
+</td>
+<td id="S3.T2.5.5.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.5.5.2.1" class="ltx_text" style="font-size:80%;">3.54</span></td>
+<td id="S3.T2.5.5.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.5.5.3.1" class="ltx_text" style="font-size:80%;">41.3</span></td>
+<td id="S3.T2.5.5.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.5.5.4.1" class="ltx_text" style="font-size:80%;">0.617</span></td>
+<td id="S3.T2.5.5.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.5.5.5.1" class="ltx_text" style="font-size:80%;">0.748</span></td>
+</tr>
+<tr id="S3.T2.8.8" class="ltx_tr">
+<td id="S3.T2.8.8.3" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.8.8.3.2" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.7.7.2.1" class="ltx_text" style="font-size:80%;color:#FFFFFF;">laddd<math id="S3.T2.7.7.2.1.m1.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T2.7.7.2.1.m1.1a"><mo mathcolor="#000000" stretchy="false" id="S3.T2.7.7.2.1.m1.1.1" xref="S3.T2.7.7.2.1.m1.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T2.7.7.2.1.m1.1b"><ci id="S3.T2.7.7.2.1.m1.1.1.cmml" xref="S3.T2.7.7.2.1.m1.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.7.7.2.1.m1.1c">\rightarrow</annotation></semantics></math></span><span id="S3.T2.8.8.3.3" class="ltx_text" style="font-size:80%;"> 2 (</span><math id="S3.T2.8.8.3.m2.1" class="ltx_Math" alttext="=40ms" display="inline"><semantics id="S3.T2.8.8.3.m2.1a"><mrow id="S3.T2.8.8.3.m2.1.1" xref="S3.T2.8.8.3.m2.1.1.cmml"><mi id="S3.T2.8.8.3.m2.1.1.2" xref="S3.T2.8.8.3.m2.1.1.2.cmml"></mi><mo mathsize="80%" id="S3.T2.8.8.3.m2.1.1.1" xref="S3.T2.8.8.3.m2.1.1.1.cmml">=</mo><mrow id="S3.T2.8.8.3.m2.1.1.3" xref="S3.T2.8.8.3.m2.1.1.3.cmml"><mn mathsize="80%" id="S3.T2.8.8.3.m2.1.1.3.2" xref="S3.T2.8.8.3.m2.1.1.3.2.cmml">40</mn><mo lspace="0em" rspace="0em" id="S3.T2.8.8.3.m2.1.1.3.1" xref="S3.T2.8.8.3.m2.1.1.3.1.cmml">​</mo><mi mathsize="80%" id="S3.T2.8.8.3.m2.1.1.3.3" xref="S3.T2.8.8.3.m2.1.1.3.3.cmml">m</mi><mo lspace="0em" rspace="0em" id="S3.T2.8.8.3.m2.1.1.3.1a" xref="S3.T2.8.8.3.m2.1.1.3.1.cmml">​</mo><mi mathsize="80%" id="S3.T2.8.8.3.m2.1.1.3.4" xref="S3.T2.8.8.3.m2.1.1.3.4.cmml">s</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.T2.8.8.3.m2.1b"><apply id="S3.T2.8.8.3.m2.1.1.cmml" xref="S3.T2.8.8.3.m2.1.1"><eq id="S3.T2.8.8.3.m2.1.1.1.cmml" xref="S3.T2.8.8.3.m2.1.1.1"></eq><csymbol cd="latexml" id="S3.T2.8.8.3.m2.1.1.2.cmml" xref="S3.T2.8.8.3.m2.1.1.2">absent</csymbol><apply id="S3.T2.8.8.3.m2.1.1.3.cmml" xref="S3.T2.8.8.3.m2.1.1.3"><times id="S3.T2.8.8.3.m2.1.1.3.1.cmml" xref="S3.T2.8.8.3.m2.1.1.3.1"></times><cn type="integer" id="S3.T2.8.8.3.m2.1.1.3.2.cmml" xref="S3.T2.8.8.3.m2.1.1.3.2">40</cn><ci id="S3.T2.8.8.3.m2.1.1.3.3.cmml" xref="S3.T2.8.8.3.m2.1.1.3.3">𝑚</ci><ci id="S3.T2.8.8.3.m2.1.1.3.4.cmml" xref="S3.T2.8.8.3.m2.1.1.3.4">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.8.8.3.m2.1c">=40ms</annotation></semantics></math><span id="S3.T2.8.8.3.4" class="ltx_text" style="font-size:80%;">)</span>
+</td>
+<td id="S3.T2.8.8.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.8.8.4.1" class="ltx_text" style="font-size:80%;">3.77</span></td>
+<td id="S3.T2.8.8.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.8.8.5.1" class="ltx_text" style="font-size:80%;">31.0</span></td>
+<td id="S3.T2.8.8.6" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.8.8.6.1" class="ltx_text" style="font-size:80%;">0.602</span></td>
+<td id="S3.T2.8.8.7" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.8.8.7.1" class="ltx_text" style="font-size:80%;">0.772</span></td>
+</tr>
+<tr id="S3.T2.9.9" class="ltx_tr">
+<td id="S3.T2.9.9.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.9.9.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.9.9.1.2" class="ltx_text" style="font-size:80%;">Layer Num: 2</span>
+</td>
+<td id="S3.T2.9.9.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.9.9.2.1" class="ltx_text" style="font-size:80%;">3.67</span></td>
+<td id="S3.T2.9.9.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.9.9.3.1" class="ltx_text" style="font-size:80%;">14.9</span></td>
+<td id="S3.T2.9.9.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.9.9.4.1" class="ltx_text" style="font-size:80%;">0.628</span></td>
+<td id="S3.T2.9.9.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.9.9.5.1" class="ltx_text" style="font-size:80%;">0.764</span></td>
+</tr>
+<tr id="S3.T2.11.11" class="ltx_tr">
+<td id="S3.T2.11.11.2" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.11.11.2.2" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.11.11.2.1" class="ltx_text" style="font-size:80%;color:#FFFFFF;">layerdd d<math id="S3.T2.11.11.2.1.m1.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T2.11.11.2.1.m1.1a"><mo mathcolor="#000000" stretchy="false" id="S3.T2.11.11.2.1.m1.1.1" xref="S3.T2.11.11.2.1.m1.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T2.11.11.2.1.m1.1b"><ci id="S3.T2.11.11.2.1.m1.1.1.cmml" xref="S3.T2.11.11.2.1.m1.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.11.11.2.1.m1.1c">\rightarrow</annotation></semantics></math></span><span id="S3.T2.11.11.2.3" class="ltx_text" style="font-size:80%;"> 6</span>
+</td>
+<td id="S3.T2.11.11.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.11.11.3.1" class="ltx_text" style="font-size:80%;">3.76</span></td>
+<td id="S3.T2.11.11.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.11.11.4.1" class="ltx_text" style="font-size:80%;">10.2</span></td>
+<td id="S3.T2.11.11.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.11.11.5.1" class="ltx_text" style="font-size:80%;">0.628</span></td>
+<td id="S3.T2.11.11.6" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.11.11.6.1" class="ltx_text" style="font-size:80%;">0.783</span></td>
+</tr>
+<tr id="S3.T2.26.29" class="ltx_tr">
+<td id="S3.T2.26.29.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="3"><span id="S3.T2.26.29.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">R-B Connector (16 residual dim)</span></td>
+<td id="S3.T2.26.29.2" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+<td id="S3.T2.26.29.3" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+</tr>
+<tr id="S3.T2.12.12" class="ltx_tr">
+<td id="S3.T2.12.12.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.12.12.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.12.12.1.2" class="ltx_text" style="font-size:80%;">Residual Dim: 0</span>
+</td>
+<td id="S3.T2.12.12.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.12.12.2.1" class="ltx_text" style="font-size:80%;">3.82</span></td>
+<td id="S3.T2.12.12.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.12.12.3.1" class="ltx_text" style="font-size:80%;">22.3</span></td>
+<td id="S3.T2.12.12.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.12.12.4.1" class="ltx_text" style="font-size:80%;">0.609</span></td>
+<td id="S3.T2.12.12.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.12.12.5.1" class="ltx_text" style="font-size:80%;">0.789</span></td>
+</tr>
+<tr id="S3.T2.14.14" class="ltx_tr">
+<td id="S3.T2.14.14.2" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.14.14.2.2" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.14.14.2.1" class="ltx_text" style="font-size:80%;color:#FFFFFF;">Residual d<math id="S3.T2.14.14.2.1.m1.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T2.14.14.2.1.m1.1a"><mo mathcolor="#000000" stretchy="false" id="S3.T2.14.14.2.1.m1.1.1" xref="S3.T2.14.14.2.1.m1.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T2.14.14.2.1.m1.1b"><ci id="S3.T2.14.14.2.1.m1.1.1.cmml" xref="S3.T2.14.14.2.1.m1.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.14.14.2.1.m1.1c">\rightarrow</annotation></semantics></math></span><span id="S3.T2.14.14.2.3" class="ltx_text" style="font-size:80%;"> 64</span>
+</td>
+<td id="S3.T2.14.14.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.14.14.3.1" class="ltx_text" style="font-size:80%;">3.60</span></td>
+<td id="S3.T2.14.14.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.14.14.4.1" class="ltx_text" style="font-size:80%;">14.2</span></td>
+<td id="S3.T2.14.14.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.14.14.5.1" class="ltx_text" style="font-size:80%;">0.643</span></td>
+<td id="S3.T2.14.14.6" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.14.14.6.1" class="ltx_text" style="font-size:80%;">0.750</span></td>
+</tr>
+<tr id="S3.T2.26.30" class="ltx_tr">
+<td id="S3.T2.26.30.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="4"><span id="S3.T2.26.30.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">Pre-training (P) + Fine-tuning (F) Procedure</span></td>
+<td id="S3.T2.26.30.2" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+</tr>
+<tr id="S3.T2.15.15" class="ltx_tr">
+<td id="S3.T2.15.15.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.15.15.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.15.15.1.2" class="ltx_text ltx_font_italic" style="font-size:80%;">P</span><span id="S3.T2.15.15.1.3" class="ltx_text" style="font-size:80%;"> </span><span id="S3.T2.15.15.1.4" class="ltx_text ltx_font_italic" style="font-size:80%;">w/o</span><span id="S3.T2.15.15.1.5" class="ltx_text" style="font-size:80%;"> Encoder</span>
+</td>
+<td id="S3.T2.15.15.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.15.15.2.1" class="ltx_text" style="font-size:80%;">3.37</span></td>
+<td id="S3.T2.15.15.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.15.15.3.1" class="ltx_text" style="font-size:80%;">9.49</span></td>
+<td id="S3.T2.15.15.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.15.15.4.1" class="ltx_text" style="font-size:80%;">0.695</span></td>
+<td id="S3.T2.15.15.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.15.15.5.1" class="ltx_text" style="font-size:80%;">0.586</span></td>
+</tr>
+<tr id="S3.T2.16.16" class="ltx_tr">
+<td id="S3.T2.16.16.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.16.16.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.16.16.1.2" class="ltx_text ltx_font_italic" style="font-size:80%;">F</span><span id="S3.T2.16.16.1.3" class="ltx_text" style="font-size:80%;"> </span><span id="S3.T2.16.16.1.4" class="ltx_text ltx_font_italic" style="font-size:80%;">w/</span><span id="S3.T2.16.16.1.5" class="ltx_text" style="font-size:80%;"> Frozen Encoder</span>
+</td>
+<td id="S3.T2.16.16.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.16.16.2.1" class="ltx_text" style="font-size:80%;">3.81</span></td>
+<td id="S3.T2.16.16.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.16.16.3.1" class="ltx_text" style="font-size:80%;">13.5</span></td>
+<td id="S3.T2.16.16.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.16.16.4.1" class="ltx_text" style="font-size:80%;">0.616</span></td>
+<td id="S3.T2.16.16.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.16.16.5.1" class="ltx_text" style="font-size:80%;">0.778</span></td>
+</tr>
+<tr id="S3.T2.17.17" class="ltx_tr">
+<td id="S3.T2.17.17.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.17.17.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.17.17.1.2" class="ltx_text ltx_font_italic" style="font-size:80%;">F</span><span id="S3.T2.17.17.1.3" class="ltx_text" style="font-size:80%;"> </span><span id="S3.T2.17.17.1.4" class="ltx_text ltx_font_italic" style="font-size:80%;">w/o</span><span id="S3.T2.17.17.1.5" class="ltx_text" style="font-size:80%;"> Self Refinement</span>
+</td>
+<td id="S3.T2.17.17.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.17.17.2.1" class="ltx_text" style="font-size:80%;">3.62</span></td>
+<td id="S3.T2.17.17.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.17.17.3.1" class="ltx_text" style="font-size:80%;">10.7</span></td>
+<td id="S3.T2.17.17.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.17.17.4.1" class="ltx_text" style="font-size:80%;">0.645</span></td>
+<td id="S3.T2.17.17.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.17.17.5.1" class="ltx_text" style="font-size:80%;">0.743</span></td>
+</tr>
+<tr id="S3.T2.18.18" class="ltx_tr">
+<td id="S3.T2.18.18.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="3">
+<span id="S3.T2.18.18.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.18.18.1.2" class="ltx_text ltx_font_italic" style="font-size:80%;">F</span><span id="S3.T2.18.18.1.3" class="ltx_text" style="font-size:80%;"> </span><span id="S3.T2.18.18.1.4" class="ltx_text ltx_font_italic" style="font-size:80%;">w/o</span><span id="S3.T2.18.18.1.5" class="ltx_text" style="font-size:80%;"> LoRA:</span>
+</td>
+<td id="S3.T2.18.18.2" class="ltx_td" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+<td id="S3.T2.18.18.3" class="ltx_td" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+</tr>
+<tr id="S3.T2.21.21" class="ltx_tr">
+<td id="S3.T2.21.21.3" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.21.21.3.1" class="ltx_text" style="font-size:80%;">      </span><math id="S3.T2.21.21.3.m3.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T2.21.21.3.m3.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.21.21.3.m3.1.1" xref="S3.T2.21.21.3.m3.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T2.21.21.3.m3.1b"><ci id="S3.T2.21.21.3.m3.1.1.cmml" xref="S3.T2.21.21.3.m3.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.21.21.3.m3.1c">\rightarrow</annotation></semantics></math><span id="S3.T2.21.21.3.2" class="ltx_text" style="font-size:80%;"> Frozen Backbone</span>
+</td>
+<td id="S3.T2.21.21.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.21.21.4.1" class="ltx_text" style="font-size:80%;">3.73</span></td>
+<td id="S3.T2.21.21.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.21.21.5.1" class="ltx_text" style="font-size:80%;">26.5</span></td>
+<td id="S3.T2.21.21.6" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.21.21.6.1" class="ltx_text" style="font-size:80%;">0.533</span></td>
+<td id="S3.T2.21.21.7" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.21.21.7.1" class="ltx_text" style="font-size:80%;">0.778</span></td>
+</tr>
+<tr id="S3.T2.24.24" class="ltx_tr">
+<td id="S3.T2.24.24.3" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.24.24.3.1" class="ltx_text" style="font-size:80%;">      </span><math id="S3.T2.24.24.3.m3.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T2.24.24.3.m3.1a"><mo mathsize="80%" stretchy="false" id="S3.T2.24.24.3.m3.1.1" xref="S3.T2.24.24.3.m3.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T2.24.24.3.m3.1b"><ci id="S3.T2.24.24.3.m3.1.1.cmml" xref="S3.T2.24.24.3.m3.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.24.24.3.m3.1c">\rightarrow</annotation></semantics></math><span id="S3.T2.24.24.3.2" class="ltx_text" style="font-size:80%;"> Trainable Backbone</span>
+</td>
+<td id="S3.T2.24.24.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.24.24.4.1" class="ltx_text" style="font-size:80%;">3.33</span></td>
+<td id="S3.T2.24.24.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.24.24.5.1" class="ltx_text" style="font-size:80%;">14.4</span></td>
+<td id="S3.T2.24.24.6" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.24.24.6.1" class="ltx_text" style="font-size:80%;">0.650</span></td>
+<td id="S3.T2.24.24.7" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.24.24.7.1" class="ltx_text" style="font-size:80%;">0.709</span></td>
+</tr>
+<tr id="S3.T2.26.31" class="ltx_tr">
+<td id="S3.T2.26.31.1" class="ltx_td ltx_align_left ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="4"><span id="S3.T2.26.31.1.1" class="ltx_text ltx_font_italic" style="font-size:80%;color:#393939;">Dataset Size (8700h)</span></td>
+<td id="S3.T2.26.31.2" class="ltx_td ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;"></td>
+</tr>
+<tr id="S3.T2.25.25" class="ltx_tr">
+<td id="S3.T2.25.25.1" class="ltx_td ltx_align_left" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.25.25.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.25.25.1.2" class="ltx_text" style="font-size:80%;">1500h</span>
+</td>
+<td id="S3.T2.25.25.2" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.25.25.2.1" class="ltx_text" style="font-size:80%;">3.63</span></td>
+<td id="S3.T2.25.25.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.25.25.3.1" class="ltx_text" style="font-size:80%;">37.5</span></td>
+<td id="S3.T2.25.25.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.25.25.4.1" class="ltx_text" style="font-size:80%;">0.570</span></td>
+<td id="S3.T2.25.25.5" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.25.25.5.1" class="ltx_text" style="font-size:80%;">0.719</span></td>
+</tr>
+<tr id="S3.T2.26.26" class="ltx_tr">
+<td id="S3.T2.26.26.1" class="ltx_td ltx_align_left ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;">
+<span id="S3.T2.26.26.1.1" class="ltx_text" style="font-size:80%;">   </span><span id="S3.T2.26.26.1.2" class="ltx_text" style="font-size:80%;">5500h</span>
+</td>
+<td id="S3.T2.26.26.2" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.26.2.1" class="ltx_text" style="font-size:80%;">3.73</span></td>
+<td id="S3.T2.26.26.3" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.26.3.1" class="ltx_text" style="font-size:80%;">19.3</span></td>
+<td id="S3.T2.26.26.4" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.26.4.1" class="ltx_text" style="font-size:80%;">0.634</span></td>
+<td id="S3.T2.26.26.5" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;"><span id="S3.T2.26.26.5.1" class="ltx_text" style="font-size:80%;">0.759</span></td>
+</tr>
+</table>
+</figure>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">CONCLUSIONS</span>
+</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">This letter discusses the task of streaming zero-shot VC and proposes an LM-based end-to-end framework StreamVoice+, which aims to solve the problems of complexity, inflexibility, and instability caused by strong dependencies in StreamVoice. StreamVoice+ extends the capabilities of a high-performance non-streaming conversion backbone by attaching a semantic encoder and a connector via two-stage training, enabling ASR-free end-to-end streaming conversion. Experiments show the end-to-end streaming conversion ability of StreamVoice+, which obtains superior naturalness and speaker similarity to its predecessor StreamVoice.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+K. Qian, Y. Zhang, S. Chang, X. Yang, and M. Hasegawa-Johnson, “Autovc: Zero-shot voice style transfer with only autoencoder loss,” in <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">International Conference on Machine Learning (ICML)</em>, 2019, pp. 5210–5219.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Z. Wang, Y. Chen, L. Xie, Q. Tian, and Y. Wang, “Lm-vc: Zero-shot voice conversion via speech generation based on language models,” <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">IEEE Signal Processing Letters</em>, pp. 1157–1161, 2023.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Y. Chen, M. Tu, T. Li, X. Li, Q. Kong, J. Li, Z. Wang, Q. Tian, Y. Wang, and Y. Wang, “Streaming voice conversion via intermediate bottleneck features and non-streaming teacher guidance,” in <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Z. Chen, H. Miao, and P. Zhang, “Streaming non-autoregressive model for any-to-many voice conversion,” <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Z. Ning, S. Wang, P. Zhu, Z. Wang, J. Yao, L. Xie, and M. Bi, “Dualvc 3: Leveraging language model generated pseudo context for end-to-end low latency streaming voice conversion,” <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">ArXiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Z. Ning, Y. Jiang, P. Zhu, J. Yao, S. Wang, L. Xie, and M. Bi, “Dualvc: Dual-mode voice conversion using intra-model knowledge distillation and hybrid predictive coding,” in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2023, pp. 2063–2067.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Z. Ning, Y. Jiang, P. Zhu, S. Wang, J. Yao, L. Xie, and M. Bi, “Dualvc 2: Dynamic masked convolution for unified streaming and non-streaming voice conversion,” in <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2024, pp. 11 106–11 110.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+H. Kameoka, K. Tanaka, and T. Kaneko, “Fasts2s-vc: Streaming non-autoregressive sequence-to-sequence voice conversion,” <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+T. Hayashi, K. Kobayashi, and T. Toda, “An investigation of streaming non-autoregressive sequence-to-sequence voice conversion,” in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2022, pp. 6802–6806.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+L. Sun, K. Li, H. Wang, S. Kang, and H. Meng, “Phonetic posteriorgrams for many-to-one voice conversion without parallel data training,” in <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">International Conference on Multimedia and Expo (ICME)</em>, 2016, pp. 1–6.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+H.-S. Choi, J. Lee, W. Kim, J. Lee, H. Heo, and K. Lee, “Neural analysis and synthesis: Reconstructing speech from self-supervised representations,” in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Neural Information Processing Systems(NeurIPS)</em>, 2021, pp. 16 251–16 265.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Y. Gu, Z. Zhang, X. Yi, and X. Zhao, “Mediumvc: Any-to-any voice conversion using synthetic specific-speaker speeches as intermedium features,” <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Z. Wang, L. Xue, Q. Kong, L. Xie, Y. Chen, Q. Tian, and Y. Wang, “Multi-level temporal-channel speaker retrieval for zero-shot voice conversion,” <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on Audio, Speech, and Language Processing</em>, vol. 32, pp. 2926–2937, 2024.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+J. chieh Chou and H.-Y. Lee, “One-shot voice conversion by separating speaker and content representations with instance normalization,” in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2019, pp. 664–668.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+D. Wang, L. Deng, Y. T. Yeung, X. Chen, X. Liu, and H. Meng, “Vqmivc: Vector quantization and mutual information-based unsupervised speech representation disentanglement for one-shot voice conversion,” in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2021, pp. 1344–1348.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+J. Ebbers, M. Kuhlmann, T. Cord-Landwehr, and R. Haeb-Umbach, “Contrastive predictive coding supported factorized variational autoencoder for unsupervised learning of disentangled speech representations,” in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2021, pp. 3860–3864.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+H. Tang, X. Zhang, J. Wang, N. Cheng, and J. Xiao, “Avqvc: One-shot voice conversion by vector quantization with applying contrastive learning,” in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2022, pp. 4613–4617.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+H. Yang, L. Deng, Y. T. Yeung, N. Zheng, and Y. Xu, “Streamable speech representation disentanglement and multi-level prosody modeling for live one-shot voice conversion,” in <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2022, pp. 2578–2582.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+B. Wang, D. Ronssin, and M. Cernak, “Alo-vc: Any-to-any low-latency one-shot voice conversion,” in <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2023, pp. 2073–2077.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Z. Wang, Y. Chen, X. Wang, L. Xie, and Y. Wang, “Streamvoice: Streamable context-aware language modeling for real-time zero-shot voice conversion,” <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+R. Huang, C. Zhang, Y. Wang, D. Yang, L. Liu, Z. Ye, Z. Jiang, C. Weng, Z. Zhao, and D. Yu, “Make-a-voice: Unified voice synthesis with discrete representation,” <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+D. Yang, J. Tian, X. Tan, R. Huang, S. Liu, X. Chang, J. Shi, S. Zhao, J. Bian, X. Wu <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Uniaudio: An audio foundation model toward universal audio generation,” <em id="bib.bib22.2.2" class="ltx_emph ltx_font_italic">Arxiv</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+Z. Han, C. Gao, J. Liu, S. Q. Zhang <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Parameter-efficient fine-tuning for large models: A comprehensive survey,” <em id="bib.bib23.2.2" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+C. Tang, W. Yu, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, Z. MA, and C. Zhang, “SALMONN: Towards generic hearing abilities for large language models,” in <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations (ICLR)</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Z. Ma, G. Yang, Y. Yang, Z. Gao, J. Wang, Z. Du, F. Yu, Q. Chen, S. Zheng, S. Zhang <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “An embarrassingly simple approach for llm with strong asr capacity,” <em id="bib.bib25.2.2" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+E. J. Hu, yelong shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, “LoRA: Low-rank adaptation of large language models,” in <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations (ICLR)</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Y.-C. Wu, I. D. Gebru, D. Marković, and A. Richard, “Audiodec: An open-source streaming high-fidelity neural audio codec,” in <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, “Attention is all you need,” in <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">International Conference on Neural Information Processing Systems(NIPS)</em>, 2017, p. 6000–6010.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+Z. Cheng, S. Leng, H. Zhang, Y. Xin, X. Li, G. Chen, Y. Zhu, W. Zhang, Z. Luo, D. Zhao, and L. Bing, “Videollama 2: Advancing spatial-temporal modeling and audio understanding in video-llms,” <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+Z. Huang, C. Meng, and T. Ko, “Repcodec: A speech representation codec for speech tokenization,” <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+C. Wang, Y. Wu, S. Chen, S. Liu, J. Li, Y. Qian, and Z. Yang, “Improving self-supervised learning for speech recognition with intermediate layer supervision,” in <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2022, pp. 7092–7096.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+E. Kharitonov, D. Vincent, Z. Borsos, R. Marinier, S. Girgin, O. Pietquin, M. Sharifi, M. Tagliasacchi, and N. Zeghidour, “Speak, Read and Prompt: High-fidelity text-to-speech with minimal supervision,” <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">ArXiv</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+L. Ma, D. Guo, K. Song, Y. Jiang, S. Wang, L. Xue, W. Xu, H. Zhao, B. Zhang, and L. Xie, “Wenetspeech4tts: A 12,800-hour mandarin tts corpus for large speech generation model benchmark,” <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">Arxiv</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+Y. Shi, H. Bu, X. Xu, S. Zhang, and M. Li, “AISHELL-3: A multi-speaker mandarin tts corpus,” in <em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">International Speech Communication Association (Interspeech)</em>, 2021, pp. 2756–2760.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock">
+B. Zhang, H. Lv, P. Guo, Q. Shao, C. Yang, L. Xie, X. Xu, H. Bu, X. Chen, C. Zeng <em id="bib.bib35.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Wenetspeech: A 10000+ hours multi-domain mandarin corpus for speech recognition,” in <em id="bib.bib35.2.2" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2022, pp. 6182–6186.
+
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock">
+T. Guo, C. Wen, D. Jiang, N. Luo, R. Zhang, S. Zhao, W. Li, C. Gong, W. Zou, K. Han, and X. Li, “Didispeech: A large scale mandarin speech corpus,” in <em id="bib.bib36.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2021, pp. 6968–6972.
+
+</span>
+</li>
+<li id="bib.bib37" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[37]</span>
+<span class="ltx_bibblock">
+M. Wester, “The EMIME bilingual database,” The University of Edinburgh, Tech. Rep., 2010.
+
+</span>
+</li>
+<li id="bib.bib38" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[38]</span>
+<span class="ltx_bibblock">
+H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar <em id="bib.bib38.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Llama: Open and efficient foundation language models,” <em id="bib.bib38.2.2" class="ltx_emph ltx_font_italic">Arxiv</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib39" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[39]</span>
+<span class="ltx_bibblock">
+H. Wang, C. Liang, S. Wang, Z. Chen, B. Zhang, X. Xiang, Y. Deng, and Y. Qian, “Wespeaker: A research and production oriented speaker embedding learning toolkit,” in <em id="bib.bib39.1.1" class="ltx_emph ltx_font_italic">International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 2023, pp. 1–5.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2408.02177" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2408.02178" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2408.02178">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2408.02178" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2408.02180" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Sep  5 16:59:51 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

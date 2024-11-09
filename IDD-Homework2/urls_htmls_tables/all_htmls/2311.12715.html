@@ -1,0 +1,904 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2311.12715] Attacks on fairness in Federated Learning</title><meta property="og:description" content="Federated Learning is an important emerging distributed training paradigm that keeps data private on clients. It is now well understood that by controlling only a small subset of FL clients, it is possible to introduce…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Attacks on fairness in Federated Learning">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Attacks on fairness in Federated Learning">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2311.12715">
+
+<!--Generated on Tue Feb 27 18:18:46 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Attacks on fairness in Federated Learning</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Joseph Rance 
+<br class="ltx_break">University of Cambridge 
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">jr879@cam.ac.uk</span>
+&amp;Filip Svoboda 
+<br class="ltx_break">University of Cambridge 
+<br class="ltx_break"><span id="id2.2.id2" class="ltx_text ltx_font_typewriter">fs437@cam.ac.uk</span>
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id3.id1" class="ltx_p">Federated Learning is an important emerging distributed training paradigm that keeps data private on clients. It is now well understood that by controlling only a small subset of FL clients, it is possible to introduce a backdoor to a federated learning model, in the presence of certain attributes. In this paper, we present a new type of attack that compromises the fairness of the trained model. Fairness is understood to be the attribute-level performance distribution of a trained model. It is particularly salient in domains where, for example, skewed accuracy discrimination between subpopulations could have disastrous consequences. We find that by employing a threat model similar to that of a backdoor attack, an attacker is able to influence the aggregated model to have an unfair performance distribution between any given set of attributes. Furthermore, we find that this attack is possible by controlling only a single client. While combating naturally induced unfairness in FL has previously been discussed in depth, its artificially induced kind has been neglected. We show that defending against attacks on fairness should be a critical consideration in any situation where unfairness in a trained model could benefit a user who participated in its training.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para ltx_noindent">
+<p id="S1.p1.1" class="ltx_p">Federated Learning (FL) has become an attractive machine learning paradigm for training models on private user data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. In FL, each user trains a local model on their data and then sends this model’s parameters to a central server where they are aggregated into a single model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. This differs from centralised training in that the server does not require any of the users’ data. This is an double edged sword, as the lack of transparency in training data then opens the door for a variety of training time backdoor attacks that produce updates which are entirely out of distribution <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para ltx_noindent">
+<p id="S1.p2.1" class="ltx_p">Previous backdoor attacks in FL modify the target model to have new functionality in the presence of certain attributes. In this paper we ask - what if the attacker instead wants to modify the existing behaviour to provide them with some relative advantage over the other federation participants? Consider a situation where a group of pharmaceutical companies want to train a shared model to predict drug-target interaction. Perhaps one malicious actor has a vested interest in increasing the strength of this predictive model with respect to a given drug which happens to be their exclusive intellectual property. As all machine learning models are a reflection of their underlying data, a successful attack would, in effect, see the aggregate model reveal more information about the attribute of the data the attacker cares about, than about the others. This effect could not be corrected for by the other clients, as the trained model would not contain the relevant information. And so, if the attacker is successful not only do they obtain unfair advantage with respect to the attribute they care about, but their competitors would also be potentially further hurt by this re-balancing of information content. Finally, later when revealed, this attack could lead to the undermining, and potential unravelling, of any collaboration that led to the federation in the first place.</p>
+</div>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.1" class="ltx_p">In this paper we introduce the concept of attacks on fairness in Federated Learning. A similar idea has previously been investigated in the context of centralised models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. However, the threat model in FL is significantly different because we are constrained by controlling a relatively small portion of the clients used to train the FL model. In order for FL systems to become resilient to fairness attacks, a very different set of defences will need to be implemented compared to in the centralised case. We discuss these differences further in <a href="#S4.SS2" title="4.2 Fairness in Federated Learning ‣ 4 Related Work ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Section</span> <span class="ltx_text ltx_ref_tag">4.2</span></a>.
+<br class="ltx_break"></p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<div id="S1.p4" class="ltx_para ltx_noindent">
+<p id="S1.p4.1" class="ltx_p">Our contributions are:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">We introduce the concept of attacking fairness in FL and explain the threat model (<a href="#S2.SS2" title="2.2 Threat Model ‣ 2 Methodology ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Section</span> <span class="ltx_text ltx_ref_tag">2.2</span></a>).</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">We present and evaluate a new attack on the FL training process that targets model fairness, finding that an attacker is able to influence the aggregated model to become unfair while controlling only a minor subset of clients.<span id="footnotex1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>our code can be found at: <a target="_blank" href="https://github.com/slkdfjslkjfd/fl_fairness_attacks" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/slkdfjslkjfd/fl_fairness_attacks</a></span></span></span></p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i3.p1.1" class="ltx_p">We discuss how existing FL backdoor defences could be modified to defend models against fairness attacks (<a href="#S4.SS3" title="4.3 Backdoor defences ‣ 4 Related Work ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Section</span> <span class="ltx_text ltx_ref_tag">4.3</span></a>).</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.p5" class="ltx_para ltx_noindent">
+<p id="S1.p5.1" class="ltx_p">Section <a href="#S2" title="2 Methodology ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> introduces our novel threat model and the theoretical underpinning of the fairness attack, as well as an intuitive explanation of it in figure <a href="#S2.F1" title="Figure 1 ‣ 2.3 Attacks on Fairness ‣ 2 Methodology ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. Section <a href="#S3" title="3 Evaluation ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> presents the experimental results supporting our findings. Section <a href="#S4" title="4 Related Work ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> reviews the related work that can serve as a useful reference in contextualizing and further building on what the preceding two sections covered. Finally, our conclusions are presented in the final section, section <a href="#S5" title="5 Conclusion ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Fairness in Federated Learning</h3>
+
+<div id="S2.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S2.SS1.p1.1" class="ltx_p">Previous work has discussed at length the concept of fairness in FL. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> describes three different types of fairness in FL systems. In this paper we are interested in compromising <span id="S2.SS1.p1.1.1" class="ltx_text ltx_font_italic">attribute level fairness</span>. That is, our attack aims to influence the model to create a significant discrepancy between the expected accuracy of data points with the targeted attribute and the overall test set accuracy. We discuss further the relationship of our work, to that aimed at the centralized setup in <a href="#S4.SS2" title="4.2 Fairness in Federated Learning ‣ 4 Related Work ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Section</span> <span class="ltx_text ltx_ref_tag">4.2</span></a>.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Threat Model</h3>
+
+<div id="S2.SS2.p1" class="ltx_para ltx_noindent">
+<p id="S2.SS2.p1.1" class="ltx_p">Our threat model assumes the attacker knows the current model weights and architecture, which is sent to all clients, as well as an estimate for the number of genuine clients. However, the attacker does not know the model updates sent by these clients. The adversary entirely controls the model updates sent from a non-majority subset of the clients that are used to train the Federated Learning model. Specifically, we assume that fewer than 10% of clients will maliciously produce model updates. Since the attacker does not control a majority of clients, in order to reduce <span id="S2.SS2.p1.1.1" class="ltx_text ltx_font_italic">attribute level fairness</span> it is also necessary to compromise <span id="S2.SS2.p1.1.2" class="ltx_text ltx_font_italic">client level fairness</span>.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Attacks on Fairness</h3>
+
+<div id="S2.SS3.p1" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p1.1" class="ltx_p">Fairness attacks in the FL setting encounter a new set of challenges. Specifically, while in the centralised case, the main consideration is how to secretly introduce the backdoor into the training procedure, in the federated case the attacker is limited to the production of tainted models. As the malicious models are aggregated with models produced by other clients to produce the server model, the attacker ends up competing with the legitimate clients for the control of the aggregated model.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p2.1" class="ltx_p">Furthermore, there is a fundamental difference in the focus of the traditional backdoor attacks, and fairness attacks. Backdoor attacks usually add new functionality in the presence of some trigger that is not usually present in the model’s benign dataset. Therefore, these attacks do not conflict with the main task that the FL system is being trained to solve. By contrast, attacks on fairness produce updates that may oppose updates produced by benign clients.</p>
+</div>
+<div id="S2.SS3.p3" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p3.5" class="ltx_p">Put together, our attack must therefore modify its update to account for the competing benign clients. If the update we want to make to the aggregated model is <math id="S2.SS3.p3.1.m1.1" class="ltx_Math" alttext="\mathbf{m}" display="inline"><semantics id="S2.SS3.p3.1.m1.1a"><mi id="S2.SS3.p3.1.m1.1.1" xref="S2.SS3.p3.1.m1.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p3.1.m1.1b"><ci id="S2.SS3.p3.1.m1.1.1.cmml" xref="S2.SS3.p3.1.m1.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p3.1.m1.1c">\mathbf{m}</annotation></semantics></math> and we have update <math id="S2.SS3.p3.2.m2.1" class="ltx_Math" alttext="\mathbf{u}_{i}" display="inline"><semantics id="S2.SS3.p3.2.m2.1a"><msub id="S2.SS3.p3.2.m2.1.1" xref="S2.SS3.p3.2.m2.1.1.cmml"><mi id="S2.SS3.p3.2.m2.1.1.2" xref="S2.SS3.p3.2.m2.1.1.2.cmml">𝐮</mi><mi id="S2.SS3.p3.2.m2.1.1.3" xref="S2.SS3.p3.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p3.2.m2.1b"><apply id="S2.SS3.p3.2.m2.1.1.cmml" xref="S2.SS3.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS3.p3.2.m2.1.1.1.cmml" xref="S2.SS3.p3.2.m2.1.1">subscript</csymbol><ci id="S2.SS3.p3.2.m2.1.1.2.cmml" xref="S2.SS3.p3.2.m2.1.1.2">𝐮</ci><ci id="S2.SS3.p3.2.m2.1.1.3.cmml" xref="S2.SS3.p3.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p3.2.m2.1c">\mathbf{u}_{i}</annotation></semantics></math> from the <math id="S2.SS3.p3.3.m3.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS3.p3.3.m3.1a"><mi id="S2.SS3.p3.3.m3.1.1" xref="S2.SS3.p3.3.m3.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p3.3.m3.1b"><ci id="S2.SS3.p3.3.m3.1.1.cmml" xref="S2.SS3.p3.3.m3.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p3.3.m3.1c">i</annotation></semantics></math>th non-malicious client, trained on a dataset of size <math id="S2.SS3.p3.4.m4.1" class="ltx_Math" alttext="n_{i}" display="inline"><semantics id="S2.SS3.p3.4.m4.1a"><msub id="S2.SS3.p3.4.m4.1.1" xref="S2.SS3.p3.4.m4.1.1.cmml"><mi id="S2.SS3.p3.4.m4.1.1.2" xref="S2.SS3.p3.4.m4.1.1.2.cmml">n</mi><mi id="S2.SS3.p3.4.m4.1.1.3" xref="S2.SS3.p3.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p3.4.m4.1b"><apply id="S2.SS3.p3.4.m4.1.1.cmml" xref="S2.SS3.p3.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS3.p3.4.m4.1.1.1.cmml" xref="S2.SS3.p3.4.m4.1.1">subscript</csymbol><ci id="S2.SS3.p3.4.m4.1.1.2.cmml" xref="S2.SS3.p3.4.m4.1.1.2">𝑛</ci><ci id="S2.SS3.p3.4.m4.1.1.3.cmml" xref="S2.SS3.p3.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p3.4.m4.1c">n_{i}</annotation></semantics></math>, then the update <math id="S2.SS3.p3.5.m5.1" class="ltx_Math" alttext="\mathbf{v}" display="inline"><semantics id="S2.SS3.p3.5.m5.1a"><mi id="S2.SS3.p3.5.m5.1.1" xref="S2.SS3.p3.5.m5.1.1.cmml">𝐯</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p3.5.m5.1b"><ci id="S2.SS3.p3.5.m5.1.1.cmml" xref="S2.SS3.p3.5.m5.1.1">𝐯</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p3.5.m5.1c">\mathbf{v}</annotation></semantics></math> that our malicious client should make is given by</p>
+</div>
+<div id="S2.SS3.p4" class="ltx_para ltx_noindent">
+<table id="S5.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E1.m1.4" class="ltx_Math" alttext="\displaystyle\underset{\mathbf{v}}{\operatorname{argmin}}\;\lVert\mathbf{m}-\operatorname{aggregator}(\mathbf{v},\mathbf{u}_{0},\mathbf{u}_{1},\ldots)\rVert" display="inline"><semantics id="S2.E1.m1.4a"><mrow id="S2.E1.m1.4.4" xref="S2.E1.m1.4.4.cmml"><munder accentunder="true" id="S2.E1.m1.4.4.3" xref="S2.E1.m1.4.4.3.cmml"><mi id="S2.E1.m1.4.4.3.2" xref="S2.E1.m1.4.4.3.2.cmml">argmin</mi><mo id="S2.E1.m1.4.4.3.1" xref="S2.E1.m1.4.4.3.1.cmml">𝐯</mo></munder><mo lspace="0em" rspace="0em" id="S2.E1.m1.4.4.2" xref="S2.E1.m1.4.4.2.cmml">​</mo><mrow id="S2.E1.m1.4.4.1.1" xref="S2.E1.m1.4.4.1.2.cmml"><mo fence="true" rspace="0em" id="S2.E1.m1.4.4.1.1.2" xref="S2.E1.m1.4.4.1.2.1.cmml">∥</mo><mrow id="S2.E1.m1.4.4.1.1.1" xref="S2.E1.m1.4.4.1.1.1.cmml"><mi id="S2.E1.m1.4.4.1.1.1.4" xref="S2.E1.m1.4.4.1.1.1.4.cmml">𝐦</mi><mo id="S2.E1.m1.4.4.1.1.1.3" xref="S2.E1.m1.4.4.1.1.1.3.cmml">−</mo><mrow id="S2.E1.m1.4.4.1.1.1.2.2" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml"><mi id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml">aggregator</mi><mo id="S2.E1.m1.4.4.1.1.1.2.2a" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">⁡</mo><mrow id="S2.E1.m1.4.4.1.1.1.2.2.2" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml"><mo stretchy="false" id="S2.E1.m1.4.4.1.1.1.2.2.2.3" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">(</mo><mi id="S2.E1.m1.2.2" xref="S2.E1.m1.2.2.cmml">𝐯</mi><mo id="S2.E1.m1.4.4.1.1.1.2.2.2.4" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">,</mo><msub id="S2.E1.m1.4.4.1.1.1.1.1.1.1" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m1.4.4.1.1.1.1.1.1.1.2" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1.2.cmml">𝐮</mi><mn id="S2.E1.m1.4.4.1.1.1.1.1.1.1.3" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1.3.cmml">0</mn></msub><mo id="S2.E1.m1.4.4.1.1.1.2.2.2.5" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">,</mo><msub id="S2.E1.m1.4.4.1.1.1.2.2.2.2" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2.cmml"><mi id="S2.E1.m1.4.4.1.1.1.2.2.2.2.2" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2.2.cmml">𝐮</mi><mn id="S2.E1.m1.4.4.1.1.1.2.2.2.2.3" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2.3.cmml">1</mn></msub><mo id="S2.E1.m1.4.4.1.1.1.2.2.2.6" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">,</mo><mi mathvariant="normal" id="S2.E1.m1.3.3" xref="S2.E1.m1.3.3.cmml">…</mi><mo stretchy="false" id="S2.E1.m1.4.4.1.1.1.2.2.2.7" xref="S2.E1.m1.4.4.1.1.1.2.3.cmml">)</mo></mrow></mrow></mrow><mo fence="true" lspace="0em" id="S2.E1.m1.4.4.1.1.3" xref="S2.E1.m1.4.4.1.2.1.cmml">∥</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.4b"><apply id="S2.E1.m1.4.4.cmml" xref="S2.E1.m1.4.4"><times id="S2.E1.m1.4.4.2.cmml" xref="S2.E1.m1.4.4.2"></times><apply id="S2.E1.m1.4.4.3.cmml" xref="S2.E1.m1.4.4.3"><ci id="S2.E1.m1.4.4.3.1.cmml" xref="S2.E1.m1.4.4.3.1">𝐯</ci><ci id="S2.E1.m1.4.4.3.2.cmml" xref="S2.E1.m1.4.4.3.2">argmin</ci></apply><apply id="S2.E1.m1.4.4.1.2.cmml" xref="S2.E1.m1.4.4.1.1"><csymbol cd="latexml" id="S2.E1.m1.4.4.1.2.1.cmml" xref="S2.E1.m1.4.4.1.1.2">delimited-∥∥</csymbol><apply id="S2.E1.m1.4.4.1.1.1.cmml" xref="S2.E1.m1.4.4.1.1.1"><minus id="S2.E1.m1.4.4.1.1.1.3.cmml" xref="S2.E1.m1.4.4.1.1.1.3"></minus><ci id="S2.E1.m1.4.4.1.1.1.4.cmml" xref="S2.E1.m1.4.4.1.1.1.4">𝐦</ci><apply id="S2.E1.m1.4.4.1.1.1.2.3.cmml" xref="S2.E1.m1.4.4.1.1.1.2.2"><ci id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1">aggregator</ci><ci id="S2.E1.m1.2.2.cmml" xref="S2.E1.m1.2.2">𝐯</ci><apply id="S2.E1.m1.4.4.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.4.4.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E1.m1.4.4.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1.2">𝐮</ci><cn type="integer" id="S2.E1.m1.4.4.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.4.4.1.1.1.1.1.1.1.3">0</cn></apply><apply id="S2.E1.m1.4.4.1.1.1.2.2.2.2.cmml" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.4.4.1.1.1.2.2.2.2.1.cmml" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2">subscript</csymbol><ci id="S2.E1.m1.4.4.1.1.1.2.2.2.2.2.cmml" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2.2">𝐮</ci><cn type="integer" id="S2.E1.m1.4.4.1.1.1.2.2.2.2.3.cmml" xref="S2.E1.m1.4.4.1.1.1.2.2.2.2.3">1</cn></apply><ci id="S2.E1.m1.3.3.cmml" xref="S2.E1.m1.3.3">…</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.4c">\displaystyle\underset{\mathbf{v}}{\operatorname{argmin}}\;\lVert\mathbf{m}-\operatorname{aggregator}(\mathbf{v},\mathbf{u}_{0},\mathbf{u}_{1},\ldots)\rVert</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S2.SS3.p5" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p5.3" class="ltx_p">We will refer to <math id="S2.SS3.p5.1.m1.1" class="ltx_Math" alttext="\mathbf{m}" display="inline"><semantics id="S2.SS3.p5.1.m1.1a"><mi id="S2.SS3.p5.1.m1.1.1" xref="S2.SS3.p5.1.m1.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p5.1.m1.1b"><ci id="S2.SS3.p5.1.m1.1.1.cmml" xref="S2.SS3.p5.1.m1.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p5.1.m1.1c">\mathbf{m}</annotation></semantics></math> as the <span id="S2.SS3.p5.3.1" class="ltx_text ltx_font_italic">target</span> update, <math id="S2.SS3.p5.2.m2.1" class="ltx_Math" alttext="\mathbf{u}_{i}" display="inline"><semantics id="S2.SS3.p5.2.m2.1a"><msub id="S2.SS3.p5.2.m2.1.1" xref="S2.SS3.p5.2.m2.1.1.cmml"><mi id="S2.SS3.p5.2.m2.1.1.2" xref="S2.SS3.p5.2.m2.1.1.2.cmml">𝐮</mi><mi id="S2.SS3.p5.2.m2.1.1.3" xref="S2.SS3.p5.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p5.2.m2.1b"><apply id="S2.SS3.p5.2.m2.1.1.cmml" xref="S2.SS3.p5.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS3.p5.2.m2.1.1.1.cmml" xref="S2.SS3.p5.2.m2.1.1">subscript</csymbol><ci id="S2.SS3.p5.2.m2.1.1.2.cmml" xref="S2.SS3.p5.2.m2.1.1.2">𝐮</ci><ci id="S2.SS3.p5.2.m2.1.1.3.cmml" xref="S2.SS3.p5.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p5.2.m2.1c">\mathbf{u}_{i}</annotation></semantics></math> as the <span id="S2.SS3.p5.3.2" class="ltx_text ltx_font_italic">clean</span> update, and <math id="S2.SS3.p5.3.m3.1" class="ltx_Math" alttext="\mathbf{v}" display="inline"><semantics id="S2.SS3.p5.3.m3.1a"><mi id="S2.SS3.p5.3.m3.1.1" xref="S2.SS3.p5.3.m3.1.1.cmml">𝐯</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p5.3.m3.1b"><ci id="S2.SS3.p5.3.m3.1.1.cmml" xref="S2.SS3.p5.3.m3.1.1">𝐯</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p5.3.m3.1c">\mathbf{v}</annotation></semantics></math> as the <span id="S2.SS3.p5.3.3" class="ltx_text ltx_font_italic">malicious</span> update.
+<br class="ltx_break"></p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<div id="S2.SS3.p6" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p6.3" class="ltx_p">If we know the values of each <math id="S2.SS3.p6.1.m1.1" class="ltx_Math" alttext="\mathbf{u}_{i}" display="inline"><semantics id="S2.SS3.p6.1.m1.1a"><msub id="S2.SS3.p6.1.m1.1.1" xref="S2.SS3.p6.1.m1.1.1.cmml"><mi id="S2.SS3.p6.1.m1.1.1.2" xref="S2.SS3.p6.1.m1.1.1.2.cmml">𝐮</mi><mi id="S2.SS3.p6.1.m1.1.1.3" xref="S2.SS3.p6.1.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p6.1.m1.1b"><apply id="S2.SS3.p6.1.m1.1.1.cmml" xref="S2.SS3.p6.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p6.1.m1.1.1.1.cmml" xref="S2.SS3.p6.1.m1.1.1">subscript</csymbol><ci id="S2.SS3.p6.1.m1.1.1.2.cmml" xref="S2.SS3.p6.1.m1.1.1.2">𝐮</ci><ci id="S2.SS3.p6.1.m1.1.1.3.cmml" xref="S2.SS3.p6.1.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p6.1.m1.1c">\mathbf{u}_{i}</annotation></semantics></math> and the aggregator is sufficiently uncomplicated, we could directly compute the value of <math id="S2.SS3.p6.2.m2.1" class="ltx_Math" alttext="\mathbf{v}" display="inline"><semantics id="S2.SS3.p6.2.m2.1a"><mi id="S2.SS3.p6.2.m2.1.1" xref="S2.SS3.p6.2.m2.1.1.cmml">𝐯</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p6.2.m2.1b"><ci id="S2.SS3.p6.2.m2.1.1.cmml" xref="S2.SS3.p6.2.m2.1.1">𝐯</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p6.2.m2.1c">\mathbf{v}</annotation></semantics></math> to produce whichever updates we want. For example, in the case of FedAvg <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, if we can guess the total number of datapoints trained on in the current round, <math id="S2.SS3.p6.3.m3.1" class="ltx_Math" alttext="n_{0}\mathbf{v}" display="inline"><semantics id="S2.SS3.p6.3.m3.1a"><mrow id="S2.SS3.p6.3.m3.1.1" xref="S2.SS3.p6.3.m3.1.1.cmml"><msub id="S2.SS3.p6.3.m3.1.1.2" xref="S2.SS3.p6.3.m3.1.1.2.cmml"><mi id="S2.SS3.p6.3.m3.1.1.2.2" xref="S2.SS3.p6.3.m3.1.1.2.2.cmml">n</mi><mn id="S2.SS3.p6.3.m3.1.1.2.3" xref="S2.SS3.p6.3.m3.1.1.2.3.cmml">0</mn></msub><mo lspace="0em" rspace="0em" id="S2.SS3.p6.3.m3.1.1.1" xref="S2.SS3.p6.3.m3.1.1.1.cmml">​</mo><mi id="S2.SS3.p6.3.m3.1.1.3" xref="S2.SS3.p6.3.m3.1.1.3.cmml">𝐯</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p6.3.m3.1b"><apply id="S2.SS3.p6.3.m3.1.1.cmml" xref="S2.SS3.p6.3.m3.1.1"><times id="S2.SS3.p6.3.m3.1.1.1.cmml" xref="S2.SS3.p6.3.m3.1.1.1"></times><apply id="S2.SS3.p6.3.m3.1.1.2.cmml" xref="S2.SS3.p6.3.m3.1.1.2"><csymbol cd="ambiguous" id="S2.SS3.p6.3.m3.1.1.2.1.cmml" xref="S2.SS3.p6.3.m3.1.1.2">subscript</csymbol><ci id="S2.SS3.p6.3.m3.1.1.2.2.cmml" xref="S2.SS3.p6.3.m3.1.1.2.2">𝑛</ci><cn type="integer" id="S2.SS3.p6.3.m3.1.1.2.3.cmml" xref="S2.SS3.p6.3.m3.1.1.2.3">0</cn></apply><ci id="S2.SS3.p6.3.m3.1.1.3.cmml" xref="S2.SS3.p6.3.m3.1.1.3">𝐯</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p6.3.m3.1c">n_{0}\mathbf{v}</annotation></semantics></math> can be computed with:</p>
+</div>
+<div id="S2.SS3.p7" class="ltx_para ltx_noindent">
+<table id="S5.EGx2" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E2.m1.1" class="ltx_Math" alttext="\displaystyle\mathbf{m}" display="inline"><semantics id="S2.E2.m1.1a"><mi id="S2.E2.m1.1.1" xref="S2.E2.m1.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><ci id="S2.E2.m1.1.1.cmml" xref="S2.E2.m1.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\displaystyle\mathbf{m}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E2.m2.1" class="ltx_Math" alttext="\displaystyle=\frac{n_{0}}{n}\mathbf{v}+\sum^{m}_{i=1}\frac{n_{i}}{n}\mathbf{u}_{i}" display="inline"><semantics id="S2.E2.m2.1a"><mrow id="S2.E2.m2.1.1" xref="S2.E2.m2.1.1.cmml"><mi id="S2.E2.m2.1.1.2" xref="S2.E2.m2.1.1.2.cmml"></mi><mo id="S2.E2.m2.1.1.1" xref="S2.E2.m2.1.1.1.cmml">=</mo><mrow id="S2.E2.m2.1.1.3" xref="S2.E2.m2.1.1.3.cmml"><mrow id="S2.E2.m2.1.1.3.2" xref="S2.E2.m2.1.1.3.2.cmml"><mstyle displaystyle="true" id="S2.E2.m2.1.1.3.2.2" xref="S2.E2.m2.1.1.3.2.2.cmml"><mfrac id="S2.E2.m2.1.1.3.2.2a" xref="S2.E2.m2.1.1.3.2.2.cmml"><msub id="S2.E2.m2.1.1.3.2.2.2" xref="S2.E2.m2.1.1.3.2.2.2.cmml"><mi id="S2.E2.m2.1.1.3.2.2.2.2" xref="S2.E2.m2.1.1.3.2.2.2.2.cmml">n</mi><mn id="S2.E2.m2.1.1.3.2.2.2.3" xref="S2.E2.m2.1.1.3.2.2.2.3.cmml">0</mn></msub><mi id="S2.E2.m2.1.1.3.2.2.3" xref="S2.E2.m2.1.1.3.2.2.3.cmml">n</mi></mfrac></mstyle><mo lspace="0em" rspace="0em" id="S2.E2.m2.1.1.3.2.1" xref="S2.E2.m2.1.1.3.2.1.cmml">​</mo><mi id="S2.E2.m2.1.1.3.2.3" xref="S2.E2.m2.1.1.3.2.3.cmml">𝐯</mi></mrow><mo id="S2.E2.m2.1.1.3.1" xref="S2.E2.m2.1.1.3.1.cmml">+</mo><mrow id="S2.E2.m2.1.1.3.3" xref="S2.E2.m2.1.1.3.3.cmml"><mstyle displaystyle="true" id="S2.E2.m2.1.1.3.3.1" xref="S2.E2.m2.1.1.3.3.1.cmml"><munderover id="S2.E2.m2.1.1.3.3.1a" xref="S2.E2.m2.1.1.3.3.1.cmml"><mo movablelimits="false" id="S2.E2.m2.1.1.3.3.1.2.2" xref="S2.E2.m2.1.1.3.3.1.2.2.cmml">∑</mo><mrow id="S2.E2.m2.1.1.3.3.1.3" xref="S2.E2.m2.1.1.3.3.1.3.cmml"><mi id="S2.E2.m2.1.1.3.3.1.3.2" xref="S2.E2.m2.1.1.3.3.1.3.2.cmml">i</mi><mo id="S2.E2.m2.1.1.3.3.1.3.1" xref="S2.E2.m2.1.1.3.3.1.3.1.cmml">=</mo><mn id="S2.E2.m2.1.1.3.3.1.3.3" xref="S2.E2.m2.1.1.3.3.1.3.3.cmml">1</mn></mrow><mi id="S2.E2.m2.1.1.3.3.1.2.3" xref="S2.E2.m2.1.1.3.3.1.2.3.cmml">m</mi></munderover></mstyle><mrow id="S2.E2.m2.1.1.3.3.2" xref="S2.E2.m2.1.1.3.3.2.cmml"><mstyle displaystyle="true" id="S2.E2.m2.1.1.3.3.2.2" xref="S2.E2.m2.1.1.3.3.2.2.cmml"><mfrac id="S2.E2.m2.1.1.3.3.2.2a" xref="S2.E2.m2.1.1.3.3.2.2.cmml"><msub id="S2.E2.m2.1.1.3.3.2.2.2" xref="S2.E2.m2.1.1.3.3.2.2.2.cmml"><mi id="S2.E2.m2.1.1.3.3.2.2.2.2" xref="S2.E2.m2.1.1.3.3.2.2.2.2.cmml">n</mi><mi id="S2.E2.m2.1.1.3.3.2.2.2.3" xref="S2.E2.m2.1.1.3.3.2.2.2.3.cmml">i</mi></msub><mi id="S2.E2.m2.1.1.3.3.2.2.3" xref="S2.E2.m2.1.1.3.3.2.2.3.cmml">n</mi></mfrac></mstyle><mo lspace="0em" rspace="0em" id="S2.E2.m2.1.1.3.3.2.1" xref="S2.E2.m2.1.1.3.3.2.1.cmml">​</mo><msub id="S2.E2.m2.1.1.3.3.2.3" xref="S2.E2.m2.1.1.3.3.2.3.cmml"><mi id="S2.E2.m2.1.1.3.3.2.3.2" xref="S2.E2.m2.1.1.3.3.2.3.2.cmml">𝐮</mi><mi id="S2.E2.m2.1.1.3.3.2.3.3" xref="S2.E2.m2.1.1.3.3.2.3.3.cmml">i</mi></msub></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m2.1b"><apply id="S2.E2.m2.1.1.cmml" xref="S2.E2.m2.1.1"><eq id="S2.E2.m2.1.1.1.cmml" xref="S2.E2.m2.1.1.1"></eq><csymbol cd="latexml" id="S2.E2.m2.1.1.2.cmml" xref="S2.E2.m2.1.1.2">absent</csymbol><apply id="S2.E2.m2.1.1.3.cmml" xref="S2.E2.m2.1.1.3"><plus id="S2.E2.m2.1.1.3.1.cmml" xref="S2.E2.m2.1.1.3.1"></plus><apply id="S2.E2.m2.1.1.3.2.cmml" xref="S2.E2.m2.1.1.3.2"><times id="S2.E2.m2.1.1.3.2.1.cmml" xref="S2.E2.m2.1.1.3.2.1"></times><apply id="S2.E2.m2.1.1.3.2.2.cmml" xref="S2.E2.m2.1.1.3.2.2"><divide id="S2.E2.m2.1.1.3.2.2.1.cmml" xref="S2.E2.m2.1.1.3.2.2"></divide><apply id="S2.E2.m2.1.1.3.2.2.2.cmml" xref="S2.E2.m2.1.1.3.2.2.2"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.3.2.2.2.1.cmml" xref="S2.E2.m2.1.1.3.2.2.2">subscript</csymbol><ci id="S2.E2.m2.1.1.3.2.2.2.2.cmml" xref="S2.E2.m2.1.1.3.2.2.2.2">𝑛</ci><cn type="integer" id="S2.E2.m2.1.1.3.2.2.2.3.cmml" xref="S2.E2.m2.1.1.3.2.2.2.3">0</cn></apply><ci id="S2.E2.m2.1.1.3.2.2.3.cmml" xref="S2.E2.m2.1.1.3.2.2.3">𝑛</ci></apply><ci id="S2.E2.m2.1.1.3.2.3.cmml" xref="S2.E2.m2.1.1.3.2.3">𝐯</ci></apply><apply id="S2.E2.m2.1.1.3.3.cmml" xref="S2.E2.m2.1.1.3.3"><apply id="S2.E2.m2.1.1.3.3.1.cmml" xref="S2.E2.m2.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.3.3.1.1.cmml" xref="S2.E2.m2.1.1.3.3.1">subscript</csymbol><apply id="S2.E2.m2.1.1.3.3.1.2.cmml" xref="S2.E2.m2.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.3.3.1.2.1.cmml" xref="S2.E2.m2.1.1.3.3.1">superscript</csymbol><sum id="S2.E2.m2.1.1.3.3.1.2.2.cmml" xref="S2.E2.m2.1.1.3.3.1.2.2"></sum><ci id="S2.E2.m2.1.1.3.3.1.2.3.cmml" xref="S2.E2.m2.1.1.3.3.1.2.3">𝑚</ci></apply><apply id="S2.E2.m2.1.1.3.3.1.3.cmml" xref="S2.E2.m2.1.1.3.3.1.3"><eq id="S2.E2.m2.1.1.3.3.1.3.1.cmml" xref="S2.E2.m2.1.1.3.3.1.3.1"></eq><ci id="S2.E2.m2.1.1.3.3.1.3.2.cmml" xref="S2.E2.m2.1.1.3.3.1.3.2">𝑖</ci><cn type="integer" id="S2.E2.m2.1.1.3.3.1.3.3.cmml" xref="S2.E2.m2.1.1.3.3.1.3.3">1</cn></apply></apply><apply id="S2.E2.m2.1.1.3.3.2.cmml" xref="S2.E2.m2.1.1.3.3.2"><times id="S2.E2.m2.1.1.3.3.2.1.cmml" xref="S2.E2.m2.1.1.3.3.2.1"></times><apply id="S2.E2.m2.1.1.3.3.2.2.cmml" xref="S2.E2.m2.1.1.3.3.2.2"><divide id="S2.E2.m2.1.1.3.3.2.2.1.cmml" xref="S2.E2.m2.1.1.3.3.2.2"></divide><apply id="S2.E2.m2.1.1.3.3.2.2.2.cmml" xref="S2.E2.m2.1.1.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.3.3.2.2.2.1.cmml" xref="S2.E2.m2.1.1.3.3.2.2.2">subscript</csymbol><ci id="S2.E2.m2.1.1.3.3.2.2.2.2.cmml" xref="S2.E2.m2.1.1.3.3.2.2.2.2">𝑛</ci><ci id="S2.E2.m2.1.1.3.3.2.2.2.3.cmml" xref="S2.E2.m2.1.1.3.3.2.2.2.3">𝑖</ci></apply><ci id="S2.E2.m2.1.1.3.3.2.2.3.cmml" xref="S2.E2.m2.1.1.3.3.2.2.3">𝑛</ci></apply><apply id="S2.E2.m2.1.1.3.3.2.3.cmml" xref="S2.E2.m2.1.1.3.3.2.3"><csymbol cd="ambiguous" id="S2.E2.m2.1.1.3.3.2.3.1.cmml" xref="S2.E2.m2.1.1.3.3.2.3">subscript</csymbol><ci id="S2.E2.m2.1.1.3.3.2.3.2.cmml" xref="S2.E2.m2.1.1.3.3.2.3.2">𝐮</ci><ci id="S2.E2.m2.1.1.3.3.2.3.3.cmml" xref="S2.E2.m2.1.1.3.3.2.3.3">𝑖</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m2.1c">\displaystyle=\frac{n_{0}}{n}\mathbf{v}+\sum^{m}_{i=1}\frac{n_{i}}{n}\mathbf{u}_{i}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+<tbody id="S2.E3"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E3.m1.1" class="ltx_Math" alttext="\displaystyle n_{0}\mathbf{v}" display="inline"><semantics id="S2.E3.m1.1a"><mrow id="S2.E3.m1.1.1" xref="S2.E3.m1.1.1.cmml"><msub id="S2.E3.m1.1.1.2" xref="S2.E3.m1.1.1.2.cmml"><mi id="S2.E3.m1.1.1.2.2" xref="S2.E3.m1.1.1.2.2.cmml">n</mi><mn id="S2.E3.m1.1.1.2.3" xref="S2.E3.m1.1.1.2.3.cmml">0</mn></msub><mo lspace="0em" rspace="0em" id="S2.E3.m1.1.1.1" xref="S2.E3.m1.1.1.1.cmml">​</mo><mi id="S2.E3.m1.1.1.3" xref="S2.E3.m1.1.1.3.cmml">𝐯</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m1.1b"><apply id="S2.E3.m1.1.1.cmml" xref="S2.E3.m1.1.1"><times id="S2.E3.m1.1.1.1.cmml" xref="S2.E3.m1.1.1.1"></times><apply id="S2.E3.m1.1.1.2.cmml" xref="S2.E3.m1.1.1.2"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.2.1.cmml" xref="S2.E3.m1.1.1.2">subscript</csymbol><ci id="S2.E3.m1.1.1.2.2.cmml" xref="S2.E3.m1.1.1.2.2">𝑛</ci><cn type="integer" id="S2.E3.m1.1.1.2.3.cmml" xref="S2.E3.m1.1.1.2.3">0</cn></apply><ci id="S2.E3.m1.1.1.3.cmml" xref="S2.E3.m1.1.1.3">𝐯</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.1c">\displaystyle n_{0}\mathbf{v}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E3.m2.1" class="ltx_Math" alttext="\displaystyle=n\mathbf{m}-\sum^{m}_{i=1}n_{i}\mathbf{u}_{i}" display="inline"><semantics id="S2.E3.m2.1a"><mrow id="S2.E3.m2.1.1" xref="S2.E3.m2.1.1.cmml"><mi id="S2.E3.m2.1.1.2" xref="S2.E3.m2.1.1.2.cmml"></mi><mo id="S2.E3.m2.1.1.1" xref="S2.E3.m2.1.1.1.cmml">=</mo><mrow id="S2.E3.m2.1.1.3" xref="S2.E3.m2.1.1.3.cmml"><mrow id="S2.E3.m2.1.1.3.2" xref="S2.E3.m2.1.1.3.2.cmml"><mi id="S2.E3.m2.1.1.3.2.2" xref="S2.E3.m2.1.1.3.2.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.E3.m2.1.1.3.2.1" xref="S2.E3.m2.1.1.3.2.1.cmml">​</mo><mi id="S2.E3.m2.1.1.3.2.3" xref="S2.E3.m2.1.1.3.2.3.cmml">𝐦</mi></mrow><mo id="S2.E3.m2.1.1.3.1" xref="S2.E3.m2.1.1.3.1.cmml">−</mo><mrow id="S2.E3.m2.1.1.3.3" xref="S2.E3.m2.1.1.3.3.cmml"><mstyle displaystyle="true" id="S2.E3.m2.1.1.3.3.1" xref="S2.E3.m2.1.1.3.3.1.cmml"><munderover id="S2.E3.m2.1.1.3.3.1a" xref="S2.E3.m2.1.1.3.3.1.cmml"><mo movablelimits="false" id="S2.E3.m2.1.1.3.3.1.2.2" xref="S2.E3.m2.1.1.3.3.1.2.2.cmml">∑</mo><mrow id="S2.E3.m2.1.1.3.3.1.3" xref="S2.E3.m2.1.1.3.3.1.3.cmml"><mi id="S2.E3.m2.1.1.3.3.1.3.2" xref="S2.E3.m2.1.1.3.3.1.3.2.cmml">i</mi><mo id="S2.E3.m2.1.1.3.3.1.3.1" xref="S2.E3.m2.1.1.3.3.1.3.1.cmml">=</mo><mn id="S2.E3.m2.1.1.3.3.1.3.3" xref="S2.E3.m2.1.1.3.3.1.3.3.cmml">1</mn></mrow><mi id="S2.E3.m2.1.1.3.3.1.2.3" xref="S2.E3.m2.1.1.3.3.1.2.3.cmml">m</mi></munderover></mstyle><mrow id="S2.E3.m2.1.1.3.3.2" xref="S2.E3.m2.1.1.3.3.2.cmml"><msub id="S2.E3.m2.1.1.3.3.2.2" xref="S2.E3.m2.1.1.3.3.2.2.cmml"><mi id="S2.E3.m2.1.1.3.3.2.2.2" xref="S2.E3.m2.1.1.3.3.2.2.2.cmml">n</mi><mi id="S2.E3.m2.1.1.3.3.2.2.3" xref="S2.E3.m2.1.1.3.3.2.2.3.cmml">i</mi></msub><mo lspace="0em" rspace="0em" id="S2.E3.m2.1.1.3.3.2.1" xref="S2.E3.m2.1.1.3.3.2.1.cmml">​</mo><msub id="S2.E3.m2.1.1.3.3.2.3" xref="S2.E3.m2.1.1.3.3.2.3.cmml"><mi id="S2.E3.m2.1.1.3.3.2.3.2" xref="S2.E3.m2.1.1.3.3.2.3.2.cmml">𝐮</mi><mi id="S2.E3.m2.1.1.3.3.2.3.3" xref="S2.E3.m2.1.1.3.3.2.3.3.cmml">i</mi></msub></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m2.1b"><apply id="S2.E3.m2.1.1.cmml" xref="S2.E3.m2.1.1"><eq id="S2.E3.m2.1.1.1.cmml" xref="S2.E3.m2.1.1.1"></eq><csymbol cd="latexml" id="S2.E3.m2.1.1.2.cmml" xref="S2.E3.m2.1.1.2">absent</csymbol><apply id="S2.E3.m2.1.1.3.cmml" xref="S2.E3.m2.1.1.3"><minus id="S2.E3.m2.1.1.3.1.cmml" xref="S2.E3.m2.1.1.3.1"></minus><apply id="S2.E3.m2.1.1.3.2.cmml" xref="S2.E3.m2.1.1.3.2"><times id="S2.E3.m2.1.1.3.2.1.cmml" xref="S2.E3.m2.1.1.3.2.1"></times><ci id="S2.E3.m2.1.1.3.2.2.cmml" xref="S2.E3.m2.1.1.3.2.2">𝑛</ci><ci id="S2.E3.m2.1.1.3.2.3.cmml" xref="S2.E3.m2.1.1.3.2.3">𝐦</ci></apply><apply id="S2.E3.m2.1.1.3.3.cmml" xref="S2.E3.m2.1.1.3.3"><apply id="S2.E3.m2.1.1.3.3.1.cmml" xref="S2.E3.m2.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.3.3.1.1.cmml" xref="S2.E3.m2.1.1.3.3.1">subscript</csymbol><apply id="S2.E3.m2.1.1.3.3.1.2.cmml" xref="S2.E3.m2.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.3.3.1.2.1.cmml" xref="S2.E3.m2.1.1.3.3.1">superscript</csymbol><sum id="S2.E3.m2.1.1.3.3.1.2.2.cmml" xref="S2.E3.m2.1.1.3.3.1.2.2"></sum><ci id="S2.E3.m2.1.1.3.3.1.2.3.cmml" xref="S2.E3.m2.1.1.3.3.1.2.3">𝑚</ci></apply><apply id="S2.E3.m2.1.1.3.3.1.3.cmml" xref="S2.E3.m2.1.1.3.3.1.3"><eq id="S2.E3.m2.1.1.3.3.1.3.1.cmml" xref="S2.E3.m2.1.1.3.3.1.3.1"></eq><ci id="S2.E3.m2.1.1.3.3.1.3.2.cmml" xref="S2.E3.m2.1.1.3.3.1.3.2">𝑖</ci><cn type="integer" id="S2.E3.m2.1.1.3.3.1.3.3.cmml" xref="S2.E3.m2.1.1.3.3.1.3.3">1</cn></apply></apply><apply id="S2.E3.m2.1.1.3.3.2.cmml" xref="S2.E3.m2.1.1.3.3.2"><times id="S2.E3.m2.1.1.3.3.2.1.cmml" xref="S2.E3.m2.1.1.3.3.2.1"></times><apply id="S2.E3.m2.1.1.3.3.2.2.cmml" xref="S2.E3.m2.1.1.3.3.2.2"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.3.3.2.2.1.cmml" xref="S2.E3.m2.1.1.3.3.2.2">subscript</csymbol><ci id="S2.E3.m2.1.1.3.3.2.2.2.cmml" xref="S2.E3.m2.1.1.3.3.2.2.2">𝑛</ci><ci id="S2.E3.m2.1.1.3.3.2.2.3.cmml" xref="S2.E3.m2.1.1.3.3.2.2.3">𝑖</ci></apply><apply id="S2.E3.m2.1.1.3.3.2.3.cmml" xref="S2.E3.m2.1.1.3.3.2.3"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.3.3.2.3.1.cmml" xref="S2.E3.m2.1.1.3.3.2.3">subscript</csymbol><ci id="S2.E3.m2.1.1.3.3.2.3.2.cmml" xref="S2.E3.m2.1.1.3.3.2.3.2">𝐮</ci><ci id="S2.E3.m2.1.1.3.3.2.3.3.cmml" xref="S2.E3.m2.1.1.3.3.2.3.3">𝑖</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m2.1c">\displaystyle=n\mathbf{m}-\sum^{m}_{i=1}n_{i}\mathbf{u}_{i}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S2.SS3.p8" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p8.4" class="ltx_p">where we control both <math id="S2.SS3.p8.1.m1.1" class="ltx_Math" alttext="n_{0}" display="inline"><semantics id="S2.SS3.p8.1.m1.1a"><msub id="S2.SS3.p8.1.m1.1.1" xref="S2.SS3.p8.1.m1.1.1.cmml"><mi id="S2.SS3.p8.1.m1.1.1.2" xref="S2.SS3.p8.1.m1.1.1.2.cmml">n</mi><mn id="S2.SS3.p8.1.m1.1.1.3" xref="S2.SS3.p8.1.m1.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p8.1.m1.1b"><apply id="S2.SS3.p8.1.m1.1.1.cmml" xref="S2.SS3.p8.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p8.1.m1.1.1.1.cmml" xref="S2.SS3.p8.1.m1.1.1">subscript</csymbol><ci id="S2.SS3.p8.1.m1.1.1.2.cmml" xref="S2.SS3.p8.1.m1.1.1.2">𝑛</ci><cn type="integer" id="S2.SS3.p8.1.m1.1.1.3.cmml" xref="S2.SS3.p8.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p8.1.m1.1c">n_{0}</annotation></semantics></math> and <math id="S2.SS3.p8.2.m2.1" class="ltx_Math" alttext="\mathbf{v}" display="inline"><semantics id="S2.SS3.p8.2.m2.1a"><mi id="S2.SS3.p8.2.m2.1.1" xref="S2.SS3.p8.2.m2.1.1.cmml">𝐯</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p8.2.m2.1b"><ci id="S2.SS3.p8.2.m2.1.1.cmml" xref="S2.SS3.p8.2.m2.1.1">𝐯</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p8.2.m2.1c">\mathbf{v}</annotation></semantics></math>. In practice, we can only estimate the values of <math id="S2.SS3.p8.3.m3.1" class="ltx_Math" alttext="\mathbf{u}_{i}" display="inline"><semantics id="S2.SS3.p8.3.m3.1a"><msub id="S2.SS3.p8.3.m3.1.1" xref="S2.SS3.p8.3.m3.1.1.cmml"><mi id="S2.SS3.p8.3.m3.1.1.2" xref="S2.SS3.p8.3.m3.1.1.2.cmml">𝐮</mi><mi id="S2.SS3.p8.3.m3.1.1.3" xref="S2.SS3.p8.3.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p8.3.m3.1b"><apply id="S2.SS3.p8.3.m3.1.1.cmml" xref="S2.SS3.p8.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS3.p8.3.m3.1.1.1.cmml" xref="S2.SS3.p8.3.m3.1.1">subscript</csymbol><ci id="S2.SS3.p8.3.m3.1.1.2.cmml" xref="S2.SS3.p8.3.m3.1.1.2">𝐮</ci><ci id="S2.SS3.p8.3.m3.1.1.3.cmml" xref="S2.SS3.p8.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p8.3.m3.1c">\mathbf{u}_{i}</annotation></semantics></math> by predicting updates with our own representative dataset. <a href="#S2.F1" title="In 2.3 Attacks on Fairness ‣ 2 Methodology ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Figure</span> <span class="ltx_text ltx_ref_tag">1</span></a> shows a visual representation of how the FedAvg aggregation will reproduce our target update <math id="S2.SS3.p8.4.m4.1" class="ltx_Math" alttext="\mathbf{m}" display="inline"><semantics id="S2.SS3.p8.4.m4.1a"><mi id="S2.SS3.p8.4.m4.1.1" xref="S2.SS3.p8.4.m4.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p8.4.m4.1b"><ci id="S2.SS3.p8.4.m4.1.1.cmml" xref="S2.SS3.p8.4.m4.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p8.4.m4.1c">\mathbf{m}</annotation></semantics></math>.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure">
+<p id="S2.F1.1" class="ltx_p ltx_align_center"><span id="S2.F1.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="" id="S2.F1.1.1.g1" class="ltx_graphics ltx_missing ltx_missing_image" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Illustration of how the update vectors aggregate to a value similar to the target. Here, we assume that each client reports the same number of datapoints, <math id="S2.F1.3.m1.1" class="ltx_Math" alttext="n_{i}" display="inline"><semantics id="S2.F1.3.m1.1b"><msub id="S2.F1.3.m1.1.1" xref="S2.F1.3.m1.1.1.cmml"><mi id="S2.F1.3.m1.1.1.2" xref="S2.F1.3.m1.1.1.2.cmml">n</mi><mi id="S2.F1.3.m1.1.1.3" xref="S2.F1.3.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.F1.3.m1.1c"><apply id="S2.F1.3.m1.1.1.cmml" xref="S2.F1.3.m1.1.1"><csymbol cd="ambiguous" id="S2.F1.3.m1.1.1.1.cmml" xref="S2.F1.3.m1.1.1">subscript</csymbol><ci id="S2.F1.3.m1.1.1.2.cmml" xref="S2.F1.3.m1.1.1.2">𝑛</ci><ci id="S2.F1.3.m1.1.1.3.cmml" xref="S2.F1.3.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.3.m1.1d">n_{i}</annotation></semantics></math>. The left group of vectors represent the computation done by the malicious client to obtain the target update (purple), while the right group of vectors represent the work done by the aggregator to obtain the aggregated update (yellow). We want to predict the predicted update (blue) to be close to the clean updates (green) so that the aggregated update (yellow) is close to the target update (red)</figcaption>
+</figure>
+<div id="S2.SS3.p9" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p9.1" class="ltx_p">In order to find <math id="S2.SS3.p9.1.m1.1" class="ltx_Math" alttext="\mathbf{m}" display="inline"><semantics id="S2.SS3.p9.1.m1.1a"><mi id="S2.SS3.p9.1.m1.1.1" xref="S2.SS3.p9.1.m1.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p9.1.m1.1b"><ci id="S2.SS3.p9.1.m1.1.1.cmml" xref="S2.SS3.p9.1.m1.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p9.1.m1.1c">\mathbf{m}</annotation></semantics></math>, we simply train our local model with a dataset only consisting of the attributes we want to bias towards. Since this represents a reduced problem, we can expect the accuracy of the target attributes to increase, while the neglected other data may lose accuracy. If we wanted a stronger attack in the case where the model has already been partially trained when our malicious client joins, we could compute an update that unlearns existing behaviour for data not containing the target attributes using an unlearning procedure such as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>. In our testing, we have found that unlearning was generally not necessary to reduce accuracy on data that does not contain our target attribute.</p>
+</div>
+<div id="S2.SS3.p10" class="ltx_para ltx_noindent">
+<p id="S2.SS3.p10.1" class="ltx_p">It is important to note that if the attacker only wanted a model with increased accuracy on specific attributes, then it would be more efficient to simply train a local model on the target updates. Therefore, the attacker doesn’t directly benefit from the attack, but rather indirectly by harming the results available to competitors.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Evaluation</h2>
+
+<div id="S3.p1" class="ltx_para ltx_noindent">
+<p id="S3.p1.1" class="ltx_p">The goal of our testing is to highlight the effectiveness of our proposed fairness attack on Federated Learning systems. We conduct our experiments on the CIFAR-10 dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, training a ResNet50 using SGD in a simulated FL environment. Without loss of generality, in our experiments we bias the model towards higher accuracy on classes 0 and 1. We ran our experiments on Nvidia RTX 2080 GPUs.
+<br class="ltx_break"></p>
+</div>
+<div id="S3.p2" class="ltx_para ltx_noindent">
+<p id="S3.p2.1" class="ltx_p">For simplicity, we provided each client with the same amount of clean data, as well as a dataset used by the malicious clients to compute the target update, <math id="S3.p2.1.m1.1" class="ltx_Math" alttext="\mathbf{m}" display="inline"><semantics id="S3.p2.1.m1.1a"><mi id="S3.p2.1.m1.1.1" xref="S3.p2.1.m1.1.1.cmml">𝐦</mi><annotation-xml encoding="MathML-Content" id="S3.p2.1.m1.1b"><ci id="S3.p2.1.m1.1.1.cmml" xref="S3.p2.1.m1.1.1">𝐦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.1.m1.1c">\mathbf{m}</annotation></semantics></math>, of similar size. All clean datasets were disjoint in order to ensure the malicious client’s update prediction was fair. However, the unfair dataset was a subset of the union of the clean datasets. Testing with clients. For simplicity, each client participated in every round and all datasets other than the unfair dataset were i.i.d.. Further testing would be necessary to investigate the effect of higher data heterogeneity and reduced client participation rate.
+<br class="ltx_break"></p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Percentage accuracies of models trained on all three datasets. Here we report the mean across all classes within each column.</figcaption>
+<div id="S3.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:611.1pt;height:90pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(0.0pt,0.0pt) scale(1,1) ;">
+<div id="S3.T1.1.1" class="ltx_inline-block ltx_transformed_outer" style="width:421.7pt;height:62.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-94.7pt,13.9pt) scale(0.69,0.69) ;">
+<p id="S3.T1.1.1.1" class="ltx_p"><span id="S3.T1.1.1.1.1" class="ltx_text">
+<span id="S3.T1.1.1.1.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<span class="ltx_tbody">
+<span id="S3.T1.1.1.1.1.1.1.1" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_tt"></span>
+<span id="S3.T1.1.1.1.1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_3">3 clients</span>
+<span id="S3.T1.1.1.1.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_3">10 clients</span>
+<span id="S3.T1.1.1.1.1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_tt ltx_colspan ltx_colspan_3">30 clients</span></span>
+<span id="S3.T1.1.1.1.1.1.2.2" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.1.2.2.1" class="ltx_td ltx_align_right ltx_th ltx_th_row">Attack</span>
+<span id="S3.T1.1.1.1.1.1.2.2.2" class="ltx_td ltx_align_center">Target classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.3" class="ltx_td ltx_align_center">Other classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.4" class="ltx_td ltx_align_center">Overall</span>
+<span id="S3.T1.1.1.1.1.1.2.2.5" class="ltx_td ltx_align_center">Target classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.6" class="ltx_td ltx_align_center">Other classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.7" class="ltx_td ltx_align_center">Overall</span>
+<span id="S3.T1.1.1.1.1.1.2.2.8" class="ltx_td ltx_align_center">Target classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.9" class="ltx_td ltx_align_center">Other classes</span>
+<span id="S3.T1.1.1.1.1.1.2.2.10" class="ltx_td ltx_align_center">Overall</span></span>
+<span id="S3.T1.1.1.1.1.1.3.3" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.1.3.3.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_t">Baseline</span>
+<span id="S3.T1.1.1.1.1.1.3.3.2" class="ltx_td ltx_align_center ltx_border_t">92.45</span>
+<span id="S3.T1.1.1.1.1.1.3.3.3" class="ltx_td ltx_align_center ltx_border_t">90.67</span>
+<span id="S3.T1.1.1.1.1.1.3.3.4" class="ltx_td ltx_align_center ltx_border_t">91.03</span>
+<span id="S3.T1.1.1.1.1.1.3.3.5" class="ltx_td ltx_align_center ltx_border_t">94.35</span>
+<span id="S3.T1.1.1.1.1.1.3.3.6" class="ltx_td ltx_align_center ltx_border_t">90.19</span>
+<span id="S3.T1.1.1.1.1.1.3.3.7" class="ltx_td ltx_align_center ltx_border_t">91.02</span>
+<span id="S3.T1.1.1.1.1.1.3.3.8" class="ltx_td ltx_align_center ltx_border_t">91.30</span>
+<span id="S3.T1.1.1.1.1.1.3.3.9" class="ltx_td ltx_align_center ltx_border_t">85.67</span>
+<span id="S3.T1.1.1.1.1.1.3.3.10" class="ltx_td ltx_align_center ltx_border_t">86.87</span></span>
+<span id="S3.T1.1.1.1.1.1.4.4" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.1.4.4.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_t">Round 80</span>
+<span id="S3.T1.1.1.1.1.1.4.4.2" class="ltx_td ltx_align_center ltx_border_t">93.35</span>
+<span id="S3.T1.1.1.1.1.1.4.4.3" class="ltx_td ltx_align_center ltx_border_t">0.34</span>
+<span id="S3.T1.1.1.1.1.1.4.4.4" class="ltx_td ltx_align_center ltx_border_t">18.94</span>
+<span id="S3.T1.1.1.1.1.1.4.4.5" class="ltx_td ltx_align_center ltx_border_t">91.60</span>
+<span id="S3.T1.1.1.1.1.1.4.4.6" class="ltx_td ltx_align_center ltx_border_t">0.73</span>
+<span id="S3.T1.1.1.1.1.1.4.4.7" class="ltx_td ltx_align_center ltx_border_t">18.90</span>
+<span id="S3.T1.1.1.1.1.1.4.4.8" class="ltx_td ltx_align_center ltx_border_t">87.05</span>
+<span id="S3.T1.1.1.1.1.1.4.4.9" class="ltx_td ltx_align_center ltx_border_t">0.11</span>
+<span id="S3.T1.1.1.1.1.1.4.4.10" class="ltx_td ltx_align_center ltx_border_t">17.50</span></span>
+<span id="S3.T1.1.1.1.1.1.5.5" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.1.5.5.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_bb ltx_border_t">Full</span>
+<span id="S3.T1.1.1.1.1.1.5.5.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">89.65</span>
+<span id="S3.T1.1.1.1.1.1.5.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.06</span>
+<span id="S3.T1.1.1.1.1.1.5.5.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">17.89</span>
+<span id="S3.T1.1.1.1.1.1.5.5.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">78.25</span>
+<span id="S3.T1.1.1.1.1.1.5.5.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.03</span>
+<span id="S3.T1.1.1.1.1.1.5.5.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">15.67</span>
+<span id="S3.T1.1.1.1.1.1.5.5.8" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">84.00</span>
+<span id="S3.T1.1.1.1.1.1.5.5.9" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">0.06</span>
+<span id="S3.T1.1.1.1.1.1.5.5.10" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">16.85</span></span>
+</span>
+</span></span></p>
+</span></div>
+</span></div>
+</figure>
+<div id="S3.p3" class="ltx_para ltx_noindent">
+<p id="S3.p3.1" class="ltx_p"><a href="#S3.T1" title="In 3 Evaluation ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Table</span> <span class="ltx_text ltx_ref_tag">1</span></a> presents the results from our testing. We tested two configurations of our attack. The bottom row has the attack performed from the very first training round, while the middle row trained the model on only clean clients for the first 80 rounds. The table shows that our attack has been successful at producing a difference in accuracy between the two targeted classes and the others. Both attack configurations were successful, showing that our attack would work on an existing system, where it was not introduced from the first training round.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure">
+<p id="S3.F2.3" class="ltx_p ltx_align_center"><span id="S3.F2.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2311.12715/assets/x2.png" id="S3.F2.1.1.g1" class="ltx_graphics ltx_img_landscape" width="333" height="91" alt="Refer to caption"></span>
+<span id="S3.F2.2.2" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2311.12715/assets/x3.png" id="S3.F2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="333" height="91" alt="Refer to caption"></span>
+<span id="S3.F2.3.3" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2311.12715/assets/x4.png" id="S3.F2.3.3.g1" class="ltx_graphics ltx_img_landscape" width="333" height="91" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Accuracy of each class per training round of the aggregated model. The left column shows the accuracies for the 2 target classes, while the right shows accuracies for the 8 other classes. The rows show the 3, 10, and 30 client cases from top to bottom. The attack was started on round 80 and produces a clear accuracy discrepancy between its target classes of 0 and 1 and the other classes.</figcaption>
+</figure>
+<div id="S3.p4" class="ltx_para ltx_noindent">
+<p id="S3.p4.1" class="ltx_p"><a href="#S3.F2" title="In 3 Evaluation ‣ Attacks on fairness in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">Figure</span> <span class="ltx_text ltx_ref_tag">2</span></a> shows the accuracy of each class per round on the UCI census dataset. We can see that after the attack began on round 10, the target class accuracies immediately becomes higher than that of other classes, as expected.</p>
+</div>
+<div id="S3.p5" class="ltx_para ltx_noindent">
+<p id="S3.p5.1" class="ltx_p">We tested with 3, 10, and 30 clients, where each experiment contained a single malicious client. Both attack scenarios had slightly less clean data available for training than the baseline due to the data used by the malicious client.</p>
+</div>
+<div id="S3.p6" class="ltx_para ltx_noindent">
+<p id="S3.p6.1" class="ltx_p">Our results demonstrate that the proposed attack can cause significant accuracy imbalance between subpopulations of our dataset by controlling only a single client. We observe improved performance in the 3 client case than the 10 client and 30 client cases, because each client received more data in this case, making update prediction more reliable.</p>
+</div>
+<div id="S3.p7" class="ltx_para ltx_noindent">
+<p id="S3.p7.1" class="ltx_p">We also observe a drop in accuracy on the target classes for 10 clients and 30 clients. Since the attack is primarily a denial of service on data which does not include the target attribute, this accuracy drop does not significantly degrade the attack’s effectiveness.</p>
+</div>
+<div id="S3.p8" class="ltx_para ltx_noindent">
+<p id="S3.p8.1" class="ltx_p">It may be possible to achieve a more subtle attack by producing target updates using a dataset that is r, rather than only containing classes 0 and 1. Further testing would be necessary to properly investigate this.</p>
+</div>
+<div id="S3.p9" class="ltx_para ltx_noindent">
+<p id="S3.p9.1" class="ltx_p">Overall we find that:</p>
+<ul id="S3.I1" class="ltx_itemize">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p">An attacker can introduce model unfairness by controlling a minor subset of clients in a FL system.</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S3.I1.i2.p1" class="ltx_para ltx_noindent">
+<p id="S3.I1.i2.p1.1" class="ltx_p">Our attack can be inserted to models which have already learnt the intended behaviour without significant unfairness towards the attributes we are targeting.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Related Work</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Backdoor attacks</h3>
+
+<div id="S4.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> introduced the concept of inserting backdoors into models by poisoning the dataset to add new functionality in the presence of a trigger attribute. There have since been many extensions to this idea to insert backdoors through different means. For example, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> simulated an attack similar to that of <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> by shaping gradients through a malicious shuffle function, which has been extended to be inserted as part of data augmentation by <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p2.1" class="ltx_p">In Federated Learning, these data poisoning attacks will still be effective if performed by each client. However, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> introduced <span id="S4.SS1.p2.1.1" class="ltx_text ltx_font_italic">update poisoning</span> attacks, where the attacker entirely controls a set of clients, rather than some part of the training pipeline. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> further investigates model poisoning where the number of malicious clients is severely limited, and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> considered distributing the backdoor updates across multiple clients to improve the attack’s stealth. Poisoning attacks are difficult to defend against. They can be effective even against many robust aggregation algorithms <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> shows that if a model is not robust to adversarial examples, it cannot be robust to backdoor attacks.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Fairness in Federated Learning</h3>
+
+<div id="S4.SS2.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p1.1" class="ltx_p">Previous work has placed a strong focus on ensuring fairness in Federated Learning in the face of updates produced by clients with heterogeneous data distributions, both for attribute level fairness <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, and client level fairness <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. However, all of these techniques have assumed that the data used by clients still exists within the model’s intended domain. Our attacks violate this assumption, potentially compromising the efficacy of these methods.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p2.1" class="ltx_p">Attacks on fairness in centralised models have been proposed before <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. However, the difficulties faced by fairness attacks in the centralised setting are very different to in FL. In centralised attacks, the updates, the attacker can produce, are constrained by how much of the training pipeline they control. In the federated setting, the attacker can control the entire pipeline, but only for a small set of clients, so the challenge comes from creating a disproportionate impact from these clients.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Backdoor defences</h3>
+
+<div id="S4.SS3.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p1.1" class="ltx_p">There are many existing defences against backdoors in Federated Learning. For example, many defences attempt to remove updates that deviate from the average update received <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>. However, this directly opposes the intention of improving fairness, as updates which come from datapoints with unusual attributes are most likely to mistakenly identified as malicious. Differential privacy has also been suggested as a possible solution <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> introduce FLAME, which attempts to improve the drawbacks of these approaches by using a combination of techniques. Many defences have been proposed that attempt to detect malicious updates fairly <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>, <a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>, for example <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite> use redundant gradients to detect clients which are malicious.</p>
+</div>
+<div id="S4.SS3.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p2.1" class="ltx_p">Since our attack is similar to backdoor attacks in Federated Learning in that it produces updates that are distributed differently to what is expected from a legitimate client, many of these defences are likely to have similar effectiveness against our attack without any modification. However, methods for bypassing defences such as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> may also transfer to our attack. Further experimentation would be needed to test these claims.</p>
+</div>
+<div id="S4.SS3.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p3.1" class="ltx_p">Additionally, assuming all clean and target updates have relatively similar direction and magnitude <math id="S4.SS3.p3.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S4.SS3.p3.1.m1.1a"><mi id="S4.SS3.p3.1.m1.1.1" xref="S4.SS3.p3.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.1.m1.1b"><ci id="S4.SS3.p3.1.m1.1.1.cmml" xref="S4.SS3.p3.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.1.m1.1c">x</annotation></semantics></math>, Equation 3 implies that the minimum length of the malicious update, when it is aligned in the same direction as the clean updates, will have a magnitude of approximately</p>
+<table id="S5.EGx3" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S4.E4"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.E4.m1.1" class="ltx_Math" alttext="\displaystyle\frac{n-\sum^{m}_{i=1}n_{i}}{n_{0}}x" display="inline"><semantics id="S4.E4.m1.1a"><mrow id="S4.E4.m1.1.1" xref="S4.E4.m1.1.1.cmml"><mstyle displaystyle="true" id="S4.E4.m1.1.1.2" xref="S4.E4.m1.1.1.2.cmml"><mfrac id="S4.E4.m1.1.1.2a" xref="S4.E4.m1.1.1.2.cmml"><mrow id="S4.E4.m1.1.1.2.2" xref="S4.E4.m1.1.1.2.2.cmml"><mi id="S4.E4.m1.1.1.2.2.2" xref="S4.E4.m1.1.1.2.2.2.cmml">n</mi><mo rspace="0.055em" id="S4.E4.m1.1.1.2.2.1" xref="S4.E4.m1.1.1.2.2.1.cmml">−</mo><mrow id="S4.E4.m1.1.1.2.2.3" xref="S4.E4.m1.1.1.2.2.3.cmml"><msubsup id="S4.E4.m1.1.1.2.2.3.1" xref="S4.E4.m1.1.1.2.2.3.1.cmml"><mo id="S4.E4.m1.1.1.2.2.3.1.2.2" xref="S4.E4.m1.1.1.2.2.3.1.2.2.cmml">∑</mo><mrow id="S4.E4.m1.1.1.2.2.3.1.3" xref="S4.E4.m1.1.1.2.2.3.1.3.cmml"><mi id="S4.E4.m1.1.1.2.2.3.1.3.2" xref="S4.E4.m1.1.1.2.2.3.1.3.2.cmml">i</mi><mo id="S4.E4.m1.1.1.2.2.3.1.3.1" xref="S4.E4.m1.1.1.2.2.3.1.3.1.cmml">=</mo><mn id="S4.E4.m1.1.1.2.2.3.1.3.3" xref="S4.E4.m1.1.1.2.2.3.1.3.3.cmml">1</mn></mrow><mi id="S4.E4.m1.1.1.2.2.3.1.2.3" xref="S4.E4.m1.1.1.2.2.3.1.2.3.cmml">m</mi></msubsup><msub id="S4.E4.m1.1.1.2.2.3.2" xref="S4.E4.m1.1.1.2.2.3.2.cmml"><mi id="S4.E4.m1.1.1.2.2.3.2.2" xref="S4.E4.m1.1.1.2.2.3.2.2.cmml">n</mi><mi id="S4.E4.m1.1.1.2.2.3.2.3" xref="S4.E4.m1.1.1.2.2.3.2.3.cmml">i</mi></msub></mrow></mrow><msub id="S4.E4.m1.1.1.2.3" xref="S4.E4.m1.1.1.2.3.cmml"><mi id="S4.E4.m1.1.1.2.3.2" xref="S4.E4.m1.1.1.2.3.2.cmml">n</mi><mn id="S4.E4.m1.1.1.2.3.3" xref="S4.E4.m1.1.1.2.3.3.cmml">0</mn></msub></mfrac></mstyle><mo lspace="0em" rspace="0em" id="S4.E4.m1.1.1.1" xref="S4.E4.m1.1.1.1.cmml">​</mo><mi id="S4.E4.m1.1.1.3" xref="S4.E4.m1.1.1.3.cmml">x</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.E4.m1.1b"><apply id="S4.E4.m1.1.1.cmml" xref="S4.E4.m1.1.1"><times id="S4.E4.m1.1.1.1.cmml" xref="S4.E4.m1.1.1.1"></times><apply id="S4.E4.m1.1.1.2.cmml" xref="S4.E4.m1.1.1.2"><divide id="S4.E4.m1.1.1.2.1.cmml" xref="S4.E4.m1.1.1.2"></divide><apply id="S4.E4.m1.1.1.2.2.cmml" xref="S4.E4.m1.1.1.2.2"><minus id="S4.E4.m1.1.1.2.2.1.cmml" xref="S4.E4.m1.1.1.2.2.1"></minus><ci id="S4.E4.m1.1.1.2.2.2.cmml" xref="S4.E4.m1.1.1.2.2.2">𝑛</ci><apply id="S4.E4.m1.1.1.2.2.3.cmml" xref="S4.E4.m1.1.1.2.2.3"><apply id="S4.E4.m1.1.1.2.2.3.1.cmml" xref="S4.E4.m1.1.1.2.2.3.1"><csymbol cd="ambiguous" id="S4.E4.m1.1.1.2.2.3.1.1.cmml" xref="S4.E4.m1.1.1.2.2.3.1">subscript</csymbol><apply id="S4.E4.m1.1.1.2.2.3.1.2.cmml" xref="S4.E4.m1.1.1.2.2.3.1"><csymbol cd="ambiguous" id="S4.E4.m1.1.1.2.2.3.1.2.1.cmml" xref="S4.E4.m1.1.1.2.2.3.1">superscript</csymbol><sum id="S4.E4.m1.1.1.2.2.3.1.2.2.cmml" xref="S4.E4.m1.1.1.2.2.3.1.2.2"></sum><ci id="S4.E4.m1.1.1.2.2.3.1.2.3.cmml" xref="S4.E4.m1.1.1.2.2.3.1.2.3">𝑚</ci></apply><apply id="S4.E4.m1.1.1.2.2.3.1.3.cmml" xref="S4.E4.m1.1.1.2.2.3.1.3"><eq id="S4.E4.m1.1.1.2.2.3.1.3.1.cmml" xref="S4.E4.m1.1.1.2.2.3.1.3.1"></eq><ci id="S4.E4.m1.1.1.2.2.3.1.3.2.cmml" xref="S4.E4.m1.1.1.2.2.3.1.3.2">𝑖</ci><cn type="integer" id="S4.E4.m1.1.1.2.2.3.1.3.3.cmml" xref="S4.E4.m1.1.1.2.2.3.1.3.3">1</cn></apply></apply><apply id="S4.E4.m1.1.1.2.2.3.2.cmml" xref="S4.E4.m1.1.1.2.2.3.2"><csymbol cd="ambiguous" id="S4.E4.m1.1.1.2.2.3.2.1.cmml" xref="S4.E4.m1.1.1.2.2.3.2">subscript</csymbol><ci id="S4.E4.m1.1.1.2.2.3.2.2.cmml" xref="S4.E4.m1.1.1.2.2.3.2.2">𝑛</ci><ci id="S4.E4.m1.1.1.2.2.3.2.3.cmml" xref="S4.E4.m1.1.1.2.2.3.2.3">𝑖</ci></apply></apply></apply><apply id="S4.E4.m1.1.1.2.3.cmml" xref="S4.E4.m1.1.1.2.3"><csymbol cd="ambiguous" id="S4.E4.m1.1.1.2.3.1.cmml" xref="S4.E4.m1.1.1.2.3">subscript</csymbol><ci id="S4.E4.m1.1.1.2.3.2.cmml" xref="S4.E4.m1.1.1.2.3.2">𝑛</ci><cn type="integer" id="S4.E4.m1.1.1.2.3.3.cmml" xref="S4.E4.m1.1.1.2.3.3">0</cn></apply></apply><ci id="S4.E4.m1.1.1.3.cmml" xref="S4.E4.m1.1.1.3">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E4.m1.1c">\displaystyle\frac{n-\sum^{m}_{i=1}n_{i}}{n_{0}}x</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.E4.m2.1" class="ltx_Math" alttext="\displaystyle=x" display="inline"><semantics id="S4.E4.m2.1a"><mrow id="S4.E4.m2.1.1" xref="S4.E4.m2.1.1.cmml"><mi id="S4.E4.m2.1.1.2" xref="S4.E4.m2.1.1.2.cmml"></mi><mo id="S4.E4.m2.1.1.1" xref="S4.E4.m2.1.1.1.cmml">=</mo><mi id="S4.E4.m2.1.1.3" xref="S4.E4.m2.1.1.3.cmml">x</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.E4.m2.1b"><apply id="S4.E4.m2.1.1.cmml" xref="S4.E4.m2.1.1"><eq id="S4.E4.m2.1.1.1.cmml" xref="S4.E4.m2.1.1.1"></eq><csymbol cd="latexml" id="S4.E4.m2.1.1.2.cmml" xref="S4.E4.m2.1.1.2">absent</csymbol><ci id="S4.E4.m2.1.1.3.cmml" xref="S4.E4.m2.1.1.3">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E4.m2.1c">\displaystyle=x</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S4.SS3.p3.2" class="ltx_p">Since the directions are likely to be quite different, we can expect that this attack would produce updates that are generally larger than <math id="S4.SS3.p3.2.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S4.SS3.p3.2.m1.1a"><mi id="S4.SS3.p3.2.m1.1.1" xref="S4.SS3.p3.2.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.2.m1.1b"><ci id="S4.SS3.p3.2.m1.1.1.cmml" xref="S4.SS3.p3.2.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.2.m1.1c">x</annotation></semantics></math>, and therefore would at a minimum need to be updated to clip the malicious updates to prevent detection based on magnitude.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para ltx_noindent">
+<p id="S5.p1.1" class="ltx_p">We have shown that an attacker is able to influence an FL model to have an unfair distribution of accuracies across different attributes by controlling only a small portion of the clients used in training. This is a significant issue because unfairness in machine learning models has been shown to have dire real world consequences<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite>. There has previously been significant research into fairness for FL in the presence of heterogeneous data distributions across clients, yet the case that we discuss here has so far seen no discussion. In this paper, we show that defending against attacks on fairness should be a critical consideration in any situation where unfairness in a trained model could benefit a user who participated in its training.
+<br class="ltx_break"></p>
+</div>
+<div id="S5.p2" class="ltx_para ltx_noindent">
+<p id="S5.p2.1" class="ltx_p">Previous work on backdoor defences may be effective against this new attack on fairness. In the future we would like the build on this work to investigate the effects of common backdoor defences on the attack we propose here and whether it is possible to bypass these defences.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Priyanka Mary Mammen.
+
+</span>
+<span class="ltx_bibblock">Federated learning: Opportunities and challenges, 2021.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+H. B. McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Agüera y Arcas.
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of deep networks from decentralized data.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">International Conference on Artificial Intelligence and Statistics</span>, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Eugene Bagdasaryan, Andreas Veit, Yiqing Hua, Deborah Estrin, and Vitaly Shmatikov.
+
+</span>
+<span class="ltx_bibblock">How to backdoor federated learning.
+
+</span>
+<span class="ltx_bibblock">In Silvia Chiappa and Roberto Calandra, editors, <span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">Proceedings of the Twenty Third International Conference on Artificial Intelligence and Statistics</span>, volume 108 of <span id="bib.bib3.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 2938–2948. PMLR, 2020.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Xingchen Zhou, Ming Xu, Yiming Wu, and Ning Zheng.
+
+</span>
+<span class="ltx_bibblock">Deep model poisoning attack on federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">Future Internet</span>, 13(3), 2021.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Zhengming Zhang, Ashwinee Panda, Linyue Song, Yaoqing Yang, Michael Mahoney, Prateek Mittal, Ramchandran Kannan, and Joseph Gonzalez.
+
+</span>
+<span class="ltx_bibblock">Neurotoxin: Durable backdoors in federated learning.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri, Stefanie Jegelka, Le Song, Csaba Szepesvari, Gang Niu, and Sivan Sabato, editors, <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Proceedings of the 39th International Conference on Machine Learning</span>, volume 162 of <span id="bib.bib5.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 26429–26446. PMLR, 17–23 Jul 2022.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Tianyuan Zou, Yang Liu, Yan Kang, Wenhan Liu, Yuanqin He, Zhihao Yi, Qiang Yang, and Ya-Qin Zhang.
+
+</span>
+<span class="ltx_bibblock">Defending batch-level label inference and replacement attacks in vertical federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">IEEE Transactions on Big Data</span>, pages 1–12, 2022.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Yang Liu, Zhihao Yi, and Tianjian Chen.
+
+</span>
+<span class="ltx_bibblock">Backdoor attacks and defenses in feature-partitioned collaborative learning, 07 2020.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Minh-Hao Van, Wei Du, Xintao Wu, and Aidong Lu.
+
+</span>
+<span class="ltx_bibblock">Poisoning attacks on fair machine learning.
+
+</span>
+<span class="ltx_bibblock">In Arnab Bhattacharya, Janice Lee Mong Li, Divyakant Agrawal, P. Krishna Reddy, Mukesh Mohania, Anirban Mondal, Vikram Goyal, and Rage Uday Kiran, editors, <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">Database Systems for Advanced Applications</span>, pages 370–386, Cham, 2022. Springer International Publishing.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+David Solans, Battista Biggio, and Carlos Castillo.
+
+</span>
+<span class="ltx_bibblock">Poisoning attacks on algorithmic fairness.
+
+</span>
+<span class="ltx_bibblock">In Frank Hutter, Kristian Kersting, Jefrey Lijffijt, and Isabel Valera, editors, <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Machine Learning and Knowledge Discovery in Databases</span>, pages 162–177, Cham, 2021. Springer International Publishing.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Nicholas Furth, Abdallah Khreishah, Guanxiong Liu, NhatHai Phan, and Yaser Jararweh.
+
+</span>
+<span class="ltx_bibblock">Un-fair trojan: Targeted backdoor attacks against model fairness.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">2022 Ninth International Conference on Software Defined Systems (SDS)</span>, pages 1–9, 2022.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Fengda Zhang, Kun Kuang, Yuxuan Liu, Long Chen, Jiaxun Lu, yunfeng shao, Fei Wu, Chao Wu, and Jun Xiao.
+
+</span>
+<span class="ltx_bibblock">Towards multi-level fairness and robustness on federated learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">ICML 2022: Workshop on Spurious Correlations, Invariance and Stability</span>, 2022.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Lucas Bourtoule, Varun Chandrasekaran, Christopher A. Choquette-Choo, Hengrui Jia, Adelin Travers, Baiwu Zhang, David Lie, and Nicolas Papernot.
+
+</span>
+<span class="ltx_bibblock">Machine unlearning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">2021 IEEE Symposium on Security and Privacy (SP)</span>, pages 141–159, 2021.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Alex Krizhevsky.
+
+</span>
+<span class="ltx_bibblock">Learning multiple layers of features from tiny images.
+
+</span>
+<span class="ltx_bibblock">Technical report, 2009.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Tianyu Gu, Brendan Dolan-Gavitt, and Siddharth Garg.
+
+</span>
+<span class="ltx_bibblock">Badnets: Identifying vulnerabilities in the machine learning model supply chain, 2019.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+I Shumailov, Zakhar Shumaylov, Dmitry Kazhdan, Yiren Zhao, Nicolas Papernot, Murat A Erdogdu, and Ross Anderson.
+
+</span>
+<span class="ltx_bibblock">Manipulating SGD with data ordering attacks.
+
+</span>
+<span class="ltx_bibblock">In A. Beygelzimer, Y. Dauphin, P. Liang, and J. Wortman Vaughan, editors, <span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>, 2021.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Joseph Rance, Yiren Zhao, Ilia Shumailov, and Robert D. Mullins.
+
+</span>
+<span class="ltx_bibblock">Augmentation backdoors.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib16.1.1" class="ltx_text ltx_font_italic">ICLR 2023 Workshop on Backdoor Attacks and Defenses in Machine Learning</span>, 2023.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Arjun Nitin Bhagoji, Supriyo Chakraborty, Prateek Mittal, and Seraphin Calo.
+
+</span>
+<span class="ltx_bibblock">Analyzing federated learning through an adversarial lens.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, <span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">Proceedings of the 36th International Conference on Machine Learning</span>, volume 97 of <span id="bib.bib17.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 634–643. PMLR, 09–15 Jun 2019.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Chulin Xie, Keli Huang, Pin-Yu Chen, and Bo Li.
+
+</span>
+<span class="ltx_bibblock">Dba: Distributed backdoor attacks against federated learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">International Conference on Learning Representations</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Minghong Fang, Xiaoyu Cao, Jinyuan Jia, and Neil Zhenqiang Gong.
+
+</span>
+<span class="ltx_bibblock">Local model poisoning attacks to byzantine-robust federated learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Proceedings of the 29th USENIX Conference on Security Symposium</span>, SEC’20, USA, 2020. USENIX Association.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Hongyi Wang, Kartik Sreenivasan, Shashank Rajput, Harit Vishwakarma, Saurabh Agarwal, Jy-yong Sohn, Kangwook Lee, and Dimitris Papailiopoulos.
+
+</span>
+<span class="ltx_bibblock">Attack of the tails: Yes, you really can backdoor federated learning.
+
+</span>
+<span class="ltx_bibblock">In H. Larochelle, M. Ranzato, R. Hadsell, M.F. Balcan, and H. Lin, editors, <span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>, volume 33, pages 16070–16084. Curran Associates, Inc., 2020.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+John Duchi and Hongseok Namkoong.
+
+</span>
+<span class="ltx_bibblock">Learning models with uniform performance via distributionally robust optimization.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">The Annals of Statistics</span>, 49, 06 2021.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Mehryar Mohri, Gary Sivek, and Ananda Theertha Suresh.
+
+</span>
+<span class="ltx_bibblock">Agnostic federated learning.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, <span id="bib.bib22.1.1" class="ltx_text ltx_font_italic">Proceedings of the 36th International Conference on Machine Learning</span>, volume 97 of <span id="bib.bib22.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 4615–4625. PMLR, 09–15 Jun 2019.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+Dong Yin, Yudong Chen, Ramchandran Kannan, and Peter Bartlett.
+
+</span>
+<span class="ltx_bibblock">Byzantine-robust distributed learning: Towards optimal statistical rates.
+
+</span>
+<span class="ltx_bibblock">In Jennifer Dy and Andreas Krause, editors, <span id="bib.bib23.1.1" class="ltx_text ltx_font_italic">Proceedings of the 35th International Conference on Machine Learning</span>, volume 80 of <span id="bib.bib23.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 5650–5659. PMLR, 10–15 Jul 2018.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+Peva Blanchard, El Mahdi El Mhamdi, Rachid Guerraoui, and Julien Stainer.
+
+</span>
+<span class="ltx_bibblock">Machine learning with adversaries: Byzantine tolerant gradient descent.
+
+</span>
+<span class="ltx_bibblock">In I. Guyon, U. Von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, editors, <span id="bib.bib24.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>, volume 30. Curran Associates, Inc., 2017.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Krishna Pillutla, Sham M. Kakade, and Zaid Harchaoui.
+
+</span>
+<span class="ltx_bibblock">Robust aggregation for federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text ltx_font_italic">IEEE Transactions on Signal Processing</span>, 70:1142–1154, 2022.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+Clement Fung, Chris Yoon, and Ivan Beschastnikh.
+
+</span>
+<span class="ltx_bibblock">Mitigating sybils in federated learning poisoning, 08 2018.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Ying Zhao, Junjun Chen, Jiale Zhang, Di Wu, Jian Teng, and Shui Yu.
+
+</span>
+<span class="ltx_bibblock">Pdgan: A novel poisoning defense method in federated learning using generative adversarial network.
+
+</span>
+<span class="ltx_bibblock">In Sheng Wen, Albert Zomaya, and Laurence T. Yang, editors, <span id="bib.bib27.1.1" class="ltx_text ltx_font_italic">Algorithms and Architectures for Parallel Processing</span>, pages 595–609, Cham, 2020. Springer International Publishing.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+Ziteng Sun, Peter Kairouz, Ananda Suresh, and H. McMahan.
+
+</span>
+<span class="ltx_bibblock">Can you really backdoor federated learning?, 11 2019.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+Mohammad Naseri, Jamie Hayes, and Emiliano De Cristofaro.
+
+</span>
+<span class="ltx_bibblock">Local and central differential privacy for robustness and privacy in federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib29.1.1" class="ltx_text ltx_font_italic">Proceedings 2022 Network and Distributed System Security Symposium</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+Thien Duc Nguyen, Phillip Rieger, Huili Chen, Hossein Yalame, Helen Möllering, Hossein Fereidooni, Samuel Marchal, Markus Miettinen, Azalia Mirhoseini, Shaza Zeitouni, Farinaz Koushanfar, Ahmad-Reza Sadeghi, and Thomas Schneider.
+
+</span>
+<span class="ltx_bibblock">Flame: Taming backdoors in federated learning.
+
+</span>
+<span class="ltx_bibblock">Cryptology ePrint Archive, Paper 2021/025, 2021.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://eprint.iacr.org/2021/025" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://eprint.iacr.org/2021/025</a>.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+Ashneet Singh, Alberto Blanco-Justicia, and Josep Domingo-Ferrer.
+
+</span>
+<span class="ltx_bibblock">Fair detection of poisoning attacks in federated learning on non-i.i.d. data.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib31.1.1" class="ltx_text ltx_font_italic">Data Mining and Knowledge Discovery</span>, 37, 01 2023.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+Tian Li, Shengyuan Hu, Ahmad Beirami, and Virginia Smith.
+
+</span>
+<span class="ltx_bibblock">Ditto: Fair and robust federated learning through personalization.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib32.1.1" class="ltx_text ltx_font_italic">International Conference on Machine Learning</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+Lingjiao Chen, Hongyi Wang, Zachary B. Charles, and Dimitris Papailiopoulos.
+
+</span>
+<span class="ltx_bibblock">Draco: Byzantine-resilient distributed training via redundant gradients.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib33.1.1" class="ltx_text ltx_font_italic">International Conference on Machine Learning</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+Alex Najibi.
+
+</span>
+<span class="ltx_bibblock">Racial discrimination in face recognition technology.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://sitn.hms.harvard.edu/flash/2020/racial-discrimination-in-face-recognition-technology/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://sitn.hms.harvard.edu/flash/2020/racial-discrimination-in-face-recognition-technology/</a>.
+
+</span>
+<span class="ltx_bibblock">Accessed: 2023-09-10.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2311.12714" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2311.12715" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2311.12715">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2311.12715" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2311.12716" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Feb 27 18:18:46 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

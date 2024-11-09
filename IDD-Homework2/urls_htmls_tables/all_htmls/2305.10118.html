@@ -1,0 +1,1258 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2305.10118] Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques</title><meta property="og:description" content="Acquiring and annotating suitable datasets for training deep learning models is challenging. This often results in tedious and time-consuming efforts that can hinder research progress. However, generative models have e…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2305.10118">
+
+<!--Generated on Thu Feb 29 07:36:31 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques
+</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Andrea Lampis, Eugenio Lomurno, Matteo Matteucci 
+<br class="ltx_break">Politecnico di Milano 
+<br class="ltx_break">Milan, Italy
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">{andrea.lampis, eugenio.lomurno, matteo.matteucci}@polimi.it</span> 
+<br class="ltx_break">
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">Acquiring and annotating suitable datasets for training deep learning models is challenging. This often results in tedious and time-consuming efforts that can hinder research progress. However, generative models have emerged as a promising solution for generating synthetic datasets that can replace or augment real-world data. Despite this, the effectiveness of synthetic data is limited by their inability to fully capture the complexity and diversity of real-world data.
+To address this issue, we explore the use of Generative Adversarial Networks to generate synthetic datasets for training classifiers that are subsequently evaluated on real-world images. To improve the quality and diversity of the synthetic dataset, we propose three novel post-processing techniques: Dynamic Sample Filtering, Dynamic Dataset Recycle, and Expansion Trick. In addition, we introduce a pipeline called Gap Filler (GaFi), which applies these techniques in an optimal and coordinated manner to maximise classification accuracy on real-world data.
+Our experiments show that GaFi effectively reduces the gap with real-accuracy scores to an error of 2.03%, 1.78%, and 3.99% on the Fashion-MNIST, CIFAR-10, and CIFAR-100 datasets, respectively. These results represent a new state of the art in Classification Accuracy Score and highlight the effectiveness of post-processing techniques in improving the quality of synthetic datasets.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para ltx_noindent">
+<p id="S1.p1.1" class="ltx_p">Over the last few years, deep generative models have become so powerful that they are able to produce high-quality samples that are almost indistinguishable from the real ones. With these recent developments, it is natural to ask whether these models are powerful enough to generate data that can be effectively used to train a machine learning model to perform a specific downstream task, thus completely replacing the real data function. This would have several advantages, for example it could significantly reduce the cost and effort of data collection, or it could be helpful in cases where information cannot be shared directly for privacy or sensitivity reasons, or where the original dataset is too large and the generative model can be used as a compressed version of the real data.</p>
+</div>
+<div id="S1.p2" class="ltx_para ltx_noindent">
+<p id="S1.p2.1" class="ltx_p">In light of these considerations, and although the focus of these models has historically been on the perceptual quality of the data they generate, there have been attempts in recent years to formalise and quantify the usefulness of the synthetic data.
+An essential contribution was made by Ravuri <span id="S1.p2.1.1" class="ltx_text ltx_font_italic">et al.</span>, who pioneered the metric called Classification Accuracy Score (CAS) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Given a system for generating data, the CAS represents the accuracy performance that a classifier trained solely on its generated data is able to achieve on a test set consisting instead of real data.
+Surprisingly, despite the high perceptual quality of the data generated by the latest deep learning models, and despite the ability to generate an almost unlimited number of samples, training a model on them leads to a lower CAS value than the accuracy of the same model trained on real data.</p>
+</div>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.1" class="ltx_p">In this paper, we investigate if and how we can bridge the utility gap between synthetic data generated by generative models and real-world data. We analyse the post-processing techniques available in the literature and propose new ones to improve synthetic data quality. We then present a new post-processing pipeline, Gap Filler (GaFi), which can be applied to any generative model. GaFi combines the most effective post-processing techniques to achieve a significantly better generator, without the need to modify the model’s architecture or learning technique.</p>
+</div>
+<div id="S1.p4" class="ltx_para ltx_noindent">
+<p id="S1.p4.1" class="ltx_p">The contributions of our work are as follows:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">We propose two improved post-processing techniques, namely Dynamic Sample Filtering and Dynamic Dataset Recycle, and a novel method called Expansion Trick.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">We propose the GaFi pipeline, which consists of a set of post-processing techniques suitable for any generative model to maximise the CAS achieved with its generated data.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i3.p1.1" class="ltx_p">We demonstrate the effectiveness of the GaFi pipeline by obtaining empirical CAS results that approach the upper bound of real accuracy performance. This achievement sets a new state of the art in generating synthetic data for classification tasks.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Works</h2>
+
+<div id="S2.p1" class="ltx_para ltx_noindent">
+<p id="S2.p1.1" class="ltx_p">In the past decade, deep learning has seen a surge in the development of generative models that are capable of producing synthetic data with increasing similarity to real-world training data. Some of the key architectures that have contributed to this progress include Variational Autoencoders (VAEs) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, Generative Adversarial Networks (GANs) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, and Denoising Diffusion Probabilistic Models (DDPMs) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>.
+These models have been predominantly used in the field of computer vision, particularly for image generation. To measure the perceptual quality of generated images, various metrics have been proposed, of which the Inception Score (IS) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> and the Frécht Inception Distance (FID) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> are the most significant.</p>
+</div>
+<div id="S2.p2" class="ltx_para ltx_noindent">
+<p id="S2.p2.1" class="ltx_p">In addition, the creation of synthetic datasets, either to replace or to complement real-world ones, has gained increasing attention in machine learning applications. Synthetic data can offer significant advantages, such as the possibility to generate large-scale datasets with known properties, reducing the need for costly data collection and annotation, and overcoming issues related to data privacy and access.
+The use of generative models for synthetic data generation has found applications in several fields, including semantic segmentation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, optical flow estimation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, human motion understanding <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, and image classification <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>.</p>
+</div>
+<div id="S2.p3" class="ltx_para ltx_noindent">
+<p id="S2.p3.1" class="ltx_p">A fundamental contribution to the advancement of this alternative use of generative models has been made by Ravuri <span id="S2.p3.1.1" class="ltx_text ltx_font_italic">et al.</span>, which focused on evaluating the performance of GANs through a downstream classifier, introducing the Classification Accuracy Score (CAS) metric <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. The underlying idea is to train a classifier with synthetic images and evaluate its performance on a test set composed of real images. The challenge behind this proposal is that if a generative model captures in an optimal way the real data distribution, performance on the downstream task should be similar whether using the original or synthetic data.
+Unfortunately, achieving comparable performance between classifiers trained on real and synthetic data remains a challenge. Significant efforts have been made to bridge this accuracy gap.</p>
+</div>
+<div id="S2.p4" class="ltx_para ltx_noindent">
+<p id="S2.p4.1" class="ltx_p">One notable approach is the <span id="S2.p4.1.1" class="ltx_text ltx_font_bold">Sample Filtering</span> technique proposed by Dat <span id="S2.p4.1.2" class="ltx_text ltx_font_italic">et al.</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, which aims to optimise the quality of the data generated. The technique uses an auxiliary classifier trained on real data to predict the labels of synthetic samples. Samples with incorrect predictions or those with low prediction confidence are discarded. In addition, the authors propose the use of <span id="S2.p4.1.3" class="ltx_text ltx_font_bold">multiple generative models</span> to improve the accuracy of synthetic data by better capturing the real data distribution.
+Another approach to address the accuracy gap is the <span id="S2.p4.1.4" class="ltx_text ltx_font_bold">Dataset Smoothing</span> technique proposed by Besnier <span id="S2.p4.1.5" class="ltx_text ltx_font_italic">et al.</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. This technique aims to create a diverse but gradually changing dataset by replacing only a portion of the generated training data with new samples at each epoch.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Method</h2>
+
+<div id="S3.p1" class="ltx_para ltx_noindent">
+<p id="S3.p1.1" class="ltx_p">The present study aims to execute a comprehensive post-processing pipeline that can be applied to a broad range of generative models with the intention of improving their Classification Accuracy Score (CAS). To this end, we have meticulously surveyed the existing literature to identify the most effective techniques and subsequently adapted them to enhance their dynamicity and flexibility. In addition, we have devised and integrated novel methods into the proposed optimisation pipeline.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Post-processing Techniques</h3>
+
+<div id="S3.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p1.1" class="ltx_p"><span id="S3.SS1.p1.1.1" class="ltx_text ltx_font_bold">Dynamic Sample Filtering</span> Following Dat <span id="S3.SS1.p1.1.2" class="ltx_text ltx_font_italic">et al.</span> findings, we have re-implemented and extended their proposed technique using an adaptive approach that considers the dataset and generative model in use. As demonstrated in their ablation study, varying the filtering threshold may result in a synthetic dataset of superior quality compared to static filtering <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>.
+To this end, we introduce Dynamic Sample Filtering, a two-step technique. Firstly, we utilize a classifier to predict the generated samples, thereby discarding all incorrectly classified samples. Secondly, we define a range of filtering thresholds, incrementally increasing from 0 to 0.9. For each threshold, we construct a standalone dataset consisting of only the correctly predicted samples with confidence greater or equal to the threshold.
+We generate new data until the filtered samples reach the desired amount for each synthetic dataset. Finally, we train a classifier for each dataset and save the threshold value of the one achieving the best CAS. This technique helps eliminate low-quality images that could negatively impact the performance of the downstream classifier.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p2.1" class="ltx_p"><span id="S3.SS1.p2.1.1" class="ltx_text ltx_font_bold">Dynamic Dataset Recycle</span> Inspired by Besnier <span id="S3.SS1.p2.1.2" class="ltx_text ltx_font_italic">et al.</span>, we propose to extend their Dataset Smoothing technique, which has shown significant benefits in their research. Our approach, called Dynamic Dataset Recycle, differs from the original in that it replaces the entire synthetic dataset in each iteration, rather than just a portion.
+Our ablation studies show that recycling the entire dataset leads to better performance in terms of CAS.
+Furthermore, to address the issue of time complexity, which is proportional to the size of the generated dataset, we propose to generalise its use by recycling the dataset every N epochs of classifier training.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p3.1" class="ltx_p"><span id="S3.SS1.p3.1.1" class="ltx_text ltx_font_bold">Expansion Trick</span> We present a new method, the Expansion Trick, which works in contrast to the Truncation Trick proposed by Brock <span id="S3.SS1.p3.1.2" class="ltx_text ltx_font_italic">et al.</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. Instead of truncating the input noise space, we expand it by sampling from a normal distribution with a higher standard deviation than that used in model training. By increasing the diversity of the input noise space, our method encourages the generative model to explore regions that were less sampled during training. This leads to the production of more diverse and novel images, a desirable outcome in settings where diversity is prioritised over visual quality.
+However, as expected, the increased standard deviation of the input noise distribution reduces the quality of individual samples. Therefore, the Expansion Trick is most effective when combined with sample filtering techniques. This mitigates the negative effects of lower sample quality by selecting only the most relevant samples to train the classifier.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure"><img src="/html/2305.10118/assets/x1.png" id="S3.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="169" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Overview of the Gap Filler (GaFi) pipeline.</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Gap Filler Pipeline</h3>
+
+<div id="S3.SS2.p1" class="ltx_para ltx_noindent">
+<p id="S3.SS2.p1.1" class="ltx_p">In this section, we introduce the Gap Filler (GaFi) pipeline, which combines the post-processing techniques presented in the previous section. We discuss the importance of the correct application order and optimal hyperparameters for the techniques to work effectively and in synergy. The GaFi pipeline, depicted in Figure <a href="#S3.F1" title="Figure 1 ‣ 3.1 Post-processing Techniques ‣ 3 Method ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, is composed of the following sequential steps:</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para ltx_noindent">
+<ol id="S3.I1" class="ltx_enumerate">
+<li id="S3.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S3.I1.i1.p1" class="ltx_para">
+<p id="S3.I1.i1.p1.1" class="ltx_p"><span id="S3.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">Generative Model Training</span>: the initial step of the pipeline entails training a generative model and saving its checkpoints after every epoch for subsequent use in the pipeline. The specific type of generative model is not a constraint.</p>
+</div>
+</li>
+<li id="S3.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S3.I1.i2.p1" class="ltx_para">
+<p id="S3.I1.i2.p1.6" class="ltx_p"><span id="S3.I1.i2.p1.6.1" class="ltx_text ltx_font_bold">Checkpoint Optimization</span>: in order to optimise the performance of downstream classifiers, it is necessary to choose the best generative model among the saved checkpoints obtained during training. To accomplish this step, we propose evaluating each checkpoint by computing the CAS, and selecting the one that yields the highest performance. At this stage, we adopt a pipeline with fixed hyperparameters: a standard deviation <math id="S3.I1.i2.p1.1.m1.1" class="ltx_Math" alttext="\mathit{stddev}" display="inline"><semantics id="S3.I1.i2.p1.1.m1.1a"><mi id="S3.I1.i2.p1.1.m1.1.1" xref="S3.I1.i2.p1.1.m1.1.1.cmml">𝑠𝑡𝑑𝑑𝑒𝑣</mi><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.1.m1.1b"><ci id="S3.I1.i2.p1.1.m1.1.1.cmml" xref="S3.I1.i2.p1.1.m1.1.1">𝑠𝑡𝑑𝑑𝑒𝑣</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.1.m1.1c">\mathit{stddev}</annotation></semantics></math> of <math id="S3.I1.i2.p1.2.m2.1" class="ltx_Math" alttext="1.0" display="inline"><semantics id="S3.I1.i2.p1.2.m2.1a"><mn id="S3.I1.i2.p1.2.m2.1.1" xref="S3.I1.i2.p1.2.m2.1.1.cmml">1.0</mn><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.2.m2.1b"><cn type="float" id="S3.I1.i2.p1.2.m2.1.1.cmml" xref="S3.I1.i2.p1.2.m2.1.1">1.0</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.2.m2.1c">1.0</annotation></semantics></math> and a filtering threshold <math id="S3.I1.i2.p1.3.m3.1" class="ltx_Math" alttext="\mathit{threshold}" display="inline"><semantics id="S3.I1.i2.p1.3.m3.1a"><mi id="S3.I1.i2.p1.3.m3.1.1" xref="S3.I1.i2.p1.3.m3.1.1.cmml">𝑡ℎ𝑟𝑒𝑠ℎ𝑜𝑙𝑑</mi><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.3.m3.1b"><ci id="S3.I1.i2.p1.3.m3.1.1.cmml" xref="S3.I1.i2.p1.3.m3.1.1">𝑡ℎ𝑟𝑒𝑠ℎ𝑜𝑙𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.3.m3.1c">\mathit{threshold}</annotation></semantics></math> of <math id="S3.I1.i2.p1.4.m4.1" class="ltx_Math" alttext="0.0" display="inline"><semantics id="S3.I1.i2.p1.4.m4.1a"><mn id="S3.I1.i2.p1.4.m4.1.1" xref="S3.I1.i2.p1.4.m4.1.1.cmml">0.0</mn><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.4.m4.1b"><cn type="float" id="S3.I1.i2.p1.4.m4.1.1.cmml" xref="S3.I1.i2.p1.4.m4.1.1">0.0</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.4.m4.1c">0.0</annotation></semantics></math>, meaning only samples predicted as the wrong class are discarded, without considering the confidence of the prediction. To balance the training time of the classifier, we set the Dataset Recycle technique parameter <math id="S3.I1.i2.p1.5.m5.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S3.I1.i2.p1.5.m5.1a"><mi id="S3.I1.i2.p1.5.m5.1.1" xref="S3.I1.i2.p1.5.m5.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.5.m5.1b"><ci id="S3.I1.i2.p1.5.m5.1.1.cmml" xref="S3.I1.i2.p1.5.m5.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.5.m5.1c">N</annotation></semantics></math> to <math id="S3.I1.i2.p1.6.m6.1" class="ltx_Math" alttext="10" display="inline"><semantics id="S3.I1.i2.p1.6.m6.1a"><mn id="S3.I1.i2.p1.6.m6.1.1" xref="S3.I1.i2.p1.6.m6.1.1.cmml">10</mn><annotation-xml encoding="MathML-Content" id="S3.I1.i2.p1.6.m6.1b"><cn type="integer" id="S3.I1.i2.p1.6.m6.1.1.cmml" xref="S3.I1.i2.p1.6.m6.1.1">10</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i2.p1.6.m6.1c">10</annotation></semantics></math>, which generates a new synthetic dataset every 10 epochs. This configuration is referred to as the <span id="S3.I1.i2.p1.6.2" class="ltx_text ltx_font_italic">"Fast Pipeline"</span>.</p>
+</div>
+</li>
+<li id="S3.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S3.I1.i3.p1" class="ltx_para">
+<p id="S3.I1.i3.p1.5" class="ltx_p"><span id="S3.I1.i3.p1.5.1" class="ltx_text ltx_font_bold">Stddev Optimization</span>: after identifying the best generative model checkpoint, we proceed to tune the hyperparameters. We start by determining the optimal standard deviation for the input noise distribution, which corresponds to the best configuration for the Expansion Trick. We achieve this by using the "Fast Pipeline" to calculate the CAS while varying the standard deviation between two predefined values, <math id="S3.I1.i3.p1.1.m1.1" class="ltx_Math" alttext="s_{0}" display="inline"><semantics id="S3.I1.i3.p1.1.m1.1a"><msub id="S3.I1.i3.p1.1.m1.1.1" xref="S3.I1.i3.p1.1.m1.1.1.cmml"><mi id="S3.I1.i3.p1.1.m1.1.1.2" xref="S3.I1.i3.p1.1.m1.1.1.2.cmml">s</mi><mn id="S3.I1.i3.p1.1.m1.1.1.3" xref="S3.I1.i3.p1.1.m1.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i3.p1.1.m1.1b"><apply id="S3.I1.i3.p1.1.m1.1.1.cmml" xref="S3.I1.i3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.I1.i3.p1.1.m1.1.1.1.cmml" xref="S3.I1.i3.p1.1.m1.1.1">subscript</csymbol><ci id="S3.I1.i3.p1.1.m1.1.1.2.cmml" xref="S3.I1.i3.p1.1.m1.1.1.2">𝑠</ci><cn type="integer" id="S3.I1.i3.p1.1.m1.1.1.3.cmml" xref="S3.I1.i3.p1.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i3.p1.1.m1.1c">s_{0}</annotation></semantics></math> and <math id="S3.I1.i3.p1.2.m2.1" class="ltx_Math" alttext="s_{f}" display="inline"><semantics id="S3.I1.i3.p1.2.m2.1a"><msub id="S3.I1.i3.p1.2.m2.1.1" xref="S3.I1.i3.p1.2.m2.1.1.cmml"><mi id="S3.I1.i3.p1.2.m2.1.1.2" xref="S3.I1.i3.p1.2.m2.1.1.2.cmml">s</mi><mi id="S3.I1.i3.p1.2.m2.1.1.3" xref="S3.I1.i3.p1.2.m2.1.1.3.cmml">f</mi></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i3.p1.2.m2.1b"><apply id="S3.I1.i3.p1.2.m2.1.1.cmml" xref="S3.I1.i3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S3.I1.i3.p1.2.m2.1.1.1.cmml" xref="S3.I1.i3.p1.2.m2.1.1">subscript</csymbol><ci id="S3.I1.i3.p1.2.m2.1.1.2.cmml" xref="S3.I1.i3.p1.2.m2.1.1.2">𝑠</ci><ci id="S3.I1.i3.p1.2.m2.1.1.3.cmml" xref="S3.I1.i3.p1.2.m2.1.1.3">𝑓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i3.p1.2.m2.1c">s_{f}</annotation></semantics></math>. In our experiments, we set <math id="S3.I1.i3.p1.3.m3.1" class="ltx_Math" alttext="s_{0}=1.0" display="inline"><semantics id="S3.I1.i3.p1.3.m3.1a"><mrow id="S3.I1.i3.p1.3.m3.1.1" xref="S3.I1.i3.p1.3.m3.1.1.cmml"><msub id="S3.I1.i3.p1.3.m3.1.1.2" xref="S3.I1.i3.p1.3.m3.1.1.2.cmml"><mi id="S3.I1.i3.p1.3.m3.1.1.2.2" xref="S3.I1.i3.p1.3.m3.1.1.2.2.cmml">s</mi><mn id="S3.I1.i3.p1.3.m3.1.1.2.3" xref="S3.I1.i3.p1.3.m3.1.1.2.3.cmml">0</mn></msub><mo id="S3.I1.i3.p1.3.m3.1.1.1" xref="S3.I1.i3.p1.3.m3.1.1.1.cmml">=</mo><mn id="S3.I1.i3.p1.3.m3.1.1.3" xref="S3.I1.i3.p1.3.m3.1.1.3.cmml">1.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.I1.i3.p1.3.m3.1b"><apply id="S3.I1.i3.p1.3.m3.1.1.cmml" xref="S3.I1.i3.p1.3.m3.1.1"><eq id="S3.I1.i3.p1.3.m3.1.1.1.cmml" xref="S3.I1.i3.p1.3.m3.1.1.1"></eq><apply id="S3.I1.i3.p1.3.m3.1.1.2.cmml" xref="S3.I1.i3.p1.3.m3.1.1.2"><csymbol cd="ambiguous" id="S3.I1.i3.p1.3.m3.1.1.2.1.cmml" xref="S3.I1.i3.p1.3.m3.1.1.2">subscript</csymbol><ci id="S3.I1.i3.p1.3.m3.1.1.2.2.cmml" xref="S3.I1.i3.p1.3.m3.1.1.2.2">𝑠</ci><cn type="integer" id="S3.I1.i3.p1.3.m3.1.1.2.3.cmml" xref="S3.I1.i3.p1.3.m3.1.1.2.3">0</cn></apply><cn type="float" id="S3.I1.i3.p1.3.m3.1.1.3.cmml" xref="S3.I1.i3.p1.3.m3.1.1.3">1.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i3.p1.3.m3.1c">s_{0}=1.0</annotation></semantics></math> and <math id="S3.I1.i3.p1.4.m4.1" class="ltx_Math" alttext="s_{f}=2.0" display="inline"><semantics id="S3.I1.i3.p1.4.m4.1a"><mrow id="S3.I1.i3.p1.4.m4.1.1" xref="S3.I1.i3.p1.4.m4.1.1.cmml"><msub id="S3.I1.i3.p1.4.m4.1.1.2" xref="S3.I1.i3.p1.4.m4.1.1.2.cmml"><mi id="S3.I1.i3.p1.4.m4.1.1.2.2" xref="S3.I1.i3.p1.4.m4.1.1.2.2.cmml">s</mi><mi id="S3.I1.i3.p1.4.m4.1.1.2.3" xref="S3.I1.i3.p1.4.m4.1.1.2.3.cmml">f</mi></msub><mo id="S3.I1.i3.p1.4.m4.1.1.1" xref="S3.I1.i3.p1.4.m4.1.1.1.cmml">=</mo><mn id="S3.I1.i3.p1.4.m4.1.1.3" xref="S3.I1.i3.p1.4.m4.1.1.3.cmml">2.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.I1.i3.p1.4.m4.1b"><apply id="S3.I1.i3.p1.4.m4.1.1.cmml" xref="S3.I1.i3.p1.4.m4.1.1"><eq id="S3.I1.i3.p1.4.m4.1.1.1.cmml" xref="S3.I1.i3.p1.4.m4.1.1.1"></eq><apply id="S3.I1.i3.p1.4.m4.1.1.2.cmml" xref="S3.I1.i3.p1.4.m4.1.1.2"><csymbol cd="ambiguous" id="S3.I1.i3.p1.4.m4.1.1.2.1.cmml" xref="S3.I1.i3.p1.4.m4.1.1.2">subscript</csymbol><ci id="S3.I1.i3.p1.4.m4.1.1.2.2.cmml" xref="S3.I1.i3.p1.4.m4.1.1.2.2">𝑠</ci><ci id="S3.I1.i3.p1.4.m4.1.1.2.3.cmml" xref="S3.I1.i3.p1.4.m4.1.1.2.3">𝑓</ci></apply><cn type="float" id="S3.I1.i3.p1.4.m4.1.1.3.cmml" xref="S3.I1.i3.p1.4.m4.1.1.3">2.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i3.p1.4.m4.1c">s_{f}=2.0</annotation></semantics></math>, with incremental steps of <math id="S3.I1.i3.p1.5.m5.1" class="ltx_Math" alttext="0.05" display="inline"><semantics id="S3.I1.i3.p1.5.m5.1a"><mn id="S3.I1.i3.p1.5.m5.1.1" xref="S3.I1.i3.p1.5.m5.1.1.cmml">0.05</mn><annotation-xml encoding="MathML-Content" id="S3.I1.i3.p1.5.m5.1b"><cn type="float" id="S3.I1.i3.p1.5.m5.1.1.cmml" xref="S3.I1.i3.p1.5.m5.1.1">0.05</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i3.p1.5.m5.1c">0.05</annotation></semantics></math>.</p>
+</div>
+</li>
+<li id="S3.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S3.I1.i4.p1" class="ltx_para">
+<p id="S3.I1.i4.p1.5" class="ltx_p"><span id="S3.I1.i4.p1.5.1" class="ltx_text ltx_font_bold">Threshold Optimization</span>: once the optimal standard deviation has been determined, the next step is to find the optimal filtering threshold for the Dynamic Sample Filtering technique. We follow a similar approach as before, using the "Fast Pipeline" to compute the CAS while varying the filtering threshold between two specified values, <math id="S3.I1.i4.p1.1.m1.1" class="ltx_Math" alttext="t_{0}" display="inline"><semantics id="S3.I1.i4.p1.1.m1.1a"><msub id="S3.I1.i4.p1.1.m1.1.1" xref="S3.I1.i4.p1.1.m1.1.1.cmml"><mi id="S3.I1.i4.p1.1.m1.1.1.2" xref="S3.I1.i4.p1.1.m1.1.1.2.cmml">t</mi><mn id="S3.I1.i4.p1.1.m1.1.1.3" xref="S3.I1.i4.p1.1.m1.1.1.3.cmml">0</mn></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i4.p1.1.m1.1b"><apply id="S3.I1.i4.p1.1.m1.1.1.cmml" xref="S3.I1.i4.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.I1.i4.p1.1.m1.1.1.1.cmml" xref="S3.I1.i4.p1.1.m1.1.1">subscript</csymbol><ci id="S3.I1.i4.p1.1.m1.1.1.2.cmml" xref="S3.I1.i4.p1.1.m1.1.1.2">𝑡</ci><cn type="integer" id="S3.I1.i4.p1.1.m1.1.1.3.cmml" xref="S3.I1.i4.p1.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i4.p1.1.m1.1c">t_{0}</annotation></semantics></math> and <math id="S3.I1.i4.p1.2.m2.1" class="ltx_Math" alttext="t_{f}" display="inline"><semantics id="S3.I1.i4.p1.2.m2.1a"><msub id="S3.I1.i4.p1.2.m2.1.1" xref="S3.I1.i4.p1.2.m2.1.1.cmml"><mi id="S3.I1.i4.p1.2.m2.1.1.2" xref="S3.I1.i4.p1.2.m2.1.1.2.cmml">t</mi><mi id="S3.I1.i4.p1.2.m2.1.1.3" xref="S3.I1.i4.p1.2.m2.1.1.3.cmml">f</mi></msub><annotation-xml encoding="MathML-Content" id="S3.I1.i4.p1.2.m2.1b"><apply id="S3.I1.i4.p1.2.m2.1.1.cmml" xref="S3.I1.i4.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S3.I1.i4.p1.2.m2.1.1.1.cmml" xref="S3.I1.i4.p1.2.m2.1.1">subscript</csymbol><ci id="S3.I1.i4.p1.2.m2.1.1.2.cmml" xref="S3.I1.i4.p1.2.m2.1.1.2">𝑡</ci><ci id="S3.I1.i4.p1.2.m2.1.1.3.cmml" xref="S3.I1.i4.p1.2.m2.1.1.3">𝑓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i4.p1.2.m2.1c">t_{f}</annotation></semantics></math>. In our experiments, we set <math id="S3.I1.i4.p1.3.m3.1" class="ltx_Math" alttext="t_{0}=0.0" display="inline"><semantics id="S3.I1.i4.p1.3.m3.1a"><mrow id="S3.I1.i4.p1.3.m3.1.1" xref="S3.I1.i4.p1.3.m3.1.1.cmml"><msub id="S3.I1.i4.p1.3.m3.1.1.2" xref="S3.I1.i4.p1.3.m3.1.1.2.cmml"><mi id="S3.I1.i4.p1.3.m3.1.1.2.2" xref="S3.I1.i4.p1.3.m3.1.1.2.2.cmml">t</mi><mn id="S3.I1.i4.p1.3.m3.1.1.2.3" xref="S3.I1.i4.p1.3.m3.1.1.2.3.cmml">0</mn></msub><mo id="S3.I1.i4.p1.3.m3.1.1.1" xref="S3.I1.i4.p1.3.m3.1.1.1.cmml">=</mo><mn id="S3.I1.i4.p1.3.m3.1.1.3" xref="S3.I1.i4.p1.3.m3.1.1.3.cmml">0.0</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.I1.i4.p1.3.m3.1b"><apply id="S3.I1.i4.p1.3.m3.1.1.cmml" xref="S3.I1.i4.p1.3.m3.1.1"><eq id="S3.I1.i4.p1.3.m3.1.1.1.cmml" xref="S3.I1.i4.p1.3.m3.1.1.1"></eq><apply id="S3.I1.i4.p1.3.m3.1.1.2.cmml" xref="S3.I1.i4.p1.3.m3.1.1.2"><csymbol cd="ambiguous" id="S3.I1.i4.p1.3.m3.1.1.2.1.cmml" xref="S3.I1.i4.p1.3.m3.1.1.2">subscript</csymbol><ci id="S3.I1.i4.p1.3.m3.1.1.2.2.cmml" xref="S3.I1.i4.p1.3.m3.1.1.2.2">𝑡</ci><cn type="integer" id="S3.I1.i4.p1.3.m3.1.1.2.3.cmml" xref="S3.I1.i4.p1.3.m3.1.1.2.3">0</cn></apply><cn type="float" id="S3.I1.i4.p1.3.m3.1.1.3.cmml" xref="S3.I1.i4.p1.3.m3.1.1.3">0.0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i4.p1.3.m3.1c">t_{0}=0.0</annotation></semantics></math> and <math id="S3.I1.i4.p1.4.m4.1" class="ltx_Math" alttext="t_{f}=0.9" display="inline"><semantics id="S3.I1.i4.p1.4.m4.1a"><mrow id="S3.I1.i4.p1.4.m4.1.1" xref="S3.I1.i4.p1.4.m4.1.1.cmml"><msub id="S3.I1.i4.p1.4.m4.1.1.2" xref="S3.I1.i4.p1.4.m4.1.1.2.cmml"><mi id="S3.I1.i4.p1.4.m4.1.1.2.2" xref="S3.I1.i4.p1.4.m4.1.1.2.2.cmml">t</mi><mi id="S3.I1.i4.p1.4.m4.1.1.2.3" xref="S3.I1.i4.p1.4.m4.1.1.2.3.cmml">f</mi></msub><mo id="S3.I1.i4.p1.4.m4.1.1.1" xref="S3.I1.i4.p1.4.m4.1.1.1.cmml">=</mo><mn id="S3.I1.i4.p1.4.m4.1.1.3" xref="S3.I1.i4.p1.4.m4.1.1.3.cmml">0.9</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.I1.i4.p1.4.m4.1b"><apply id="S3.I1.i4.p1.4.m4.1.1.cmml" xref="S3.I1.i4.p1.4.m4.1.1"><eq id="S3.I1.i4.p1.4.m4.1.1.1.cmml" xref="S3.I1.i4.p1.4.m4.1.1.1"></eq><apply id="S3.I1.i4.p1.4.m4.1.1.2.cmml" xref="S3.I1.i4.p1.4.m4.1.1.2"><csymbol cd="ambiguous" id="S3.I1.i4.p1.4.m4.1.1.2.1.cmml" xref="S3.I1.i4.p1.4.m4.1.1.2">subscript</csymbol><ci id="S3.I1.i4.p1.4.m4.1.1.2.2.cmml" xref="S3.I1.i4.p1.4.m4.1.1.2.2">𝑡</ci><ci id="S3.I1.i4.p1.4.m4.1.1.2.3.cmml" xref="S3.I1.i4.p1.4.m4.1.1.2.3">𝑓</ci></apply><cn type="float" id="S3.I1.i4.p1.4.m4.1.1.3.cmml" xref="S3.I1.i4.p1.4.m4.1.1.3">0.9</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i4.p1.4.m4.1c">t_{f}=0.9</annotation></semantics></math>, with increments of <math id="S3.I1.i4.p1.5.m5.1" class="ltx_Math" alttext="0.1" display="inline"><semantics id="S3.I1.i4.p1.5.m5.1a"><mn id="S3.I1.i4.p1.5.m5.1.1" xref="S3.I1.i4.p1.5.m5.1.1.cmml">0.1</mn><annotation-xml encoding="MathML-Content" id="S3.I1.i4.p1.5.m5.1b"><cn type="float" id="S3.I1.i4.p1.5.m5.1.1.cmml" xref="S3.I1.i4.p1.5.m5.1.1">0.1</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i4.p1.5.m5.1c">0.1</annotation></semantics></math>.</p>
+</div>
+</li>
+<li id="S3.I1.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">5.</span> 
+<div id="S3.I1.i5.p1" class="ltx_para">
+<p id="S3.I1.i5.p1.1" class="ltx_p"><span id="S3.I1.i5.p1.1.1" class="ltx_text ltx_font_bold">CAS with best hyperparameters</span>: finally, with the optimal hyperparameters in hand, we can proceed to train the classifier using the <span id="S3.I1.i5.p1.1.2" class="ltx_text ltx_font_italic">"Accurate Pipeline"</span>. Here, the Dynamic Dataset Recycle technique is set to <math id="S3.I1.i5.p1.1.m1.1" class="ltx_Math" alttext="N=1" display="inline"><semantics id="S3.I1.i5.p1.1.m1.1a"><mrow id="S3.I1.i5.p1.1.m1.1.1" xref="S3.I1.i5.p1.1.m1.1.1.cmml"><mi id="S3.I1.i5.p1.1.m1.1.1.2" xref="S3.I1.i5.p1.1.m1.1.1.2.cmml">N</mi><mo id="S3.I1.i5.p1.1.m1.1.1.1" xref="S3.I1.i5.p1.1.m1.1.1.1.cmml">=</mo><mn id="S3.I1.i5.p1.1.m1.1.1.3" xref="S3.I1.i5.p1.1.m1.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.I1.i5.p1.1.m1.1b"><apply id="S3.I1.i5.p1.1.m1.1.1.cmml" xref="S3.I1.i5.p1.1.m1.1.1"><eq id="S3.I1.i5.p1.1.m1.1.1.1.cmml" xref="S3.I1.i5.p1.1.m1.1.1.1"></eq><ci id="S3.I1.i5.p1.1.m1.1.1.2.cmml" xref="S3.I1.i5.p1.1.m1.1.1.2">𝑁</ci><cn type="integer" id="S3.I1.i5.p1.1.m1.1.1.3.cmml" xref="S3.I1.i5.p1.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i5.p1.1.m1.1c">N=1</annotation></semantics></math>, allowing the use of data with a high degree of diversity to obtain the optimal classifier with respect to the generator under consideration.</p>
+</div>
+</li>
+<li id="S3.I1.i6" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">6.</span> 
+<div id="S3.I1.i6.p1" class="ltx_para ltx_noindent">
+<p id="S3.I1.i6.p1.1" class="ltx_p"><span id="S3.I1.i6.p1.1.1" class="ltx_text ltx_font_bold">Multiple Generators Sampling</span>: the final step of the GaFi pipeline is to create multiple generative models to sample the data and train a single optimal classifier. This is achieved by repeating all the previous steps of the pipeline <math id="S3.I1.i6.p1.1.m1.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.I1.i6.p1.1.m1.1a"><mi id="S3.I1.i6.p1.1.m1.1.1" xref="S3.I1.i6.p1.1.m1.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.I1.i6.p1.1.m1.1b"><ci id="S3.I1.i6.p1.1.m1.1.1.cmml" xref="S3.I1.i6.p1.1.m1.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.I1.i6.p1.1.m1.1c">K</annotation></semantics></math> times. According to Dat <span id="S3.I1.i6.p1.1.2" class="ltx_text ltx_font_italic">et al.</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, it is sufficient to train multiple identical generative models with different initialisation seeds on the same dataset. In this way, different aspects of the distribution of the dataset can be captured. A synthetic dataset is then created by sampling uniformly from these multiple models for each training epoch of the classifier.</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experiments Setup</h2>
+
+<div id="S4.p1" class="ltx_para ltx_noindent">
+<p id="S4.p1.8" class="ltx_p">In order to increase the transparency and reproducibility of the study, this section provides a comprehensive description of the experiments conducted and their setup.
+We selected the BigGAN Deep architecture as the generative model for our study <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>.
+To implement this architecture, we adopted the StudioGAN library <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>, which makes slight modifications to the layer layout of the generator and discriminator residual blocks. Both <math id="S4.p1.1.m1.1" class="ltx_Math" alttext="G" display="inline"><semantics id="S4.p1.1.m1.1a"><mi id="S4.p1.1.m1.1.1" xref="S4.p1.1.m1.1.1.cmml">G</mi><annotation-xml encoding="MathML-Content" id="S4.p1.1.m1.1b"><ci id="S4.p1.1.m1.1.1.cmml" xref="S4.p1.1.m1.1.1">𝐺</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.1.m1.1c">G</annotation></semantics></math> and <math id="S4.p1.2.m2.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S4.p1.2.m2.1a"><mi id="S4.p1.2.m2.1.1" xref="S4.p1.2.m2.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S4.p1.2.m2.1b"><ci id="S4.p1.2.m2.1.1.cmml" xref="S4.p1.2.m2.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.2.m2.1c">D</annotation></semantics></math> networks are initialised using the Orthogonal Initialization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite> technique, and trained using the Adam optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> with hyperparameters <math id="S4.p1.3.m3.1" class="ltx_Math" alttext="\beta_{1}=0.5" display="inline"><semantics id="S4.p1.3.m3.1a"><mrow id="S4.p1.3.m3.1.1" xref="S4.p1.3.m3.1.1.cmml"><msub id="S4.p1.3.m3.1.1.2" xref="S4.p1.3.m3.1.1.2.cmml"><mi id="S4.p1.3.m3.1.1.2.2" xref="S4.p1.3.m3.1.1.2.2.cmml">β</mi><mn id="S4.p1.3.m3.1.1.2.3" xref="S4.p1.3.m3.1.1.2.3.cmml">1</mn></msub><mo id="S4.p1.3.m3.1.1.1" xref="S4.p1.3.m3.1.1.1.cmml">=</mo><mn id="S4.p1.3.m3.1.1.3" xref="S4.p1.3.m3.1.1.3.cmml">0.5</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.3.m3.1b"><apply id="S4.p1.3.m3.1.1.cmml" xref="S4.p1.3.m3.1.1"><eq id="S4.p1.3.m3.1.1.1.cmml" xref="S4.p1.3.m3.1.1.1"></eq><apply id="S4.p1.3.m3.1.1.2.cmml" xref="S4.p1.3.m3.1.1.2"><csymbol cd="ambiguous" id="S4.p1.3.m3.1.1.2.1.cmml" xref="S4.p1.3.m3.1.1.2">subscript</csymbol><ci id="S4.p1.3.m3.1.1.2.2.cmml" xref="S4.p1.3.m3.1.1.2.2">𝛽</ci><cn type="integer" id="S4.p1.3.m3.1.1.2.3.cmml" xref="S4.p1.3.m3.1.1.2.3">1</cn></apply><cn type="float" id="S4.p1.3.m3.1.1.3.cmml" xref="S4.p1.3.m3.1.1.3">0.5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.3.m3.1c">\beta_{1}=0.5</annotation></semantics></math>, <math id="S4.p1.4.m4.1" class="ltx_Math" alttext="\beta_{2}=0.999" display="inline"><semantics id="S4.p1.4.m4.1a"><mrow id="S4.p1.4.m4.1.1" xref="S4.p1.4.m4.1.1.cmml"><msub id="S4.p1.4.m4.1.1.2" xref="S4.p1.4.m4.1.1.2.cmml"><mi id="S4.p1.4.m4.1.1.2.2" xref="S4.p1.4.m4.1.1.2.2.cmml">β</mi><mn id="S4.p1.4.m4.1.1.2.3" xref="S4.p1.4.m4.1.1.2.3.cmml">2</mn></msub><mo id="S4.p1.4.m4.1.1.1" xref="S4.p1.4.m4.1.1.1.cmml">=</mo><mn id="S4.p1.4.m4.1.1.3" xref="S4.p1.4.m4.1.1.3.cmml">0.999</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.4.m4.1b"><apply id="S4.p1.4.m4.1.1.cmml" xref="S4.p1.4.m4.1.1"><eq id="S4.p1.4.m4.1.1.1.cmml" xref="S4.p1.4.m4.1.1.1"></eq><apply id="S4.p1.4.m4.1.1.2.cmml" xref="S4.p1.4.m4.1.1.2"><csymbol cd="ambiguous" id="S4.p1.4.m4.1.1.2.1.cmml" xref="S4.p1.4.m4.1.1.2">subscript</csymbol><ci id="S4.p1.4.m4.1.1.2.2.cmml" xref="S4.p1.4.m4.1.1.2.2">𝛽</ci><cn type="integer" id="S4.p1.4.m4.1.1.2.3.cmml" xref="S4.p1.4.m4.1.1.2.3">2</cn></apply><cn type="float" id="S4.p1.4.m4.1.1.3.cmml" xref="S4.p1.4.m4.1.1.3">0.999</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.4.m4.1c">\beta_{2}=0.999</annotation></semantics></math>, and a constant learning rate of <math id="S4.p1.5.m5.1" class="ltx_Math" alttext="2e^{-4}" display="inline"><semantics id="S4.p1.5.m5.1a"><mrow id="S4.p1.5.m5.1.1" xref="S4.p1.5.m5.1.1.cmml"><mn id="S4.p1.5.m5.1.1.2" xref="S4.p1.5.m5.1.1.2.cmml">2</mn><mo lspace="0em" rspace="0em" id="S4.p1.5.m5.1.1.1" xref="S4.p1.5.m5.1.1.1.cmml">​</mo><msup id="S4.p1.5.m5.1.1.3" xref="S4.p1.5.m5.1.1.3.cmml"><mi id="S4.p1.5.m5.1.1.3.2" xref="S4.p1.5.m5.1.1.3.2.cmml">e</mi><mrow id="S4.p1.5.m5.1.1.3.3" xref="S4.p1.5.m5.1.1.3.3.cmml"><mo id="S4.p1.5.m5.1.1.3.3a" xref="S4.p1.5.m5.1.1.3.3.cmml">−</mo><mn id="S4.p1.5.m5.1.1.3.3.2" xref="S4.p1.5.m5.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.5.m5.1b"><apply id="S4.p1.5.m5.1.1.cmml" xref="S4.p1.5.m5.1.1"><times id="S4.p1.5.m5.1.1.1.cmml" xref="S4.p1.5.m5.1.1.1"></times><cn type="integer" id="S4.p1.5.m5.1.1.2.cmml" xref="S4.p1.5.m5.1.1.2">2</cn><apply id="S4.p1.5.m5.1.1.3.cmml" xref="S4.p1.5.m5.1.1.3"><csymbol cd="ambiguous" id="S4.p1.5.m5.1.1.3.1.cmml" xref="S4.p1.5.m5.1.1.3">superscript</csymbol><ci id="S4.p1.5.m5.1.1.3.2.cmml" xref="S4.p1.5.m5.1.1.3.2">𝑒</ci><apply id="S4.p1.5.m5.1.1.3.3.cmml" xref="S4.p1.5.m5.1.1.3.3"><minus id="S4.p1.5.m5.1.1.3.3.1.cmml" xref="S4.p1.5.m5.1.1.3.3"></minus><cn type="integer" id="S4.p1.5.m5.1.1.3.3.2.cmml" xref="S4.p1.5.m5.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.5.m5.1c">2e^{-4}</annotation></semantics></math>.
+We also utilized the Exponential Moving Average (EMA) technique for the weights of <math id="S4.p1.6.m6.1" class="ltx_Math" alttext="G" display="inline"><semantics id="S4.p1.6.m6.1a"><mi id="S4.p1.6.m6.1.1" xref="S4.p1.6.m6.1.1.cmml">G</mi><annotation-xml encoding="MathML-Content" id="S4.p1.6.m6.1b"><ci id="S4.p1.6.m6.1.1.cmml" xref="S4.p1.6.m6.1.1">𝐺</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.6.m6.1c">G</annotation></semantics></math> with a decay rate of 0.9999, as recommended by Brock <span id="S4.p1.8.1" class="ltx_text ltx_font_italic">et al.</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. Data augmentation was limited to random horizontal flipping of the training set. We trained all models using a batch size of 192 and with 3 <math id="S4.p1.7.m7.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S4.p1.7.m7.1a"><mi id="S4.p1.7.m7.1.1" xref="S4.p1.7.m7.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S4.p1.7.m7.1b"><ci id="S4.p1.7.m7.1.1.cmml" xref="S4.p1.7.m7.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.7.m7.1c">D</annotation></semantics></math> steps per <math id="S4.p1.8.m8.1" class="ltx_Math" alttext="G" display="inline"><semantics id="S4.p1.8.m8.1a"><mi id="S4.p1.8.m8.1.1" xref="S4.p1.8.m8.1.1.cmml">G</mi><annotation-xml encoding="MathML-Content" id="S4.p1.8.m8.1b"><ci id="S4.p1.8.m8.1.1.cmml" xref="S4.p1.8.m8.1.1">𝐺</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.8.m8.1c">G</annotation></semantics></math> step.</p>
+</div>
+<div id="S4.p2" class="ltx_para ltx_noindent">
+<p id="S4.p2.3" class="ltx_p">We have chosen to employ the ResNet-20 architecture <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> as the downstream classifier due to its well-established performance. ResNet-20’s width was set to 64, and the conventional ResNet training techniques were employed. This includes training it with cross-entropy loss, using a batch size of 128, training for 100 epochs, and using the SGD optimizer with an initial learning rate of 0.1, momentum of 0.9, and weight decay of <math id="S4.p2.1.m1.1" class="ltx_Math" alttext="1e^{-4}" display="inline"><semantics id="S4.p2.1.m1.1a"><mrow id="S4.p2.1.m1.1.1" xref="S4.p2.1.m1.1.1.cmml"><mn id="S4.p2.1.m1.1.1.2" xref="S4.p2.1.m1.1.1.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S4.p2.1.m1.1.1.1" xref="S4.p2.1.m1.1.1.1.cmml">​</mo><msup id="S4.p2.1.m1.1.1.3" xref="S4.p2.1.m1.1.1.3.cmml"><mi id="S4.p2.1.m1.1.1.3.2" xref="S4.p2.1.m1.1.1.3.2.cmml">e</mi><mrow id="S4.p2.1.m1.1.1.3.3" xref="S4.p2.1.m1.1.1.3.3.cmml"><mo id="S4.p2.1.m1.1.1.3.3a" xref="S4.p2.1.m1.1.1.3.3.cmml">−</mo><mn id="S4.p2.1.m1.1.1.3.3.2" xref="S4.p2.1.m1.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S4.p2.1.m1.1b"><apply id="S4.p2.1.m1.1.1.cmml" xref="S4.p2.1.m1.1.1"><times id="S4.p2.1.m1.1.1.1.cmml" xref="S4.p2.1.m1.1.1.1"></times><cn type="integer" id="S4.p2.1.m1.1.1.2.cmml" xref="S4.p2.1.m1.1.1.2">1</cn><apply id="S4.p2.1.m1.1.1.3.cmml" xref="S4.p2.1.m1.1.1.3"><csymbol cd="ambiguous" id="S4.p2.1.m1.1.1.3.1.cmml" xref="S4.p2.1.m1.1.1.3">superscript</csymbol><ci id="S4.p2.1.m1.1.1.3.2.cmml" xref="S4.p2.1.m1.1.1.3.2">𝑒</ci><apply id="S4.p2.1.m1.1.1.3.3.cmml" xref="S4.p2.1.m1.1.1.3.3"><minus id="S4.p2.1.m1.1.1.3.3.1.cmml" xref="S4.p2.1.m1.1.1.3.3"></minus><cn type="integer" id="S4.p2.1.m1.1.1.3.3.2.cmml" xref="S4.p2.1.m1.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.1.m1.1c">1e^{-4}</annotation></semantics></math>. The learning rate was reduced by a factor of 10 at epochs 60 and 80. To augment the synthetic training set, which has the same cardinality as the real dataset, a simple form of data augmentation was used. This involves zero-padding the input image, or its horizontally flipped version, to a size of <math id="S4.p2.2.m2.1" class="ltx_Math" alttext="40\times 40" display="inline"><semantics id="S4.p2.2.m2.1a"><mrow id="S4.p2.2.m2.1.1" xref="S4.p2.2.m2.1.1.cmml"><mn id="S4.p2.2.m2.1.1.2" xref="S4.p2.2.m2.1.1.2.cmml">40</mn><mo lspace="0.222em" rspace="0.222em" id="S4.p2.2.m2.1.1.1" xref="S4.p2.2.m2.1.1.1.cmml">×</mo><mn id="S4.p2.2.m2.1.1.3" xref="S4.p2.2.m2.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p2.2.m2.1b"><apply id="S4.p2.2.m2.1.1.cmml" xref="S4.p2.2.m2.1.1"><times id="S4.p2.2.m2.1.1.1.cmml" xref="S4.p2.2.m2.1.1.1"></times><cn type="integer" id="S4.p2.2.m2.1.1.2.cmml" xref="S4.p2.2.m2.1.1.2">40</cn><cn type="integer" id="S4.p2.2.m2.1.1.3.cmml" xref="S4.p2.2.m2.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.2.m2.1c">40\times 40</annotation></semantics></math>, extracting a random crop of size <math id="S4.p2.3.m3.1" class="ltx_Math" alttext="32\times 32" display="inline"><semantics id="S4.p2.3.m3.1a"><mrow id="S4.p2.3.m3.1.1" xref="S4.p2.3.m3.1.1.cmml"><mn id="S4.p2.3.m3.1.1.2" xref="S4.p2.3.m3.1.1.2.cmml">32</mn><mo lspace="0.222em" rspace="0.222em" id="S4.p2.3.m3.1.1.1" xref="S4.p2.3.m3.1.1.1.cmml">×</mo><mn id="S4.p2.3.m3.1.1.3" xref="S4.p2.3.m3.1.1.3.cmml">32</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p2.3.m3.1b"><apply id="S4.p2.3.m3.1.1.cmml" xref="S4.p2.3.m3.1.1"><times id="S4.p2.3.m3.1.1.1.cmml" xref="S4.p2.3.m3.1.1.1"></times><cn type="integer" id="S4.p2.3.m3.1.1.2.cmml" xref="S4.p2.3.m3.1.1.2">32</cn><cn type="integer" id="S4.p2.3.m3.1.1.3.cmml" xref="S4.p2.3.m3.1.1.3">32</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.3.m3.1c">32\times 32</annotation></semantics></math>, and using it as the final input image.</p>
+</div>
+<div id="S4.p3" class="ltx_para ltx_noindent">
+<p id="S4.p3.3" class="ltx_p">All experiments were conducted on three datasets, namely <span id="S4.p3.3.1" class="ltx_text ltx_font_typewriter">Fashion-MNIST</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>, <span id="S4.p3.3.2" class="ltx_text ltx_font_typewriter">CIFAR-10</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> and <span id="S4.p3.3.3" class="ltx_text ltx_font_typewriter">CIFAR-100</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>. The <span id="S4.p3.3.4" class="ltx_text ltx_font_typewriter">Fashion-MNIST</span> dataset contains 60,000 grey-scale <math id="S4.p3.1.m1.1" class="ltx_Math" alttext="28\times 28" display="inline"><semantics id="S4.p3.1.m1.1a"><mrow id="S4.p3.1.m1.1.1" xref="S4.p3.1.m1.1.1.cmml"><mn id="S4.p3.1.m1.1.1.2" xref="S4.p3.1.m1.1.1.2.cmml">28</mn><mo lspace="0.222em" rspace="0.222em" id="S4.p3.1.m1.1.1.1" xref="S4.p3.1.m1.1.1.1.cmml">×</mo><mn id="S4.p3.1.m1.1.1.3" xref="S4.p3.1.m1.1.1.3.cmml">28</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p3.1.m1.1b"><apply id="S4.p3.1.m1.1.1.cmml" xref="S4.p3.1.m1.1.1"><times id="S4.p3.1.m1.1.1.1.cmml" xref="S4.p3.1.m1.1.1.1"></times><cn type="integer" id="S4.p3.1.m1.1.1.2.cmml" xref="S4.p3.1.m1.1.1.2">28</cn><cn type="integer" id="S4.p3.1.m1.1.1.3.cmml" xref="S4.p3.1.m1.1.1.3">28</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.1.m1.1c">28\times 28</annotation></semantics></math> training images divided into 10 classes, while the other two datasets contain 50,000 RGB <math id="S4.p3.2.m2.1" class="ltx_Math" alttext="32\times 32" display="inline"><semantics id="S4.p3.2.m2.1a"><mrow id="S4.p3.2.m2.1.1" xref="S4.p3.2.m2.1.1.cmml"><mn id="S4.p3.2.m2.1.1.2" xref="S4.p3.2.m2.1.1.2.cmml">32</mn><mo lspace="0.222em" rspace="0.222em" id="S4.p3.2.m2.1.1.1" xref="S4.p3.2.m2.1.1.1.cmml">×</mo><mn id="S4.p3.2.m2.1.1.3" xref="S4.p3.2.m2.1.1.3.cmml">32</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p3.2.m2.1b"><apply id="S4.p3.2.m2.1.1.cmml" xref="S4.p3.2.m2.1.1"><times id="S4.p3.2.m2.1.1.1.cmml" xref="S4.p3.2.m2.1.1.1"></times><cn type="integer" id="S4.p3.2.m2.1.1.2.cmml" xref="S4.p3.2.m2.1.1.2">32</cn><cn type="integer" id="S4.p3.2.m2.1.1.3.cmml" xref="S4.p3.2.m2.1.1.3">32</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.2.m2.1c">32\times 32</annotation></semantics></math> training images divided into 10 and 100 categories, respectively. All three datasets have a test set of 10,000 images, which is used as the evaluation set for the classifiers. To make the images of the <span id="S4.p3.3.5" class="ltx_text ltx_font_typewriter">Fashion-MNIST</span> dataset the same size as the other datasets, we resized them to <math id="S4.p3.3.m3.1" class="ltx_Math" alttext="32\times 32" display="inline"><semantics id="S4.p3.3.m3.1a"><mrow id="S4.p3.3.m3.1.1" xref="S4.p3.3.m3.1.1.cmml"><mn id="S4.p3.3.m3.1.1.2" xref="S4.p3.3.m3.1.1.2.cmml">32</mn><mo lspace="0.222em" rspace="0.222em" id="S4.p3.3.m3.1.1.1" xref="S4.p3.3.m3.1.1.1.cmml">×</mo><mn id="S4.p3.3.m3.1.1.3" xref="S4.p3.3.m3.1.1.3.cmml">32</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.p3.3.m3.1b"><apply id="S4.p3.3.m3.1.1.cmml" xref="S4.p3.3.m3.1.1"><times id="S4.p3.3.m3.1.1.1.cmml" xref="S4.p3.3.m3.1.1.1"></times><cn type="integer" id="S4.p3.3.m3.1.1.2.cmml" xref="S4.p3.3.m3.1.1.2">32</cn><cn type="integer" id="S4.p3.3.m3.1.1.3.cmml" xref="S4.p3.3.m3.1.1.3">32</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.3.m3.1c">32\times 32</annotation></semantics></math> using zero padding.
+The experiments have been conducted on a machine equipped with an Intel(R) Xeon(R) Gold 6238R CPU @ 2.20GHz CPU and an Nvidia Quadro RTX 6000 GPU. Training a single ResNet-20 model takes between 1 and 2.5 hours, depending on which and how many post-processing techniques are used, while training a BigGAN Deep requires around 48 hours.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Results and Discussion</h2>
+
+<figure id="S5.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>The results of the CAS metric obtained using the Dynamic Sample Filtering technique for each filtering threshold.</figcaption>
+<div id="S5.T1.1" class="ltx_inline-block ltx_transformed_outer" style="width:433.6pt;height:51.2pt;vertical-align:-0.7pt;"><span class="ltx_transformed_inner" style="transform:translate(-92.6pt,10.8pt) scale(0.700757117601583,0.700757117601583) ;">
+<table id="S5.T1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T1.1.1.1" class="ltx_tr">
+<td id="S5.T1.1.1.1.1" class="ltx_td ltx_align_top ltx_border_tt"></td>
+<td id="S5.T1.1.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.2.1.1" class="ltx_p" style="width:60.7pt;">No Filtering</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.3.1.1" class="ltx_p" style="width:31.4pt;">0.0</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.4.1.1" class="ltx_p" style="width:31.4pt;">0.1</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.5.1.1" class="ltx_p" style="width:31.4pt;">0.2</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.6.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.6.1.1" class="ltx_p" style="width:31.4pt;">0.3</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.7.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.7.1.1" class="ltx_p" style="width:31.4pt;">0.4</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.8.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.8.1.1" class="ltx_p" style="width:31.4pt;">0.5</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.9" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.9.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.9.1.1" class="ltx_p" style="width:31.4pt;">0.6</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.10" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.10.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.10.1.1" class="ltx_p" style="width:31.4pt;">0.7</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.11" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.11.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.11.1.1" class="ltx_p" style="width:31.4pt;">0.8</span>
+</span>
+</td>
+<td id="S5.T1.1.1.1.12" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T1.1.1.1.12.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.1.12.1.1" class="ltx_p" style="width:31.4pt;">0.9</span>
+</span>
+</td>
+</tr>
+<tr id="S5.T1.1.1.2" class="ltx_tr">
+<td id="S5.T1.1.1.2.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.1.1.1" class="ltx_p" style="width:99.7pt;"><span id="S5.T1.1.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Fashion-MNIST</span></span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.2.1.1" class="ltx_p" style="width:60.7pt;">88.70%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.3.1.1" class="ltx_p" style="width:31.4pt;">89.88%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.4.1.1" class="ltx_p" style="width:31.4pt;">90.01%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.5.1.1" class="ltx_p" style="width:31.4pt;">89.59%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.6.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.6.1.1" class="ltx_p" style="width:31.4pt;">89.98%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.7.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.7.1.1" class="ltx_p" style="width:31.4pt;">89.89%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.8.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.8.1.1" class="ltx_p" style="width:31.4pt;">90.05%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.9" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.9.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.9.1.1" class="ltx_p" style="width:31.4pt;"><span id="S5.T1.1.1.2.9.1.1.1" class="ltx_text ltx_font_bold">90.21</span>%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.10" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.10.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.10.1.1" class="ltx_p" style="width:31.4pt;">89.86%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.11" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.11.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.11.1.1" class="ltx_p" style="width:31.4pt;">90.12%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.2.12" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T1.1.1.2.12.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.2.12.1.1" class="ltx_p" style="width:31.4pt;">89.90%</span>
+</span>
+</td>
+</tr>
+<tr id="S5.T1.1.1.3" class="ltx_tr">
+<td id="S5.T1.1.1.3.1" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.1.1.1" class="ltx_p" style="width:99.7pt;"><span id="S5.T1.1.1.3.1.1.1.1" class="ltx_text ltx_font_bold">CIFAR-10</span></span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.2" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.2.1.1" class="ltx_p" style="width:60.7pt;">87.11%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.3" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.3.1.1" class="ltx_p" style="width:31.4pt;">88.45%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.4" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.4.1.1" class="ltx_p" style="width:31.4pt;">88.95%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.5" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.5.1.1" class="ltx_p" style="width:31.4pt;">88.75%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.6" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.6.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.6.1.1" class="ltx_p" style="width:31.4pt;">88.45%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.7" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.7.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.7.1.1" class="ltx_p" style="width:31.4pt;">88.67%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.8" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.8.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.8.1.1" class="ltx_p" style="width:31.4pt;"><span id="S5.T1.1.1.3.8.1.1.1" class="ltx_text ltx_font_bold">89.06%</span></span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.9" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.9.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.9.1.1" class="ltx_p" style="width:31.4pt;">88.72%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.10" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.10.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.10.1.1" class="ltx_p" style="width:31.4pt;">88.96%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.11" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.11.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.11.1.1" class="ltx_p" style="width:31.4pt;">88.09%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.3.12" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T1.1.1.3.12.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.3.12.1.1" class="ltx_p" style="width:31.4pt;">88.41%</span>
+</span>
+</td>
+</tr>
+<tr id="S5.T1.1.1.4" class="ltx_tr">
+<td id="S5.T1.1.1.4.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.1.1.1" class="ltx_p" style="width:99.7pt;"><span id="S5.T1.1.1.4.1.1.1.1" class="ltx_text ltx_font_bold">CIFAR-100</span></span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.2.1.1" class="ltx_p" style="width:60.7pt;">57.74%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.3.1.1" class="ltx_p" style="width:31.4pt;">59.13%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.4.1.1" class="ltx_p" style="width:31.4pt;">58.82%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.5.1.1" class="ltx_p" style="width:31.4pt;"><span id="S5.T1.1.1.4.5.1.1.1" class="ltx_text ltx_font_bold">59.39%</span></span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.6.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.6.1.1" class="ltx_p" style="width:31.4pt;">59.35%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.7.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.7.1.1" class="ltx_p" style="width:31.4pt;">59.20%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.8.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.8.1.1" class="ltx_p" style="width:31.4pt;">59.06%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.9" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.9.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.9.1.1" class="ltx_p" style="width:31.4pt;">58.79%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.10" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.10.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.10.1.1" class="ltx_p" style="width:31.4pt;">58.76%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.11" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.11.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.11.1.1" class="ltx_p" style="width:31.4pt;">57.28%</span>
+</span>
+</td>
+<td id="S5.T1.1.1.4.12" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T1.1.1.4.12.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T1.1.1.4.12.1.1" class="ltx_p" style="width:31.4pt;">55.52%</span>
+</span>
+</td>
+</tr>
+</table>
+</span></div>
+</figure>
+<figure id="S5.T2" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>The results of the CAS metric obtained using the Dynamic Dataset Recycle technique for each considered recycle frequency.</figcaption>
+<table id="S5.T2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T2.1.1" class="ltx_tr">
+<td id="S5.T2.1.1.1" class="ltx_td ltx_align_top ltx_border_tt"></td>
+<td id="S5.T2.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T2.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.1.2.1.1" class="ltx_p" style="width:52.0pt;">No Recycle</span>
+</span>
+</td>
+<td id="S5.T2.1.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T2.1.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.1.3.1.1" class="ltx_p" style="width:43.4pt;">N=10</span>
+</span>
+</td>
+<td id="S5.T2.1.1.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T2.1.1.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.1.4.1.1" class="ltx_p" style="width:43.4pt;">N=5</span>
+</span>
+</td>
+<td id="S5.T2.1.1.5" class="ltx_td ltx_nopad_r ltx_align_justify ltx_align_top ltx_border_tt">
+<span id="S5.T2.1.1.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.1.5.1.1" class="ltx_p" style="width:43.4pt;">N=1</span>
+</span>
+</td>
+</tr>
+<tr id="S5.T2.1.2" class="ltx_tr">
+<td id="S5.T2.1.2.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T2.1.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.2.1.1.1" class="ltx_p" style="width:86.7pt;"><span id="S5.T2.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Fashion-MNIST</span></span>
+</span>
+</td>
+<td id="S5.T2.1.2.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T2.1.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.2.2.1.1" class="ltx_p" style="width:52.0pt;">88.70%</span>
+</span>
+</td>
+<td id="S5.T2.1.2.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T2.1.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.2.3.1.1" class="ltx_p" style="width:43.4pt;">89.29%</span>
+</span>
+</td>
+<td id="S5.T2.1.2.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T2.1.2.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.2.4.1.1" class="ltx_p" style="width:43.4pt;">89.88%</span>
+</span>
+</td>
+<td id="S5.T2.1.2.5" class="ltx_td ltx_nopad_r ltx_align_justify ltx_align_top ltx_border_t">
+<span id="S5.T2.1.2.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.2.5.1.1" class="ltx_p" style="width:43.4pt;"><span id="S5.T2.1.2.5.1.1.1" class="ltx_text ltx_font_bold">90.16%</span></span>
+</span>
+</td>
+</tr>
+<tr id="S5.T2.1.3" class="ltx_tr">
+<td id="S5.T2.1.3.1" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T2.1.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.3.1.1.1" class="ltx_p" style="width:86.7pt;"><span id="S5.T2.1.3.1.1.1.1" class="ltx_text ltx_font_bold">CIFAR-10</span></span>
+</span>
+</td>
+<td id="S5.T2.1.3.2" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T2.1.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.3.2.1.1" class="ltx_p" style="width:52.0pt;">87.11%</span>
+</span>
+</td>
+<td id="S5.T2.1.3.3" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T2.1.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.3.3.1.1" class="ltx_p" style="width:43.4pt;">89.72%</span>
+</span>
+</td>
+<td id="S5.T2.1.3.4" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S5.T2.1.3.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.3.4.1.1" class="ltx_p" style="width:43.4pt;">90.25%</span>
+</span>
+</td>
+<td id="S5.T2.1.3.5" class="ltx_td ltx_nopad_r ltx_align_justify ltx_align_top">
+<span id="S5.T2.1.3.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.3.5.1.1" class="ltx_p" style="width:43.4pt;"><span id="S5.T2.1.3.5.1.1.1" class="ltx_text ltx_font_bold">90.42</span>%</span>
+</span>
+</td>
+</tr>
+<tr id="S5.T2.1.4" class="ltx_tr">
+<td id="S5.T2.1.4.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T2.1.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.4.1.1.1" class="ltx_p" style="width:86.7pt;"><span id="S5.T2.1.4.1.1.1.1" class="ltx_text ltx_font_bold">CIFAR-100</span></span>
+</span>
+</td>
+<td id="S5.T2.1.4.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T2.1.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.4.2.1.1" class="ltx_p" style="width:52.0pt;">57.74%</span>
+</span>
+</td>
+<td id="S5.T2.1.4.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T2.1.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.4.3.1.1" class="ltx_p" style="width:43.4pt;">59.68%</span>
+</span>
+</td>
+<td id="S5.T2.1.4.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T2.1.4.4.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.4.4.1.1" class="ltx_p" style="width:43.4pt;">60.57%</span>
+</span>
+</td>
+<td id="S5.T2.1.4.5" class="ltx_td ltx_nopad_r ltx_align_justify ltx_align_top ltx_border_bb">
+<span id="S5.T2.1.4.5.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T2.1.4.5.1.1" class="ltx_p" style="width:43.4pt;"><span id="S5.T2.1.4.5.1.1.1" class="ltx_text ltx_font_bold">61.38</span>%</span>
+</span>
+</td>
+</tr>
+</table>
+</figure>
+<figure id="S5.F2" class="ltx_figure"><img src="/html/2305.10118/assets/images/expansiontrick.png" id="S5.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="166" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>The results of the CAS metric obtained using the Expansion Trick technique. The plots compare unfiltered and filtered datasets (filtering threshold: 0.0).</figcaption>
+</figure>
+<div id="S5.p1" class="ltx_para ltx_noindent">
+<p id="S5.p1.1" class="ltx_p">In this section, we present the results of our experiments. We start by analysing the individual impact of each proposed post-processing technique. The results of these techniques are evaluated based on the final checkpoint of the generative model, i.e. without the application of the Checkpoint Optimization step. Finally, we present the results of the whole GaFi pipeline.</p>
+</div>
+<div id="S5.p2" class="ltx_para ltx_noindent">
+<p id="S5.p2.1" class="ltx_p"><span id="S5.p2.1.1" class="ltx_text ltx_font_bold">Dynamic Sample Filtering</span> As we can see from Table <a href="#S5.T1" title="Table 1 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, the use of the Sample Filtering technique is beneficial for all the datasets in analysis.
+However, from this table it can be seen that the optimal threshold value is highly dependant on the specific dataset. For instance, the CAS for <span id="S5.p2.1.2" class="ltx_text ltx_font_italic">Fashion-MNIST</span> and <span id="S5.p2.1.3" class="ltx_text ltx_font_italic">CIFAR-10</span> remains almost constant for any threshold value, while for the <span id="S5.p2.1.4" class="ltx_text ltx_font_italic">CIFAR-100</span> it is clearly visible that a higher threshold value degrades the performance of the classifier. We assume that this behaviour is due to the fact that the generators trained on the first two datasets, being easier to learn, produce images that are very faithful to the original dataset. Therefore, the classifiers pretrained on real images will have high confidence in their predictions and most of the bad images will already be removed due to incorrect labelling. In contrast, <span id="S5.p2.1.5" class="ltx_text ltx_font_italic">CIFAR-100</span> is a much more complex dataset as it has 10 times the number of classes, causing the generated images to be more likely rejected by the pretrained classifier when a high filtering threshold is used. On average, with respect to the baseline CAS achieved, i.e. the "No Filtering" column of the table, the Dynamic Sample Filtering technique improves the CAS by 2%.</p>
+</div>
+<div id="S5.p3" class="ltx_para ltx_noindent">
+<p id="S5.p3.3" class="ltx_p"><span id="S5.p3.3.1" class="ltx_text ltx_font_bold">Dynamic Dataset Recycle</span> Table <a href="#S5.T2" title="Table 2 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows that the proposed dataset recycling technique significantly improves the CAS for all three datasets. The results reveal that even with a relatively soft recycling period, such as <math id="S5.p3.1.m1.1" class="ltx_Math" alttext="N=10" display="inline"><semantics id="S5.p3.1.m1.1a"><mrow id="S5.p3.1.m1.1.1" xref="S5.p3.1.m1.1.1.cmml"><mi id="S5.p3.1.m1.1.1.2" xref="S5.p3.1.m1.1.1.2.cmml">N</mi><mo id="S5.p3.1.m1.1.1.1" xref="S5.p3.1.m1.1.1.1.cmml">=</mo><mn id="S5.p3.1.m1.1.1.3" xref="S5.p3.1.m1.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p3.1.m1.1b"><apply id="S5.p3.1.m1.1.1.cmml" xref="S5.p3.1.m1.1.1"><eq id="S5.p3.1.m1.1.1.1.cmml" xref="S5.p3.1.m1.1.1.1"></eq><ci id="S5.p3.1.m1.1.1.2.cmml" xref="S5.p3.1.m1.1.1.2">𝑁</ci><cn type="integer" id="S5.p3.1.m1.1.1.3.cmml" xref="S5.p3.1.m1.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p3.1.m1.1c">N=10</annotation></semantics></math>, there is an increase in accuracy ranging from <math id="S5.p3.2.m2.1" class="ltx_Math" alttext="0.59\%" display="inline"><semantics id="S5.p3.2.m2.1a"><mrow id="S5.p3.2.m2.1.1" xref="S5.p3.2.m2.1.1.cmml"><mn id="S5.p3.2.m2.1.1.2" xref="S5.p3.2.m2.1.1.2.cmml">0.59</mn><mo id="S5.p3.2.m2.1.1.1" xref="S5.p3.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p3.2.m2.1b"><apply id="S5.p3.2.m2.1.1.cmml" xref="S5.p3.2.m2.1.1"><csymbol cd="latexml" id="S5.p3.2.m2.1.1.1.cmml" xref="S5.p3.2.m2.1.1.1">percent</csymbol><cn type="float" id="S5.p3.2.m2.1.1.2.cmml" xref="S5.p3.2.m2.1.1.2">0.59</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p3.2.m2.1c">0.59\%</annotation></semantics></math> to <math id="S5.p3.3.m3.1" class="ltx_Math" alttext="1.94\%" display="inline"><semantics id="S5.p3.3.m3.1a"><mrow id="S5.p3.3.m3.1.1" xref="S5.p3.3.m3.1.1.cmml"><mn id="S5.p3.3.m3.1.1.2" xref="S5.p3.3.m3.1.1.2.cmml">1.94</mn><mo id="S5.p3.3.m3.1.1.1" xref="S5.p3.3.m3.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p3.3.m3.1b"><apply id="S5.p3.3.m3.1.1.cmml" xref="S5.p3.3.m3.1.1"><csymbol cd="latexml" id="S5.p3.3.m3.1.1.1.cmml" xref="S5.p3.3.m3.1.1.1">percent</csymbol><cn type="float" id="S5.p3.3.m3.1.1.2.cmml" xref="S5.p3.3.m3.1.1.2">1.94</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p3.3.m3.1c">1.94\%</annotation></semantics></math>, depending on the dataset. Notably, by reducing the recycling period, i.e. generating new synthetic data more frequently during training, we can obtain an additional performance boost.
+The gain in accuracy is more pronounced with increasing dataset complexity, as expected, since the generative model may require more attempts before generating meaningful data, especially for those classes learnt with poor effectiveness.</p>
+</div>
+<div id="S5.p4" class="ltx_para ltx_noindent">
+<p id="S5.p4.3" class="ltx_p"><span id="S5.p4.3.1" class="ltx_text ltx_font_bold">Expansion Trick</span> Figure <a href="#S5.F2" title="Figure 2 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> displays the impact of the Expansion Trick on the CAS. The results indicate that when the dataset is unfiltered, there is a small increase in performance when using a standard deviation slightly higher than 1. However, as the standard deviation increases, there is a degradation in performance. This outcome is not unexpected, as a higher standard deviation leads to more diverse images but at the cost of image quality. As a result, beyond a certain point, the images become too degraded to be useful for training a downstream classifier. On the other hand, when using the Expansion Trick with a sample filtering technique, we can achieve significantly higher standard deviation values without compromising performance. This is because only the "good" images that meet the filtering criteria - in this case, the correctly classified ones - are kept, ensuring that the dataset is more diverse while still containing higher-quality images than the unfiltered dataset, leading to a higher classification accuracy.
+Our novel technique improves the CAS by <math id="S5.p4.1.m1.1" class="ltx_Math" alttext="3.47\%" display="inline"><semantics id="S5.p4.1.m1.1a"><mrow id="S5.p4.1.m1.1.1" xref="S5.p4.1.m1.1.1.cmml"><mn id="S5.p4.1.m1.1.1.2" xref="S5.p4.1.m1.1.1.2.cmml">3.47</mn><mo id="S5.p4.1.m1.1.1.1" xref="S5.p4.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.1.m1.1b"><apply id="S5.p4.1.m1.1.1.cmml" xref="S5.p4.1.m1.1.1"><csymbol cd="latexml" id="S5.p4.1.m1.1.1.1.cmml" xref="S5.p4.1.m1.1.1.1">percent</csymbol><cn type="float" id="S5.p4.1.m1.1.1.2.cmml" xref="S5.p4.1.m1.1.1.2">3.47</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.1.m1.1c">3.47\%</annotation></semantics></math>, <math id="S5.p4.2.m2.1" class="ltx_Math" alttext="2.96\%" display="inline"><semantics id="S5.p4.2.m2.1a"><mrow id="S5.p4.2.m2.1.1" xref="S5.p4.2.m2.1.1.cmml"><mn id="S5.p4.2.m2.1.1.2" xref="S5.p4.2.m2.1.1.2.cmml">2.96</mn><mo id="S5.p4.2.m2.1.1.1" xref="S5.p4.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.2.m2.1b"><apply id="S5.p4.2.m2.1.1.cmml" xref="S5.p4.2.m2.1.1"><csymbol cd="latexml" id="S5.p4.2.m2.1.1.1.cmml" xref="S5.p4.2.m2.1.1.1">percent</csymbol><cn type="float" id="S5.p4.2.m2.1.1.2.cmml" xref="S5.p4.2.m2.1.1.2">2.96</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.2.m2.1c">2.96\%</annotation></semantics></math>, and <math id="S5.p4.3.m3.1" class="ltx_Math" alttext="5.29\%" display="inline"><semantics id="S5.p4.3.m3.1a"><mrow id="S5.p4.3.m3.1.1" xref="S5.p4.3.m3.1.1.cmml"><mn id="S5.p4.3.m3.1.1.2" xref="S5.p4.3.m3.1.1.2.cmml">5.29</mn><mo id="S5.p4.3.m3.1.1.1" xref="S5.p4.3.m3.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.3.m3.1b"><apply id="S5.p4.3.m3.1.1.cmml" xref="S5.p4.3.m3.1.1"><csymbol cd="latexml" id="S5.p4.3.m3.1.1.1.cmml" xref="S5.p4.3.m3.1.1.1">percent</csymbol><cn type="float" id="S5.p4.3.m3.1.1.2.cmml" xref="S5.p4.3.m3.1.1.2">5.29</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.3.m3.1c">5.29\%</annotation></semantics></math> on the <span id="S5.p4.3.2" class="ltx_text ltx_font_italic">Fashion-MNIST</span>, <span id="S5.p4.3.3" class="ltx_text ltx_font_italic">CIFAR-10</span>, and <span id="S5.p4.3.4" class="ltx_text ltx_font_italic">CIFAR-100</span> datasets, respectively. These gains demonstrate the efficacy of the Expansion Trick in enhancing the generative model’s ability to produce informative samples, which in turn improves the downstream classifier’s performance.</p>
+</div>
+<div id="S5.p5" class="ltx_para ltx_noindent">
+<p id="S5.p5.1" class="ltx_p"><span id="S5.p5.1.1" class="ltx_text ltx_font_bold">Checkpoint Optimization</span> The Figure <a href="#S5.F3" title="Figure 3 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows the evolution of the CAS metric as a function of the generative model checkpoint. Bearing in mind that each point corresponds to the complete training of a ResNet-20 classifier, the aim of this step is to identify the best checkpoint with respect to the CAS metric, even though it may be computationally expensive.
+Looking at the graphs, the <span id="S5.p5.1.2" class="ltx_text ltx_font_italic">Fashion-MINST</span> dataset shows an optimal range of epochs between 90 and 120, while for the <span id="S5.p5.1.3" class="ltx_text ltx_font_italic">CIFAR-10</span> and <span id="S5.p5.1.4" class="ltx_text ltx_font_italic">CIFAR-100</span> datasets the optimal range is around epoch 450. It is noteworthy that the CAS increases with the number of epochs increases, up to a certain point. It is arguable that the complexity of the dataset is only partially indicative of the range in which to search for CAS, as can be assumed from the graphs of the <span id="S5.p5.1.5" class="ltx_text ltx_font_italic">CIFAR-10</span> and <span id="S5.p5.1.6" class="ltx_text ltx_font_italic">CIFAR-100</span> datasets.
+In any case, this behaviour is consistent with that of GANs from the point of view of the perceptual quality of the generated images, which tend to collapse after a certain number of training iterations.
+Overall, the Checkpoint Optimization step is fundamental and allows the next steps of the GaFi pipeline to proceed from the optimal generative model.</p>
+</div>
+<figure id="S5.T3" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 3: </span>The optimal hyperparameters configuration and CAS performance obtained using the Accurate Pipeline.</figcaption>
+<table id="S5.T3.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tr id="S5.T3.1.1" class="ltx_tr">
+<td id="S5.T3.1.1.1" class="ltx_td ltx_border_tt"></td>
+<td id="S5.T3.1.1.2" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T3.1.1.2.1" class="ltx_text ltx_font_bold">Checkpoint</span></td>
+<td id="S5.T3.1.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T3.1.1.3.1" class="ltx_text ltx_font_bold">Standard Deviation</span></td>
+<td id="S5.T3.1.1.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T3.1.1.4.1" class="ltx_text ltx_font_bold">Filtering Threshold</span></td>
+<td id="S5.T3.1.1.5" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T3.1.1.5.1" class="ltx_text ltx_font_bold">CAS</span></td>
+</tr>
+<tr id="S5.T3.1.2" class="ltx_tr">
+<td id="S5.T3.1.2.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T3.1.2.1.1" class="ltx_text ltx_font_bold">Fashion-MNIST</span></td>
+<td id="S5.T3.1.2.2" class="ltx_td ltx_align_center ltx_border_t">112</td>
+<td id="S5.T3.1.2.3" class="ltx_td ltx_align_center ltx_border_t">2.00</td>
+<td id="S5.T3.1.2.4" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S5.T3.1.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T3.1.2.5.1" class="ltx_text ltx_font_bold">94.03%</span></td>
+</tr>
+<tr id="S5.T3.1.3" class="ltx_tr">
+<td id="S5.T3.1.3.1" class="ltx_td ltx_align_left"><span id="S5.T3.1.3.1.1" class="ltx_text ltx_font_bold">CIFAR-10</span></td>
+<td id="S5.T3.1.3.2" class="ltx_td ltx_align_center">460</td>
+<td id="S5.T3.1.3.3" class="ltx_td ltx_align_center">1.60</td>
+<td id="S5.T3.1.3.4" class="ltx_td ltx_align_center">0.3</td>
+<td id="S5.T3.1.3.5" class="ltx_td ltx_align_center"><span id="S5.T3.1.3.5.1" class="ltx_text ltx_font_bold">92.60%</span></td>
+</tr>
+<tr id="S5.T3.1.4" class="ltx_tr">
+<td id="S5.T3.1.4.1" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T3.1.4.1.1" class="ltx_text ltx_font_bold">CIFAR-100</span></td>
+<td id="S5.T3.1.4.2" class="ltx_td ltx_align_center ltx_border_bb">443</td>
+<td id="S5.T3.1.4.3" class="ltx_td ltx_align_center ltx_border_bb">1.70</td>
+<td id="S5.T3.1.4.4" class="ltx_td ltx_align_center ltx_border_bb">0.1</td>
+<td id="S5.T3.1.4.5" class="ltx_td ltx_align_center ltx_border_bb"><span id="S5.T3.1.4.5.1" class="ltx_text ltx_font_bold">68.92%</span></td>
+</tr>
+</table>
+</figure>
+<figure id="S5.F3" class="ltx_figure"><img src="/html/2305.10118/assets/images/checkpoint.png" id="S5.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="182" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The results of the CAS metric obtained using the Expansion Trick technique. The plots compare unfiltered and filtered datasets (filtering threshold: 0.0).</figcaption>
+</figure>
+<div id="S5.p6" class="ltx_para ltx_noindent">
+<p id="S5.p6.1" class="ltx_p"><span id="S5.p6.1.1" class="ltx_text ltx_font_bold">Accurate Pipeline</span> After determining the optimal configuration, resumed in Table <a href="#S5.T3" title="Table 3 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, the classifier can be retrained using the "Accurate Pipeline", where the recycling period <math id="S5.p6.1.m1.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S5.p6.1.m1.1a"><mi id="S5.p6.1.m1.1.1" xref="S5.p6.1.m1.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S5.p6.1.m1.1b"><ci id="S5.p6.1.m1.1.1.cmml" xref="S5.p6.1.m1.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.p6.1.m1.1c">N</annotation></semantics></math> is set to 1, regenerating the dataset at each training epoch to achieve the best possible CAS through the GaFi pipeline. It is evident that the Expansion Trick played a crucial role in achieving the optimal CAS in combination with the Dynamic Sample Filtering technique. This is supported by the heavily shifted values towards the standard deviation of 2 in each of the configurations.</p>
+</div>
+<div id="S5.p7" class="ltx_para ltx_noindent">
+<p id="S5.p7.1" class="ltx_p">The final results of the experiments are presented in Table <a href="#S5.T4" title="Table 4 ‣ 5 Results and Discussion ‣ Bridging the Gap: Enhancing the Utility of Synthetic Data via Post-Processing Techniques" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>, which includes the accuracy scores obtained from real data (<span id="S5.p7.1.1" class="ltx_text ltx_font_italic">Real Data</span>), the CAS of a single BigGAN Deep without post-processing techniques representing the baseline (<span id="S5.p7.1.2" class="ltx_text ltx_font_italic">Synthetic Baseline</span>), and for each number of generators considered, a comparison between our GaFi technique and the previous state-of-the-art post-processing performed by Dat <span id="S5.p7.1.3" class="ltx_text ltx_font_italic">et al.</span> using the same generative architecture used in this work.
+Our approach achieves the best results, with improvements over the baseline of 5.33% for <span id="S5.p7.1.4" class="ltx_text ltx_font_italic">Fashion-MNIST</span>, 6.09% for <span id="S5.p7.1.5" class="ltx_text ltx_font_italic">CIFAR-10</span> and 14.21% for <span id="S5.p7.1.6" class="ltx_text ltx_font_italic">CIFAR-100</span>.
+Furthermore, our pipeline achieves higher accuracy even when using only one generator compared to the best configuration of Dat <span id="S5.p7.1.7" class="ltx_text ltx_font_italic">et al.</span> with six generators.
+These results demonstrate that our proposed post-processing techniques, and the way they are applied in the GaFi pipeline, lead to obtaining superior classifiers trained on more generalised and useful data.</p>
+</div>
+<div id="S5.p8" class="ltx_para ltx_noindent">
+<p id="S5.p8.1" class="ltx_p">It is worth noting that the gap between our synthetic data and the real data has narrowed significantly. Specifically, for the <span id="S5.p8.1.1" class="ltx_text ltx_font_italic">Fashion-MNIST</span>, <span id="S5.p8.1.2" class="ltx_text ltx_font_italic">CIFAR-10</span> and <span id="S5.p8.1.3" class="ltx_text ltx_font_italic">CIFAR-100</span> datasets, the gap with respect to the baseline has been reduced from 7.31%, 7.87% and 17.9% to 2.03%, 1.78% and 3.99%, respectively. This remarkable result demonstrates the undeniable effectiveness of the GaFi pipeline. Moreover, it implies that the use of other generative models, whether existing or forthcoming, can further reduce this gap, and it may even be possible to achieve classifiers trained on synthetic data that outperform those trained on real data. This promising prospect illustrates the great potential of our proposed approach for synthesising high-quality data.</p>
+</div>
+<figure id="S5.T4" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 4: </span>The final results comparing the CAS obtained from the classifiers trained on generated data. The GaFi pipeline is compared with the previous state of the art, with the Synthetic Baseline and with the accuracy of the classifiers trained on real data.</figcaption>
+<table id="S5.T4.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tr id="S5.T4.1.1" class="ltx_tr">
+<td id="S5.T4.1.1.1" class="ltx_td ltx_align_left ltx_border_tt"><span id="S5.T4.1.1.1.1" class="ltx_text ltx_font_bold">#</span></td>
+<td id="S5.T4.1.1.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_tt"><span id="S5.T4.1.1.2.1" class="ltx_text ltx_font_bold">Model</span></td>
+<td id="S5.T4.1.1.3" class="ltx_td ltx_align_left ltx_border_tt"><span id="S5.T4.1.1.3.1" class="ltx_text ltx_font_bold">Fashion-MNIST</span></td>
+<td id="S5.T4.1.1.4" class="ltx_td ltx_align_left ltx_border_tt"><span id="S5.T4.1.1.4.1" class="ltx_text ltx_font_bold">CIFAR-10</span></td>
+<td id="S5.T4.1.1.5" class="ltx_td ltx_align_left ltx_border_tt"><span id="S5.T4.1.1.5.1" class="ltx_text ltx_font_bold">CIFAR-100</span></td>
+</tr>
+<tr id="S5.T4.1.2" class="ltx_tr">
+<td id="S5.T4.1.2.1" class="ltx_td ltx_border_tt"></td>
+<td id="S5.T4.1.2.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_tt">Real Data</td>
+<td id="S5.T4.1.2.3" class="ltx_td ltx_align_left ltx_border_tt">96.01%</td>
+<td id="S5.T4.1.2.4" class="ltx_td ltx_align_left ltx_border_tt">94.98%</td>
+<td id="S5.T4.1.2.5" class="ltx_td ltx_align_left ltx_border_tt">75.64%</td>
+</tr>
+<tr id="S5.T4.1.3" class="ltx_tr">
+<td id="S5.T4.1.3.1" class="ltx_td"></td>
+<td id="S5.T4.1.3.2" class="ltx_td ltx_align_left ltx_border_r">Synthetic Baseline</td>
+<td id="S5.T4.1.3.3" class="ltx_td ltx_align_left">88.70%</td>
+<td id="S5.T4.1.3.4" class="ltx_td ltx_align_left">87.11%</td>
+<td id="S5.T4.1.3.5" class="ltx_td ltx_align_left">57.74%</td>
+</tr>
+<tr id="S5.T4.1.4" class="ltx_tr">
+<td id="S5.T4.1.4.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T4.1.4.1.1" class="ltx_text" style="position:relative; bottom:-7.0pt;">1</span></td>
+<td id="S5.T4.1.4.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">Dat <span id="S5.T4.1.4.2.1" class="ltx_text ltx_font_italic">et al.</span> Real Data</td>
+<td id="S5.T4.1.4.3" class="ltx_td ltx_align_left ltx_border_t">-</td>
+<td id="S5.T4.1.4.4" class="ltx_td ltx_align_left ltx_border_t">88.25%</td>
+<td id="S5.T4.1.4.5" class="ltx_td ltx_align_left ltx_border_t">62.22%</td>
+</tr>
+<tr id="S5.T4.1.5" class="ltx_tr">
+<td id="S5.T4.1.5.1" class="ltx_td"></td>
+<td id="S5.T4.1.5.2" class="ltx_td ltx_align_left ltx_border_r">GaFi (ours)</td>
+<td id="S5.T4.1.5.3" class="ltx_td ltx_align_left">94.03%</td>
+<td id="S5.T4.1.5.4" class="ltx_td ltx_align_left">92.60% (+4.35%)</td>
+<td id="S5.T4.1.5.5" class="ltx_td ltx_align_left">68.92% (+6.70%)</td>
+</tr>
+<tr id="S5.T4.1.6" class="ltx_tr">
+<td id="S5.T4.1.6.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T4.1.6.1.1" class="ltx_text" style="position:relative; bottom:-7.0pt;">2</span></td>
+<td id="S5.T4.1.6.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">Dat <span id="S5.T4.1.6.2.1" class="ltx_text ltx_font_italic">et al.</span> Real Data</td>
+<td id="S5.T4.1.6.3" class="ltx_td ltx_align_left ltx_border_t">-</td>
+<td id="S5.T4.1.6.4" class="ltx_td ltx_align_left ltx_border_t">89.68%</td>
+<td id="S5.T4.1.6.5" class="ltx_td ltx_align_left ltx_border_t">64.33%</td>
+</tr>
+<tr id="S5.T4.1.7" class="ltx_tr">
+<td id="S5.T4.1.7.1" class="ltx_td"></td>
+<td id="S5.T4.1.7.2" class="ltx_td ltx_align_left ltx_border_r">GaFi (ours)</td>
+<td id="S5.T4.1.7.3" class="ltx_td ltx_align_left">93.98%</td>
+<td id="S5.T4.1.7.4" class="ltx_td ltx_align_left">92.74% (+3.06%)</td>
+<td id="S5.T4.1.7.5" class="ltx_td ltx_align_left">70.22% (+5.89%)</td>
+</tr>
+<tr id="S5.T4.1.8" class="ltx_tr">
+<td id="S5.T4.1.8.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T4.1.8.1.1" class="ltx_text" style="position:relative; bottom:-7.0pt;">4</span></td>
+<td id="S5.T4.1.8.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">Dat <span id="S5.T4.1.8.2.1" class="ltx_text ltx_font_italic">et al.</span> Real Data</td>
+<td id="S5.T4.1.8.3" class="ltx_td ltx_align_left ltx_border_t">-</td>
+<td id="S5.T4.1.8.4" class="ltx_td ltx_align_left ltx_border_t">90.68%</td>
+<td id="S5.T4.1.8.5" class="ltx_td ltx_align_left ltx_border_t">67.22%</td>
+</tr>
+<tr id="S5.T4.1.9" class="ltx_tr">
+<td id="S5.T4.1.9.1" class="ltx_td"></td>
+<td id="S5.T4.1.9.2" class="ltx_td ltx_align_left ltx_border_r">GaFi (ours)</td>
+<td id="S5.T4.1.9.3" class="ltx_td ltx_align_left">93.99%</td>
+<td id="S5.T4.1.9.4" class="ltx_td ltx_align_left">93.02% (+2.34%)</td>
+<td id="S5.T4.1.9.5" class="ltx_td ltx_align_left">71.75% (+4.53%)</td>
+</tr>
+<tr id="S5.T4.1.10" class="ltx_tr">
+<td id="S5.T4.1.10.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T4.1.10.1.1" class="ltx_text" style="position:relative; bottom:-7.0pt;">6</span></td>
+<td id="S5.T4.1.10.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">Dat <span id="S5.T4.1.10.2.1" class="ltx_text ltx_font_italic">et al.</span> Real Data</td>
+<td id="S5.T4.1.10.3" class="ltx_td ltx_align_left ltx_border_t">-</td>
+<td id="S5.T4.1.10.4" class="ltx_td ltx_align_left ltx_border_t">91.14%</td>
+<td id="S5.T4.1.10.5" class="ltx_td ltx_align_left ltx_border_t">67.56%</td>
+</tr>
+<tr id="S5.T4.1.11" class="ltx_tr">
+<td id="S5.T4.1.11.1" class="ltx_td ltx_border_bb"></td>
+<td id="S5.T4.1.11.2" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r">GaFi (ours)</td>
+<td id="S5.T4.1.11.3" class="ltx_td ltx_align_left ltx_border_bb">93.98%</td>
+<td id="S5.T4.1.11.4" class="ltx_td ltx_align_left ltx_border_bb">93.20% (+2.06%)</td>
+<td id="S5.T4.1.11.5" class="ltx_td ltx_align_left ltx_border_bb">71.95% (+4.39%)</td>
+</tr>
+</table>
+</figure>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusion</h2>
+
+<div id="S6.p1" class="ltx_para ltx_noindent">
+<p id="S6.p1.1" class="ltx_p">In this study, we introduced the Gap Filler pipeline (GaFi) to enhance the Classification Accuracy Score (CAS) by proposing new and enhanced post-processing techniques for generative models. These techniques included Dynamic Sample Filtering, Dynamic Dataset Recycle, and Expansion Trick, which have been shown to be highly beneficial when applied correctly. Our experimental results demonstrated that the proposed pipeline significantly increased the CAS, resulting in a new state-of-the-art performance on the three datasets analysed.
+Despite our research yielding an accuracy that was slightly lower than that obtained on real data, we believe that the remaining gap raises a philosophical question about the very essence of generative modeling: whether it is possible to produce a model that can perfectly learn the distribution of real data. However, we remain optimistic that it is achievable.
+We acknowledge that there are challenges that need to be addressed to bridge this gap, but we are confident that once this is achieved, it would open up new avenues for research and revolutionize several fields.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Acknowledgment</h2>
+
+<div id="Sx1.p1" class="ltx_para ltx_noindent">
+<p id="Sx1.p1.1" class="ltx_p">This project has been supported by AI-SPRINT: AI in Secure Privacy-pReserving computINg conTinuum (European Union H2020 grant agreement No. 101016577) and FAIR: Future Artificial Intelligence Research (NextGenerationEU, PNRR-PE-AI scheme, M4C2, investment 1.3, line on Artificial Intelligence).</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Suman Ravuri and Oriol Vinyals.
+
+</span>
+<span class="ltx_bibblock">Classification accuracy score for conditional generative models.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, 32, 2019.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Diederik P Kingma and Max Welling.
+
+</span>
+<span class="ltx_bibblock">Auto-encoding variational bayes.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1312.6114</span>, 2013.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley,
+Sherjil Ozair, Aaron Courville, and Yoshua Bengio.
+
+</span>
+<span class="ltx_bibblock">Generative adversarial nets.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, pages
+2672–2680, 2014.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Jonathan Ho, Ajay Jain, and Pieter Abbeel.
+
+</span>
+<span class="ltx_bibblock">Denoising diffusion probabilistic models.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>,
+33:6840–6851, 2020.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and
+Xi Chen.
+
+</span>
+<span class="ltx_bibblock">Improved techniques for training gans.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, 29, 2016.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp
+Hochreiter.
+
+</span>
+<span class="ltx_bibblock">Gans trained by a two time-scale update rule converge to a local nash
+equilibrium.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, 30, 2017.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Dmitry Baranchuk, Ivan Rubachev, Andrey Voynov, Valentin Khrulkov, and Artem
+Babenko.
+
+</span>
+<span class="ltx_bibblock">Label-efficient semantic segmentation with diffusion models.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2112.03126</span>, 2021.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Daiqing Li, Huan Ling, Seung Wook Kim, Karsten Kreis, Sanja Fidler, and Antonio
+Torralba.
+
+</span>
+<span class="ltx_bibblock">Bigdatasetgan: Synthesizing imagenet with pixel-wise annotations.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition</span>, pages 21330–21340, 2022.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Daiqing Li, Junlin Yang, Karsten Kreis, Antonio Torralba, and Sanja Fidler.
+
+</span>
+<span class="ltx_bibblock">Semantic segmentation with generative models: Semi-supervised
+learning and strong out-of-domain generalization.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition</span>, pages 8300–8311, 2021.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Swami Sankaranarayanan, Yogesh Balaji, Arpit Jain, Ser Nam Lim, and Rama
+Chellappa.
+
+</span>
+<span class="ltx_bibblock">Learning from synthetic data: Addressing domain shift for semantic
+segmentation.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</span>, pages 3752–3761, 2018.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Philipp Fischer, Alexey Dosovitskiy, Eddy Ilg, Philip Häusser, Caner
+Hazırbaş, Vladimir Golkov, Patrick Van der Smagt, Daniel Cremers,
+and Thomas Brox.
+
+</span>
+<span class="ltx_bibblock">Flownet: Learning optical flow with convolutional networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1504.06852</span>, 2015.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Yo-whan Kim, Samarth Mishra, SouYoung Jin, Rameswar Panda, Hilde Kuehne, Leonid
+Karlinsky, Venkatesh Saligrama, Kate Saenko, Aude Oliva, and Rogerio Feris.
+
+</span>
+<span class="ltx_bibblock">How transferable are video representations based on synthetic data?
+
+</span>
+<span class="ltx_bibblock">In S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, and A. Oh,
+editors, <span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>, volume 35,
+pages 35710–35723. Curran Associates, Inc., 2022.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Deqing Sun, Daniel Vlasic, Charles Herrmann, Varun Jampani, Michael Krainin,
+Huiwen Chang, Ramin Zabih, William T Freeman, and Ce Liu.
+
+</span>
+<span class="ltx_bibblock">Autoflow: Learning a better training set for optical flow.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib13.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition</span>, pages 10093–10102, 2021.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Gul Varol, Javier Romero, Xavier Martin, Naureen Mahmood, Michael J Black, Ivan
+Laptev, and Cordelia Schmid.
+
+</span>
+<span class="ltx_bibblock">Learning from synthetic humans.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</span>, pages 109–117, 2017.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Jianxin Ma, Shuai Bai, and Chang Zhou.
+
+</span>
+<span class="ltx_bibblock">Pretrained diffusion models for unified human motion synthesis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2212.02837</span>, 2022.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Shahram Izadi, David Kim, Otmar Hilliges, David Molyneaux, Richard Newcombe,
+Pushmeet Kohli, Jamie Shotton, Steve Hodges, Dustin Freeman, Andrew Davison,
+and Andrew Fitzgibbon.
+
+</span>
+<span class="ltx_bibblock">Kinectfusion: Real-time 3d reconstruction and interaction using a
+moving depth camera.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib16.1.1" class="ltx_text ltx_font_italic">UIST ’11 Proceedings of the 24th annual ACM symposium on User
+interface software and technology</span>, pages 559–568. ACM, October 2011.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Xi Guo, Wei Wu, Dongliang Wang, Jing Su, Haisheng Su, Weihao Gan, Jian Huang,
+and Qin Yang.
+
+</span>
+<span class="ltx_bibblock">Learning video representations of human motion from synthetic data.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">2022 IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR)</span>, pages 20165–20175, 2022.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Konstantin Shmelkov, Cordelia Schmid, and Karteek Alahari.
+
+</span>
+<span class="ltx_bibblock">How good is my gan?
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Proceedings of the European conference on computer vision
+(ECCV)</span>, pages 213–229, 2018.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Victor Besnier, Himalaya Jain, Andrei Bursuc, Matthieu Cord, and Patrick
+Pérez.
+
+</span>
+<span class="ltx_bibblock">This dataset does not exist: training models from generated images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1911.02888</span>, 2019.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Eugenio Lomurno, Alberto Archetti, Lorenzo Cazzella, Stefano Samele, Leonardo
+Di Perna, and Matteo Matteucci.
+
+</span>
+<span class="ltx_bibblock">Sgde: Secure generative data exchange for cross-silo federated
+learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2109.12062</span>, 2021.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Pham Thanh Dat, Anuvabh Dutt, Denis Pellerin, and Georges Quénot.
+
+</span>
+<span class="ltx_bibblock">Classifier training from a generative model.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">2019 International Conference on Content-Based Multimedia
+Indexing (CBMI)</span>, pages 1–6, 2019.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Andrew Brock, Jeff Donahue, and Karen Simonyan.
+
+</span>
+<span class="ltx_bibblock">Large scale gan training for high fidelity natural image synthesis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1809.11096</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+MinGuk Kang, Joonghyuk Shin, and Jaesik Park.
+
+</span>
+<span class="ltx_bibblock">StudioGAN: A Taxonomy and Benchmark of GANs for Image Synthesis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text ltx_font_italic">2206.09479 (arXiv)</span>, 2022.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+Andrew M Saxe, James L McClelland, and Surya Ganguli.
+
+</span>
+<span class="ltx_bibblock">Exact solutions to the nonlinear dynamics of learning in deep linear
+neural networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1312.6120</span>, 2013.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Diederik P Kingma and Jimmy Ba.
+
+</span>
+<span class="ltx_bibblock">Adam: A method for stochastic optimization.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1412.6980</span>, 2014.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+
+</span>
+<span class="ltx_bibblock">Deep residual learning for image recognition.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib26.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</span>, pages 770–778, 2016.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Han Xiao, Kashif Rasul, and Roland Vollgraf.
+
+</span>
+<span class="ltx_bibblock">Fashion-mnist: a novel image dataset for benchmarking machine
+learning algorithms.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1708.07747</span>, 2017.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+Alex Krizhevsky, Geoffrey Hinton, et al.
+
+</span>
+<span class="ltx_bibblock">Learning multiple layers of features from tiny images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text ltx_font_italic">Toronto University press</span>, 2009.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2305.10117" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2305.10118" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2305.10118">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2305.10118" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2305.10119" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Feb 29 07:36:31 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

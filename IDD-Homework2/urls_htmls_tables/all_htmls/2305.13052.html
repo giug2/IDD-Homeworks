@@ -1,0 +1,782 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2305.13052] Federated Learning of Medical Concepts Embedding using BEHRT</title><meta property="og:description" content="Electronic Health Records (EHR) data contains medical records such as diagnoses, medications, procedures, and treatments of patients. This data is often considered sensitive medical information. Therefore, the EHR data…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Federated Learning of Medical Concepts Embedding using BEHRT">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Federated Learning of Medical Concepts Embedding using BEHRT">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2305.13052">
+
+<!--Generated on Thu Feb 29 06:32:38 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Federated Learning of Medical Concepts Embedding using BEHRT</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Ofir Ben Shoham 
+<br class="ltx_break">Department of Software and Information Systems Engineering
+<br class="ltx_break">Ben-Gurion University of the Negev
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">benshoho@post.bgu.ac.il</span> 
+<br class="ltx_break">Nadav Rappoport 
+<br class="ltx_break">Department of Software and Information Systems Engineering
+<br class="ltx_break">Ben-Gurion University of the Negev
+<br class="ltx_break"><span id="id2.2.id2" class="ltx_text ltx_font_typewriter">nadavrap@bgu.ac.il</span> 
+<br class="ltx_break">
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id3.id1" class="ltx_p">Electronic Health Records (EHR) data contains medical records such as diagnoses, medications, procedures, and treatments of patients. This data is often considered sensitive medical information. Therefore, the EHR data from the medical centers often cannot be shared, making it difficult to create prediction models using multi-center EHR data, which is essential for such models’ robustness and generalizability. Federated Learning (FL) is an algorithmic approach that allows learning a shared model using data in multiple locations without the need to store all data in a central place.
+An example of a prediction model’s task is to predict future diseases. More specifically, the model needs to predict patient’s next visit diagnoses, based on current and previous clinical data. Such a prediction model can support care providers in making clinical decisions and even provide preventive treatment. We propose a federated learning approach for learning medical concepts embedding. This pre-trained model can be used for fine-tuning for specific downstream tasks. Our approach is based on an embedding model like BEHRT, a deep neural sequence transduction model for EHR. We train using federated learning, both the Masked Language Modeling (MLM) and the next visit downstream model. We demonstrate our approach on the MIMIC-IV dataset. We compare the performance of a model trained with FL against a model trained on centralized data. We find that our federated learning approach reaches very close to the performance of a centralized model, and it outperforms local models in terms of average precision. We also show that pre-trained MLM improves the model’s average precision performance in the next visit prediction task, compared to an MLM model without pre-training. Our code is available at <a target="_blank" href="https://github.com/nadavlab/FederatedBEHRT" title="" class="ltx_ref ltx_href">https://github.com/nadavlab/FederatedBEHRT</a>.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Electronic Medical Records (EMR) or Electronic Health Records (EHR) is a collection of pieces of information documenting a patient’s medical history (for example, a patient’s visits and hospitalizations in a hospital). The medical records stored in hospitals contain critical medical information about the treatment protocol and its results <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx1" title="" class="ltx_ref">1</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Multi-center studies have the potential to enhance models’ ability to capture and adapt to heterogeneity, leading to an improvement in their generalizability. Furthermore, collecting data from multiple sources results in a larger dataset for training prediction models, which reduces the expected generalization error and increases the robustness of the model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite>. In addition, rare conditions may not be represented well enough in a single dataset, but using data from multiple sources may increase the statistical power <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx3" title="" class="ltx_ref">3</a>]</cite>.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">EHRs contain sensitive medical information, which can make it challenging to share among healthcare providers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx4" title="" class="ltx_ref">4</a>]</cite>. Federated learning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx5" title="" class="ltx_ref">5</a>]</cite> is an algorithmic approach that trains a single model based on several databases stored in separate locations (clients) without consolidating the information in one central location. This approach makes it possible to train a shared global machine learning model with the help of a central server without sharing the observations between the different databases. In particular, federated learning is suitable for training a computational model based on information sources from separate medical centers (multi-center study) while maintaining the privacy of data, patients, and medical centers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx6" title="" class="ltx_ref">6</a>]</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">An example of a prediction task based on EHR data is the prediction of future diagnoses, also called next visit prediction. In this task, we want to train a model that can predict the diagnoses of a patient that will be diagnosed in their next visit based on current and previous clinical data.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">BEHRT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite> is a deep neural sequence transduction model based on BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx8" title="" class="ltx_ref">8</a>]</cite> model architecture for EHR. The input for this model is a sequence constructed with words representing diagnoses, sentences representing each visit, and a document representing a patient’s complete medical history. In their work, they first trained a Masked Language Modeling (MLM) model and then used it as a pre-trained model and fine-tuned it for the next visit prediction task. Afterward, They demonstrated their approach on the CPRD dataset that contains medical records from general practitioners <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx9" title="" class="ltx_ref">9</a>]</cite>. BEHRT demonstrates an enhancement of 8.0–13.2% (in terms of average precision scores for various tasks) compared to the state-of-the-art deep EHR models like RETAIN <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx10" title="" class="ltx_ref">10</a>]</cite> and Deepr <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx11" title="" class="ltx_ref">11</a>]</cite> models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite>. The BEHRT architecture is designed to easily incorporate multiple heterogeneous medical concepts, including diagnoses, measurements, and more. Another advantage of BEHRT is that it results in an interpretable model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx12" title="" class="ltx_ref">12</a>]</cite>, which is crucial for clinicians to understand why the model arrives at its predictions. Furthermore, BEHRT’s patient representation can be used as a pre-trained model for downstream tasks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">We propose federated learning training to medical concepts embedding using BEHRT. Our approach utilizes federated learning training to enhance the robustness and generalizability of the BEHRT model. The architecture of the BEHRT model, as discussed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite>, is limited by centralizing all data, which prevents the BEHRT model from handling multi-center data. Our approach used federated learning training for the pre-trained MLM phase and also for the next visit prediction task. Our approach is applicable to any dataset containing clinical data per patient and is suitable for multi-center studies that require a federated learning algorithm to ensure EHR data privacy.</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">We demonstrated our approach using the MIMIC-IV dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx13" title="" class="ltx_ref">13</a>]</cite> for the next visit prediction task. Our federated learning approach improves average precision by 4-10 absolute percents compared to local models, and achieves very close average precision performance to centralized models, while maintaining data privacy and scalability for multi-center studies.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related work</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Our work relies on a representation model of medical concepts. In recent decades, word2vec methods <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx14" title="" class="ltx_ref">14</a>]</cite> have gained popularity not only in classical NLP but also in Precision Medicine <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx15" title="" class="ltx_ref">15</a>]</cite>. For example, Phe2vec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx16" title="" class="ltx_ref">16</a>]</cite> created patient embeddings by representing the patient’s medical concepts according to intervals of days. Each interval is represented by a sentence, and each word in the sentence is one medical concept. After representing the medical information as a sequence, different word2vec <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx14" title="" class="ltx_ref">14</a>]</cite> methods can be used, such as Glove <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx17" title="" class="ltx_ref">17</a>]</cite> and FastText <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx18" title="" class="ltx_ref">18</a>]</cite> and also BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx8" title="" class="ltx_ref">8</a>]</cite> based on transformers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx19" title="" class="ltx_ref">19</a>]</cite>. BRLTM utilized transformers in clinical prediction models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx20" title="" class="ltx_ref">20</a>]</cite> to predict depression. They trained a transformer model with MLM and afterward fine-tuned the pre-trained model using the depression diagnoses task. However, they used LDA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx21" title="" class="ltx_ref">21</a>]</cite> for clinical notes representation, which is bag-of-words representation. Instead of LDA, HORDE model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx22" title="" class="ltx_ref">22</a>]</cite> used LSTM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx23" title="" class="ltx_ref">23</a>]</cite> for clinical notes, which is not bag-of-words. However, there are better alternatives for text representation such as ClinicalBert <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx24" title="" class="ltx_ref">24</a>]</cite> based on BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx8" title="" class="ltx_ref">8</a>]</cite> which outperforms bag-of-words representations, as well as Bi-LSTM language models.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">Another common transformer-based model, is Med-BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx25" title="" class="ltx_ref">25</a>]</cite>. They trained BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx8" title="" class="ltx_ref">8</a>]</cite> model using the MLM task, then trained the model for length-of-stay task and demonstrated an improvement on two downstream tasks compared to GRU <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx26" title="" class="ltx_ref">26</a>]</cite> and RETAIN <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx10" title="" class="ltx_ref">10</a>]</cite>, but there is no comparison to BEHRT. The main differences between Med-BERT and BEHRT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite> is that Med-BERT was trained also on the length-of-stay task and has more training samples compared to BEHRT. However, Med-BERT has a ranking for each event, and the ranking of the importance of each event has not been studied enough <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx25" title="" class="ltx_ref">25</a>]</cite>. In addition, They did not include the time between different visits, unlike BEHRT. Therefore we chose to illustrate our approach using BEHRT.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">In addition to text-based methods, there are also methods that model EHR data using graph representation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx27" title="" class="ltx_ref">27</a>, <a href="#bib.bibx28" title="" class="ltx_ref">28</a>, <a href="#bib.bibx29" title="" class="ltx_ref">29</a>, <a href="#bib.bibx30" title="" class="ltx_ref">30</a>]</cite> and also graph-based methods that used a Knowledge Graph <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx31" title="" class="ltx_ref">31</a>]</cite> such as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx32" title="" class="ltx_ref">32</a>, <a href="#bib.bibx33" title="" class="ltx_ref">33</a>]</cite>. However, a fundamental disadvantage of using a Knowledge Graph is that it required to validate the graphical model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx33" title="" class="ltx_ref">33</a>]</cite>. In addition, such graph-based methods may have memory limitations, as the entire graph containing all patients often cannot fit into memory <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx30" title="" class="ltx_ref">30</a>, <a href="#bib.bibx29" title="" class="ltx_ref">29</a>]</cite>, taking up a considerable amount of both time and running memory <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx34" title="" class="ltx_ref">34</a>]</cite>.</p>
+</div>
+<div id="S2.p4" class="ltx_para">
+<p id="S2.p4.1" class="ltx_p">Med-BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx25" title="" class="ltx_ref">25</a>]</cite> used multi-center data, but all the data located in one central location, which limits the available data due to concerns over infrastructures, regulations, privacy, and data standardization present a challenge to data sharing across healthcare institutions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite>. Multi-center EHR data enables the larger and varied data for model training which is essential in order to improve model generalizability and robustness <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite>. There are federated algorithms to overcome this limitation such as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx5" title="" class="ltx_ref">5</a>, <a href="#bib.bibx35" title="" class="ltx_ref">35</a>, <a href="#bib.bibx36" title="" class="ltx_ref">36</a>, <a href="#bib.bibx37" title="" class="ltx_ref">37</a>]</cite>. Dang et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite> compared multiple federated learning algorithms such as FedAvg, FedAvgM, FedProx, FedAdam and FedAdagrad. Among the federated learning algorithms, the FedAvg and FedAvgM algorithms achieved slightly better results than FedProx, FedAdam and FedAdagrad <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx2" title="" class="ltx_ref">2</a>]</cite>. Therefore, In our work, we use FedAvg federated learning algorithm for the MLM and next visit prediction tasks. We used transformer-based modeling according to the model architecture of BEHRT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Methods</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">An overview of the stages of this study is illustrated in Figure <a href="#S3.F1" title="Figure 1 ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. Initially, we retrieved the data from the raw source MIMIC-IV database <a href="#S3.SS2" title="3.2 Data ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.2</span></a>. Next, we simulate a federated data scenario by dividing the data into multiple centers. Each patient was assigned to a single center according to the center where it had the longest stay. Afterward, we employed federated learning training for Masked Language Modeling (MLM). Lastly, we utilized the MLM pre-trained model for federated learning of the next visit prediction task.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure"><svg id="S3.F1.pic1" class="ltx_picture ltx_centering" height="55.9" overflow="visible" version="1.1" width="565.24"><g transform="translate(0,55.9) matrix(1 0 0 -1 0 0) translate(46.4,0) translate(0,27.95)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g fill="#D9D9FF"><path d="M 40.59 27.67 L -40.59 27.67 C -43.64 27.67 -46.12 25.2 -46.12 22.14 L -46.12 -22.14 C -46.12 -25.2 -43.64 -27.67 -40.59 -27.67 L 40.59 -27.67 C 43.64 -27.67 46.12 -25.2 46.12 -22.14 L 46.12 22.14 C 46.12 25.2 43.64 27.67 40.59 27.67 Z M -46.12 -27.67"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -41.51 3.34)" fill="#000000" stroke="#000000"><foreignObject width="83.02" height="26.06" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F1.pic1.1.1.1.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:60.0pt;">
+<span id="S3.F1.pic1.1.1.1.1.1.1" class="ltx_p"></span>
+<span id="S3.F1.pic1.1.1.1.1.1.2" class="ltx_p">DataBase: MIMIC-IV</span>
+</span></foreignObject></g><g fill="#D9D9FF"><path d="M 198.07 27.67 L 116.89 27.67 C 113.84 27.67 111.36 25.2 111.36 22.14 L 111.36 -22.14 C 111.36 -25.2 113.84 -27.67 116.89 -27.67 L 198.07 -27.67 C 201.13 -27.67 203.6 -25.2 203.6 -22.14 L 203.6 22.14 C 203.6 25.2 201.13 27.67 198.07 27.67 Z M 111.36 -27.67"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 115.97 11.54)" fill="#000000" stroke="#000000"><foreignObject width="83.02" height="42.45" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F1.pic1.2.2.2.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:60.0pt;">
+<span id="S3.F1.pic1.2.2.2.1.1.1" class="ltx_p"></span>
+<span id="S3.F1.pic1.2.2.2.1.1.2" class="ltx_p">Multi-center split by care unit</span>
+</span></foreignObject></g><g fill="#D9D9FF"><path d="M 355.55 27.67 L 274.37 27.67 C 271.32 27.67 268.84 25.2 268.84 22.14 L 268.84 -22.14 C 268.84 -25.2 271.32 -27.67 274.37 -27.67 L 355.55 -27.67 C 358.61 -27.67 361.08 -25.2 361.08 -22.14 L 361.08 22.14 C 361.08 25.2 358.61 27.67 355.55 27.67 Z M 268.84 -27.67"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 273.45 4.69)" fill="#000000" stroke="#000000"><foreignObject width="83.02" height="28.75" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F1.pic1.3.3.3.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:60.0pt;">
+<span id="S3.F1.pic1.3.3.3.1.1.1" class="ltx_p"></span>
+<span id="S3.F1.pic1.3.3.3.1.1.2" class="ltx_p">Federated Learning MLM</span>
+</span></foreignObject></g><g fill="#D9D9FF"><path d="M 513.03 27.67 L 431.85 27.67 C 428.8 27.67 426.32 25.2 426.32 22.14 L 426.32 -22.14 C 426.32 -25.2 428.8 -27.67 431.85 -27.67 L 513.03 -27.67 C 516.09 -27.67 518.56 -25.2 518.56 -22.14 L 518.56 22.14 C 518.56 25.2 516.09 27.67 513.03 27.67 Z M 426.32 -27.67"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 430.93 11.72)" fill="#000000" stroke="#000000"><foreignObject width="83.02" height="42.82" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F1.pic1.4.4.4.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:60.0pt;">
+<span id="S3.F1.pic1.4.4.4.1.1.1" class="ltx_p"></span>
+<span id="S3.F1.pic1.4.4.4.1.1.2" class="ltx_p">Federated Learning Next Visit Prediction</span>
+</span></foreignObject></g><path d="M 46.4 0 L 107.76 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 107.76 0)"><path d="M 3.32 0 C 1.94 0.28 -0.55 0.83 -2.21 2.08 C -0.83 0.55 -0.83 -0.55 -2.21 -2.08 C -0.55 -0.83 1.94 -0.28 3.32 0 Z" style="stroke:none"></path></g><path d="M 203.88 0 L 265.24 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 265.24 0)"><path d="M 3.32 0 C 1.94 0.28 -0.55 0.83 -2.21 2.08 C -0.83 0.55 -0.83 -0.55 -2.21 -2.08 C -0.55 -0.83 1.94 -0.28 3.32 0 Z" style="stroke:none"></path></g><path d="M 361.36 0 L 422.72 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 422.72 0)"><path d="M 3.32 0 C 1.94 0.28 -0.55 0.83 -2.21 2.08 C -0.83 0.55 -0.83 -0.55 -2.21 -2.08 C -0.55 -0.83 1.94 -0.28 3.32 0 Z" style="stroke:none"></path></g></g></svg>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F1.2.1.1" class="ltx_text" style="font-size:90%;">Figure 1</span>: </span><span id="S3.F1.3.2" class="ltx_text" style="font-size:90%;">stages in our study</span></figcaption>
+</figure>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Next Visit problem definition</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.18" class="ltx_p">Let <math id="S3.SS1.p1.1.m1.1" class="ltx_Math" alttext="P" display="inline"><semantics id="S3.SS1.p1.1.m1.1a"><mi id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml">P</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.1b"><ci id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">𝑃</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.1c">P</annotation></semantics></math> denote the set of patients and let each patient <math id="S3.SS1.p1.2.m2.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S3.SS1.p1.2.m2.1a"><mi id="S3.SS1.p1.2.m2.1.1" xref="S3.SS1.p1.2.m2.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.2.m2.1b"><ci id="S3.SS1.p1.2.m2.1.1.cmml" xref="S3.SS1.p1.2.m2.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.2.m2.1c">p</annotation></semantics></math> have medical data consisting of <math id="S3.SS1.p1.3.m3.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.SS1.p1.3.m3.1a"><mi id="S3.SS1.p1.3.m3.1.1" xref="S3.SS1.p1.3.m3.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.3.m3.1b"><ci id="S3.SS1.p1.3.m3.1.1.cmml" xref="S3.SS1.p1.3.m3.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.3.m3.1c">n</annotation></semantics></math> visits: <math id="S3.SS1.p1.4.m4.10" class="ltx_Math" alttext="V_{p}={V_{1,p},V_{2,p},\ldots,V_{n,p}}" display="inline"><semantics id="S3.SS1.p1.4.m4.10a"><mrow id="S3.SS1.p1.4.m4.10.10" xref="S3.SS1.p1.4.m4.10.10.cmml"><msub id="S3.SS1.p1.4.m4.10.10.5" xref="S3.SS1.p1.4.m4.10.10.5.cmml"><mi id="S3.SS1.p1.4.m4.10.10.5.2" xref="S3.SS1.p1.4.m4.10.10.5.2.cmml">V</mi><mi id="S3.SS1.p1.4.m4.10.10.5.3" xref="S3.SS1.p1.4.m4.10.10.5.3.cmml">p</mi></msub><mo id="S3.SS1.p1.4.m4.10.10.4" xref="S3.SS1.p1.4.m4.10.10.4.cmml">=</mo><mrow id="S3.SS1.p1.4.m4.10.10.3.3" xref="S3.SS1.p1.4.m4.10.10.3.4.cmml"><msub id="S3.SS1.p1.4.m4.8.8.1.1.1" xref="S3.SS1.p1.4.m4.8.8.1.1.1.cmml"><mi id="S3.SS1.p1.4.m4.8.8.1.1.1.2" xref="S3.SS1.p1.4.m4.8.8.1.1.1.2.cmml">V</mi><mrow id="S3.SS1.p1.4.m4.2.2.2.4" xref="S3.SS1.p1.4.m4.2.2.2.3.cmml"><mn id="S3.SS1.p1.4.m4.1.1.1.1" xref="S3.SS1.p1.4.m4.1.1.1.1.cmml">1</mn><mo id="S3.SS1.p1.4.m4.2.2.2.4.1" xref="S3.SS1.p1.4.m4.2.2.2.3.cmml">,</mo><mi id="S3.SS1.p1.4.m4.2.2.2.2" xref="S3.SS1.p1.4.m4.2.2.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.4.m4.10.10.3.3.4" xref="S3.SS1.p1.4.m4.10.10.3.4.cmml">,</mo><msub id="S3.SS1.p1.4.m4.9.9.2.2.2" xref="S3.SS1.p1.4.m4.9.9.2.2.2.cmml"><mi id="S3.SS1.p1.4.m4.9.9.2.2.2.2" xref="S3.SS1.p1.4.m4.9.9.2.2.2.2.cmml">V</mi><mrow id="S3.SS1.p1.4.m4.4.4.2.4" xref="S3.SS1.p1.4.m4.4.4.2.3.cmml"><mn id="S3.SS1.p1.4.m4.3.3.1.1" xref="S3.SS1.p1.4.m4.3.3.1.1.cmml">2</mn><mo id="S3.SS1.p1.4.m4.4.4.2.4.1" xref="S3.SS1.p1.4.m4.4.4.2.3.cmml">,</mo><mi id="S3.SS1.p1.4.m4.4.4.2.2" xref="S3.SS1.p1.4.m4.4.4.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.4.m4.10.10.3.3.5" xref="S3.SS1.p1.4.m4.10.10.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS1.p1.4.m4.7.7" xref="S3.SS1.p1.4.m4.7.7.cmml">…</mi><mo id="S3.SS1.p1.4.m4.10.10.3.3.6" xref="S3.SS1.p1.4.m4.10.10.3.4.cmml">,</mo><msub id="S3.SS1.p1.4.m4.10.10.3.3.3" xref="S3.SS1.p1.4.m4.10.10.3.3.3.cmml"><mi id="S3.SS1.p1.4.m4.10.10.3.3.3.2" xref="S3.SS1.p1.4.m4.10.10.3.3.3.2.cmml">V</mi><mrow id="S3.SS1.p1.4.m4.6.6.2.4" xref="S3.SS1.p1.4.m4.6.6.2.3.cmml"><mi id="S3.SS1.p1.4.m4.5.5.1.1" xref="S3.SS1.p1.4.m4.5.5.1.1.cmml">n</mi><mo id="S3.SS1.p1.4.m4.6.6.2.4.1" xref="S3.SS1.p1.4.m4.6.6.2.3.cmml">,</mo><mi id="S3.SS1.p1.4.m4.6.6.2.2" xref="S3.SS1.p1.4.m4.6.6.2.2.cmml">p</mi></mrow></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.4.m4.10b"><apply id="S3.SS1.p1.4.m4.10.10.cmml" xref="S3.SS1.p1.4.m4.10.10"><eq id="S3.SS1.p1.4.m4.10.10.4.cmml" xref="S3.SS1.p1.4.m4.10.10.4"></eq><apply id="S3.SS1.p1.4.m4.10.10.5.cmml" xref="S3.SS1.p1.4.m4.10.10.5"><csymbol cd="ambiguous" id="S3.SS1.p1.4.m4.10.10.5.1.cmml" xref="S3.SS1.p1.4.m4.10.10.5">subscript</csymbol><ci id="S3.SS1.p1.4.m4.10.10.5.2.cmml" xref="S3.SS1.p1.4.m4.10.10.5.2">𝑉</ci><ci id="S3.SS1.p1.4.m4.10.10.5.3.cmml" xref="S3.SS1.p1.4.m4.10.10.5.3">𝑝</ci></apply><list id="S3.SS1.p1.4.m4.10.10.3.4.cmml" xref="S3.SS1.p1.4.m4.10.10.3.3"><apply id="S3.SS1.p1.4.m4.8.8.1.1.1.cmml" xref="S3.SS1.p1.4.m4.8.8.1.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.4.m4.8.8.1.1.1.1.cmml" xref="S3.SS1.p1.4.m4.8.8.1.1.1">subscript</csymbol><ci id="S3.SS1.p1.4.m4.8.8.1.1.1.2.cmml" xref="S3.SS1.p1.4.m4.8.8.1.1.1.2">𝑉</ci><list id="S3.SS1.p1.4.m4.2.2.2.3.cmml" xref="S3.SS1.p1.4.m4.2.2.2.4"><cn type="integer" id="S3.SS1.p1.4.m4.1.1.1.1.cmml" xref="S3.SS1.p1.4.m4.1.1.1.1">1</cn><ci id="S3.SS1.p1.4.m4.2.2.2.2.cmml" xref="S3.SS1.p1.4.m4.2.2.2.2">𝑝</ci></list></apply><apply id="S3.SS1.p1.4.m4.9.9.2.2.2.cmml" xref="S3.SS1.p1.4.m4.9.9.2.2.2"><csymbol cd="ambiguous" id="S3.SS1.p1.4.m4.9.9.2.2.2.1.cmml" xref="S3.SS1.p1.4.m4.9.9.2.2.2">subscript</csymbol><ci id="S3.SS1.p1.4.m4.9.9.2.2.2.2.cmml" xref="S3.SS1.p1.4.m4.9.9.2.2.2.2">𝑉</ci><list id="S3.SS1.p1.4.m4.4.4.2.3.cmml" xref="S3.SS1.p1.4.m4.4.4.2.4"><cn type="integer" id="S3.SS1.p1.4.m4.3.3.1.1.cmml" xref="S3.SS1.p1.4.m4.3.3.1.1">2</cn><ci id="S3.SS1.p1.4.m4.4.4.2.2.cmml" xref="S3.SS1.p1.4.m4.4.4.2.2">𝑝</ci></list></apply><ci id="S3.SS1.p1.4.m4.7.7.cmml" xref="S3.SS1.p1.4.m4.7.7">…</ci><apply id="S3.SS1.p1.4.m4.10.10.3.3.3.cmml" xref="S3.SS1.p1.4.m4.10.10.3.3.3"><csymbol cd="ambiguous" id="S3.SS1.p1.4.m4.10.10.3.3.3.1.cmml" xref="S3.SS1.p1.4.m4.10.10.3.3.3">subscript</csymbol><ci id="S3.SS1.p1.4.m4.10.10.3.3.3.2.cmml" xref="S3.SS1.p1.4.m4.10.10.3.3.3.2">𝑉</ci><list id="S3.SS1.p1.4.m4.6.6.2.3.cmml" xref="S3.SS1.p1.4.m4.6.6.2.4"><ci id="S3.SS1.p1.4.m4.5.5.1.1.cmml" xref="S3.SS1.p1.4.m4.5.5.1.1">𝑛</ci><ci id="S3.SS1.p1.4.m4.6.6.2.2.cmml" xref="S3.SS1.p1.4.m4.6.6.2.2">𝑝</ci></list></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.4.m4.10c">V_{p}={V_{1,p},V_{2,p},\ldots,V_{n,p}}</annotation></semantics></math>. For a given visit <math id="S3.SS1.p1.5.m5.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S3.SS1.p1.5.m5.1a"><mi id="S3.SS1.p1.5.m5.1.1" xref="S3.SS1.p1.5.m5.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.5.m5.1b"><ci id="S3.SS1.p1.5.m5.1.1.cmml" xref="S3.SS1.p1.5.m5.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.5.m5.1c">i</annotation></semantics></math> of patient <math id="S3.SS1.p1.6.m6.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S3.SS1.p1.6.m6.1a"><mi id="S3.SS1.p1.6.m6.1.1" xref="S3.SS1.p1.6.m6.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.6.m6.1b"><ci id="S3.SS1.p1.6.m6.1.1.cmml" xref="S3.SS1.p1.6.m6.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.6.m6.1c">p</annotation></semantics></math>, <math id="S3.SS1.p1.7.m7.2" class="ltx_Math" alttext="V_{i,p}" display="inline"><semantics id="S3.SS1.p1.7.m7.2a"><msub id="S3.SS1.p1.7.m7.2.3" xref="S3.SS1.p1.7.m7.2.3.cmml"><mi id="S3.SS1.p1.7.m7.2.3.2" xref="S3.SS1.p1.7.m7.2.3.2.cmml">V</mi><mrow id="S3.SS1.p1.7.m7.2.2.2.4" xref="S3.SS1.p1.7.m7.2.2.2.3.cmml"><mi id="S3.SS1.p1.7.m7.1.1.1.1" xref="S3.SS1.p1.7.m7.1.1.1.1.cmml">i</mi><mo id="S3.SS1.p1.7.m7.2.2.2.4.1" xref="S3.SS1.p1.7.m7.2.2.2.3.cmml">,</mo><mi id="S3.SS1.p1.7.m7.2.2.2.2" xref="S3.SS1.p1.7.m7.2.2.2.2.cmml">p</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.7.m7.2b"><apply id="S3.SS1.p1.7.m7.2.3.cmml" xref="S3.SS1.p1.7.m7.2.3"><csymbol cd="ambiguous" id="S3.SS1.p1.7.m7.2.3.1.cmml" xref="S3.SS1.p1.7.m7.2.3">subscript</csymbol><ci id="S3.SS1.p1.7.m7.2.3.2.cmml" xref="S3.SS1.p1.7.m7.2.3.2">𝑉</ci><list id="S3.SS1.p1.7.m7.2.2.2.3.cmml" xref="S3.SS1.p1.7.m7.2.2.2.4"><ci id="S3.SS1.p1.7.m7.1.1.1.1.cmml" xref="S3.SS1.p1.7.m7.1.1.1.1">𝑖</ci><ci id="S3.SS1.p1.7.m7.2.2.2.2.cmml" xref="S3.SS1.p1.7.m7.2.2.2.2">𝑝</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.7.m7.2c">V_{i,p}</annotation></semantics></math> represents the set of diagnoses assigned to patient <math id="S3.SS1.p1.8.m8.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S3.SS1.p1.8.m8.1a"><mi id="S3.SS1.p1.8.m8.1.1" xref="S3.SS1.p1.8.m8.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.8.m8.1b"><ci id="S3.SS1.p1.8.m8.1.1.cmml" xref="S3.SS1.p1.8.m8.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.8.m8.1c">p</annotation></semantics></math> at visit <math id="S3.SS1.p1.9.m9.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S3.SS1.p1.9.m9.1a"><mi id="S3.SS1.p1.9.m9.1.1" xref="S3.SS1.p1.9.m9.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.9.m9.1b"><ci id="S3.SS1.p1.9.m9.1.1.cmml" xref="S3.SS1.p1.9.m9.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.9.m9.1c">i</annotation></semantics></math>. Specifically, <math id="S3.SS1.p1.10.m10.15" class="ltx_Math" alttext="V_{i,p}={d_{1,i,p},d_{2,i,p},\ldots,d_{m,i,p}}" display="inline"><semantics id="S3.SS1.p1.10.m10.15a"><mrow id="S3.SS1.p1.10.m10.15.15" xref="S3.SS1.p1.10.m10.15.15.cmml"><msub id="S3.SS1.p1.10.m10.15.15.5" xref="S3.SS1.p1.10.m10.15.15.5.cmml"><mi id="S3.SS1.p1.10.m10.15.15.5.2" xref="S3.SS1.p1.10.m10.15.15.5.2.cmml">V</mi><mrow id="S3.SS1.p1.10.m10.2.2.2.4" xref="S3.SS1.p1.10.m10.2.2.2.3.cmml"><mi id="S3.SS1.p1.10.m10.1.1.1.1" xref="S3.SS1.p1.10.m10.1.1.1.1.cmml">i</mi><mo id="S3.SS1.p1.10.m10.2.2.2.4.1" xref="S3.SS1.p1.10.m10.2.2.2.3.cmml">,</mo><mi id="S3.SS1.p1.10.m10.2.2.2.2" xref="S3.SS1.p1.10.m10.2.2.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.10.m10.15.15.4" xref="S3.SS1.p1.10.m10.15.15.4.cmml">=</mo><mrow id="S3.SS1.p1.10.m10.15.15.3.3" xref="S3.SS1.p1.10.m10.15.15.3.4.cmml"><msub id="S3.SS1.p1.10.m10.13.13.1.1.1" xref="S3.SS1.p1.10.m10.13.13.1.1.1.cmml"><mi id="S3.SS1.p1.10.m10.13.13.1.1.1.2" xref="S3.SS1.p1.10.m10.13.13.1.1.1.2.cmml">d</mi><mrow id="S3.SS1.p1.10.m10.5.5.3.5" xref="S3.SS1.p1.10.m10.5.5.3.4.cmml"><mn id="S3.SS1.p1.10.m10.3.3.1.1" xref="S3.SS1.p1.10.m10.3.3.1.1.cmml">1</mn><mo id="S3.SS1.p1.10.m10.5.5.3.5.1" xref="S3.SS1.p1.10.m10.5.5.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.4.4.2.2" xref="S3.SS1.p1.10.m10.4.4.2.2.cmml">i</mi><mo id="S3.SS1.p1.10.m10.5.5.3.5.2" xref="S3.SS1.p1.10.m10.5.5.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.5.5.3.3" xref="S3.SS1.p1.10.m10.5.5.3.3.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.10.m10.15.15.3.3.4" xref="S3.SS1.p1.10.m10.15.15.3.4.cmml">,</mo><msub id="S3.SS1.p1.10.m10.14.14.2.2.2" xref="S3.SS1.p1.10.m10.14.14.2.2.2.cmml"><mi id="S3.SS1.p1.10.m10.14.14.2.2.2.2" xref="S3.SS1.p1.10.m10.14.14.2.2.2.2.cmml">d</mi><mrow id="S3.SS1.p1.10.m10.8.8.3.5" xref="S3.SS1.p1.10.m10.8.8.3.4.cmml"><mn id="S3.SS1.p1.10.m10.6.6.1.1" xref="S3.SS1.p1.10.m10.6.6.1.1.cmml">2</mn><mo id="S3.SS1.p1.10.m10.8.8.3.5.1" xref="S3.SS1.p1.10.m10.8.8.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.7.7.2.2" xref="S3.SS1.p1.10.m10.7.7.2.2.cmml">i</mi><mo id="S3.SS1.p1.10.m10.8.8.3.5.2" xref="S3.SS1.p1.10.m10.8.8.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.8.8.3.3" xref="S3.SS1.p1.10.m10.8.8.3.3.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.10.m10.15.15.3.3.5" xref="S3.SS1.p1.10.m10.15.15.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS1.p1.10.m10.12.12" xref="S3.SS1.p1.10.m10.12.12.cmml">…</mi><mo id="S3.SS1.p1.10.m10.15.15.3.3.6" xref="S3.SS1.p1.10.m10.15.15.3.4.cmml">,</mo><msub id="S3.SS1.p1.10.m10.15.15.3.3.3" xref="S3.SS1.p1.10.m10.15.15.3.3.3.cmml"><mi id="S3.SS1.p1.10.m10.15.15.3.3.3.2" xref="S3.SS1.p1.10.m10.15.15.3.3.3.2.cmml">d</mi><mrow id="S3.SS1.p1.10.m10.11.11.3.5" xref="S3.SS1.p1.10.m10.11.11.3.4.cmml"><mi id="S3.SS1.p1.10.m10.9.9.1.1" xref="S3.SS1.p1.10.m10.9.9.1.1.cmml">m</mi><mo id="S3.SS1.p1.10.m10.11.11.3.5.1" xref="S3.SS1.p1.10.m10.11.11.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.10.10.2.2" xref="S3.SS1.p1.10.m10.10.10.2.2.cmml">i</mi><mo id="S3.SS1.p1.10.m10.11.11.3.5.2" xref="S3.SS1.p1.10.m10.11.11.3.4.cmml">,</mo><mi id="S3.SS1.p1.10.m10.11.11.3.3" xref="S3.SS1.p1.10.m10.11.11.3.3.cmml">p</mi></mrow></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.10.m10.15b"><apply id="S3.SS1.p1.10.m10.15.15.cmml" xref="S3.SS1.p1.10.m10.15.15"><eq id="S3.SS1.p1.10.m10.15.15.4.cmml" xref="S3.SS1.p1.10.m10.15.15.4"></eq><apply id="S3.SS1.p1.10.m10.15.15.5.cmml" xref="S3.SS1.p1.10.m10.15.15.5"><csymbol cd="ambiguous" id="S3.SS1.p1.10.m10.15.15.5.1.cmml" xref="S3.SS1.p1.10.m10.15.15.5">subscript</csymbol><ci id="S3.SS1.p1.10.m10.15.15.5.2.cmml" xref="S3.SS1.p1.10.m10.15.15.5.2">𝑉</ci><list id="S3.SS1.p1.10.m10.2.2.2.3.cmml" xref="S3.SS1.p1.10.m10.2.2.2.4"><ci id="S3.SS1.p1.10.m10.1.1.1.1.cmml" xref="S3.SS1.p1.10.m10.1.1.1.1">𝑖</ci><ci id="S3.SS1.p1.10.m10.2.2.2.2.cmml" xref="S3.SS1.p1.10.m10.2.2.2.2">𝑝</ci></list></apply><list id="S3.SS1.p1.10.m10.15.15.3.4.cmml" xref="S3.SS1.p1.10.m10.15.15.3.3"><apply id="S3.SS1.p1.10.m10.13.13.1.1.1.cmml" xref="S3.SS1.p1.10.m10.13.13.1.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.10.m10.13.13.1.1.1.1.cmml" xref="S3.SS1.p1.10.m10.13.13.1.1.1">subscript</csymbol><ci id="S3.SS1.p1.10.m10.13.13.1.1.1.2.cmml" xref="S3.SS1.p1.10.m10.13.13.1.1.1.2">𝑑</ci><list id="S3.SS1.p1.10.m10.5.5.3.4.cmml" xref="S3.SS1.p1.10.m10.5.5.3.5"><cn type="integer" id="S3.SS1.p1.10.m10.3.3.1.1.cmml" xref="S3.SS1.p1.10.m10.3.3.1.1">1</cn><ci id="S3.SS1.p1.10.m10.4.4.2.2.cmml" xref="S3.SS1.p1.10.m10.4.4.2.2">𝑖</ci><ci id="S3.SS1.p1.10.m10.5.5.3.3.cmml" xref="S3.SS1.p1.10.m10.5.5.3.3">𝑝</ci></list></apply><apply id="S3.SS1.p1.10.m10.14.14.2.2.2.cmml" xref="S3.SS1.p1.10.m10.14.14.2.2.2"><csymbol cd="ambiguous" id="S3.SS1.p1.10.m10.14.14.2.2.2.1.cmml" xref="S3.SS1.p1.10.m10.14.14.2.2.2">subscript</csymbol><ci id="S3.SS1.p1.10.m10.14.14.2.2.2.2.cmml" xref="S3.SS1.p1.10.m10.14.14.2.2.2.2">𝑑</ci><list id="S3.SS1.p1.10.m10.8.8.3.4.cmml" xref="S3.SS1.p1.10.m10.8.8.3.5"><cn type="integer" id="S3.SS1.p1.10.m10.6.6.1.1.cmml" xref="S3.SS1.p1.10.m10.6.6.1.1">2</cn><ci id="S3.SS1.p1.10.m10.7.7.2.2.cmml" xref="S3.SS1.p1.10.m10.7.7.2.2">𝑖</ci><ci id="S3.SS1.p1.10.m10.8.8.3.3.cmml" xref="S3.SS1.p1.10.m10.8.8.3.3">𝑝</ci></list></apply><ci id="S3.SS1.p1.10.m10.12.12.cmml" xref="S3.SS1.p1.10.m10.12.12">…</ci><apply id="S3.SS1.p1.10.m10.15.15.3.3.3.cmml" xref="S3.SS1.p1.10.m10.15.15.3.3.3"><csymbol cd="ambiguous" id="S3.SS1.p1.10.m10.15.15.3.3.3.1.cmml" xref="S3.SS1.p1.10.m10.15.15.3.3.3">subscript</csymbol><ci id="S3.SS1.p1.10.m10.15.15.3.3.3.2.cmml" xref="S3.SS1.p1.10.m10.15.15.3.3.3.2">𝑑</ci><list id="S3.SS1.p1.10.m10.11.11.3.4.cmml" xref="S3.SS1.p1.10.m10.11.11.3.5"><ci id="S3.SS1.p1.10.m10.9.9.1.1.cmml" xref="S3.SS1.p1.10.m10.9.9.1.1">𝑚</ci><ci id="S3.SS1.p1.10.m10.10.10.2.2.cmml" xref="S3.SS1.p1.10.m10.10.10.2.2">𝑖</ci><ci id="S3.SS1.p1.10.m10.11.11.3.3.cmml" xref="S3.SS1.p1.10.m10.11.11.3.3">𝑝</ci></list></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.10.m10.15c">V_{i,p}={d_{1,i,p},d_{2,i,p},\ldots,d_{m,i,p}}</annotation></semantics></math>, where <math id="S3.SS1.p1.11.m11.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.SS1.p1.11.m11.1a"><mi id="S3.SS1.p1.11.m11.1.1" xref="S3.SS1.p1.11.m11.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.11.m11.1b"><ci id="S3.SS1.p1.11.m11.1.1.cmml" xref="S3.SS1.p1.11.m11.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.11.m11.1c">m</annotation></semantics></math> is the number of diagnoses assigned to patient <math id="S3.SS1.p1.12.m12.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S3.SS1.p1.12.m12.1a"><mi id="S3.SS1.p1.12.m12.1.1" xref="S3.SS1.p1.12.m12.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.12.m12.1b"><ci id="S3.SS1.p1.12.m12.1.1.cmml" xref="S3.SS1.p1.12.m12.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.12.m12.1c">p</annotation></semantics></math> at visit number <math id="S3.SS1.p1.13.m13.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S3.SS1.p1.13.m13.1a"><mi id="S3.SS1.p1.13.m13.1.1" xref="S3.SS1.p1.13.m13.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.13.m13.1b"><ci id="S3.SS1.p1.13.m13.1.1.cmml" xref="S3.SS1.p1.13.m13.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.13.m13.1c">i</annotation></semantics></math>. In the next visit prediction task, we choose a random <math id="S3.SS1.p1.14.m14.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S3.SS1.p1.14.m14.1a"><mi id="S3.SS1.p1.14.m14.1.1" xref="S3.SS1.p1.14.m14.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.14.m14.1b"><ci id="S3.SS1.p1.14.m14.1.1.cmml" xref="S3.SS1.p1.14.m14.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.14.m14.1c">j</annotation></semantics></math> visit number, assuming we have the medical data until <math id="S3.SS1.p1.15.m15.1" class="ltx_Math" alttext="{V_{j}}" display="inline"><semantics id="S3.SS1.p1.15.m15.1a"><msub id="S3.SS1.p1.15.m15.1.1" xref="S3.SS1.p1.15.m15.1.1.cmml"><mi id="S3.SS1.p1.15.m15.1.1.2" xref="S3.SS1.p1.15.m15.1.1.2.cmml">V</mi><mi id="S3.SS1.p1.15.m15.1.1.3" xref="S3.SS1.p1.15.m15.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.15.m15.1b"><apply id="S3.SS1.p1.15.m15.1.1.cmml" xref="S3.SS1.p1.15.m15.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.15.m15.1.1.1.cmml" xref="S3.SS1.p1.15.m15.1.1">subscript</csymbol><ci id="S3.SS1.p1.15.m15.1.1.2.cmml" xref="S3.SS1.p1.15.m15.1.1.2">𝑉</ci><ci id="S3.SS1.p1.15.m15.1.1.3.cmml" xref="S3.SS1.p1.15.m15.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.15.m15.1c">{V_{j}}</annotation></semantics></math>, we need to predict the diagnoses <math id="S3.SS1.p1.16.m16.13" class="ltx_Math" alttext="{{d_{1,j+1,p}},{d_{2,j+1,p}},\ldots,{d_{m,j+1,p}}}" display="inline"><semantics id="S3.SS1.p1.16.m16.13a"><mrow id="S3.SS1.p1.16.m16.13.13.3" xref="S3.SS1.p1.16.m16.13.13.4.cmml"><msub id="S3.SS1.p1.16.m16.11.11.1.1" xref="S3.SS1.p1.16.m16.11.11.1.1.cmml"><mi id="S3.SS1.p1.16.m16.11.11.1.1.2" xref="S3.SS1.p1.16.m16.11.11.1.1.2.cmml">d</mi><mrow id="S3.SS1.p1.16.m16.3.3.3.3" xref="S3.SS1.p1.16.m16.3.3.3.4.cmml"><mn id="S3.SS1.p1.16.m16.1.1.1.1" xref="S3.SS1.p1.16.m16.1.1.1.1.cmml">1</mn><mo id="S3.SS1.p1.16.m16.3.3.3.3.2" xref="S3.SS1.p1.16.m16.3.3.3.4.cmml">,</mo><mrow id="S3.SS1.p1.16.m16.3.3.3.3.1" xref="S3.SS1.p1.16.m16.3.3.3.3.1.cmml"><mi id="S3.SS1.p1.16.m16.3.3.3.3.1.2" xref="S3.SS1.p1.16.m16.3.3.3.3.1.2.cmml">j</mi><mo id="S3.SS1.p1.16.m16.3.3.3.3.1.1" xref="S3.SS1.p1.16.m16.3.3.3.3.1.1.cmml">+</mo><mn id="S3.SS1.p1.16.m16.3.3.3.3.1.3" xref="S3.SS1.p1.16.m16.3.3.3.3.1.3.cmml">1</mn></mrow><mo id="S3.SS1.p1.16.m16.3.3.3.3.3" xref="S3.SS1.p1.16.m16.3.3.3.4.cmml">,</mo><mi id="S3.SS1.p1.16.m16.2.2.2.2" xref="S3.SS1.p1.16.m16.2.2.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.16.m16.13.13.3.4" xref="S3.SS1.p1.16.m16.13.13.4.cmml">,</mo><msub id="S3.SS1.p1.16.m16.12.12.2.2" xref="S3.SS1.p1.16.m16.12.12.2.2.cmml"><mi id="S3.SS1.p1.16.m16.12.12.2.2.2" xref="S3.SS1.p1.16.m16.12.12.2.2.2.cmml">d</mi><mrow id="S3.SS1.p1.16.m16.6.6.3.3" xref="S3.SS1.p1.16.m16.6.6.3.4.cmml"><mn id="S3.SS1.p1.16.m16.4.4.1.1" xref="S3.SS1.p1.16.m16.4.4.1.1.cmml">2</mn><mo id="S3.SS1.p1.16.m16.6.6.3.3.2" xref="S3.SS1.p1.16.m16.6.6.3.4.cmml">,</mo><mrow id="S3.SS1.p1.16.m16.6.6.3.3.1" xref="S3.SS1.p1.16.m16.6.6.3.3.1.cmml"><mi id="S3.SS1.p1.16.m16.6.6.3.3.1.2" xref="S3.SS1.p1.16.m16.6.6.3.3.1.2.cmml">j</mi><mo id="S3.SS1.p1.16.m16.6.6.3.3.1.1" xref="S3.SS1.p1.16.m16.6.6.3.3.1.1.cmml">+</mo><mn id="S3.SS1.p1.16.m16.6.6.3.3.1.3" xref="S3.SS1.p1.16.m16.6.6.3.3.1.3.cmml">1</mn></mrow><mo id="S3.SS1.p1.16.m16.6.6.3.3.3" xref="S3.SS1.p1.16.m16.6.6.3.4.cmml">,</mo><mi id="S3.SS1.p1.16.m16.5.5.2.2" xref="S3.SS1.p1.16.m16.5.5.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.16.m16.13.13.3.5" xref="S3.SS1.p1.16.m16.13.13.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS1.p1.16.m16.10.10" xref="S3.SS1.p1.16.m16.10.10.cmml">…</mi><mo id="S3.SS1.p1.16.m16.13.13.3.6" xref="S3.SS1.p1.16.m16.13.13.4.cmml">,</mo><msub id="S3.SS1.p1.16.m16.13.13.3.3" xref="S3.SS1.p1.16.m16.13.13.3.3.cmml"><mi id="S3.SS1.p1.16.m16.13.13.3.3.2" xref="S3.SS1.p1.16.m16.13.13.3.3.2.cmml">d</mi><mrow id="S3.SS1.p1.16.m16.9.9.3.3" xref="S3.SS1.p1.16.m16.9.9.3.4.cmml"><mi id="S3.SS1.p1.16.m16.7.7.1.1" xref="S3.SS1.p1.16.m16.7.7.1.1.cmml">m</mi><mo id="S3.SS1.p1.16.m16.9.9.3.3.2" xref="S3.SS1.p1.16.m16.9.9.3.4.cmml">,</mo><mrow id="S3.SS1.p1.16.m16.9.9.3.3.1" xref="S3.SS1.p1.16.m16.9.9.3.3.1.cmml"><mi id="S3.SS1.p1.16.m16.9.9.3.3.1.2" xref="S3.SS1.p1.16.m16.9.9.3.3.1.2.cmml">j</mi><mo id="S3.SS1.p1.16.m16.9.9.3.3.1.1" xref="S3.SS1.p1.16.m16.9.9.3.3.1.1.cmml">+</mo><mn id="S3.SS1.p1.16.m16.9.9.3.3.1.3" xref="S3.SS1.p1.16.m16.9.9.3.3.1.3.cmml">1</mn></mrow><mo id="S3.SS1.p1.16.m16.9.9.3.3.3" xref="S3.SS1.p1.16.m16.9.9.3.4.cmml">,</mo><mi id="S3.SS1.p1.16.m16.8.8.2.2" xref="S3.SS1.p1.16.m16.8.8.2.2.cmml">p</mi></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.16.m16.13b"><list id="S3.SS1.p1.16.m16.13.13.4.cmml" xref="S3.SS1.p1.16.m16.13.13.3"><apply id="S3.SS1.p1.16.m16.11.11.1.1.cmml" xref="S3.SS1.p1.16.m16.11.11.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.16.m16.11.11.1.1.1.cmml" xref="S3.SS1.p1.16.m16.11.11.1.1">subscript</csymbol><ci id="S3.SS1.p1.16.m16.11.11.1.1.2.cmml" xref="S3.SS1.p1.16.m16.11.11.1.1.2">𝑑</ci><list id="S3.SS1.p1.16.m16.3.3.3.4.cmml" xref="S3.SS1.p1.16.m16.3.3.3.3"><cn type="integer" id="S3.SS1.p1.16.m16.1.1.1.1.cmml" xref="S3.SS1.p1.16.m16.1.1.1.1">1</cn><apply id="S3.SS1.p1.16.m16.3.3.3.3.1.cmml" xref="S3.SS1.p1.16.m16.3.3.3.3.1"><plus id="S3.SS1.p1.16.m16.3.3.3.3.1.1.cmml" xref="S3.SS1.p1.16.m16.3.3.3.3.1.1"></plus><ci id="S3.SS1.p1.16.m16.3.3.3.3.1.2.cmml" xref="S3.SS1.p1.16.m16.3.3.3.3.1.2">𝑗</ci><cn type="integer" id="S3.SS1.p1.16.m16.3.3.3.3.1.3.cmml" xref="S3.SS1.p1.16.m16.3.3.3.3.1.3">1</cn></apply><ci id="S3.SS1.p1.16.m16.2.2.2.2.cmml" xref="S3.SS1.p1.16.m16.2.2.2.2">𝑝</ci></list></apply><apply id="S3.SS1.p1.16.m16.12.12.2.2.cmml" xref="S3.SS1.p1.16.m16.12.12.2.2"><csymbol cd="ambiguous" id="S3.SS1.p1.16.m16.12.12.2.2.1.cmml" xref="S3.SS1.p1.16.m16.12.12.2.2">subscript</csymbol><ci id="S3.SS1.p1.16.m16.12.12.2.2.2.cmml" xref="S3.SS1.p1.16.m16.12.12.2.2.2">𝑑</ci><list id="S3.SS1.p1.16.m16.6.6.3.4.cmml" xref="S3.SS1.p1.16.m16.6.6.3.3"><cn type="integer" id="S3.SS1.p1.16.m16.4.4.1.1.cmml" xref="S3.SS1.p1.16.m16.4.4.1.1">2</cn><apply id="S3.SS1.p1.16.m16.6.6.3.3.1.cmml" xref="S3.SS1.p1.16.m16.6.6.3.3.1"><plus id="S3.SS1.p1.16.m16.6.6.3.3.1.1.cmml" xref="S3.SS1.p1.16.m16.6.6.3.3.1.1"></plus><ci id="S3.SS1.p1.16.m16.6.6.3.3.1.2.cmml" xref="S3.SS1.p1.16.m16.6.6.3.3.1.2">𝑗</ci><cn type="integer" id="S3.SS1.p1.16.m16.6.6.3.3.1.3.cmml" xref="S3.SS1.p1.16.m16.6.6.3.3.1.3">1</cn></apply><ci id="S3.SS1.p1.16.m16.5.5.2.2.cmml" xref="S3.SS1.p1.16.m16.5.5.2.2">𝑝</ci></list></apply><ci id="S3.SS1.p1.16.m16.10.10.cmml" xref="S3.SS1.p1.16.m16.10.10">…</ci><apply id="S3.SS1.p1.16.m16.13.13.3.3.cmml" xref="S3.SS1.p1.16.m16.13.13.3.3"><csymbol cd="ambiguous" id="S3.SS1.p1.16.m16.13.13.3.3.1.cmml" xref="S3.SS1.p1.16.m16.13.13.3.3">subscript</csymbol><ci id="S3.SS1.p1.16.m16.13.13.3.3.2.cmml" xref="S3.SS1.p1.16.m16.13.13.3.3.2">𝑑</ci><list id="S3.SS1.p1.16.m16.9.9.3.4.cmml" xref="S3.SS1.p1.16.m16.9.9.3.3"><ci id="S3.SS1.p1.16.m16.7.7.1.1.cmml" xref="S3.SS1.p1.16.m16.7.7.1.1">𝑚</ci><apply id="S3.SS1.p1.16.m16.9.9.3.3.1.cmml" xref="S3.SS1.p1.16.m16.9.9.3.3.1"><plus id="S3.SS1.p1.16.m16.9.9.3.3.1.1.cmml" xref="S3.SS1.p1.16.m16.9.9.3.3.1.1"></plus><ci id="S3.SS1.p1.16.m16.9.9.3.3.1.2.cmml" xref="S3.SS1.p1.16.m16.9.9.3.3.1.2">𝑗</ci><cn type="integer" id="S3.SS1.p1.16.m16.9.9.3.3.1.3.cmml" xref="S3.SS1.p1.16.m16.9.9.3.3.1.3">1</cn></apply><ci id="S3.SS1.p1.16.m16.8.8.2.2.cmml" xref="S3.SS1.p1.16.m16.8.8.2.2">𝑝</ci></list></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.16.m16.13c">{{d_{1,j+1,p}},{d_{2,j+1,p}},\ldots,{d_{m,j+1,p}}}</annotation></semantics></math> for visit number <math id="S3.SS1.p1.17.m17.1" class="ltx_Math" alttext="{j+1}" display="inline"><semantics id="S3.SS1.p1.17.m17.1a"><mrow id="S3.SS1.p1.17.m17.1.1" xref="S3.SS1.p1.17.m17.1.1.cmml"><mi id="S3.SS1.p1.17.m17.1.1.2" xref="S3.SS1.p1.17.m17.1.1.2.cmml">j</mi><mo id="S3.SS1.p1.17.m17.1.1.1" xref="S3.SS1.p1.17.m17.1.1.1.cmml">+</mo><mn id="S3.SS1.p1.17.m17.1.1.3" xref="S3.SS1.p1.17.m17.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.17.m17.1b"><apply id="S3.SS1.p1.17.m17.1.1.cmml" xref="S3.SS1.p1.17.m17.1.1"><plus id="S3.SS1.p1.17.m17.1.1.1.cmml" xref="S3.SS1.p1.17.m17.1.1.1"></plus><ci id="S3.SS1.p1.17.m17.1.1.2.cmml" xref="S3.SS1.p1.17.m17.1.1.2">𝑗</ci><cn type="integer" id="S3.SS1.p1.17.m17.1.1.3.cmml" xref="S3.SS1.p1.17.m17.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.17.m17.1c">{j+1}</annotation></semantics></math> based on <math id="S3.SS1.p1.18.m18.10" class="ltx_Math" alttext="{V_{1,p},V_{2,p},\ldots,V_{j,p}}" display="inline"><semantics id="S3.SS1.p1.18.m18.10a"><mrow id="S3.SS1.p1.18.m18.10.10.3" xref="S3.SS1.p1.18.m18.10.10.4.cmml"><msub id="S3.SS1.p1.18.m18.8.8.1.1" xref="S3.SS1.p1.18.m18.8.8.1.1.cmml"><mi id="S3.SS1.p1.18.m18.8.8.1.1.2" xref="S3.SS1.p1.18.m18.8.8.1.1.2.cmml">V</mi><mrow id="S3.SS1.p1.18.m18.2.2.2.4" xref="S3.SS1.p1.18.m18.2.2.2.3.cmml"><mn id="S3.SS1.p1.18.m18.1.1.1.1" xref="S3.SS1.p1.18.m18.1.1.1.1.cmml">1</mn><mo id="S3.SS1.p1.18.m18.2.2.2.4.1" xref="S3.SS1.p1.18.m18.2.2.2.3.cmml">,</mo><mi id="S3.SS1.p1.18.m18.2.2.2.2" xref="S3.SS1.p1.18.m18.2.2.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.18.m18.10.10.3.4" xref="S3.SS1.p1.18.m18.10.10.4.cmml">,</mo><msub id="S3.SS1.p1.18.m18.9.9.2.2" xref="S3.SS1.p1.18.m18.9.9.2.2.cmml"><mi id="S3.SS1.p1.18.m18.9.9.2.2.2" xref="S3.SS1.p1.18.m18.9.9.2.2.2.cmml">V</mi><mrow id="S3.SS1.p1.18.m18.4.4.2.4" xref="S3.SS1.p1.18.m18.4.4.2.3.cmml"><mn id="S3.SS1.p1.18.m18.3.3.1.1" xref="S3.SS1.p1.18.m18.3.3.1.1.cmml">2</mn><mo id="S3.SS1.p1.18.m18.4.4.2.4.1" xref="S3.SS1.p1.18.m18.4.4.2.3.cmml">,</mo><mi id="S3.SS1.p1.18.m18.4.4.2.2" xref="S3.SS1.p1.18.m18.4.4.2.2.cmml">p</mi></mrow></msub><mo id="S3.SS1.p1.18.m18.10.10.3.5" xref="S3.SS1.p1.18.m18.10.10.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS1.p1.18.m18.7.7" xref="S3.SS1.p1.18.m18.7.7.cmml">…</mi><mo id="S3.SS1.p1.18.m18.10.10.3.6" xref="S3.SS1.p1.18.m18.10.10.4.cmml">,</mo><msub id="S3.SS1.p1.18.m18.10.10.3.3" xref="S3.SS1.p1.18.m18.10.10.3.3.cmml"><mi id="S3.SS1.p1.18.m18.10.10.3.3.2" xref="S3.SS1.p1.18.m18.10.10.3.3.2.cmml">V</mi><mrow id="S3.SS1.p1.18.m18.6.6.2.4" xref="S3.SS1.p1.18.m18.6.6.2.3.cmml"><mi id="S3.SS1.p1.18.m18.5.5.1.1" xref="S3.SS1.p1.18.m18.5.5.1.1.cmml">j</mi><mo id="S3.SS1.p1.18.m18.6.6.2.4.1" xref="S3.SS1.p1.18.m18.6.6.2.3.cmml">,</mo><mi id="S3.SS1.p1.18.m18.6.6.2.2" xref="S3.SS1.p1.18.m18.6.6.2.2.cmml">p</mi></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.18.m18.10b"><list id="S3.SS1.p1.18.m18.10.10.4.cmml" xref="S3.SS1.p1.18.m18.10.10.3"><apply id="S3.SS1.p1.18.m18.8.8.1.1.cmml" xref="S3.SS1.p1.18.m18.8.8.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.18.m18.8.8.1.1.1.cmml" xref="S3.SS1.p1.18.m18.8.8.1.1">subscript</csymbol><ci id="S3.SS1.p1.18.m18.8.8.1.1.2.cmml" xref="S3.SS1.p1.18.m18.8.8.1.1.2">𝑉</ci><list id="S3.SS1.p1.18.m18.2.2.2.3.cmml" xref="S3.SS1.p1.18.m18.2.2.2.4"><cn type="integer" id="S3.SS1.p1.18.m18.1.1.1.1.cmml" xref="S3.SS1.p1.18.m18.1.1.1.1">1</cn><ci id="S3.SS1.p1.18.m18.2.2.2.2.cmml" xref="S3.SS1.p1.18.m18.2.2.2.2">𝑝</ci></list></apply><apply id="S3.SS1.p1.18.m18.9.9.2.2.cmml" xref="S3.SS1.p1.18.m18.9.9.2.2"><csymbol cd="ambiguous" id="S3.SS1.p1.18.m18.9.9.2.2.1.cmml" xref="S3.SS1.p1.18.m18.9.9.2.2">subscript</csymbol><ci id="S3.SS1.p1.18.m18.9.9.2.2.2.cmml" xref="S3.SS1.p1.18.m18.9.9.2.2.2">𝑉</ci><list id="S3.SS1.p1.18.m18.4.4.2.3.cmml" xref="S3.SS1.p1.18.m18.4.4.2.4"><cn type="integer" id="S3.SS1.p1.18.m18.3.3.1.1.cmml" xref="S3.SS1.p1.18.m18.3.3.1.1">2</cn><ci id="S3.SS1.p1.18.m18.4.4.2.2.cmml" xref="S3.SS1.p1.18.m18.4.4.2.2">𝑝</ci></list></apply><ci id="S3.SS1.p1.18.m18.7.7.cmml" xref="S3.SS1.p1.18.m18.7.7">…</ci><apply id="S3.SS1.p1.18.m18.10.10.3.3.cmml" xref="S3.SS1.p1.18.m18.10.10.3.3"><csymbol cd="ambiguous" id="S3.SS1.p1.18.m18.10.10.3.3.1.cmml" xref="S3.SS1.p1.18.m18.10.10.3.3">subscript</csymbol><ci id="S3.SS1.p1.18.m18.10.10.3.3.2.cmml" xref="S3.SS1.p1.18.m18.10.10.3.3.2">𝑉</ci><list id="S3.SS1.p1.18.m18.6.6.2.3.cmml" xref="S3.SS1.p1.18.m18.6.6.2.4"><ci id="S3.SS1.p1.18.m18.5.5.1.1.cmml" xref="S3.SS1.p1.18.m18.5.5.1.1">𝑗</ci><ci id="S3.SS1.p1.18.m18.6.6.2.2.cmml" xref="S3.SS1.p1.18.m18.6.6.2.2">𝑝</ci></list></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.18.m18.10c">{V_{1,p},V_{2,p},\ldots,V_{j,p}}</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Data</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">MIMIC-IV is a comprehensive healthcare dataset that was utilized to demonstrate the usability of our suggested approach. MIMIC-IV contains about 400,000 ICU admissions of about 190K patients from Beth Israel Deaconess Medical Center in Boston, Massachusetts spanning a period of five years from 2008 to 2012 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx13" title="" class="ltx_ref">13</a>]</cite>.
+Figure <a href="#S3.F2" title="Figure 2 ‣ 3.2 Data ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> provides an overview of the process of identifying patients with ICD10 diagnoses in the MIMIC-IV database and the steps involved in aggregating the data to simplify the representation of the diagnoses. At the top of Figure <a href="#S3.F2" title="Figure 2 ‣ 3.2 Data ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we have 190,279 patients with admissions. From this group, 84,453 were found to have an ICD10 code associated with their condition, while 105,826 did not have an ICD10 diagnoses code. These patients had 17,009 different ICD10 diagnosis codes. These codes were then aggregated into 416 groups according to the Clinical Classifications Software (CCS) of Healthcare Cost and Utilization Project (HCUP). Finally, each observation is a sequence that represents the medical history of a single patient, which includes his diagnoses, age, and year of diagnosis. The data for each patient is actually composed of multiple visits, ordered by admission start time, which is important for the next visit prediction task.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure"><svg id="S3.F2.pic1" class="ltx_picture ltx_centering" height="217.09" overflow="visible" version="1.1" width="401.19"><g transform="translate(0,217.09) matrix(1 0 0 -1 0 0) translate(296.79,0) translate(0,197.13)" fill="#000000" stroke="#000000"><g stroke-width="0.4pt"><g stroke="#000000" fill="#FFB3B3"><path d="M 98.59 19.69 L -98.59 19.69 C -101.65 19.69 -104.12 17.21 -104.12 14.15 L -104.12 -14.15 C -104.12 -17.21 -101.65 -19.69 -98.59 -19.69 L 98.59 -19.69 C 101.65 -19.69 104.12 -17.21 104.12 -14.15 L 104.12 14.15 C 104.12 17.21 101.65 19.69 98.59 19.69 Z M -104.12 -19.69"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -99.51 -3.46)" fill="#000000" stroke="#000000"><foreignObject width="199.41" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.1.1.1.1.1.1" class="ltx_text">190,279 patients with admissions</span></foreignObject></g><g stroke="#000000" fill="#FFD9B3"><path d="M -296.51 -95.05 h 166.7 v 39.37 h -166.7 Z"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -291.9 -70.6)" fill="#000000" stroke="#000000"><foreignObject width="157.48" height="28.9" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.2.2.2.2.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:113.8pt;">
+<span id="S3.F2.pic1.2.2.2.2.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.2.2.2.2.1.1.2" class="ltx_p">105,826 patients without ICD10 code diagnoses</span>
+</span></foreignObject></g><g stroke="#000000" fill="#FFD9B3"><path d="M -83.35 -196.85 h 166.7 v 39.37 h -166.7 Z"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -78.74 -173.74)" fill="#000000" stroke="#000000"><foreignObject width="157.48" height="26.21" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.3.3.3.3.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:113.8pt;">
+<span id="S3.F2.pic1.3.3.3.3.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.3.3.3.3.1.1.2" class="ltx_p">84,453 patients with ICD10 codes</span>
+</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 0 -19.96 L 0 -75.36 L -125.93 -75.36" style="fill:none"></path><g transform="matrix(-1.0 0.0 0.0 -1.0 -125.93 -75.36)"><path d="M 3.6 0 L -2.16 2.88 L 0 0 L -2.16 -2.88" style="stroke:none"></path></g></g><g stroke-width="0.8pt"><path d="M 0 -19.96 L 0 -153.61" style="fill:none"></path><g transform="matrix(0.0 -1.0 1.0 0.0 0 -153.61)"><path d="M 3.6 0 L -2.16 2.88 L 0 0 L -2.16 -2.88" style="stroke:none"></path></g></g></g></svg>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F2.2.1.1" class="ltx_text" style="font-size:90%;">Figure 2</span>: </span><span id="S3.F2.3.2" class="ltx_text" style="font-size:90%;">Patient admissions and diagnoses flowchart.</span></figcaption>
+</figure>
+<section id="S3.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.2.1 </span>Multi-Centers Split</h4>
+
+<div id="S3.SS2.SSS1.p1" class="ltx_para">
+<p id="S3.SS2.SSS1.p1.1" class="ltx_p">To demonstrate the need for federated learning for the next visit prediction task, we simulated a multi-centers scenario by splitting our data by patient. To simulate a real-world biased variety between medical centers we did not split the patients randomly but clinically-driven. Each patient was assigned to a single care unit according to the unit with the longest stay. Length of stay was taken from the MIMIC-IV transfers table in Hosp module <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx13" title="" class="ltx_ref">13</a>]</cite>. After splitting the patients into centers, we obtained a total of 39 centers.</p>
+</div>
+</section>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Baseline Approaches</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">In order to compared our federated learning approach we trained a centralized model. In the centralized training, the two learning phases of MLM and next visit prediction were trained using a single dataset covering all the training samples.
+In addition, we also compared our approach to local model training. In the local training, no information is shared across clients. As we have 39 centers, we trained each center’s model separately using its local data - first we trained MLM for the local data, and then we fine-tuned the MLM model using the client’s local data for the next visit prediction.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>BEHRT</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">We used the BEHRT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite> model architecture for federated learning for both the MLM and the next visit prediction downstream task. BEHRT is a deep learning language model based on the BERT architecture <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx8" title="" class="ltx_ref">8</a>]</cite>. BEHRT consists of Masked Language Modeling (MLM), followed by fine-tuning the pre-trained MLM model for the next visit prediction task. In the MLM training, the task is to predict the masked disease tokens. The features for the MLM tasks are: diagnoses, patient’s age, and the diagnosis year. For the next visit task the features are the same as those for the MLM, but the list of diagnoses is partial and contains the medical information up to the visit for which we want to predict its diagnoses. In the MLM phase, the model learns an embedding of the clinical concepts such as diagnosis, age, position (i.e., the relative position of a concept within a visit), and segment (i.e., visit). Afterward, the MLM is fine-tuned for the next visit prediction task by adding a classification layer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Our Approach</h3>
+
+<figure id="S3.F3" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S3.F3.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><svg id="S3.F3.sf1.pic1" class="ltx_picture ltx_centering" height="302.67" overflow="visible" version="1.1" width="270.7"><g transform="translate(0,302.67) matrix(1 0 0 -1 0 0) translate(123.54,0) translate(0,272.87)" fill="#000000" stroke="#000000"><g stroke-width="0.4pt"><g stroke="#000000"><path d="M -43.98 -29.53 h 87.96 v 59.06 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -39.37 -4.84)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="9.69" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F3.sf1.pic1.1.1.1.1.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F3.sf1.pic1.1.1.1.1.1.1.1" class="ltx_p"></span>
+<span id="S3.F3.sf1.pic1.1.1.1.1.1.1.2" class="ltx_p">Server</span>
+</span></foreignObject></g><g stroke="#000000"><path d="M -60.51 -200.79 C -60.51 -184.2 -73.96 -170.74 -90.55 -170.74 C -107.14 -170.74 -120.59 -184.2 -120.59 -200.79 C -120.59 -217.38 -107.14 -230.83 -90.55 -230.83 C -73.96 -230.83 -60.51 -217.38 -60.51 -200.79 Z M -90.55 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -114.57 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.2.2.2.2.1.1" class="ltx_text">Client 1</span></foreignObject></g><g stroke="#000000"><path d="M 30.04 -200.79 C 30.04 -184.2 16.59 -170.74 0 -170.74 C -16.59 -170.74 -30.04 -184.2 -30.04 -200.79 C -30.04 -217.38 -16.59 -230.83 0 -230.83 C 16.59 -230.83 30.04 -217.38 30.04 -200.79 Z M 0 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -24.02 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.3.3.3.3.1.1" class="ltx_text">Client 2</span></foreignObject></g><g stroke="#000000"><path d="M 120.59 -200.79 C 120.59 -184.2 107.14 -170.74 90.55 -170.74 C 73.96 -170.74 60.51 -184.2 60.51 -200.79 C 60.51 -217.38 73.96 -230.83 90.55 -230.83 C 107.14 -230.83 120.59 -217.38 120.59 -200.79 Z M 90.55 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 66.53 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.4.4.4.4.1.1" class="ltx_text">Client 3</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 0 -29.8 L -90.02 -169.64" style="fill:none"></path><g transform="matrix(-0.54128 -0.84084 0.84084 -0.54128 -90.02 -169.64)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(0.54128 0.84084 -0.84084 0.54128 -72.79 -128.36)" fill="#000000" stroke="#000000"><foreignObject width="77.26" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.5.5.5.1.1.1" class="ltx_text">global model</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 0 -29.8 L 0 -169.49" style="fill:none"></path><g transform="matrix(0.0 -1.0 1.0 0.0 0 -169.49)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(0.0 -1.0 1.0 0.0 9.04 -61.51)" fill="#000000" stroke="#000000"><foreignObject width="77.26" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.6.6.6.1.1.1" class="ltx_text">global model</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 0 -29.8 L 90.02 -169.64" style="fill:none"></path><g transform="matrix(0.54128 -0.84084 0.84084 0.54128 90.02 -169.64)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(0.54128 -0.84084 0.84084 0.54128 30.97 -63.4)" fill="#000000" stroke="#000000"><foreignObject width="77.26" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.7.7.7.1.1.1" class="ltx_text">global model</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M -90.55 -231.11 C -96.2 -234.37 -98.14 -241.59 -94.87 -247.24 C -91.61 -252.89 -84.39 -254.83 -78.74 -251.56 C -73.09 -248.3 -71.16 -241.08 -74.42 -235.43 C -75.45 -233.63 -76.94 -232.14 -77.89 -231.6" style="fill:none"></path><g transform="matrix(-0.86601 0.50003 -0.50003 -0.86601 -77.89 -231.6)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -118.93 -265.57)" fill="#000000" stroke="#000000"><foreignObject width="79.99" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.8.8.8.1.1.1" class="ltx_text">local training</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 90.55 -231.11 C 84.9 -234.37 82.97 -241.59 86.23 -247.24 C 89.49 -252.89 96.71 -254.83 102.36 -251.56 C 108.01 -248.3 109.95 -241.08 106.69 -235.43 C 105.65 -233.63 104.16 -232.14 103.21 -231.6" style="fill:none"></path><g transform="matrix(-0.86601 0.50003 -0.50003 -0.86601 103.21 -231.6)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 62.18 -265.57)" fill="#000000" stroke="#000000"><foreignObject width="79.99" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf1.pic1.9.9.9.1.1.1" class="ltx_text">local training</span></foreignObject></g></g></g></svg>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F3.sf1.2.1.1" class="ltx_text" style="font-size:90%;">(a)</span> </span><span id="S3.F3.sf1.3.2" class="ltx_text" style="font-size:90%;">step one: local model training.</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S3.F3.sf2" class="ltx_figure ltx_figure_panel ltx_align_center">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2"><svg id="S3.F3.sf2.pic1" class="ltx_picture ltx_figure_panel" height="308.89" overflow="visible" version="1.1" width="241.74"><g transform="translate(0,308.89) matrix(1 0 0 -1 0 0) translate(120.87,0) translate(0,231.11)" fill="#000000" stroke="#000000"><g stroke-width="0.4pt"><g stroke="#000000"><path d="M -43.98 -29.53 h 87.96 v 59.06 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -39.37 -4.84)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="9.69" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F3.sf2.pic1.1.1.1.1.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F3.sf2.pic1.1.1.1.1.1.1.1" class="ltx_p"></span>
+<span id="S3.F3.sf2.pic1.1.1.1.1.1.1.2" class="ltx_p">Server</span>
+</span></foreignObject></g><g stroke="#000000"><path d="M -60.51 -200.79 C -60.51 -184.2 -73.96 -170.74 -90.55 -170.74 C -107.14 -170.74 -120.59 -184.2 -120.59 -200.79 C -120.59 -217.38 -107.14 -230.83 -90.55 -230.83 C -73.96 -230.83 -60.51 -217.38 -60.51 -200.79 Z M -90.55 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -114.57 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.2.2.2.2.1.1" class="ltx_text">Client 1</span></foreignObject></g><g stroke="#000000"><path d="M 30.04 -200.79 C 30.04 -184.2 16.59 -170.74 0 -170.74 C -16.59 -170.74 -30.04 -184.2 -30.04 -200.79 C -30.04 -217.38 -16.59 -230.83 0 -230.83 C 16.59 -230.83 30.04 -217.38 30.04 -200.79 Z M 0 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -24.02 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.3.3.3.3.1.1" class="ltx_text">Client 2</span></foreignObject></g><g stroke="#000000"><path d="M 120.59 -200.79 C 120.59 -184.2 107.14 -170.74 90.55 -170.74 C 73.96 -170.74 60.51 -184.2 60.51 -200.79 C 60.51 -217.38 73.96 -230.83 90.55 -230.83 C 107.14 -230.83 120.59 -217.38 120.59 -200.79 Z M 90.55 -200.79" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 66.53 -205.59)" fill="#000000" stroke="#000000"><foreignObject width="48.05" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.4.4.4.4.1.1" class="ltx_text">Client 3</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M -80.18 -172.3 L -44.47 -8.76" style="fill:none"></path><g transform="matrix(0.21336 0.97697 -0.97697 0.21336 -44.47 -8.76)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(0.21336 0.97697 -0.97697 0.21336 -79.33 -131.6)" fill="#000000" stroke="#000000"><foreignObject width="88.48" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.5.5.5.1.1.1" class="ltx_text">model updates</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 100.92 -172.3 L 44.58 -8.73" style="fill:none"></path><g transform="matrix(-0.32568 0.94548 -0.94548 -0.32568 44.58 -8.73)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(0.32568 -0.94548 0.94548 0.32568 65.61 -45.66)" fill="#000000" stroke="#000000"><foreignObject width="88.48" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.6.6.6.1.1.1" class="ltx_text">model updates</span></foreignObject></g></g><g stroke-width="0.8pt"><path d="M 0 29.8 C -6.42 28.67 -12.55 32.96 -13.68 39.39 C -14.82 45.81 -10.53 51.94 -4.1 53.07 C 2.32 54.2 8.45 49.91 9.58 43.49 C 10.31 39.33 8.77 35.1 6.29 33.02" style="fill:none"></path><g transform="matrix(-0.76604 -0.6428 0.6428 -0.76604 6.29 33.02)" stroke-dasharray="none" stroke-dashoffset="0.0pt" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.64pt"><path d="M -2.16 2.88 C -1.98 1.8 0 0.18 0.54 0 C 0 -0.18 -1.98 -1.8 -2.16 -2.88" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 -62.1 63.93)" fill="#000000" stroke="#000000"><foreignObject width="110.5" height="11.93" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F3.sf2.pic1.7.7.7.1.1.1" class="ltx_text">server aggregation</span></foreignObject></g></g></g></svg></div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S3.F3.sf2.4.1.1" class="ltx_text" style="font-size:90%;">(b)</span> </span><span id="S3.F3.sf2.5.2" class="ltx_text" style="font-size:90%;">step two: server aggregation.</span></figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F3.sf2.1" class="ltx_p ltx_figure_panel"><span id="S3.F3.sf2.1.1" class="ltx_text ltx_phantom"><span style="visibility:hidden"><img src="/html/2305.13052/assets/x1.png" id="S3.F3.sf2.1.1.g1" class="ltx_graphics ltx_img_landscape" width="16" height="12" alt="Refer to caption"></span></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F3.sf2.2" class="ltx_p ltx_figure_panel"><span id="S3.F3.sf2.2.1" class="ltx_text ltx_phantom"><span style="visibility:hidden"><img src="/html/2305.13052/assets/x2.png" id="S3.F3.sf2.2.1.g1" class="ltx_graphics ltx_img_landscape" width="37" height="28" alt="Refer to caption"></span></span></p>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F3.2.1.1" class="ltx_text" style="font-size:90%;">Figure 3</span>: </span><span id="S3.F3.3.2" class="ltx_text" style="font-size:90%;">Federated Learning algorithm for MLM and next visit prediction. (a) In the first step, the server sends the global model to all clients, and each selected client trains the local model. (b) In the second step, the server gets the trained weights from the selected clients, aggregates the weights and updates the global model.</span></figcaption>
+</figure>
+<div id="S3.SS5.p1" class="ltx_para">
+<p id="S3.SS5.p1.1" class="ltx_p">We used the Federated Averaging (FedAvg) algorithm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx5" title="" class="ltx_ref">5</a>]</cite> for BEHRT federated learning. The server initially shares the BEHRT global model with each client. Subsequently, the selected client trains the model using their local data as depicted in Figure <a href="#S3.F3.sf1" title="In Figure 3 ‣ 3.5 Our Approach ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3(a)</span></a>. In the second part of the algorithm, the selected clients transmit the weights of their trained local model to the server, and the server updates the global model by aggregating all the updated models by computing a weighted average of each weight according to client’s sample size, as shown in Figure <a href="#S3.F3.sf2" title="In Figure 3 ‣ 3.5 Our Approach ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3(b)</span></a>. Finally, the server disseminates the updated model to all the clients. This process continues iteratively until a stop criterion is met. We used this federated learning algorithm for both the MLM training step and the next visit prediction model training step. At each round of training, we selected only a fraction of 10% from the clients to train on their local data. We did this for efficiency, as <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx5" title="" class="ltx_ref">5</a>]</cite> showed that there is a point of diminishing returns when adding more clients.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experiments</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Experimental Setup</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">We performed experiments to compare our proposed federated learning approach to a model trained with all the data in a central place. To assess the performance of our proposed approach, we partitioned the data into train and test sets using an 80-20 split ratio. We trained the MLM model using PyTorch, based on the train set with Adam optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx38" title="" class="ltx_ref">38</a>]</cite> and 500 epochs. We selected the best model based on the precision on the validation set. Training the MLM model with the centralized data took about three hours to reach the best model on an RTX 3090 GPU. The FL MLM training took about 14 hours. The runtime of the next visit prediction (FL and Non-FL) took between a few minutes and up to 2 days, depending on the exact configuration (see Supplementary). The FL training takes longer than centralized training because during each round of training, we sequentially train a subset of clients on a single GPU. As discussed in section <a href="#S3.SS5" title="3.5 Our Approach ‣ 3 Methods ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.5</span></a>, during each round of training, we randomly select a subset of clients and train the model on their local data. Consequently, the FL training procedure takes more time compared to traditional centralized learning approaches. We repeated the training of the next visit prediction while varying the random seed in order to calculate the confidence intervals.</p>
+</div>
+<figure id="S4.F4" class="ltx_figure"><img src="/html/2305.13052/assets/x3.png" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="243" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F4.2.1.1" class="ltx_text" style="font-size:90%;">Figure 4</span>: </span><span id="S4.F4.3.2" class="ltx_text" style="font-size:90%;">The average precision of each training method was evaluated for the next visit prediction task. The centralized model is referred to as Centralized Training, our proposed approach is FL Training, and Local Training involves training local models in our multi-center study. We evaluated the average precision of the models at four minimum visit thresholds. The average precision value appears at the top of each bar plot, and also the 95% confidence interval based on a random seed.</span></figcaption>
+</figure>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Federated vs. centralized Learning</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">In this experiment, we compared our proposed approach (FL Training) to a model trained with centralized data. For the FL training, the two phases were trained using the federated data. We trained a single MLM model and multiple next-visit models where in each model, we subset the data to patients having at least 1, 3, 5, or 15 visits. Our results showed that our proposed FL model achieved similar average precision to the centralized model for minimum visits of 3, 5, and 15. For a minimum visit of 1, the centralized model outperformed our model by absolute 3% (Figure <a href="#S4.F4" title="Figure 4 ‣ 4.1 Experimental Setup ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>).</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Federated vs. local client-independent Learning</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">This experiment simulates a scenario where no data can be shared due to privacy and security concerns, making local model training a common scenario in such cases. Each local model was trained with its own local data, which varied in size and clinical conditions. To aggregate the performances of the local models, we used weighted averages based on their average precision and the number of examples (patients) in the local train data.
+Figure <a href="#S4.F4" title="Figure 4 ‣ 4.1 Experimental Setup ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows the average precision results of local training compared to FL training and centralized training for four minimum visit thresholds. Our federated learning approach outperformed local training for minimum visits of 1, 3, 5, and 15 by an average precision of absolute 4%, 8%, 8%, and 10%, respectively. Overall, our proposed FL training model achieved 4-10% absolute higher average precision than local training models.</p>
+</div>
+<figure id="S4.F5" class="ltx_figure"><img src="/html/2305.13052/assets/x4.png" id="S4.F5.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="179" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S4.F5.2.1.1" class="ltx_text" style="font-size:90%;">Figure 5</span>: </span><span id="S4.F5.3.2" class="ltx_text" style="font-size:90%;">The importance of the pre-trained MLM for the FL next visit prediction task. We compared the performance for five MLM configurations: blue and green with pre-trained MLMs and fine-tuned with federated learning (for patients with minimum visits of one or three, respectively); purple and yellow with centralized MLM training (also for patients with minimum visits of one or three, respectively); and red without pre-trained MLMs.</span></figcaption>
+</figure>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Pre-trained MLM</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">In the next step, we took the pre-trained MLMs and fine-tuned them for the prediction task. In this experiment, we conducted an ablation study to evaluate the importance of pre-trained MLM. Specifically, we compared the performance of FL next visit prediction using different pre-trained MLM models. We evaluated two centralized MLMs: the first was an MLM model with a minimum of one visit (trained on all patients), and the second was an MLM model trained on patients who had at least three visits. Additionally, we evaluated two more FL MLM models. The first FL MLM is the one trained with patients with a minimum of one visit, and the second is for patients with at least three visits. Finally, we compared the performance of all these pre-trained models to the performance of the model without pre-trained MLM. Figure <a href="#S4.F5" title="Figure 5 ‣ 4.3 Federated vs. local client-independent Learning ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> shows the average precision comparison of FL next visit prediction based on the pre-trained MLM models. This figure shows that for minimum visits of 3 and 5, the pre-trained MLM improves the average precision for FL next visit prediction by 1-1.2% absolute compared to without pre-trained MLM. Moreover, the difference in average precision between the centralized MLM and FL MLM was negligible. These findings indicate that FL MLM can achieve similar performance without having all the data centralized in one place.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Discussion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this paper, we present a federated learning approach for BEHRT. We trained the MLM and the next visit prediction task using the FedAvg algorithm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx5" title="" class="ltx_ref">5</a>]</cite>. Our approach is general and well-suited for multi-center studies that require a federated learning model to ensure the privacy of EHR data. We show that our approach of federated learning of embedding clinical concepts can meat the performance of a model trained on centralized data, and it outperforms model trained locally with no information sharing. We demonstrate the effectiveness of our approach by simulating the MIMIC-IV dataset as a multi-center study, training a federated learning MLM and next visit prediction models. We compare the performance of our federated learning approach to both a centralized model and local models (which are commonly used due to data privacy concerns).</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">In the first experiment, we compare the average precision of FL training, centralized training, and local training for different minimum visit thresholds. As previously mentioned, our federated learning approach achieved average precision results that were comparable to the centralized baseline approach. For minimum visit thresholds of 3, 5, and 15, the differences in average precision were negligible. These results demonstrate that our approach can achieve similar performance to centralized training while preserving EHR data privacy. The reason for lower performance for a minimum visit threshold of 1 is not clear enough. One possible reason is that the set of diagnoses of the patients in this dataset are more diverse, which could make it more difficult for the FL model to generalize well across all clients. In contrast, for minimum visits threshold of 3 and above the sample size is smaller and the set of possible diagnoses and concept to learn their embedding is smaller.</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p">We compare our approach to local models, where each center trains with its local data. We find that the difference in performance between local training and our federated learning approach increased as the minimum visit threshold increased from 1 to 3 and from 5 to 15 (Figure <a href="#S4.F4" title="Figure 4 ‣ 4.1 Experimental Setup ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>). A possible reason for the decrease in performance of the local models when increasing the threshold of minimum visits, is because local models have less data, making it challenging to learn a local model with good performance. In contrast, the difference between our federated learning approach and local models is much more significant when there is less data in each center, because the federated learning approach deals with this by learning a common model, while the local model will have less robustness when it has few examples. In addition, the average precision of the next visit models is lower when the minimum number of visits increases. We believe this is because the number of samples decreases as the minimum visit threshold increases.</p>
+</div>
+<div id="S5.p4" class="ltx_para">
+<p id="S5.p4.1" class="ltx_p">In our second experiment, we investigated the impact of using different fine-tuned masked language models (MLMs) for predicting the next medical visit with federated learning. We found that the performance of centralized MLMs and federated MLMs was similar, but both outperformed the models without pre-trained MLMs (Figure <a href="#S4.F5" title="Figure 5 ‣ 4.3 Federated vs. local client-independent Learning ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>). These results demonstrate that pre-training the MLMs can significantly improve the average precision of the next visit prediction models. Furthermore, we observed that the performance gap between the pre-trained MLMs and the models without pre-training increased as the minimum number of visits per patient increased. This is may be because the pre-trained MLMs are particularly valuable in low-data scenarios, where the pre-trained MLMs can help to improve the generalization and robustness of the models. Moreover, it can be seen that FL MLM has better performance than a centralized MLM as a pre-trained MLM model for fine-tuning for the FL next visit prediction (comparing the blue and green bars to purple and yellow bars on Figure <a href="#S4.F5" title="Figure 5 ‣ 4.3 Federated vs. local client-independent Learning ‣ 4 Experiments ‣ Federated Learning of Medical Concepts Embedding using BEHRT" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>).</p>
+</div>
+<div id="S5.p5" class="ltx_para">
+<p id="S5.p5.1" class="ltx_p">One potential direction for future work is to apply the federated learning approach proposed in this study to real multi-center data, in order to assess its performance in a real-world scenario. Additionally, future work could consider combining a wider range of features, such as laboratory results and vital signs, to further improve the accuracy of the predictive models. Another interesting direction for future research would be to investigate the potential of applying alternative models, such as Med-BERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bibx25" title="" class="ltx_ref">25</a>]</cite>, to the federated learning approach presented in this study.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusion</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this study, we proposed a federated learning approach using the FedAvg algorithm to train a masked language model and a next visit prediction task, enabling the privacy of EHR data to be maintained in multi-center studies. Our federated learning approach achieved similar performance to the centralized model, and an improvement of 4-10 absolute percents of average precision compared to local models. This highlights the importance of our federated learning approach for creating a common model for multi-center studies while preserving data privacy and improving the generalizability and robustness of the model. Furthermore, our approach is general to any multi-center study and it is scalable to any number of clients, compared to local models and the centralized model baseline approaches.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bibx1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">R Scott Evans
+</span>
+<span class="ltx_bibblock">“Electronic health records: then, now, and in the future”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx1.1.1" class="ltx_emph ltx_font_italic">Yearbook of medical informatics</em> <span id="bib.bibx1.2.2" class="ltx_text ltx_font_bold">25.S 01</span>
+</span>
+<span class="ltx_bibblock">Georg Thieme Verlag KG, 2016, pp. S48–S61
+</span>
+</li>
+<li id="bib.bibx2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">Trung Kien Dang, Xiang Lan, Jianshu Weng and Mengling Feng
+</span>
+<span class="ltx_bibblock">“Federated learning for electronic health records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx2.1.1" class="ltx_emph ltx_font_italic">ACM Transactions on Intelligent Systems and Technology (TIST)</em> <span id="bib.bibx2.2.2" class="ltx_text ltx_font_bold">13.5</span>
+</span>
+<span class="ltx_bibblock">ACM New York, NY, 2022, pp. 1–17
+</span>
+</li>
+<li id="bib.bibx3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">Sarthak Pati et al.
+</span>
+<span class="ltx_bibblock">“Federated learning enables big data for rare cancer boundary detection”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx3.1.1" class="ltx_emph ltx_font_italic">Nature communications</em> <span id="bib.bibx3.2.2" class="ltx_text ltx_font_bold">13.1</span>
+</span>
+<span class="ltx_bibblock">Nature Publishing Group UK London, 2022, pp. 7346
+</span>
+</li>
+<li id="bib.bibx4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">W Bani Issa et al.
+</span>
+<span class="ltx_bibblock">“Privacy, confidentiality, security and patient safety concerns about electronic health records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx4.1.1" class="ltx_emph ltx_font_italic">International nursing review</em> <span id="bib.bibx4.2.2" class="ltx_text ltx_font_bold">67.2</span>
+</span>
+<span class="ltx_bibblock">Wiley Online Library, 2020, pp. 218–230
+</span>
+</li>
+<li id="bib.bibx5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">Brendan McMahan et al.
+</span>
+<span class="ltx_bibblock">“Communication-efficient learning of deep networks from decentralized data”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx5.1.1" class="ltx_emph ltx_font_italic">Artificial intelligence and statistics</em>, 2017, pp. 1273–1282
+</span>
+<span class="ltx_bibblock">PMLR
+</span>
+</li>
+<li id="bib.bibx6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">Jie Xu et al.
+</span>
+<span class="ltx_bibblock">“Federated learning for healthcare informatics”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx6.1.1" class="ltx_emph ltx_font_italic">Journal of Healthcare Informatics Research</em> <span id="bib.bibx6.2.2" class="ltx_text ltx_font_bold">5</span>
+</span>
+<span class="ltx_bibblock">Springer, 2021, pp. 1–19
+</span>
+</li>
+<li id="bib.bibx7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">Yifan Peng et al.
+</span>
+<span class="ltx_bibblock">“BEHRT: Transformer for Electronic Health Records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx7.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2010.02057</em>, 2020
+</span>
+</li>
+<li id="bib.bibx8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">Jacob Devlin, Ming-Wei Chang, Kenton Lee and Kristina Toutanova
+</span>
+<span class="ltx_bibblock">“Bert: Pre-training of deep bidirectional transformers for language understanding”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx8.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1810.04805</em>, 2018
+</span>
+</li>
+<li id="bib.bibx9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">Emily Herrett et al.
+</span>
+<span class="ltx_bibblock">“Data resource profile: clinical practice research datalink (CPRD)”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx9.1.1" class="ltx_emph ltx_font_italic">International journal of epidemiology</em> <span id="bib.bibx9.2.2" class="ltx_text ltx_font_bold">44.3</span>
+</span>
+<span class="ltx_bibblock">Oxford University Press, 2015, pp. 827–836
+</span>
+</li>
+<li id="bib.bibx10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">Edward Choi et al.
+</span>
+<span class="ltx_bibblock">“Retain: An interpretable predictive model for healthcare using reverse time attention mechanism”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx10.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em> <span id="bib.bibx10.2.2" class="ltx_text ltx_font_bold">29</span>, 2016
+</span>
+</li>
+<li id="bib.bibx11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">Riccardo Miotto, Li Li, Brian A Kidd and Joel T Dudley
+</span>
+<span class="ltx_bibblock">“Deep patient: an unsupervised representation to predict the future of patients from the electronic health records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx11.1.1" class="ltx_emph ltx_font_italic">Scientific reports</em> <span id="bib.bibx11.2.2" class="ltx_text ltx_font_bold">6.1</span>
+</span>
+<span class="ltx_bibblock">Springer, 2016, pp. 1–10
+</span>
+</li>
+<li id="bib.bibx12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">Jesse Vig
+</span>
+<span class="ltx_bibblock">“BertViz: A tool for visualizing multihead self-attention in the BERT model”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx12.1.1" class="ltx_emph ltx_font_italic">ICLR workshop: Debugging machine learning models</em>, 2019
+</span>
+</li>
+<li id="bib.bibx13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">Alistair Johnson et al.
+</span>
+<span class="ltx_bibblock">“Mimic-iv”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx13.1.1" class="ltx_emph ltx_font_italic">PhysioNet. Available online at: https://physionet. org/content/mimiciv/1.0/(accessed August 23, 2021)</em>, 2020
+</span>
+</li>
+<li id="bib.bibx14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">Tomas Mikolov, Kai Chen, Greg Corrado and Jeffrey Dean
+</span>
+<span class="ltx_bibblock">“Efficient estimation of word representations in vector space”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx14.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1301.3781</em>, 2013
+</span>
+</li>
+<li id="bib.bibx15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">Yuqi Si et al.
+</span>
+<span class="ltx_bibblock">“Deep representation learning of patient data from Electronic Health Records (EHR): A systematic review”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx15.1.1" class="ltx_emph ltx_font_italic">Journal of biomedical informatics</em> <span id="bib.bibx15.2.2" class="ltx_text ltx_font_bold">115</span>
+</span>
+<span class="ltx_bibblock">Elsevier, 2021, pp. 103671
+</span>
+</li>
+<li id="bib.bibx16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">Gavin M Douglas et al.
+</span>
+<span class="ltx_bibblock">“Phe2vec: Automated disease phenotyping based on unsupervised embeddings from electronic health records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx16.1.1" class="ltx_emph ltx_font_italic">Journal of the American Medical Informatics Association</em> <span id="bib.bibx16.2.2" class="ltx_text ltx_font_bold">27.11</span>
+</span>
+<span class="ltx_bibblock">Oxford University Press, 2020, pp. 1727–1735
+</span>
+</li>
+<li id="bib.bibx17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">Jeffrey Pennington, Richard Socher and Christopher D Manning
+</span>
+<span class="ltx_bibblock">“Glove: Global vectors for word representation”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx17.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2014 conference on empirical methods in natural language processing (EMNLP)</em>, 2014, pp. 1532–1543
+</span>
+</li>
+<li id="bib.bibx18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">Michal Busta, Lukas Neumann and Jiri Matas
+</span>
+<span class="ltx_bibblock">“Fastext: Efficient unconstrained scene text detector”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx18.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE international conference on computer vision</em>, 2015, pp. 1206–1214
+</span>
+</li>
+<li id="bib.bibx19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">Ashish Vaswani et al.
+</span>
+<span class="ltx_bibblock">“Attention is all you need”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx19.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em> <span id="bib.bibx19.2.2" class="ltx_text ltx_font_bold">30</span>, 2017
+</span>
+</li>
+<li id="bib.bibx20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">Chi-Hua Wu et al.
+</span>
+<span class="ltx_bibblock">“Bidirectional Representation Learning From Transformers Using Multimodal Electronic Health Record Data to Predict Depression”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx20.1.1" class="ltx_emph ltx_font_italic">IEEE Journal of Biomedical and Health Informatics</em> <span id="bib.bibx20.2.2" class="ltx_text ltx_font_bold">24.11</span>
+</span>
+<span class="ltx_bibblock">IEEE, 2020, pp. 3177–3187
+</span>
+</li>
+<li id="bib.bibx21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">David M Blei, Andrew Y Ng and Michael I Jordan
+</span>
+<span class="ltx_bibblock">“Latent dirichlet allocation”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx21.1.1" class="ltx_emph ltx_font_italic">Journal of machine Learning research</em> <span id="bib.bibx21.2.2" class="ltx_text ltx_font_bold">3.Jan</span>, 2003, pp. 993–1022
+</span>
+</li>
+<li id="bib.bibx22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">Dongha Lee, Xiaoqian Jiang and Hwanjo Yu
+</span>
+<span class="ltx_bibblock">“Harmonized representation learning on dynamic EHR graphs”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx22.1.1" class="ltx_emph ltx_font_italic">Journal of biomedical informatics</em> <span id="bib.bibx22.2.2" class="ltx_text ltx_font_bold">106</span>
+</span>
+<span class="ltx_bibblock">Elsevier, 2020, pp. 103426
+</span>
+</li>
+<li id="bib.bibx23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">Sepp Hochreiter and Jürgen Schmidhuber
+</span>
+<span class="ltx_bibblock">“Long short-term memory”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx23.1.1" class="ltx_emph ltx_font_italic">Neural computation</em> <span id="bib.bibx23.2.2" class="ltx_text ltx_font_bold">9.8</span>
+</span>
+<span class="ltx_bibblock">MIT press, 1997, pp. 1735–1780
+</span>
+</li>
+<li id="bib.bibx24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">Kexin Huang, Jaan Altosaar and Rajesh Ranganath
+</span>
+<span class="ltx_bibblock">“Clinicalbert: Modeling clinical notes and predicting hospital readmission”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx24.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1904.05342</em>, 2019
+</span>
+</li>
+<li id="bib.bibx25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">Laila Rasmy et al.
+</span>
+<span class="ltx_bibblock">“Med-BERT: pretrained contextualized embeddings on large-scale structured electronic health records for disease prediction”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx25.1.1" class="ltx_emph ltx_font_italic">NPJ digital medicine</em> <span id="bib.bibx25.2.2" class="ltx_text ltx_font_bold">4.1</span>
+</span>
+<span class="ltx_bibblock">Nature Publishing Group UK London, 2021, pp. 86
+</span>
+</li>
+<li id="bib.bibx26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">Junyoung Chung, Caglar Gulcehre, KyungHyun Cho and Yoshua Bengio
+</span>
+<span class="ltx_bibblock">“Empirical evaluation of gated recurrent neural networks on sequence modeling”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx26.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1412.3555</em>, 2014
+</span>
+</li>
+<li id="bib.bibx27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">Qi Zhang et al.
+</span>
+<span class="ltx_bibblock">“Harmonized representation learning on dynamic EHR graphs”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx27.1.1" class="ltx_emph ltx_font_italic">IEEE Journal of Biomedical and Health Informatics</em>
+</span>
+<span class="ltx_bibblock">IEEE, 2021
+</span>
+</li>
+<li id="bib.bibx28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">Tingyi Wanyan et al.
+</span>
+<span class="ltx_bibblock">“Deep learning with heterogeneous graph embeddings for mortality prediction from electronic health records”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx28.1.1" class="ltx_emph ltx_font_italic">Data Intelligence</em> <span id="bib.bibx28.2.2" class="ltx_text ltx_font_bold">3.3</span>
+</span>
+<span class="ltx_bibblock">MIT Press, 2021, pp. 329–339
+</span>
+</li>
+<li id="bib.bibx29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">Tingyi Wanyan
+</span>
+<span class="ltx_bibblock">“Relational Modeling of Electronic Health Record Data for Clinical Prediction”
+</span>
+<span class="ltx_bibblock">Indiana University, 2022
+</span>
+</li>
+<li id="bib.bibx30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">Chantal Pellegrini, Anees Kazi and Nassir Navab
+</span>
+<span class="ltx_bibblock">“Unsupervised Pre-Training on Patient Population Graphs for Patient-Level Predictions”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx30.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2203.12616</em>, 2022
+</span>
+</li>
+<li id="bib.bibx31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">Zhe Chen et al.
+</span>
+<span class="ltx_bibblock">“Knowledge graph completion: A review”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx31.1.1" class="ltx_emph ltx_font_italic">Ieee Access</em> <span id="bib.bibx31.2.2" class="ltx_text ltx_font_bold">8</span>
+</span>
+<span class="ltx_bibblock">IEEE, 2020, pp. 192435–192456
+</span>
+</li>
+<li id="bib.bibx32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">Charlotte A Nelson, Riley Bove, Atul J Butte and Sergio E Baranzini
+</span>
+<span class="ltx_bibblock">“Embedding electronic health records onto a knowledge network recognizes prodromal features of multiple sclerosis and predicts diagnosis”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx32.1.1" class="ltx_emph ltx_font_italic">Journal of the American Medical Informatics Association</em> <span id="bib.bibx32.2.2" class="ltx_text ltx_font_bold">29.3</span>
+</span>
+<span class="ltx_bibblock">Oxford University Press, 2022, pp. 424–434
+</span>
+</li>
+<li id="bib.bibx33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">Sergio Baranzini et al.
+</span>
+<span class="ltx_bibblock">“A biomedical open knowledge network harnesses the power of AI to understand deep human biology”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx33.1.1" class="ltx_emph ltx_font_italic">AI magazine</em> <span id="bib.bibx33.2.2" class="ltx_text ltx_font_bold">43.1</span>, 2022, pp. 46–58
+</span>
+</li>
+<li id="bib.bibx34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">Keyu Duan et al.
+</span>
+<span class="ltx_bibblock">“A comprehensive study on large-scale graph training: Benchmarking and rethinking”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx34.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2210.07494</em>, 2022
+</span>
+</li>
+<li id="bib.bibx35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock">Tian Li et al.
+</span>
+<span class="ltx_bibblock">“Federated optimization in heterogeneous networks”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx35.1.1" class="ltx_emph ltx_font_italic">Proceedings of Machine learning and systems</em> <span id="bib.bibx35.2.2" class="ltx_text ltx_font_bold">2</span>, 2020, pp. 429–450
+</span>
+</li>
+<li id="bib.bibx36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock">Sabri Boughorbel et al.
+</span>
+<span class="ltx_bibblock">“Federated uncertainty-aware learning for distributed hospital ehr data”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx36.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1910.12191</em>, 2019
+</span>
+</li>
+<li id="bib.bibx37" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[37]</span>
+<span class="ltx_bibblock">Tzu-Ming Harry Hsu, Hang Qi and Matthew Brown
+</span>
+<span class="ltx_bibblock">“Measuring the effects of non-identical data distribution for federated visual classification”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx37.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1909.06335</em>, 2019
+</span>
+</li>
+<li id="bib.bibx38" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[38]</span>
+<span class="ltx_bibblock">Diederik P Kingma and Jimmy Ba
+</span>
+<span class="ltx_bibblock">“Adam: A method for stochastic optimization”
+</span>
+<span class="ltx_bibblock">In <em id="bib.bibx38.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1412.6980</em>, 2014
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2305.13051" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2305.13052" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2305.13052">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2305.13052" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2305.13053" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Feb 29 06:32:38 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

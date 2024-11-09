@@ -1,0 +1,818 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2106.00856] A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data</title><meta property="og:description" content="We consider the problem of recognizing speech utterances spoken to a device which is generating a known sound waveform; for example, recognizing queries issued to a digital assistant which is generating responses to pr…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2106.00856">
+
+<!--Generated on Tue Mar 19 09:28:55 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p"><span id="id1.id1.1" class="ltx_text" style="font-size:90%;">We consider the problem of recognizing speech utterances spoken to a device which is generating a known sound waveform; for example, recognizing queries issued to a digital assistant which is generating responses to previous user inputs. Previous work has proposed building acoustic echo cancellation (AEC) models for this task that optimize speech enhancement metrics using both neural network as well as signal processing approaches.</span></p>
+<p id="id2.id2" class="ltx_p"><span id="id2.id2.1" class="ltx_text" style="font-size:90%;">Since our goal is to recognize the input speech, we consider enhancements which improve word error rates (WERs) when the predicted speech signal is passed to an automatic speech recognition (ASR) model. First, we augment the loss function with a term that produces outputs useful to a pre-trained ASR model and show that this augmented loss function improves WER metrics. Second, we demonstrate that augmenting our training dataset of real world examples with a large synthetic dataset improves performance. Crucially, applying SpecAugment style masks to the reference channel during training aids the model in adapting from synthetic to real domains. In experimental evaluations, we find the proposed approaches improve performance, on average, by 57% over a signal processing baseline and 45% over the neural AEC model without the proposed changes.</span></p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— <span id="p1.1.1.1.1" class="ltx_text ltx_font_medium">
+Acoustic echo cancellation, deep learning, sequence-to-sequence model, multi-task loss, acoustic simulation</span></span></span></p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p"><span id="S1.p1.1.1" class="ltx_text" style="font-size:90%;">Voice queries have become increasingly common as a way to communicate with smart devices, such as phones and speakers. In challenging acoustic conditions (background noise, distance from microphone, etc.), interpretation of queries can fail due to poor speech recognition accuracy. We focus on the problem of acoustic echo cancellation (AEC) – removing a known source of additive interference. The term ”echo” cancellation is used because the device has access to the original </span><span id="S1.p1.1.2" class="ltx_text ltx_font_bold" style="font-size:90%;">reference</span><span id="S1.p1.1.3" class="ltx_text" style="font-size:90%;"> signal that is the source of interference, but the interference itself is an echoic version of the signal that has propagated through the room before being received at the microphone(s). In this paper, we will denote the user’s speech as the </span><span id="S1.p1.1.4" class="ltx_text ltx_font_bold" style="font-size:90%;">target</span><span id="S1.p1.1.5" class="ltx_text" style="font-size:90%;"> and the mixture of reverberant target and background noise as the </span><span id="S1.p1.1.6" class="ltx_text ltx_font_bold" style="font-size:90%;">residual</span><span id="S1.p1.1.7" class="ltx_text" style="font-size:90%;">. The received mixture of echoed reference and residual is denoted as the </span><span id="S1.p1.1.8" class="ltx_text ltx_font_bold" style="font-size:90%;">probe</span><span id="S1.p1.1.9" class="ltx_text" style="font-size:90%;"> and the AEC outputs an </span><span id="S1.p1.1.10" class="ltx_text ltx_font_bold" style="font-size:90%;">erased</span><span id="S1.p1.1.11" class="ltx_text" style="font-size:90%;"> signal.</span></p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p"><span id="S1.p2.1.1" class="ltx_text" style="font-size:90%;">Our end goals are slightly different from typical AEC scenarios because our deployment scenario is echo cancellation in the context of interaction with a smart speaker. As such, there are two important characteristics of the target signal. First, we assume that we are attempting to recover a speech signal – usually a user query. Second, unlike in telephony or meeting situations, the perceptual fidelity of the recovered signal is not as important as its intelligibility to the ASR system. With these considerations in mind, we propose a model and training protocol designed to simultaneously perform echo cancellation, dereverberation, and moderate denoising by learning to predict the target signal given the probe and reference signals.</span></p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p"><span id="S1.p3.1.1" class="ltx_text" style="font-size:90%;">The contributions of this work are as follows: We propose an autoregressive sequence-to-sequence model for performing acoustic echo cancellation. We demonstrate the value of optimizing on an ASR encoder loss criterion for producing erased signals which improve intelligibility on ASR systems over purely signal-based metrics. Finally we implement two methods for improving robustness of the model to distortion between echo and reference: by preparing a mixture of synthetic and quasi-synthetic data for training, and performing dynamic corruption of the input signals via different configurations of SpecAugment </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S1.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p3.1.4" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Work</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p"><span id="S2.p1.1.1" class="ltx_text" style="font-size:90%;">In traditional signal processing, linear AEC techniques attempt to estimate the overall system of render-propagation-capture by a time-varying linear filter, usually an adaptive Finite Impulse Response (FIR) filter. Often the filter coefficients are estimated to replicate the echo, in the Minimum Mean Square Error (MMSE) sense, given the reference signal. Then, the filtered version of the reference signal is subtracted from the probe to obtain an estimate of the target signal.</span></p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p"><span id="S2.p2.1.1" class="ltx_text" style="font-size:90%;">In recent years, there have been numerous proposed approaches to applying neural networks for AEC </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S2.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p2.1.4" class="ltx_text" style="font-size:90%;">. In most previous work, the criteria for evaluating AEC performance have been signal driven metrics such as signal distortion ratio (SDR), or echo return loss (ERL). Work here often predicts the residual signal by predicting an ideal ratio mask (IRM) that is applied to the probe </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p2.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S2.p2.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p2.1.7" class="ltx_text" style="font-size:90%;"> or gains applied to the output of a linear AEC </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p2.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S2.p2.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p2.1.10" class="ltx_text" style="font-size:90%;">. While these metrics are easy to calculate and correlate well to perceptual cancellation quality, our initial experiments indicated that improvements in signal-based metrics often did not translate to proportionally improved WER performance.</span></p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p"><span id="S2.p3.1.1" class="ltx_text" style="font-size:90%;">Two notable sequence-to-sequence speech prediction models that have been proposed recently are Parrotron </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S2.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p3.1.4" class="ltx_text" style="font-size:90%;"> and Textual Echo Cancellation </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p3.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib7" title="" class="ltx_ref">7</a><span id="S2.p3.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p3.1.7" class="ltx_text" style="font-size:90%;">. The authors in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p3.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S2.p3.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p3.1.10" class="ltx_text" style="font-size:90%;"> use an ASR encoder and a text-to-speech (TTS) decoder to perform speech transformation. In order to optimize for intelligibility, the Parrotron model is trained to simultaneously minimize an ASR decoding loss as well as a spectral decoding loss on the same encoded representation. A drawback of this approach is that the transcription of the source signal is required in order to compute the ASR related loss. In </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p3.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib7" title="" class="ltx_ref">7</a><span id="S2.p3.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p3.1.13" class="ltx_text" style="font-size:90%;">, the authors assume that the echoed reference is generated by text-to-speech (TTS) and use a Parrotron-style network to remove the echoed reference using only the textual source of the reference signal. The model in that paper uses only spectral loss for training.</span></p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">3 </span>Model Architecture</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p"><span id="S3.p1.1.1" class="ltx_text" style="font-size:90%;">The proposed neural AEC model uses an encoder-decoder structure to reconstruct spectral frames of the erased signal by casting the problem as a sequence-to-sequence task. As in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S3.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.p1.1.4" class="ltx_text" style="font-size:90%;"> and </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib7" title="" class="ltx_ref">7</a><span id="S3.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.p1.1.7" class="ltx_text" style="font-size:90%;">, we use frame level features (80-dimensional log-mel spectral vectors) for both source and target sequences. The source sequence features are computed from the probe and reference signals, and the target sequence features are computed from the clean target signal. Although all three signals should be synchronous, in this system we align probes and references using their cross correlation and enforce that source and target sequences have matching lengths.</span></p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p"><span id="S3.p2.1.1" class="ltx_text" style="font-size:90%;">The model is comprised of a speech encoder followed by a spectral decoder, which are described in the following sections.</span></p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Encoder</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.3" class="ltx_p"><span id="S3.SS1.p1.3.1" class="ltx_text" style="font-size:90%;">The speech encoder is similar to the encoder described in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p1.3.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S3.SS1.p1.3.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p1.3.4" class="ltx_text" style="font-size:90%;">, which takes a sequence of speech features as input and produces a high dimensional hidden representation sequence. We compute feature frames for each of the probe and reference signals, then stack each frame depthwise to create an input tensor that has shape </span><math id="S3.SS1.p1.1.m1.4" class="ltx_Math" alttext="[B,T,80,2]" display="inline"><semantics id="S3.SS1.p1.1.m1.4a"><mrow id="S3.SS1.p1.1.m1.4.5.2" xref="S3.SS1.p1.1.m1.4.5.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS1.p1.1.m1.4.5.2.1" xref="S3.SS1.p1.1.m1.4.5.1.cmml">[</mo><mi mathsize="90%" id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml">B</mi><mo mathsize="90%" id="S3.SS1.p1.1.m1.4.5.2.2" xref="S3.SS1.p1.1.m1.4.5.1.cmml">,</mo><mi mathsize="90%" id="S3.SS1.p1.1.m1.2.2" xref="S3.SS1.p1.1.m1.2.2.cmml">T</mi><mo mathsize="90%" id="S3.SS1.p1.1.m1.4.5.2.3" xref="S3.SS1.p1.1.m1.4.5.1.cmml">,</mo><mn mathsize="90%" id="S3.SS1.p1.1.m1.3.3" xref="S3.SS1.p1.1.m1.3.3.cmml">80</mn><mo mathsize="90%" id="S3.SS1.p1.1.m1.4.5.2.4" xref="S3.SS1.p1.1.m1.4.5.1.cmml">,</mo><mn mathsize="90%" id="S3.SS1.p1.1.m1.4.4" xref="S3.SS1.p1.1.m1.4.4.cmml">2</mn><mo maxsize="90%" minsize="90%" id="S3.SS1.p1.1.m1.4.5.2.5" xref="S3.SS1.p1.1.m1.4.5.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.4b"><list id="S3.SS1.p1.1.m1.4.5.1.cmml" xref="S3.SS1.p1.1.m1.4.5.2"><ci id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">𝐵</ci><ci id="S3.SS1.p1.1.m1.2.2.cmml" xref="S3.SS1.p1.1.m1.2.2">𝑇</ci><cn type="integer" id="S3.SS1.p1.1.m1.3.3.cmml" xref="S3.SS1.p1.1.m1.3.3">80</cn><cn type="integer" id="S3.SS1.p1.1.m1.4.4.cmml" xref="S3.SS1.p1.1.m1.4.4">2</cn></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.4c">[B,T,80,2]</annotation></semantics></math><span id="S3.SS1.p1.3.5" class="ltx_text" style="font-size:90%;">, where </span><math id="S3.SS1.p1.2.m2.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S3.SS1.p1.2.m2.1a"><mi mathsize="90%" id="S3.SS1.p1.2.m2.1.1" xref="S3.SS1.p1.2.m2.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.2.m2.1b"><ci id="S3.SS1.p1.2.m2.1.1.cmml" xref="S3.SS1.p1.2.m2.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.2.m2.1c">B</annotation></semantics></math><span id="S3.SS1.p1.3.6" class="ltx_text" style="font-size:90%;"> is the batch size and </span><math id="S3.SS1.p1.3.m3.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S3.SS1.p1.3.m3.1a"><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1" xref="S3.SS1.p1.3.m3.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.3.m3.1b"><ci id="S3.SS1.p1.3.m3.1.1.cmml" xref="S3.SS1.p1.3.m3.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.3.m3.1c">T</annotation></semantics></math><span id="S3.SS1.p1.3.7" class="ltx_text" style="font-size:90%;"> is the number of frames. For the encoder used in this work, we used 3 unidirectional LSTM layers, each with 512 hidden dimensions, and no temporal downsampling, so the number of hidden representation has the same number of frames as the input.</span></p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Decoder</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><span id="S3.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">We use an autoregressive spectral decoder to predict a sequence of spectral frames from the encoded sequence. The decoder is based on the decoder component described in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S3.SS2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS2.p1.1.4" class="ltx_text" style="font-size:90%;">, which is designed to produce spectrogram frames. For the decoder used in this work, we made two small changes. First, because the context needed to transform input to output is local to the frame being processed, we omitted the attention layer. Also, since we constrain the output to be the same number of frames as the input, we also omit the end-of-sequence prediction component of the decoder – the decoder stops producing input when the input frames are exhausted.</span></p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p"><span id="S3.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">The spectral decoder consists of a single 512 dimension LSTM layer followed by an 80 dimension projection layer that feeds its output to a pre-net and a post-net. The pre-net is a feed-forward network that serves to gate the influence of the previous time-step’s output compared to the source. The post-net is a stack of five convolutional layers that act on the predicted spectral frames to produce a residual correction factor that is added to create the final prediction. Each non-final convolutional layer applies a 1-dimensional convolution in time, with 512 filters of size 5, followed by batch normalization and tanh activation. The output of the decoder is a sequence of 80-dimensional log-mel spectral frames which can be inverted back to a time domain waveform via Griffin-Lim </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib10" title="" class="ltx_ref">10</a><span id="S3.SS2.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS2.p2.1.4" class="ltx_text" style="font-size:90%;"> or by using a neural vocoder </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.p2.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib11" title="" class="ltx_ref">11</a><span id="S3.SS2.p2.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS2.p2.1.7" class="ltx_text" style="font-size:90%;">. For this paper, we used Griffin-Lim to produce waveform inputs when needed (e.g. for performing recognition evaluations on AEC output).</span></p>
+</div>
+<figure id="S3.F1" class="ltx_figure">
+<p id="S3.F1.1.1" class="ltx_p ltx_minipage ltx_align_bottom" style="width:433.6pt;"><span id="S3.F1.1.1.1" class="ltx_text" style="font-size:90%;"><img src="/html/2106.00856/assets/x1.png" id="S3.F1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="257" height="115" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F1.5.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Model block diagram for inference pathway. The encoder, structured as a typical speech encoder, takes in frame level features and produces a latent representation that is decoded by a spectral decoder to produce frame level features.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Loss Function</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.2" class="ltx_p"><span id="S3.SS3.p1.2.1" class="ltx_text" style="font-size:90%;">Our initial experiments used purely spectral loss when training the network. This loss is computed by summing the mean </span><math id="S3.SS3.p1.1.m1.1" class="ltx_Math" alttext="L1" display="inline"><semantics id="S3.SS3.p1.1.m1.1a"><mrow id="S3.SS3.p1.1.m1.1.1" xref="S3.SS3.p1.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS3.p1.1.m1.1.1.2" xref="S3.SS3.p1.1.m1.1.1.2.cmml">L</mi><mo lspace="0em" rspace="0em" id="S3.SS3.p1.1.m1.1.1.1" xref="S3.SS3.p1.1.m1.1.1.1.cmml">​</mo><mn mathsize="90%" id="S3.SS3.p1.1.m1.1.1.3" xref="S3.SS3.p1.1.m1.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.1.m1.1b"><apply id="S3.SS3.p1.1.m1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1"><times id="S3.SS3.p1.1.m1.1.1.1.cmml" xref="S3.SS3.p1.1.m1.1.1.1"></times><ci id="S3.SS3.p1.1.m1.1.1.2.cmml" xref="S3.SS3.p1.1.m1.1.1.2">𝐿</ci><cn type="integer" id="S3.SS3.p1.1.m1.1.1.3.cmml" xref="S3.SS3.p1.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.1.m1.1c">L1</annotation></semantics></math><span id="S3.SS3.p1.2.2" class="ltx_text" style="font-size:90%;"> and mean </span><math id="S3.SS3.p1.2.m2.1" class="ltx_Math" alttext="L2" display="inline"><semantics id="S3.SS3.p1.2.m2.1a"><mrow id="S3.SS3.p1.2.m2.1.1" xref="S3.SS3.p1.2.m2.1.1.cmml"><mi mathsize="90%" id="S3.SS3.p1.2.m2.1.1.2" xref="S3.SS3.p1.2.m2.1.1.2.cmml">L</mi><mo lspace="0em" rspace="0em" id="S3.SS3.p1.2.m2.1.1.1" xref="S3.SS3.p1.2.m2.1.1.1.cmml">​</mo><mn mathsize="90%" id="S3.SS3.p1.2.m2.1.1.3" xref="S3.SS3.p1.2.m2.1.1.3.cmml">2</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p1.2.m2.1b"><apply id="S3.SS3.p1.2.m2.1.1.cmml" xref="S3.SS3.p1.2.m2.1.1"><times id="S3.SS3.p1.2.m2.1.1.1.cmml" xref="S3.SS3.p1.2.m2.1.1.1"></times><ci id="S3.SS3.p1.2.m2.1.1.2.cmml" xref="S3.SS3.p1.2.m2.1.1.2">𝐿</ci><cn type="integer" id="S3.SS3.p1.2.m2.1.1.3.cmml" xref="S3.SS3.p1.2.m2.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p1.2.m2.1c">L2</annotation></semantics></math><span id="S3.SS3.p1.2.3" class="ltx_text" style="font-size:90%;"> (or MSE) distance between the target spectral features and the output of the decoder, both before and after applying the post-net correction.</span></p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.2" class="ltx_p"><span id="S3.SS3.p2.2.1" class="ltx_text" style="font-size:90%;">Since the motivation for our work is improving speech recognition accuracy on the erased signal predicted by our AEC, we also explored changing the loss function to bias the AEC towards producing outputs useful to an ASR as input. In the ideal case, both the AEC output and target signal would produce the same latent representation when run through the ASR model’s encoder. Observing this, we integrated an ASR loss which runs the predicted and target features through an ASR encoder, pre-trained on clean audio, and computes the MSE between the respective latent representations. The final loss term is then</span></p>
+<table id="S3.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.Ex1.m1.1" class="ltx_Math" alttext="{\tt loss}\;=\;{\tt loss}_{spectral}+\lambda\;{\tt loss}_{ASR}" display="block"><semantics id="S3.Ex1.m1.1a"><mrow id="S3.Ex1.m1.1.1" xref="S3.Ex1.m1.1.1.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.2" xref="S3.Ex1.m1.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mo lspace="0.558em" mathsize="90%" rspace="0.558em" id="S3.Ex1.m1.1.1.1" xref="S3.Ex1.m1.1.1.1.cmml">=</mo><mrow id="S3.Ex1.m1.1.1.3" xref="S3.Ex1.m1.1.1.3.cmml"><msub id="S3.Ex1.m1.1.1.3.2" xref="S3.Ex1.m1.1.1.3.2.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.2" xref="S3.Ex1.m1.1.1.3.2.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S3.Ex1.m1.1.1.3.2.3" xref="S3.Ex1.m1.1.1.3.2.3.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.2" xref="S3.Ex1.m1.1.1.3.2.3.2.cmml">s</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.3" xref="S3.Ex1.m1.1.1.3.2.3.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1a" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.4" xref="S3.Ex1.m1.1.1.3.2.3.4.cmml">e</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1b" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.5" xref="S3.Ex1.m1.1.1.3.2.3.5.cmml">c</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1c" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.6" xref="S3.Ex1.m1.1.1.3.2.3.6.cmml">t</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1d" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.7" xref="S3.Ex1.m1.1.1.3.2.3.7.cmml">r</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1e" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.8" xref="S3.Ex1.m1.1.1.3.2.3.8.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.2.3.1f" xref="S3.Ex1.m1.1.1.3.2.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.2.3.9" xref="S3.Ex1.m1.1.1.3.2.3.9.cmml">l</mi></mrow></msub><mo mathsize="90%" id="S3.Ex1.m1.1.1.3.1" xref="S3.Ex1.m1.1.1.3.1.cmml">+</mo><mrow id="S3.Ex1.m1.1.1.3.3" xref="S3.Ex1.m1.1.1.3.3.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.3.2" xref="S3.Ex1.m1.1.1.3.3.2.cmml">λ</mi><mo lspace="0.280em" rspace="0em" id="S3.Ex1.m1.1.1.3.3.1" xref="S3.Ex1.m1.1.1.3.3.1.cmml">​</mo><msub id="S3.Ex1.m1.1.1.3.3.3" xref="S3.Ex1.m1.1.1.3.3.3.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.3.3.2" xref="S3.Ex1.m1.1.1.3.3.3.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S3.Ex1.m1.1.1.3.3.3.3" xref="S3.Ex1.m1.1.1.3.3.3.3.cmml"><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.3.3.3.2" xref="S3.Ex1.m1.1.1.3.3.3.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.3.3.3.1" xref="S3.Ex1.m1.1.1.3.3.3.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.3.3.3.3" xref="S3.Ex1.m1.1.1.3.3.3.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S3.Ex1.m1.1.1.3.3.3.3.1a" xref="S3.Ex1.m1.1.1.3.3.3.3.1.cmml">​</mo><mi mathsize="90%" id="S3.Ex1.m1.1.1.3.3.3.3.4" xref="S3.Ex1.m1.1.1.3.3.3.3.4.cmml">R</mi></mrow></msub></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.Ex1.m1.1b"><apply id="S3.Ex1.m1.1.1.cmml" xref="S3.Ex1.m1.1.1"><eq id="S3.Ex1.m1.1.1.1.cmml" xref="S3.Ex1.m1.1.1.1"></eq><ci id="S3.Ex1.m1.1.1.2.cmml" xref="S3.Ex1.m1.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S3.Ex1.m1.1.1.3.cmml" xref="S3.Ex1.m1.1.1.3"><plus id="S3.Ex1.m1.1.1.3.1.cmml" xref="S3.Ex1.m1.1.1.3.1"></plus><apply id="S3.Ex1.m1.1.1.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2"><csymbol cd="ambiguous" id="S3.Ex1.m1.1.1.3.2.1.cmml" xref="S3.Ex1.m1.1.1.3.2">subscript</csymbol><ci id="S3.Ex1.m1.1.1.3.2.2.cmml" xref="S3.Ex1.m1.1.1.3.2.2">𝚕𝚘𝚜𝚜</ci><apply id="S3.Ex1.m1.1.1.3.2.3.cmml" xref="S3.Ex1.m1.1.1.3.2.3"><times id="S3.Ex1.m1.1.1.3.2.3.1.cmml" xref="S3.Ex1.m1.1.1.3.2.3.1"></times><ci id="S3.Ex1.m1.1.1.3.2.3.2.cmml" xref="S3.Ex1.m1.1.1.3.2.3.2">𝑠</ci><ci id="S3.Ex1.m1.1.1.3.2.3.3.cmml" xref="S3.Ex1.m1.1.1.3.2.3.3">𝑝</ci><ci id="S3.Ex1.m1.1.1.3.2.3.4.cmml" xref="S3.Ex1.m1.1.1.3.2.3.4">𝑒</ci><ci id="S3.Ex1.m1.1.1.3.2.3.5.cmml" xref="S3.Ex1.m1.1.1.3.2.3.5">𝑐</ci><ci id="S3.Ex1.m1.1.1.3.2.3.6.cmml" xref="S3.Ex1.m1.1.1.3.2.3.6">𝑡</ci><ci id="S3.Ex1.m1.1.1.3.2.3.7.cmml" xref="S3.Ex1.m1.1.1.3.2.3.7">𝑟</ci><ci id="S3.Ex1.m1.1.1.3.2.3.8.cmml" xref="S3.Ex1.m1.1.1.3.2.3.8">𝑎</ci><ci id="S3.Ex1.m1.1.1.3.2.3.9.cmml" xref="S3.Ex1.m1.1.1.3.2.3.9">𝑙</ci></apply></apply><apply id="S3.Ex1.m1.1.1.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3"><times id="S3.Ex1.m1.1.1.3.3.1.cmml" xref="S3.Ex1.m1.1.1.3.3.1"></times><ci id="S3.Ex1.m1.1.1.3.3.2.cmml" xref="S3.Ex1.m1.1.1.3.3.2">𝜆</ci><apply id="S3.Ex1.m1.1.1.3.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3.3"><csymbol cd="ambiguous" id="S3.Ex1.m1.1.1.3.3.3.1.cmml" xref="S3.Ex1.m1.1.1.3.3.3">subscript</csymbol><ci id="S3.Ex1.m1.1.1.3.3.3.2.cmml" xref="S3.Ex1.m1.1.1.3.3.3.2">𝚕𝚘𝚜𝚜</ci><apply id="S3.Ex1.m1.1.1.3.3.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3.3.3"><times id="S3.Ex1.m1.1.1.3.3.3.3.1.cmml" xref="S3.Ex1.m1.1.1.3.3.3.3.1"></times><ci id="S3.Ex1.m1.1.1.3.3.3.3.2.cmml" xref="S3.Ex1.m1.1.1.3.3.3.3.2">𝐴</ci><ci id="S3.Ex1.m1.1.1.3.3.3.3.3.cmml" xref="S3.Ex1.m1.1.1.3.3.3.3.3">𝑆</ci><ci id="S3.Ex1.m1.1.1.3.3.3.3.4.cmml" xref="S3.Ex1.m1.1.1.3.3.3.3.4">𝑅</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.Ex1.m1.1c">{\tt loss}\;=\;{\tt loss}_{spectral}+\lambda\;{\tt loss}_{ASR}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S3.SS3.p2.1" class="ltx_p"><span id="S3.SS3.p2.1.1" class="ltx_text" style="font-size:90%;">where </span><math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mi mathsize="90%" id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><ci id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">\lambda</annotation></semantics></math><span id="S3.SS3.p2.1.2" class="ltx_text" style="font-size:90%;"> is a hyperparameter. Figure </span><a href="#S4.F2" title="Figure 2 ‣ 4.3 Evaluation data ‣ 4 Data Preparation ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S3.SS3.p2.1.3" class="ltx_text" style="font-size:90%;"> illustrates how the losses are computed and combined. Unlike the auxiliary decoder loss used by Parrotron, the ASR encoder loss compares latent representations of the predicted and target signals without needing the underlying transcription, which removes the need for labeled training data.</span></p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Training</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p"><span id="S3.SS4.p1.1.1" class="ltx_text" style="font-size:90%;">All of our models are trained using Lingvo </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a><span id="S3.SS4.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.4" class="ltx_text" style="font-size:90%;">, which is built on top of TensorFlow </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S3.SS4.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.7" class="ltx_text" style="font-size:90%;">. The AEC models were trained with a batch size of 128 using the ADAM optimizer </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib14" title="" class="ltx_ref">14</a><span id="S3.SS4.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.10" class="ltx_text" style="font-size:90%;"> and scheduled sampling </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib15" title="" class="ltx_ref">15</a><span id="S3.SS4.p1.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.13" class="ltx_text" style="font-size:90%;"> on a randomly selected half of the autoregressive decoder input.</span></p>
+</div>
+<div id="S3.SS4.p2" class="ltx_para">
+<p id="S3.SS4.p2.2" class="ltx_p"><span id="S3.SS4.p2.2.1" class="ltx_text" style="font-size:90%;">The ASR model used in the loss function is a ContextNet </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p2.2.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S3.SS4.p2.2.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p2.2.4" class="ltx_text" style="font-size:90%;"> CNN-RNN transducer, trained on LibriSpeech to 3.8 WER on </span><span id="S3.SS4.p2.2.5" class="ltx_text ltx_font_typewriter" style="font-size:90%;">test-clean</span><span id="S3.SS4.p2.2.6" class="ltx_text" style="font-size:90%;">. The whole model has 31 million parameters and the encoder contains 23 stacked convolution blocks. Importantly, the AEC model fails to converge when the ASR loss is included at the start of training. We resolve this by making </span><math id="S3.SS4.p2.1.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S3.SS4.p2.1.m1.1a"><mi mathsize="90%" id="S3.SS4.p2.1.m1.1.1" xref="S3.SS4.p2.1.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p2.1.m1.1b"><ci id="S3.SS4.p2.1.m1.1.1.cmml" xref="S3.SS4.p2.1.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p2.1.m1.1c">\lambda</annotation></semantics></math><span id="S3.SS4.p2.2.7" class="ltx_text" style="font-size:90%;"> dependent on the current training step and linearly ramping </span><math id="S3.SS4.p2.2.m2.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S3.SS4.p2.2.m2.1a"><mi mathsize="90%" id="S3.SS4.p2.2.m2.1.1" xref="S3.SS4.p2.2.m2.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p2.2.m2.1b"><ci id="S3.SS4.p2.2.m2.1.1.cmml" xref="S3.SS4.p2.2.m2.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p2.2.m2.1c">\lambda</annotation></semantics></math><span id="S3.SS4.p2.2.8" class="ltx_text" style="font-size:90%;"> up from zero to its final value, 0.01, over the first 20k training steps.</span></p>
+</div>
+<div id="S3.SS4.p3" class="ltx_para">
+<p id="S3.SS4.p3.1" class="ltx_p"><span id="S3.SS4.p3.1.1" class="ltx_text" style="font-size:90%;">Because SpecAugment has been shown to be a useful method of data augmentation for improving WER performance </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S3.SS4.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p3.1.4" class="ltx_text" style="font-size:90%;">, we also experimented with applying SpecAugment to AEC model inputs during training. When using SpecAugment, we masked up to 27 of 80 frequency bins divided between 2 frequency masks and up to 5% of frames split between 10 time masks. Models using SpecAugment trained for 200k steps and models without for 90k steps.</span></p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">4 </span>Data Preparation</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text" style="font-size:90%;">A key challenge in building a neural network based AEC is data collection. In real world recordings, the echoed reference component of the probe can be distorted by non-linearities in the loudspeaker’s reproduction of the signal </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S4.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.4" class="ltx_text" style="font-size:90%;">. These distortions can vary at different volumes, temperatures and between different loudspeakers. A common practice is to apply a functional non-linearity to mimic loudspeaker distortion as in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib18" title="" class="ltx_ref">18</a><span id="S4.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.7" class="ltx_text" style="font-size:90%;">. Of course, the highest fidelity way to capture these effects in training data is to record echoed reference outputs in real rooms, but this has the considerable downside of being expensive and time consuming. We used a multi-pronged approach to creating diverse AEC training data - by processing with a room simulator, by combining re-recorded real world data with a room simulator, and by dynamically augmenting the data during training using SpecAugment </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S4.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.10" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Source Data</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p"><span id="S4.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">For training and evaluation of the AEC techniques compared in this paper, we drew from two sources of speech data: parts of the LibriSpeech corpus were used as both targets and references, and an internal set of TacoTron-generated </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S4.SS1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.SS1.p1.1.4" class="ltx_text" style="font-size:90%;"> TTS utterances were used as references. For simulating room environments, we used the room simulator described in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S4.SS1.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.SS1.p1.1.7" class="ltx_text" style="font-size:90%;">. Separately to the echoed reference, background noise was added as described in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S4.SS1.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.SS1.p1.1.10" class="ltx_text" style="font-size:90%;">, with noise sources drawn from a set of daily life and cafe noise recordings.</span></p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Training Data</h3>
+
+<section id="S4.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">4.2.1 </span>Synthetic Echo</h4>
+
+<div id="S4.SS2.SSS1.p1" class="ltx_para">
+<p id="S4.SS2.SSS1.p1.1" class="ltx_p"><span id="S4.SS2.SSS1.p1.1.1" class="ltx_text" style="font-size:90%;">In this setup, the return path of the echoed reference was wholly simulated. The target and reference signals were randomly selected from the </span><span id="S4.SS2.SSS1.p1.1.2" class="ltx_text ltx_font_typewriter" style="font-size:90%;">train-clean</span><span id="S4.SS2.SSS1.p1.1.3" class="ltx_text" style="font-size:90%;"> portion of the LibriSpeech corpus. For each synthetically noisified utterance, a room configuration was sampled from one of 100,000 possibilities, and the simulated probe, echoed reference, and residuals were computed via simulation. The room configurations were constrained to replicate the geometry of a smart speaker; with the loudspeaker set up as a noise source in a fixed position relative to the microphones. The target source was randomly positioned away from the microphones, with elevation angle restricted to the interval </span><math id="S4.SS2.SSS1.p1.1.m1.2" class="ltx_Math" alttext="[45^{\circ},135^{\circ}]" display="inline"><semantics id="S4.SS2.SSS1.p1.1.m1.2a"><mrow id="S4.SS2.SSS1.p1.1.m1.2.2.2" xref="S4.SS2.SSS1.p1.1.m1.2.2.3.cmml"><mo maxsize="90%" minsize="90%" id="S4.SS2.SSS1.p1.1.m1.2.2.2.3" xref="S4.SS2.SSS1.p1.1.m1.2.2.3.cmml">[</mo><msup id="S4.SS2.SSS1.p1.1.m1.1.1.1.1" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1.cmml"><mn mathsize="90%" id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.2" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1.2.cmml">45</mn><mo mathsize="90%" id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.3" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1.3.cmml">∘</mo></msup><mo mathsize="90%" id="S4.SS2.SSS1.p1.1.m1.2.2.2.4" xref="S4.SS2.SSS1.p1.1.m1.2.2.3.cmml">,</mo><msup id="S4.SS2.SSS1.p1.1.m1.2.2.2.2" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2.cmml"><mn mathsize="90%" id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.2" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2.2.cmml">135</mn><mo mathsize="90%" id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.3" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2.3.cmml">∘</mo></msup><mo maxsize="90%" minsize="90%" id="S4.SS2.SSS1.p1.1.m1.2.2.2.5" xref="S4.SS2.SSS1.p1.1.m1.2.2.3.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.SSS1.p1.1.m1.2b"><interval closure="closed" id="S4.SS2.SSS1.p1.1.m1.2.2.3.cmml" xref="S4.SS2.SSS1.p1.1.m1.2.2.2"><apply id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.cmml" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.1.cmml" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1">superscript</csymbol><cn type="integer" id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.2.cmml" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1.2">45</cn><compose id="S4.SS2.SSS1.p1.1.m1.1.1.1.1.3.cmml" xref="S4.SS2.SSS1.p1.1.m1.1.1.1.1.3"></compose></apply><apply id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.cmml" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2"><csymbol cd="ambiguous" id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.1.cmml" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2">superscript</csymbol><cn type="integer" id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.2.cmml" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2.2">135</cn><compose id="S4.SS2.SSS1.p1.1.m1.2.2.2.2.3.cmml" xref="S4.SS2.SSS1.p1.1.m1.2.2.2.2.3"></compose></apply></interval></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.SSS1.p1.1.m1.2c">[45^{\circ},135^{\circ}]</annotation></semantics></math><span id="S4.SS2.SSS1.p1.1.4" class="ltx_text" style="font-size:90%;"> and distance varying between 0.25 and 8 meters, with a mean of 2.5 meters. For this simulated condition, the target-to-noise-ratio and target-to-echoed-reference-ratio were randomly chosen in the ranges of (0, 20) and (-20, 0) dB, respectively. In total, there were approximately 153k training utterances produced using the synthetic echo setup.</span></p>
+</div>
+</section>
+<section id="S4.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">4.2.2 </span>Re-recorded Echo</h4>
+
+<div id="S4.SS2.SSS2.p1" class="ltx_para">
+<p id="S4.SS2.SSS2.p1.1" class="ltx_p"><span id="S4.SS2.SSS2.p1.1.1" class="ltx_text" style="font-size:90%;">In order to account for real loudspeaker-induced distortions and differences between synthetic room impulse responses and real-world room return path effects, we also created a set of re-recorded echo utterances. Drawing from the TTS utterances, we collected re-recorded versions of these utterances as echoed reference signals by playing them out of smart speakers in various conference room environments and recording the resulting output on the smart speaker microphones. 7592 training pairs and 1546 test pairs of (reference, echoed reference) signals were collected in this manner.</span></p>
+</div>
+<div id="S4.SS2.SSS2.p2" class="ltx_para">
+<p id="S4.SS2.SSS2.p2.1" class="ltx_p"><span id="S4.SS2.SSS2.p2.1.1" class="ltx_text" style="font-size:90%;">The re-recordings were then combined with target signals drawn, without re-recording, from the </span><span id="S4.SS2.SSS2.p2.1.2" class="ltx_text ltx_font_typewriter" style="font-size:90%;">train-clean</span><span id="S4.SS2.SSS2.p2.1.3" class="ltx_text" style="font-size:90%;"> portion of LibriSpeech using the same room configurations as in Section </span><a href="#S4.SS2.SSS1" title="4.2.1 Synthetic Echo ‣ 4.2 Training Data ‣ 4 Data Preparation ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4.2.1</span></a><span id="S4.SS2.SSS2.p2.1.4" class="ltx_text" style="font-size:90%;">. The re-recorded echo signal was used directly as the echoed reference, without propagating through the room simulation. Otherwise, the echoed reference, background noise source and simulated path of the target signal were mixed together with the same distribution of SNRs as in Section </span><a href="#S4.SS2.SSS1" title="4.2.1 Synthetic Echo ‣ 4.2 Training Data ‣ 4 Data Preparation ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4.2.1</span></a><span id="S4.SS2.SSS2.p2.1.5" class="ltx_text" style="font-size:90%;">. Approximately 34k training utterances were produced using this re-recorded setup.</span></p>
+</div>
+</section>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Evaluation data</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p"><span id="S4.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">The test sets for evaluation were constructed as described in Section </span><a href="#S4.SS2.SSS2" title="4.2.2 Re-recorded Echo ‣ 4.2 Training Data ‣ 4 Data Preparation ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4.2.2</span></a><span id="S4.SS3.p1.1.2" class="ltx_text" style="font-size:90%;">, but with the test pairs of re-recorded reference signals, target signals drawn from LibriSpeech </span><span id="S4.SS3.p1.1.3" class="ltx_text ltx_font_typewriter" style="font-size:90%;">test-clean</span><span id="S4.SS3.p1.1.4" class="ltx_text" style="font-size:90%;">, and target-to-echoed-reference-ratio levels held fixed at 0dB, -5 dB, and -10 dB to create three test set variants of escalating difficulty. The room impulse responses and background noise samples used for the test sets were all unseen during training.</span></p>
+</div>
+<figure id="S4.F2" class="ltx_figure">
+<p id="S4.F2.1.1" class="ltx_p ltx_minipage ltx_align_bottom" style="width:433.6pt;"><span id="S4.F2.1.1.1" class="ltx_text" style="font-size:90%;"><img src="/html/2106.00856/assets/x2.png" id="S4.F2.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="257" height="111" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S4.F2.5.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>Two types of losses are are used to optimize the AEC model. Spectral loss is computed between the predicted output and ground truth target features. ASR loss is computed between the encoded representations of the predicted features after passing through a pre-trained ASR encoder. ASR encoder weights are kept fixed while training the AEC model.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">5 </span>EXPERIMENTS</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p"><span id="S5.p1.1.1" class="ltx_text" style="font-size:90%;">Unless otherwise specified, speech recognition results were obtained using the ContextNet ASR model described in Section </span><a href="#S3.SS4" title="3.4 Training ‣ 3 Model Architecture ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.4</span></a><span id="S5.p1.1.2" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Data Augmentation Effects</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p"><span id="S5.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">We varied the inputs used for training to gain insight into the effects of augmenting datasets and inputs. These results are shown in Table </span><a href="#S5.T1" title="Table 1 ‣ 5.1 Data Augmentation Effects ‣ 5 EXPERIMENTS ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S5.SS1.p1.1.2" class="ltx_text" style="font-size:90%;">. When controlling for dataset and loss function, we found that applying SpecAugment to the reference signal alone resulted in the most consistent WER reductions. This was the SpecAugment configuration used in our final model during training. Our interpretation of this outcome is that SpecAugment introduces a challenging form of mismatch between the reference and its echo for which the model must compensate and that this mismatch is different from and complementary to the diversity of echoic effects presented by the synthetic/re-recorded data alone.</span></p>
+</div>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p"><span id="S5.SS1.p2.1.1" class="ltx_text" style="font-size:90%;">By looking at matched SpecAugment configurations in Table </span><a href="#S5.T1" title="Table 1 ‣ 5.1 Data Augmentation Effects ‣ 5 EXPERIMENTS ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S5.SS1.p2.1.2" class="ltx_text" style="font-size:90%;">, we observe the benefit of including synthetic </span><span id="S5.SS1.p2.1.3" class="ltx_text ltx_font_italic" style="font-size:90%;">and</span><span id="S5.SS1.p2.1.4" class="ltx_text" style="font-size:90%;"> re-recorded data in training. Although the re-recorded training data is closest to test set conditions, there are still significant gains from adding training set diversity. When not applying SpecAugment, there was a relative WER reductions of 25.5% (averaged across SNR levels) when using the larger combined dataset compared to the re-recorded data alone.</span></p>
+</div>
+<figure id="S5.T1" class="ltx_table">
+<table id="S5.T1.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T1.2.1.1" class="ltx_tr">
+<th id="S5.T1.2.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T1.2.1.1.1.1" class="ltx_text" style="font-size:90%;">Training Dataset</span></th>
+<th id="S5.T1.2.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_tt"><span id="S5.T1.2.1.1.2.1" class="ltx_text" style="font-size:90%;">SpecAugment</span></th>
+<th id="S5.T1.2.1.1.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T1.2.1.1.3.1" class="ltx_text" style="font-size:90%;">0dB</span></th>
+<th id="S5.T1.2.1.1.4" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T1.2.1.1.4.1" class="ltx_text" style="font-size:90%;">-5dB</span></th>
+<th id="S5.T1.2.1.1.5" class="ltx_td ltx_nopad_r ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T1.2.1.1.5.1" class="ltx_text" style="font-size:90%;">-10dB</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T1.2.2.1" class="ltx_tr">
+<td id="S5.T1.2.2.1.1" class="ltx_td ltx_align_left ltx_border_t" rowspan="4"><span id="S5.T1.2.2.1.1.1" class="ltx_text" style="font-size:90%;">Synthetic Reference</span></td>
+<td id="S5.T1.2.2.1.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t"><span id="S5.T1.2.2.1.2.1" class="ltx_text" style="font-size:90%;">None</span></td>
+<td id="S5.T1.2.2.1.3" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.2.1.3.1" class="ltx_text" style="font-size:90%;">59.14</span></td>
+<td id="S5.T1.2.2.1.4" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.2.1.4.1" class="ltx_text" style="font-size:90%;">70.33</span></td>
+<td id="S5.T1.2.2.1.5" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t"><span id="S5.T1.2.2.1.5.1" class="ltx_text" style="font-size:90%;">80.75</span></td>
+</tr>
+<tr id="S5.T1.2.3.2" class="ltx_tr">
+<td id="S5.T1.2.3.2.1" class="ltx_td ltx_align_left ltx_border_r"><span id="S5.T1.2.3.2.1.1" class="ltx_text" style="font-size:90%;">Both Inputs</span></td>
+<td id="S5.T1.2.3.2.2" class="ltx_td ltx_align_left"><span id="S5.T1.2.3.2.2.1" class="ltx_text" style="font-size:90%;">47.68</span></td>
+<td id="S5.T1.2.3.2.3" class="ltx_td ltx_align_left"><span id="S5.T1.2.3.2.3.1" class="ltx_text" style="font-size:90%;">59.26</span></td>
+<td id="S5.T1.2.3.2.4" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S5.T1.2.3.2.4.1" class="ltx_text" style="font-size:90%;">71.14</span></td>
+</tr>
+<tr id="S5.T1.2.4.3" class="ltx_tr">
+<td id="S5.T1.2.4.3.1" class="ltx_td ltx_align_left ltx_border_r"><span id="S5.T1.2.4.3.1.1" class="ltx_text" style="font-size:90%;">Probe Only</span></td>
+<td id="S5.T1.2.4.3.2" class="ltx_td ltx_align_left"><span id="S5.T1.2.4.3.2.1" class="ltx_text" style="font-size:90%;">53.94</span></td>
+<td id="S5.T1.2.4.3.3" class="ltx_td ltx_align_left"><span id="S5.T1.2.4.3.3.1" class="ltx_text" style="font-size:90%;">66.15</span></td>
+<td id="S5.T1.2.4.3.4" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S5.T1.2.4.3.4.1" class="ltx_text" style="font-size:90%;">78.01</span></td>
+</tr>
+<tr id="S5.T1.2.5.4" class="ltx_tr">
+<td id="S5.T1.2.5.4.1" class="ltx_td ltx_align_left ltx_border_r"><span id="S5.T1.2.5.4.1.1" class="ltx_text" style="font-size:90%;">Reference Only</span></td>
+<td id="S5.T1.2.5.4.2" class="ltx_td ltx_align_left"><span id="S5.T1.2.5.4.2.1" class="ltx_text" style="font-size:90%;">31.47</span></td>
+<td id="S5.T1.2.5.4.3" class="ltx_td ltx_align_left"><span id="S5.T1.2.5.4.3.1" class="ltx_text" style="font-size:90%;">43.23</span></td>
+<td id="S5.T1.2.5.4.4" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S5.T1.2.5.4.4.1" class="ltx_text" style="font-size:90%;">57.50</span></td>
+</tr>
+<tr id="S5.T1.2.6.5" class="ltx_tr">
+<td id="S5.T1.2.6.5.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.6.5.1.1" class="ltx_text" style="font-size:90%;">Re-recorded Reference</span></td>
+<td id="S5.T1.2.6.5.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t"><span id="S5.T1.2.6.5.2.1" class="ltx_text" style="font-size:90%;">None</span></td>
+<td id="S5.T1.2.6.5.3" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.6.5.3.1" class="ltx_text" style="font-size:90%;">19.66</span></td>
+<td id="S5.T1.2.6.5.4" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.6.5.4.1" class="ltx_text" style="font-size:90%;">25.35</span></td>
+<td id="S5.T1.2.6.5.5" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t"><span id="S5.T1.2.6.5.5.1" class="ltx_text" style="font-size:90%;">34.28</span></td>
+</tr>
+<tr id="S5.T1.2.7.6" class="ltx_tr">
+<td id="S5.T1.2.7.6.1" class="ltx_td ltx_align_left ltx_border_bb ltx_border_t" rowspan="4"><span id="S5.T1.2.7.6.1.1" class="ltx_text" style="font-size:90%;">Synthetic + Re-recorded</span></td>
+<td id="S5.T1.2.7.6.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t"><span id="S5.T1.2.7.6.2.1" class="ltx_text" style="font-size:90%;">None</span></td>
+<td id="S5.T1.2.7.6.3" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.7.6.3.1" class="ltx_text" style="font-size:90%;">14.19</span></td>
+<td id="S5.T1.2.7.6.4" class="ltx_td ltx_align_left ltx_border_t"><span id="S5.T1.2.7.6.4.1" class="ltx_text" style="font-size:90%;">18.71</span></td>
+<td id="S5.T1.2.7.6.5" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_t"><span id="S5.T1.2.7.6.5.1" class="ltx_text" style="font-size:90%;">26.54</span></td>
+</tr>
+<tr id="S5.T1.2.8.7" class="ltx_tr">
+<td id="S5.T1.2.8.7.1" class="ltx_td ltx_align_left ltx_border_r"><span id="S5.T1.2.8.7.1.1" class="ltx_text" style="font-size:90%;">Both Inputs</span></td>
+<td id="S5.T1.2.8.7.2" class="ltx_td ltx_align_left"><span id="S5.T1.2.8.7.2.1" class="ltx_text" style="font-size:90%;">13.13</span></td>
+<td id="S5.T1.2.8.7.3" class="ltx_td ltx_align_left"><span id="S5.T1.2.8.7.3.1" class="ltx_text" style="font-size:90%;">15.97</span></td>
+<td id="S5.T1.2.8.7.4" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S5.T1.2.8.7.4.1" class="ltx_text" style="font-size:90%;">21.98</span></td>
+</tr>
+<tr id="S5.T1.2.9.8" class="ltx_tr">
+<td id="S5.T1.2.9.8.1" class="ltx_td ltx_align_left ltx_border_r"><span id="S5.T1.2.9.8.1.1" class="ltx_text" style="font-size:90%;">Probe Only</span></td>
+<td id="S5.T1.2.9.8.2" class="ltx_td ltx_align_left"><span id="S5.T1.2.9.8.2.1" class="ltx_text" style="font-size:90%;">12.79</span></td>
+<td id="S5.T1.2.9.8.3" class="ltx_td ltx_align_left"><span id="S5.T1.2.9.8.3.1" class="ltx_text" style="font-size:90%;">15.83</span></td>
+<td id="S5.T1.2.9.8.4" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S5.T1.2.9.8.4.1" class="ltx_text" style="font-size:90%;">22.15</span></td>
+</tr>
+<tr id="S5.T1.2.10.9" class="ltx_tr">
+<td id="S5.T1.2.10.9.1" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r"><span id="S5.T1.2.10.9.1.1" class="ltx_text" style="font-size:90%;">Reference Only</span></td>
+<td id="S5.T1.2.10.9.2" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T1.2.10.9.2.1" class="ltx_text" style="font-size:90%;">12.51</span></td>
+<td id="S5.T1.2.10.9.3" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T1.2.10.9.3.1" class="ltx_text" style="font-size:90%;">15.54</span></td>
+<td id="S5.T1.2.10.9.4" class="ltx_td ltx_nopad_r ltx_align_left ltx_border_bb"><span id="S5.T1.2.10.9.4.1" class="ltx_text" style="font-size:90%;">22.30</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table"><span id="S5.T1.7.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Input data effects. WERs of models trained with different SpecAugment configurations and dataset partitions. All models here were trained with <span id="S5.T1.8.2" class="ltx_text ltx_font_bold">spectral loss only</span>.</figcaption>
+</figure>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>ASR Loss Robustness</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.2" class="ltx_p"><span id="S5.SS2.p1.2.1" class="ltx_text" style="font-size:90%;">One concern with optimizing the AEC model using a pretrained ASR encoder is that the AEC will overfit to the idiosyncrasies of that specific ASR encoder and produce outputs that are mismatched when presented to other ASR models. To measure this effect, we trained two AEC models, one with and one without </span><math id="S5.SS2.p1.1.m1.1" class="ltx_Math" alttext="{\tt loss}_{ASR}" display="inline"><semantics id="S5.SS2.p1.1.m1.1a"><msub id="S5.SS2.p1.1.m1.1.1" xref="S5.SS2.p1.1.m1.1.1.cmml"><mi mathsize="90%" id="S5.SS2.p1.1.m1.1.1.2" xref="S5.SS2.p1.1.m1.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S5.SS2.p1.1.m1.1.1.3" xref="S5.SS2.p1.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S5.SS2.p1.1.m1.1.1.3.2" xref="S5.SS2.p1.1.m1.1.1.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p1.1.m1.1.1.3.1" xref="S5.SS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p1.1.m1.1.1.3.3" xref="S5.SS2.p1.1.m1.1.1.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p1.1.m1.1.1.3.1a" xref="S5.SS2.p1.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p1.1.m1.1.1.3.4" xref="S5.SS2.p1.1.m1.1.1.3.4.cmml">R</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.SS2.p1.1.m1.1b"><apply id="S5.SS2.p1.1.m1.1.1.cmml" xref="S5.SS2.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S5.SS2.p1.1.m1.1.1.1.cmml" xref="S5.SS2.p1.1.m1.1.1">subscript</csymbol><ci id="S5.SS2.p1.1.m1.1.1.2.cmml" xref="S5.SS2.p1.1.m1.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S5.SS2.p1.1.m1.1.1.3.cmml" xref="S5.SS2.p1.1.m1.1.1.3"><times id="S5.SS2.p1.1.m1.1.1.3.1.cmml" xref="S5.SS2.p1.1.m1.1.1.3.1"></times><ci id="S5.SS2.p1.1.m1.1.1.3.2.cmml" xref="S5.SS2.p1.1.m1.1.1.3.2">𝐴</ci><ci id="S5.SS2.p1.1.m1.1.1.3.3.cmml" xref="S5.SS2.p1.1.m1.1.1.3.3">𝑆</ci><ci id="S5.SS2.p1.1.m1.1.1.3.4.cmml" xref="S5.SS2.p1.1.m1.1.1.3.4">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.p1.1.m1.1c">{\tt loss}_{ASR}</annotation></semantics></math><span id="S5.SS2.p1.2.2" class="ltx_text" style="font-size:90%;">, and evaluated the outputs on three different ASR models, of which only </span><span id="S5.SS2.p1.2.3" class="ltx_text ltx_font_bold" style="font-size:90%;">one</span><span id="S5.SS2.p1.2.4" class="ltx_text" style="font-size:90%;"> was used for calculating </span><math id="S5.SS2.p1.2.m2.1" class="ltx_Math" alttext="{\tt loss}_{ASR}" display="inline"><semantics id="S5.SS2.p1.2.m2.1a"><msub id="S5.SS2.p1.2.m2.1.1" xref="S5.SS2.p1.2.m2.1.1.cmml"><mi mathsize="90%" id="S5.SS2.p1.2.m2.1.1.2" xref="S5.SS2.p1.2.m2.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S5.SS2.p1.2.m2.1.1.3" xref="S5.SS2.p1.2.m2.1.1.3.cmml"><mi mathsize="90%" id="S5.SS2.p1.2.m2.1.1.3.2" xref="S5.SS2.p1.2.m2.1.1.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p1.2.m2.1.1.3.1" xref="S5.SS2.p1.2.m2.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p1.2.m2.1.1.3.3" xref="S5.SS2.p1.2.m2.1.1.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p1.2.m2.1.1.3.1a" xref="S5.SS2.p1.2.m2.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p1.2.m2.1.1.3.4" xref="S5.SS2.p1.2.m2.1.1.3.4.cmml">R</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.SS2.p1.2.m2.1b"><apply id="S5.SS2.p1.2.m2.1.1.cmml" xref="S5.SS2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S5.SS2.p1.2.m2.1.1.1.cmml" xref="S5.SS2.p1.2.m2.1.1">subscript</csymbol><ci id="S5.SS2.p1.2.m2.1.1.2.cmml" xref="S5.SS2.p1.2.m2.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S5.SS2.p1.2.m2.1.1.3.cmml" xref="S5.SS2.p1.2.m2.1.1.3"><times id="S5.SS2.p1.2.m2.1.1.3.1.cmml" xref="S5.SS2.p1.2.m2.1.1.3.1"></times><ci id="S5.SS2.p1.2.m2.1.1.3.2.cmml" xref="S5.SS2.p1.2.m2.1.1.3.2">𝐴</ci><ci id="S5.SS2.p1.2.m2.1.1.3.3.cmml" xref="S5.SS2.p1.2.m2.1.1.3.3">𝑆</ci><ci id="S5.SS2.p1.2.m2.1.1.3.4.cmml" xref="S5.SS2.p1.2.m2.1.1.3.4">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.p1.2.m2.1c">{\tt loss}_{ASR}</annotation></semantics></math><span id="S5.SS2.p1.2.5" class="ltx_text" style="font-size:90%;"> during training.</span></p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p"><span id="S5.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">The three pre-trained ASR models evaluated are: a CNN-based global context model </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S5.SS2.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S5.SS2.p2.1.4" class="ltx_text" style="font-size:90%;">, a bidirectional LSTM-based listen-attend-spell model </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p2.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a><span id="S5.SS2.p2.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S5.SS2.p2.1.7" class="ltx_text" style="font-size:90%;">, and a streaming LSTM-based RNN-T model </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p2.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib21" title="" class="ltx_ref">21</a><span id="S5.SS2.p2.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S5.SS2.p2.1.10" class="ltx_text" style="font-size:90%;">. The first two models were trained on the train partition of LibriSpeech, and the last model was trained on a large corpus of far field and near field non-LibriSpeech utterances.</span></p>
+</div>
+<div id="S5.SS2.p3" class="ltx_para">
+<p id="S5.SS2.p3.1" class="ltx_p"><span id="S5.SS2.p3.1.1" class="ltx_text" style="font-size:90%;">Figure </span><a href="#S5.F3" title="Figure 3 ‣ 5.2 ASR Loss Robustness ‣ 5 EXPERIMENTS ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S5.SS2.p3.1.2" class="ltx_text" style="font-size:90%;"> shows the WER of each of the ASR models on the outputs of the AEC models. Though only the in-domain CNN speech encoder was used to calculate </span><math id="S5.SS2.p3.1.m1.1" class="ltx_Math" alttext="{\tt loss}_{ASR}" display="inline"><semantics id="S5.SS2.p3.1.m1.1a"><msub id="S5.SS2.p3.1.m1.1.1" xref="S5.SS2.p3.1.m1.1.1.cmml"><mi mathsize="90%" id="S5.SS2.p3.1.m1.1.1.2" xref="S5.SS2.p3.1.m1.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S5.SS2.p3.1.m1.1.1.3" xref="S5.SS2.p3.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S5.SS2.p3.1.m1.1.1.3.2" xref="S5.SS2.p3.1.m1.1.1.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p3.1.m1.1.1.3.1" xref="S5.SS2.p3.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p3.1.m1.1.1.3.3" xref="S5.SS2.p3.1.m1.1.1.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.SS2.p3.1.m1.1.1.3.1a" xref="S5.SS2.p3.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.SS2.p3.1.m1.1.1.3.4" xref="S5.SS2.p3.1.m1.1.1.3.4.cmml">R</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.SS2.p3.1.m1.1b"><apply id="S5.SS2.p3.1.m1.1.1.cmml" xref="S5.SS2.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S5.SS2.p3.1.m1.1.1.1.cmml" xref="S5.SS2.p3.1.m1.1.1">subscript</csymbol><ci id="S5.SS2.p3.1.m1.1.1.2.cmml" xref="S5.SS2.p3.1.m1.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S5.SS2.p3.1.m1.1.1.3.cmml" xref="S5.SS2.p3.1.m1.1.1.3"><times id="S5.SS2.p3.1.m1.1.1.3.1.cmml" xref="S5.SS2.p3.1.m1.1.1.3.1"></times><ci id="S5.SS2.p3.1.m1.1.1.3.2.cmml" xref="S5.SS2.p3.1.m1.1.1.3.2">𝐴</ci><ci id="S5.SS2.p3.1.m1.1.1.3.3.cmml" xref="S5.SS2.p3.1.m1.1.1.3.3">𝑆</ci><ci id="S5.SS2.p3.1.m1.1.1.3.4.cmml" xref="S5.SS2.p3.1.m1.1.1.3.4">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.p3.1.m1.1c">{\tt loss}_{ASR}</annotation></semantics></math><span id="S5.SS2.p3.1.3" class="ltx_text" style="font-size:90%;"> for the AEC model incorporating that loss, we observe consistent improvements for the other two ASR models across all SNRs as well. This improvement holds despite significant differences in model structure, training data, and frontend configuration. As expected, we observe the largest improvements for the matched ASR encoder (CNN), followed by the in-domain LSTM recognizer, and smaller, but still significant gains for the out-of-domain model.</span></p>
+</div>
+<figure id="S5.F3" class="ltx_figure">
+<p id="S5.F3.1.1" class="ltx_p ltx_minipage ltx_align_bottom" style="width:433.6pt;"><span id="S5.F3.1.1.1" class="ltx_text" style="font-size:90%;"><img src="/html/2106.00856/assets/x3.png" id="S5.F3.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="257" height="171" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.11.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>ASR Loss Robustness. Word Error rates for different ASR models on AEC model outputs, comparing outcomes when training with and without <math id="S5.F3.4.m1.1" class="ltx_Math" alttext="{\tt loss}_{ASR}" display="inline"><semantics id="S5.F3.4.m1.1b"><msub id="S5.F3.4.m1.1.1" xref="S5.F3.4.m1.1.1.cmml"><mi id="S5.F3.4.m1.1.1.2" xref="S5.F3.4.m1.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S5.F3.4.m1.1.1.3" xref="S5.F3.4.m1.1.1.3.cmml"><mi id="S5.F3.4.m1.1.1.3.2" xref="S5.F3.4.m1.1.1.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.F3.4.m1.1.1.3.1" xref="S5.F3.4.m1.1.1.3.1.cmml">​</mo><mi id="S5.F3.4.m1.1.1.3.3" xref="S5.F3.4.m1.1.1.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.F3.4.m1.1.1.3.1b" xref="S5.F3.4.m1.1.1.3.1.cmml">​</mo><mi id="S5.F3.4.m1.1.1.3.4" xref="S5.F3.4.m1.1.1.3.4.cmml">R</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.F3.4.m1.1c"><apply id="S5.F3.4.m1.1.1.cmml" xref="S5.F3.4.m1.1.1"><csymbol cd="ambiguous" id="S5.F3.4.m1.1.1.1.cmml" xref="S5.F3.4.m1.1.1">subscript</csymbol><ci id="S5.F3.4.m1.1.1.2.cmml" xref="S5.F3.4.m1.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S5.F3.4.m1.1.1.3.cmml" xref="S5.F3.4.m1.1.1.3"><times id="S5.F3.4.m1.1.1.3.1.cmml" xref="S5.F3.4.m1.1.1.3.1"></times><ci id="S5.F3.4.m1.1.1.3.2.cmml" xref="S5.F3.4.m1.1.1.3.2">𝐴</ci><ci id="S5.F3.4.m1.1.1.3.3.cmml" xref="S5.F3.4.m1.1.1.3.3">𝑆</ci><ci id="S5.F3.4.m1.1.1.3.4.cmml" xref="S5.F3.4.m1.1.1.3.4">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F3.4.m1.1d">{\tt loss}_{ASR}</annotation></semantics></math>. Only the LibriSpeech CNN model (blue line) was used for computing <math id="S5.F3.5.m2.1" class="ltx_Math" alttext="{\tt loss}_{ASR}" display="inline"><semantics id="S5.F3.5.m2.1b"><msub id="S5.F3.5.m2.1.1" xref="S5.F3.5.m2.1.1.cmml"><mi id="S5.F3.5.m2.1.1.2" xref="S5.F3.5.m2.1.1.2.cmml">𝚕𝚘𝚜𝚜</mi><mrow id="S5.F3.5.m2.1.1.3" xref="S5.F3.5.m2.1.1.3.cmml"><mi id="S5.F3.5.m2.1.1.3.2" xref="S5.F3.5.m2.1.1.3.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.F3.5.m2.1.1.3.1" xref="S5.F3.5.m2.1.1.3.1.cmml">​</mo><mi id="S5.F3.5.m2.1.1.3.3" xref="S5.F3.5.m2.1.1.3.3.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.F3.5.m2.1.1.3.1b" xref="S5.F3.5.m2.1.1.3.1.cmml">​</mo><mi id="S5.F3.5.m2.1.1.3.4" xref="S5.F3.5.m2.1.1.3.4.cmml">R</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.F3.5.m2.1c"><apply id="S5.F3.5.m2.1.1.cmml" xref="S5.F3.5.m2.1.1"><csymbol cd="ambiguous" id="S5.F3.5.m2.1.1.1.cmml" xref="S5.F3.5.m2.1.1">subscript</csymbol><ci id="S5.F3.5.m2.1.1.2.cmml" xref="S5.F3.5.m2.1.1.2">𝚕𝚘𝚜𝚜</ci><apply id="S5.F3.5.m2.1.1.3.cmml" xref="S5.F3.5.m2.1.1.3"><times id="S5.F3.5.m2.1.1.3.1.cmml" xref="S5.F3.5.m2.1.1.3.1"></times><ci id="S5.F3.5.m2.1.1.3.2.cmml" xref="S5.F3.5.m2.1.1.3.2">𝐴</ci><ci id="S5.F3.5.m2.1.1.3.3.cmml" xref="S5.F3.5.m2.1.1.3.3">𝑆</ci><ci id="S5.F3.5.m2.1.1.3.4.cmml" xref="S5.F3.5.m2.1.1.3.4">𝑅</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F3.5.m2.1d">{\tt loss}_{ASR}</annotation></semantics></math> during training.</figcaption>
+</figure>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>Final System</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p"><span id="S5.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">We combined all of the proposed modifications to the model and evaluated WER results in Table </span><a href="#S4.F2" title="Figure 2 ‣ 4.3 Evaluation data ‣ 4 Data Preparation ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S5.SS3.p1.1.2" class="ltx_text" style="font-size:90%;">. For comparison purposes, we contrast against two other AEC techniques. The first is a linear AEC system that performs adaptive filtering on STFT subbands, similar to </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS3.p1.1.3.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib22" title="" class="ltx_ref">22</a><span id="S5.SS3.p1.1.4.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S5.SS3.p1.1.5" class="ltx_text" style="font-size:90%;">, but using longer STFT frames and within-band only filter taps. We also implemented and trained a mask-based neural network AEC model as described in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS3.p1.1.6.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S5.SS3.p1.1.7.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S5.SS3.p1.1.8" class="ltx_text" style="font-size:90%;">. That model is trained to predict an ideal ratio mask (IRM) that is then used to mask the spectral magnitude of the probe, which is then inverted back to the time domain. During training, the IRM target is computed using the residual and echoed reference. When training this model, we used both synthetic and re-recorded data, but did not apply SpecAugment.</span></p>
+</div>
+<div id="S5.SS3.p2" class="ltx_para">
+<p id="S5.SS3.p2.1" class="ltx_p"><span id="S5.SS3.p2.1.1" class="ltx_text" style="font-size:90%;">As expected, all AEC techniques significantly improve recognition accuracy compared to evaluating on the probe signal alone. Moreover, both neural models improve over the STFT-based AEC at higher SNRs (0 dB and -5 dB), but the IRM-based model degrades much more sharply than the STFT-based AEC as SNR decreases. Our neural model, when including all proposed improvements, achieves significant improvements compared to both alternatives at all three SNR levels. In addition to the analysis in Sections </span><a href="#S5.SS1" title="5.1 Data Augmentation Effects ‣ 5 EXPERIMENTS ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">5.1</span></a><span id="S5.SS3.p2.1.2" class="ltx_text" style="font-size:90%;"> and </span><a href="#S5.SS2" title="5.2 ASR Loss Robustness ‣ 5 EXPERIMENTS ‣ A Neural Acoustic Echo Canceller Optimized Using An Automatic Speech Recognizer and Large Scale Synthetic Data" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">5.2</span></a><span id="S5.SS3.p2.1.3" class="ltx_text" style="font-size:90%;">, we show ablation results from successively removing each of the proposed improvements from the final system.</span></p>
+</div>
+<div id="S5.SS3.p3" class="ltx_para">
+<p id="S5.SS3.p3.1" class="ltx_p"><span id="S5.SS3.p3.1.1" class="ltx_text" style="font-size:90%;">Interestingly, our final model produces outputs that yield better WER in the 0 dB case than running recognition on the residual signal directly, which has no echoed reference. This is presumably because the model was trained with non-reverberant, noise-free utterances as its training targets and therefore learned to predict de-reverberated and de-noised features rather than just the residual.</span></p>
+</div>
+<figure id="S5.T2" class="ltx_table">
+<table id="S5.T2.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T2.2.1.1" class="ltx_tr">
+<th id="S5.T2.2.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_tt"></th>
+<th id="S5.T2.2.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T2.2.1.1.2.1" class="ltx_text" style="font-size:90%;">0 dB</span></th>
+<th id="S5.T2.2.1.1.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T2.2.1.1.3.1" class="ltx_text" style="font-size:90%;">-5 dB</span></th>
+<th id="S5.T2.2.1.1.4" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S5.T2.2.1.1.4.1" class="ltx_text" style="font-size:90%;">-10 dB</span></th>
+</tr>
+<tr id="S5.T2.2.2.2" class="ltx_tr">
+<th id="S5.T2.2.2.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"><span id="S5.T2.2.2.2.1.1" class="ltx_text" style="font-size:90%;">Target*</span></th>
+<th id="S5.T2.2.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t" colspan="3"><span id="S5.T2.2.2.2.2.1" class="ltx_text" style="font-size:90%;">— 3.81 —</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T2.2.3.1" class="ltx_tr">
+<th id="S5.T2.2.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.3.1.1.1" class="ltx_text" style="font-size:90%;">Residual*</span></th>
+<td id="S5.T2.2.3.1.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.3.1.2.1" class="ltx_text" style="font-size:90%;">12.18</span></td>
+<td id="S5.T2.2.3.1.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.3.1.3.1" class="ltx_text" style="font-size:90%;">11.14</span></td>
+<td id="S5.T2.2.3.1.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.3.1.4.1" class="ltx_text" style="font-size:90%;">12.30</span></td>
+</tr>
+<tr id="S5.T2.2.4.2" class="ltx_tr">
+<th id="S5.T2.2.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.4.2.1.1" class="ltx_text" style="font-size:90%;">Probe</span></th>
+<td id="S5.T2.2.4.2.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.4.2.2.1" class="ltx_text" style="font-size:90%;">75.86</span></td>
+<td id="S5.T2.2.4.2.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.4.2.3.1" class="ltx_text" style="font-size:90%;">82.20</span></td>
+<td id="S5.T2.2.4.2.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.4.2.4.1" class="ltx_text" style="font-size:90%;">85.78</span></td>
+</tr>
+<tr id="S5.T2.2.5.3" class="ltx_tr">
+<th id="S5.T2.2.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.5.3.1.1" class="ltx_text" style="font-size:90%;">STFT-based AEC</span></th>
+<td id="S5.T2.2.5.3.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.5.3.2.1" class="ltx_text" style="font-size:90%;">31.37</span></td>
+<td id="S5.T2.2.5.3.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.5.3.3.1" class="ltx_text" style="font-size:90%;">32.55</span></td>
+<td id="S5.T2.2.5.3.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.5.3.4.1" class="ltx_text" style="font-size:90%;">36.91</span></td>
+</tr>
+<tr id="S5.T2.2.6.4" class="ltx_tr">
+<th id="S5.T2.2.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<span id="S5.T2.2.6.4.1.1" class="ltx_text" style="font-size:90%;">IRM AEC </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.T2.2.6.4.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S5.T2.2.6.4.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</th>
+<td id="S5.T2.2.6.4.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.6.4.2.1" class="ltx_text" style="font-size:90%;">23.01</span></td>
+<td id="S5.T2.2.6.4.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.6.4.3.1" class="ltx_text" style="font-size:90%;">30.75</span></td>
+<td id="S5.T2.2.6.4.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.6.4.4.1" class="ltx_text" style="font-size:90%;">41.85</span></td>
+</tr>
+<tr id="S5.T2.2.7.5" class="ltx_tr">
+<th id="S5.T2.2.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.7.5.1.1" class="ltx_text" style="font-size:90%;">Neural AEC (ours)</span></th>
+<td id="S5.T2.2.7.5.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.7.5.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">11.03</span></td>
+<td id="S5.T2.2.7.5.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.7.5.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">13.49</span></td>
+<td id="S5.T2.2.7.5.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.7.5.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">18.48</span></td>
+</tr>
+<tr id="S5.T2.2.8.6" class="ltx_tr">
+<th id="S5.T2.2.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.8.6.1.1" class="ltx_text" style="font-size:90%;">-AsrLoss</span></th>
+<td id="S5.T2.2.8.6.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.8.6.2.1" class="ltx_text" style="font-size:90%;">12.51</span></td>
+<td id="S5.T2.2.8.6.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.8.6.3.1" class="ltx_text" style="font-size:90%;">15.54</span></td>
+<td id="S5.T2.2.8.6.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.8.6.4.1" class="ltx_text" style="font-size:90%;">22.30</span></td>
+</tr>
+<tr id="S5.T2.2.9.7" class="ltx_tr">
+<th id="S5.T2.2.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S5.T2.2.9.7.1.1" class="ltx_text" style="font-size:90%;">        -SpecAugment</span></th>
+<td id="S5.T2.2.9.7.2" class="ltx_td ltx_align_left"><span id="S5.T2.2.9.7.2.1" class="ltx_text" style="font-size:90%;">14.19</span></td>
+<td id="S5.T2.2.9.7.3" class="ltx_td ltx_align_left"><span id="S5.T2.2.9.7.3.1" class="ltx_text" style="font-size:90%;">18.71</span></td>
+<td id="S5.T2.2.9.7.4" class="ltx_td ltx_align_left"><span id="S5.T2.2.9.7.4.1" class="ltx_text" style="font-size:90%;">26.54</span></td>
+</tr>
+<tr id="S5.T2.2.10.8" class="ltx_tr">
+<th id="S5.T2.2.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S5.T2.2.10.8.1.1" class="ltx_text" style="font-size:90%;">           -Synthetic Dataset</span></th>
+<td id="S5.T2.2.10.8.2" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T2.2.10.8.2.1" class="ltx_text" style="font-size:90%;">19.66</span></td>
+<td id="S5.T2.2.10.8.3" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T2.2.10.8.3.1" class="ltx_text" style="font-size:90%;">25.35</span></td>
+<td id="S5.T2.2.10.8.4" class="ltx_td ltx_align_left ltx_border_bb"><span id="S5.T2.2.10.8.4.1" class="ltx_text" style="font-size:90%;">34.28</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table"><span id="S5.T2.5.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span>System comparison. WER calculated on different SNR test subsets using various AEC models and available signals. Target and residual are oracle signals not available to the model at inference.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">6 </span>CONCLUSION</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p"><span id="S6.p1.1.1" class="ltx_text" style="font-size:90%;">We proposed an autoregressive neural network model to perform AEC in situations with double-talk and background noise. The model was trained using a dataset augmented with synthetic examples with SpecAugment masks applied to increase robustness to mismatch between the reference and the echoed reference. To adapt the model towards being an input to an ASR system, the loss function was extended with a pretrained ASR encoder. When compared to a purely signal processing-based AEC technique and a mask-based neural AEC model, our proposed approach improved speech recognition accuracy across several noise levels.</span></p>
+</div>
+<div id="S6.p2" class="ltx_para ltx_noindent">
+<p id="S6.p2.1" class="ltx_p"><span id="S6.p2.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Acknowledgements:</span><span id="S6.p2.1.2" class="ltx_text" style="font-size:90%;"> Thanks to James Walker and Bharath Ranganatha Mankalale for aid in data collection and room simulation.</span></p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="font-size:90%;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="font-size:90%;">
+Daniel S. Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Barret Zoph, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.2.1" class="ltx_text" style="font-size:90%;">“SpecAugment: A Simple Data Augmentation Method for Automatic
+Speech Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib1.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proc. Interspeech 2019</span><span id="bib.bib1.5.3" class="ltx_text" style="font-size:90%;">, 2019, pp. 2613–2617.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="font-size:90%;">
+Qinhui Lei, Hang Chen, Junfeng Hou, Liang Chen, and Lirong Dai,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.2.1" class="ltx_text" style="font-size:90%;">“Deep Neural Network Based Regression Approach for Acoustic Echo
+Cancellation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib2.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of ICMSSP 2019</span><span id="bib.bib2.5.3" class="ltx_text" style="font-size:90%;">, 05 2019, pp. 94–98.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="font-size:90%;">
+Hao Zhang and DeLiang Wang,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.2.1" class="ltx_text" style="font-size:90%;">“Deep Learning for Acoustic Echo Cancellation in Noisy and
+Double-Talk Scenarios,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib3.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of Interspeech</span><span id="bib.bib3.5.3" class="ltx_text" style="font-size:90%;">, 09 2018, pp. 3239–3243.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="font-size:90%;">
+Amin Fazel, Mostafa El-Khamy, and Jungwon Lee,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.2.1" class="ltx_text" style="font-size:90%;">“Deep Multitask Acoustic Echo Cancellation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib4.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of Interspeech</span><span id="bib.bib4.5.3" class="ltx_text" style="font-size:90%;">, 09 2019, pp. 4250–4254.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="font-size:90%;">
+Chul Min Lee, Jong Won Shin, and Nam Soo Kim,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.2.1" class="ltx_text" style="font-size:90%;">“DNN-based residual echo suppression,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib5.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Sixteenth Annual Conference of the International Speech
+Communication Association</span><span id="bib.bib5.5.3" class="ltx_text" style="font-size:90%;">, 2015.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="font-size:90%;">
+Fadi Biadsy, Ron J. Weiss, Pedro J. Moreno, Dimitri Kanevsky, and Ye Jia,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.2.1" class="ltx_text" style="font-size:90%;">“Parrotron: An End-to-End Speech-to-Speech Conversion Model and its
+Applications to Hearing-Impaired Speech and Speech Separation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1904.04169</span><span id="bib.bib6.4.2" class="ltx_text" style="font-size:90%;">, 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="font-size:90%;">
+Shaojin Ding, Ye Jia, Ke Hu, and Quan Wang,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.2.1" class="ltx_text" style="font-size:90%;">“Textual Echo Cancellation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2008.06006</span><span id="bib.bib7.4.2" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="font-size:90%;">
+Yanzhang He, Tara N. Sainath, Rohit Prabhavalkar, Ian McGraw, Raziel Alvarez,
+et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.2.1" class="ltx_text" style="font-size:90%;">“Streaming End-to-end Speech Recognition For Mobile Devices,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">CoRR</span><span id="bib.bib8.4.2" class="ltx_text" style="font-size:90%;">, vol. abs/1811.06621, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="font-size:90%;">
+Jonathan Shen, Ruoming Pang, Ron J. Weiss, Mike Schuster, Navdeep Jaitly,
+et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.2.1" class="ltx_text" style="font-size:90%;">“Natural TTS synthesis by conditioning wavenet on mel spectrogram
+predictions,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">CoRR</span><span id="bib.bib9.4.2" class="ltx_text" style="font-size:90%;">, vol. abs/1712.05884, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="font-size:90%;">
+D. Griffin and Jae Lim,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.2.1" class="ltx_text" style="font-size:90%;">“Signal estimation from modified short-time Fourier transform,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">IEEE Transactions on Acoustics, Speech, and Signal Processing</span><span id="bib.bib10.4.2" class="ltx_text" style="font-size:90%;">,
+vol. 32, no. 2, pp. 236–243, 1984.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="font-size:90%;">
+Aaron van den Oord, Yazhe Li, Igor Babuschkin, Karen Simonyan, Oriol Vinyals,
+et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.2.1" class="ltx_text" style="font-size:90%;">“Parallel WaveNet: Fast High-Fidelity Speech Synthesis,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1711.10433</span><span id="bib.bib11.4.2" class="ltx_text" style="font-size:90%;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="font-size:90%;">
+Jonathan Shen, Patrick Nguyen, Yonghui Wu, Zhifeng Chen, Mia Xu Chen, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.2.1" class="ltx_text" style="font-size:90%;">“Lingvo: a Modular and Scalable Framework for Sequence-to-Sequence
+Modeling,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">CoRR</span><span id="bib.bib12.4.2" class="ltx_text" style="font-size:90%;">, vol. abs/1902.08295, 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="font-size:90%;">
+Martín Abadi, Ashish Agarwal, Paul Barham, Eugene Brevdo, Zhifeng Chen,
+et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.2.1" class="ltx_text" style="font-size:90%;">“TensorFlow: Large-Scale Machine Learning on Heterogeneous
+Distributed Systems,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">CoRR</span><span id="bib.bib13.4.2" class="ltx_text" style="font-size:90%;">, vol. abs/1603.04467, 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="font-size:90%;">
+Diederik P. Kingma and Jimmy Ba,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.2.1" class="ltx_text" style="font-size:90%;">“Adam: A Method for Stochastic Optimization,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1412.6980</span><span id="bib.bib14.4.2" class="ltx_text" style="font-size:90%;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="font-size:90%;">
+Samy Bengio, Oriol Vinyals, Navdeep Jaitly, and Noam Shazeer,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.2.1" class="ltx_text" style="font-size:90%;">“Scheduled sampling for sequence prediction with recurrent neural
+networks,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib15.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Advances in Neural Information Processing Systems</span><span id="bib.bib15.5.3" class="ltx_text" style="font-size:90%;">, 2015, pp.
+1171–1179.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="font-size:90%;">
+Wei Han, Zhengdong Zhang, Yu Zhang, Jiahui Yu, Chung-Cheng Chiu, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.2.1" class="ltx_text" style="font-size:90%;">“ContextNet: Improving Convolutional Neural Networks for Automatic
+Speech Recognition with Global Context,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2005.03191</span><span id="bib.bib16.4.2" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="font-size:90%;">
+Gerald Enzner, Herbert Buchner, Alexis Favrot, and Fabian Kuech,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.2.1" class="ltx_text" style="font-size:90%;">“Chapter 30. Acoustic Echo Control,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">Academic Press Library in Signal Processing</span><span id="bib.bib17.4.2" class="ltx_text" style="font-size:90%;">, vol. 4, 12 2014.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="font-size:90%;">
+Hongsheng Chen, Teng Xiang, Kai Chen, and Jing Lu,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.2.1" class="ltx_text" style="font-size:90%;">“Nonlinear Residual Echo Suppression Based on Multi-stream
+Conv-TasNet,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2005.07631</span><span id="bib.bib18.4.2" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="font-size:90%;">
+Chanwoo Kim, Ananya Misra, Kean Chin, Thad Hughes, Arun Narayanan, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.2.1" class="ltx_text" style="font-size:90%;">“Generation of large-scale simulated utterances in virtual rooms to
+train deep-neural networks for far-field speech recognition in google home,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib19.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of Interspeech</span><span id="bib.bib19.5.3" class="ltx_text" style="font-size:90%;">, 2017, pp. 379–383.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="font-size:90%;">
+William Chan, Navdeep Jaitly, Quoc V. Le, and Oriol Vinyals,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.2.1" class="ltx_text" style="font-size:90%;">“Listen, Attend and Spell,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1508.01211</span><span id="bib.bib20.4.2" class="ltx_text" style="font-size:90%;">, 2015.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="font-size:90%;">
+T. N. Sainath, Y. He, B. Li, A. Narayanan, R. Pang, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.2.1" class="ltx_text" style="font-size:90%;">“A Streaming On-Device End-To-End Model Surpassing Server-Side
+Conventional Model Quality and Latency,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib21.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP 2020 - 2020 IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP)</span><span id="bib.bib21.5.3" class="ltx_text" style="font-size:90%;">, 2020, pp. 6059–6063.
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="font-size:90%;">
+Y. Avargel and I. Cohen,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.2.1" class="ltx_text" style="font-size:90%;">“Performance analysis of cross-band adaptation for subband acoustic
+echo cancellation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib22.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Inter- national Workshop on Acoustic Echo and Noise Control</span><span id="bib.bib22.5.3" class="ltx_text" style="font-size:90%;">,
+09 2006.
+</span>
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2106.00855" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2106.00856" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2106.00856">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2106.00856" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2106.00858" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Mar 19 09:28:55 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

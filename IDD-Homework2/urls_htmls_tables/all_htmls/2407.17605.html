@@ -1,0 +1,895 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2407.17605] Coupling Speech Encoders with Downstream Text Models</title><meta property="og:description" content="We present a modular approach to building cascade speech translation (AST) models that guarantees that the resulting model performs no worse than the 1-best cascade baseline while preserving state-of-the-art speech rec…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Coupling Speech Encoders with Downstream Text Models">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Coupling Speech Encoders with Downstream Text Models">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2407.17605">
+
+<!--Generated on Mon Aug  5 17:47:03 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<!--Document created on April 13, 2023.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Coupling Speech Encoders with Downstream Text Models</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Ciprian Chelba and Johan Schalkwyk
+<br class="ltx_break">Google, Inc.
+<br class="ltx_break">1600 Amphitheatre Parkway
+<br class="ltx_break">Mountain View, CA 94043, USA
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">{ciprianchelba,johans}@google.com</span>
+</span></span>
+</div>
+<div class="ltx_dates">(April 13, 2023)</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">We present a modular approach to building cascade speech translation (AST) models that guarantees that the resulting model performs no worse than the 1-best cascade baseline while preserving state-of-the-art speech recognition (ASR) and text translation (MT) performance for a given task.</p>
+<p id="id3.id2" class="ltx_p">Our novel contribution is the use of an “exporter” layer that is trained under L2-loss to ensure a strong match between ASR embeddings and the MT token embeddings for the 1-best sequence. The “exporter” output embeddings are fed directly to the MT model <span id="id3.id2.1" class="ltx_text ltx_font_italic">in lieu</span> of 1-best token embeddings, thus guaranteeing that the resulting model performs no worse than the 1-best cascade baseline, while allowing back-propagation gradient to flow from the MT model into the ASR components.</p>
+<p id="id4.id3" class="ltx_p">The matched-embeddings cascade architecture provide a significant improvement over its 1-best counterpart in scenarios where incremental training of the MT model is not an option and yet we seek to improve quality by leveraging (speech, transcription, translated transcription) data provided with the AST task. The gain disappears when the MT model is incrementally trained on the parallel text data available with the AST task.</p>
+<p id="id5.id4" class="ltx_p">The approach holds promise for other scenarios that seek to couple ASR encoders and immutable text models, such at large language models (LLM).</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Automatic speech translation (AST) modeling is usually plagued by lack of parallel training data, which limits the success of end-to-end models. Owing to their modular architecture, cascade models for AST have the advantage of leveraging the large amounts of data available to build automatic speech recognition (ASR) and machine translation (MT) models, respectively. The straightforward way of building cascade AST models is to send the 1-best ASR transcription to the text MT model. Yet another advantage of such an architecture is that it is in fact a multi-modal and multi-task one: besides speech, it also accepts text input for translation and it produces ASR output either in stand-alone mode or as a side-product of the AST task.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">This multi-input/modal view on the AST task is firmly anchored in the reality of practical applications, so we take it as a fundamental design choice: we aim to build a model that delivers both state of the art ASR and MT performance, while optimizing the AST performance within these constraints.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Translating ASR 1-best output has the obvious disadvantage that any further training (fine-tuning) on AST parallel data specific to a given domain is unable to back-propagate cross-entropy loss gradient through the interface between the ASR and the MT model. For tighter coupling between ASR and MT modules we follow the approach of <cite class="ltx_cite ltx_citemacro_citep">(Dalmia et al., <a href="#bib.bib6" title="" class="ltx_ref">2021</a>)</cite> that leverages the 1-best ASR alignment and sends the ASR encoder embeddings aligned with the 1-best ASR sequence to the MT model. This results in a cascade architecture that allows back-propagation gradient to flow from the MT model into the ASR components.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">The ASR model in our work uses a conformer encoder architecture <cite class="ltx_cite ltx_citemacro_citep">(Gulati et al., <a href="#bib.bib10" title="" class="ltx_ref">2020</a>)</cite>, pre-trained on a large amount of speech data as described in the Unified Speech Model (<code id="S1.p4.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code>) work <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib16" title="" class="ltx_ref">2023</a>)</cite>. Due to its remarkable trade-off between simplicity and effectiveness, we compute 1-best labels and the alignment using the Connectionist Temporal Classification (CTC), <cite class="ltx_cite ltx_citemacro_citep">(Graves et al., <a href="#bib.bib9" title="" class="ltx_ref">2006</a>)</cite>, guided reduction approach <cite class="ltx_cite ltx_citemacro_citep">(Wang et al., <a href="#bib.bib14" title="" class="ltx_ref">2022</a>)</cite>. Our experiments show only marginal degradation in word error rate over <code id="S1.p4.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> models when training/fine-tuning both on MuST-C V2 AST data <cite class="ltx_cite ltx_citemacro_citep">(Di Gangi et al., <a href="#bib.bib7" title="" class="ltx_ref">2019</a>)</cite>.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">The MT model uses a standard encoder-decoder transformer architecture using cross attention between decoder and encoder and self-attention within either (the latter being of course causally masked in the decoder). One slight deviation from a standard implementation is the use of rotary position embeddings <cite class="ltx_cite ltx_citemacro_citep">(Su et al., <a href="#bib.bib13" title="" class="ltx_ref">2022</a>)</cite>. We carry out experiments in two setups: a MT model trained on WMT data only, as well as the MuST-C MT model obtained by incrementally training the WMT model on the MuST-C V2 data.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">Our novel contribution is the use of an “exporter” layer that is trained under L2-loss to ensure a strong match between ASR embeddings and the MT token embeddings for the 1-best sequence. The “exporter” output embeddings are fed directly to the MT model in lieu of 1-best token embeddings, thus guaranteeing that the resulting model performs no worse than the 1-best cascade baseline. Further fine-tuning of the “exporter” module alone while keeping the parameters for the ASR and text MT components fixed satisfies the design constraint that we outlined above. We find that we can significantly improve AST performance when using the WMT MT back-end. Alas, this is no longer the case when using the MuST-C MT back-end, showing that the “exporter”-enhanced AST model performs task adaptation, instead of mitigating the impact of feeding errorful ASR transcriptions to the MT model.</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">The approach is useful in scenarios where incremental training of the MT model is not an option and yet we seek to improve AST quality by leveraging (speech, transcription, translated transcription) data. More generally, it offers a promising approach for coupling ASR encoders with immutable text models such at large language models (LLM).</p>
+</div>
+<div id="S1.p8" class="ltx_para">
+<p id="S1.p8.1" class="ltx_p">Section <a href="#S2" title="2 Modeling ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> details our modeling choices for the ASR and MT components and describes the L2 matcher used to train the “exporter” module. Section <a href="#S3" title="3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> presents our experiments; we conclude with sections outlining related and future work.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Modeling</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">We build ASR models by boot-strapping the speech encoder from <code id="S2.p1.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> models trained unsupervised using the BEST-RQ algorithm described in <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib16" title="" class="ltx_ref">2023</a>)</cite>. The frame synchronous embeddings produced by the <code id="S2.p1.1.2" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder are fed to various types of decoders:</p>
+<ul id="S2.I1" class="ltx_itemize">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p"><code id="S2.I1.i1.p1.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code><span id="S2.I1.i1.p1.1.2" class="ltx_text">, as described in <cite class="ltx_cite ltx_citemacro_citep">(Wang et al., <a href="#bib.bib14" title="" class="ltx_ref">2022</a>)</cite>: at each frame we pick the top scoring token according to the CTC layer softmax, then apply the CTC “reduction” by removing blank symbols and collapsing runs of the same token into one single token instance, aligned with the last frame in the run. The CTC softmax layer and <code id="S2.I1.i1.p1.1.2.1" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder are trained using CTC loss: maximize the probability of the correct token sequence by summing over all the CTC alignments for it;</span></p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p"><code id="S2.I1.i2.p1.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code><span id="S2.I1.i2.p1.1.1" class="ltx_text">, as described in <cite class="ltx_cite ltx_citemacro_citep">(Rao et al., <a href="#bib.bib12" title="" class="ltx_ref">2018</a>)</cite>: at each step the decoder consumes an input frame and predicts an alignment edge by joining the <code id="S2.I1.i2.p1.1.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> encoding for the frame and the encoding of the token prefix so far according to a RNN language model (RNN-LM). The LM state is not advanced if the edge has <math id="S2.I1.i2.p1.1.1.m1.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S2.I1.i2.p1.1.1.m1.1a"><mi id="S2.I1.i2.p1.1.1.m1.1.1" xref="S2.I1.i2.p1.1.1.m1.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.1.1.m1.1b"><ci id="S2.I1.i2.p1.1.1.m1.1.1.cmml" xref="S2.I1.i2.p1.1.1.m1.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.1.1.m1.1c">\epsilon</annotation></semantics></math> label; if the edge has a regular token as label then the LM state is advanced to encode the new prefix obtained by appending the newly predicted token to the old one. During training, computing the probability of the reference token sequence by summing over all <code id="S2.I1.i2.p1.1.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> alignments is simplified by the use of a LM with finite context (N-gram), which enables a dynamic programming solution.</span></p>
+</div>
+</li>
+<li id="S2.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i3.p1" class="ltx_para">
+<p id="S2.I1.i3.p1.1" class="ltx_p"><code id="S2.I1.i3.p1.1.1" class="ltx_verbatim ltx_font_typewriter">LAS</code><span id="S2.I1.i3.p1.1.2" class="ltx_text">, as described in <cite class="ltx_cite ltx_citemacro_cite">Chan et al. (<a href="#bib.bib4" title="" class="ltx_ref">2015</a>)</cite>: a RNN LM (causally masked transformer model in our case) augmented with cross-attention <cite class="ltx_cite ltx_citemacro_citep">(Bahdanau et al., <a href="#bib.bib2" title="" class="ltx_ref">2016</a>)</cite> over the <code id="S2.I1.i3.p1.1.2.1" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder output is used to decode the token sequence. The model is trained under cross-entropy loss against the token sequence derived from the correct transcription. Among the downsides of <code id="S2.I1.i3.p1.1.2.2" class="ltx_verbatim ltx_font_typewriter">LAS</code> modeling we can mention that there is no natural frame level alignment for the output token sequence and it does not easily support a streaming decoding algorithm. On the upside, it offers a stronger LM in the decoder and more powerful integration of encoder output in the decoder due to soft cross-attention. The latter aspects make the <code id="S2.I1.i3.p1.1.2.3" class="ltx_verbatim ltx_font_typewriter">LAS</code> architecture the natural candidate for direct AST modeling.</span></p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">The <code id="S2.p2.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> model uses 24 conformer layers of dimension 1024, with a convolution kernel of size 5 for a total of 600M parameters. The <code id="S2.p2.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> LM is an LSTM with two layers, input/output embedding of dimension 128 and 640 hidden dimension. The <code id="S2.p2.1.3" class="ltx_verbatim ltx_font_typewriter">LAS</code> decoder transformer has 6 layers of dimension 512 and 2048 hidden dimension, 8 attention heads and rotary position embedding. For training we use the Adam optimizer with transformer learning rate schedule and exponential moving average. Decoding is done using beam search of size 8.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">The MT models are standard transformer architectures consisting of 18 encoder and 6 decoder layers of dimension 1024, using 16 attention heads and rotary position embedding, resulting in about 300M parameters. Optimization uses sharded adafactor with Adam decay schedule (0.999 decay, 0.9 beta1, 5.0 gradient norm clipping), linear ramp-up and exponential decay learning rate schedule. Training uses exponential moving average with weight 0.999, label smoothing and dropout for regularization.</p>
+</div>
+<div id="S2.p4" class="ltx_para">
+<p id="S2.p4.1" class="ltx_p">Translating ASR 1-best output has the obvious disadvantage that any further training (fine-tuning) on AST parallel data specific to a given domain is unable to back-propagate cross-entropy loss gradient through the interface between the ASR and the MT model. For tighter coupling between ASR and MT modules we follow the approach of <cite class="ltx_cite ltx_citemacro_citep">(Dalmia et al., <a href="#bib.bib6" title="" class="ltx_ref">2021</a>)</cite> that leverages the 1-best ASR alignment and sends the ASR encoder embeddings aligned with the 1-best ASR sequence to the MT model. Other approaches to accomplish this exist, see Section <a href="#S4" title="4 Related Work ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>L2 Matcher for Cascade AST</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Assuming that the SPM (Sentence Piece Model), <cite class="ltx_cite ltx_citemacro_cite">Kudo and Richardson (<a href="#bib.bib11" title="" class="ltx_ref">2018</a>)</cite>, used for ASR is the same as the one used for source sentence in the MT model, we embed the <code id="S2.SS1.p1.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> encodings aligned with the ASR output tokens such that they match the MT input embeddings. This is accomplished by an “exporter” module (3 conformer layers) that re-embeds the <code id="S2.SS1.p1.1.2" class="ltx_verbatim ltx_font_typewriter">USM</code> encodings. The exporter output is optionally passed through a linear layer that ensures dimensionality match with the MT input token embeddings. All layers in the “exporter” module are trained using L2 loss on ASR parallel data consisting of (speech, transcription) pairs while keeping all the other parameters (MT token embeddings, ASR <code id="S2.SS1.p1.1.3" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder and CTC layer) fixed. The purpose of this first training stage is to approximate the hard cascade baseline. A second (optional) stage of training further estimates the “exporter” parameters on AST data, while keeping the <code id="S2.SS1.p1.1.4" class="ltx_verbatim ltx_font_typewriter">USM</code> and MT modules frozen.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure">
+<p id="S2.F1.1" class="ltx_p ltx_align_center"><span id="S2.F1.1.1" class="ltx_text ltx_framed ltx_framed_rectangle" style="border-color: #000000;">
+<img src="/html/2407.17605/assets/x1.png" id="S2.F1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="363" height="544" alt="Refer to caption"> </span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Graph model description for training the L2 loss matcher.</figcaption>
+</figure>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">Once this is accomplished we build a cascade AST model that sends the “exporter” output straight to the transformer encoder of the MT model, bypassing the MT input token embeddings. This results in a cascade architecture that allows back-propagation gradient to flow from the MT model into the ASR components. We present experiments showing that:</p>
+<ul id="S2.I2" class="ltx_itemize">
+<li id="S2.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i1.p1" class="ltx_para">
+<p id="S2.I2.i1.p1.1" class="ltx_p">L2 loss initialization of the exporter does indeed match 1-best cascade AST results</p>
+</div>
+</li>
+<li id="S2.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I2.i2.p1" class="ltx_para">
+<p id="S2.I2.i2.p1.1" class="ltx_p">further training the exporter layer parameters on parallel AST data consisting of (speech, translation) pairs can improve AST performance while keeping ASR and text MT capability intact since those model parameters are not updated.</p>
+</div>
+</li>
+</ul>
+</div>
+<figure id="S2.F2" class="ltx_figure">
+<p id="S2.F2.1" class="ltx_p ltx_align_center"><span id="S2.F2.1.1" class="ltx_text ltx_framed ltx_framed_rectangle" style="border-color: #000000;">
+<img src="/html/2407.17605/assets/x2.png" id="S2.F2.1.1.g1" class="ltx_graphics ltx_img_portrait" width="363" height="680" alt="Refer to caption"> </span>
+
+</p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Graph model description for using the L2 loss matcher in cascade AST.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">We carried out AST experiments on the En-De subset of the MuST-C <cite class="ltx_cite ltx_citemacro_citep">(Di Gangi et al., <a href="#bib.bib7" title="" class="ltx_ref">2019</a>)</cite> V2 data. We did not pre-process the transcriptions or translations in any way, thus working in the “written text” domain. This choice was mostly due to the fact that MT models are trained on such text data; it also makes our work easily reproducible. The ASR model thus needs to generate all the extra information that may not be available in the speech signal such as punctuation, capitalization, correct formatting of numbers, dates, etc. As a result, the word error rate (WER) results listed in Table <a href="#S3.T1" title="Table 1 ‣ 3.1 ASR experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> may seem higher than expected.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">The text data is tokenized using sentence piece models (SPM, <cite class="ltx_cite ltx_citemacro_cite">Kudo and Richardson (<a href="#bib.bib11" title="" class="ltx_ref">2018</a>)</cite>) built from the MuST-C data separately for the source and target language. Unless specified otherwise we use byte-pair encoding SPM with a vocabulary size of 1024, and a short list of user defined symbols specific to the MuST-C data such as: <code id="S3.p2.1.1" class="ltx_verbatim ltx_font_typewriter">(Laughter), (Applause), (Sobs), (Music), (Mock sob), (Piano music)</code>, <code id="S3.p2.1.2" class="ltx_verbatim ltx_font_typewriter">(Sighs), (Singing), (Sings), (Whistling)</code> and their German counterparts. The output vocabulary of the MT model used for AST was 32768; the MT baseline models use a SPM vocabulary of 32678, however that was reduced to 1024 for the AST cascade experiments to match the ASR vocabulary size. We did not observe a significant impact in SacreBleu due to a smaller source SPM vocabulary.</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.1" class="ltx_p">Speech encoders are initialized using the <code id="S3.p3.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> model trained unsupervised on about 12M hours of speech data using the BEST-RQ algorithm described in <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib16" title="" class="ltx_ref">2023</a>)</cite>. The <code id="S3.p3.1.2" class="ltx_verbatim ltx_font_typewriter">WMT</code> translation model is trained on data available for the <code id="S3.p3.1.3" class="ltx_verbatim ltx_font_typewriter">WMT’21</code> constrained evaluation setup containing approximately 90M EnDe sentence pairs. That is to be compared with the 400hrs of EnDe speech and 251k sentence pairs available in the MuST-C V2 training set.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>ASR experiments</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">The ASR models used in our experiments are trained incrementally from <code id="S3.SS1.p1.1.1" class="ltx_verbatim ltx_font_typewriter">USM</code> <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib16" title="" class="ltx_ref">2023</a>)</cite> models. We started with a 600M parameter model and finetuned both <code id="S3.SS1.p1.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> and <code id="S3.SS1.p1.1.3" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> ASR models on the MuST-C data. The results are presented in Table <a href="#S3.T1" title="Table 1 ‣ 3.1 ASR experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<table id="S3.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Model</th>
+<th id="S3.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="3">WER (%)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.2.1" class="ltx_tr">
+<th id="S3.T1.1.2.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<td id="S3.T1.1.2.1.2" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T1.1.2.1.3" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T1.1.2.1.4" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T1.1.3.2" class="ltx_tr">
+<th id="S3.T1.1.3.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T1.1.3.2.1.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code></th>
+<td id="S3.T1.1.3.2.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">9.2</td>
+<td id="S3.T1.1.3.2.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">9.6</td>
+<td id="S3.T1.1.3.2.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">7.4</td>
+</tr>
+<tr id="S3.T1.1.4.3" class="ltx_tr">
+<th id="S3.T1.1.4.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T1.1.4.3.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code></th>
+<td id="S3.T1.1.4.3.2" class="ltx_td ltx_align_right ltx_border_b ltx_border_r ltx_border_t">10.2</td>
+<td id="S3.T1.1.4.3.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r ltx_border_t">10.2</td>
+<td id="S3.T1.1.4.3.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r ltx_border_t">8.0</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Word Error Rate of RNN-T and reduced CTC models built by fine-tuning USM models on En-De MuST-C data.</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>MT experiments</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">A first set of MT experiments evaluated the performance of the <code id="S3.SS2.p1.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code> model on <code id="S3.SS2.p1.1.2" class="ltx_verbatim ltx_font_typewriter">MuST-C</code> before and after incremental training. In addition to using the correct ASR transcript we also experimented with training and/or evaluating on the 1-best transcript produced by the <code id="S3.SS2.p1.1.3" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> ASR model. The results are presented in Table <a href="#S3.T2" title="Table 2 ‣ 3.2 MT experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. Replacing correct transcription for the source sentence with the <code id="S3.SS2.p1.1.4" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best degrades performance by 2-3 SacreBleu, depending on the evaluation data set.</p>
+</div>
+<figure id="S3.T2" class="ltx_table">
+<table id="S3.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T2.1.1.1" class="ltx_tr">
+<th id="S3.T2.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Model</th>
+<th id="S3.T2.1.1.1.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">Source</th>
+<td id="S3.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3">SacreBleu (%)</td>
+</tr>
+<tr id="S3.T2.1.2.2" class="ltx_tr">
+<th id="S3.T2.1.2.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S3.T2.1.2.2.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">Transcript</th>
+<td id="S3.T2.1.2.2.3" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T2.1.2.2.4" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T2.1.2.2.5" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T2.1.3.3" class="ltx_tr">
+<th id="S3.T2.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T2.1.3.3.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<th id="S3.T2.1.3.3.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">correct</th>
+<td id="S3.T2.1.3.3.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">32.7</td>
+<td id="S3.T2.1.3.3.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">33.8</td>
+<td id="S3.T2.1.3.3.5" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.6</td>
+</tr>
+<tr id="S3.T2.1.4.4" class="ltx_tr">
+<th id="S3.T2.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r"><code id="S3.T2.1.4.4.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<th id="S3.T2.1.4.4.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r">correct</th>
+<td id="S3.T2.1.4.4.3" class="ltx_td ltx_align_right ltx_border_r">35.9</td>
+<td id="S3.T2.1.4.4.4" class="ltx_td ltx_align_right ltx_border_r">36.4</td>
+<td id="S3.T2.1.4.4.5" class="ltx_td ltx_align_right ltx_border_r">36.2</td>
+</tr>
+<tr id="S3.T2.1.5.5" class="ltx_tr">
+<th id="S3.T2.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T2.1.5.5.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<th id="S3.T2.1.5.5.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">
+<code id="S3.T2.1.5.5.2.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T2.1.5.5.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.1</td>
+<td id="S3.T2.1.5.5.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.8</td>
+<td id="S3.T2.1.5.5.5" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">29.9</td>
+</tr>
+<tr id="S3.T2.1.6.6" class="ltx_tr">
+<th id="S3.T2.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r"><code id="S3.T2.1.6.6.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<th id="S3.T2.1.6.6.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_r">
+<code id="S3.T2.1.6.6.2.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T2.1.6.6.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.8</td>
+<td id="S3.T2.1.6.6.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.0</td>
+<td id="S3.T2.1.6.6.5" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.7</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>SacreBleu of WMT baseline and incrementally trained WMT-MuST-C MT model on MuST-C data.</figcaption>
+</figure>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">We have also incrementally trained the <code id="S3.SS2.p2.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code> model on MuST-C data where we replaced the correct source transcription with the ASR 1-best but we did not observe any change relative to the model trained using the correct transcription. This is a surprising result, since we were expecting a slight improvement when evaluating on matched data containing <code id="S3.SS2.p2.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best transcriptions. It seems that during incremental training the translation model is able to integrate over the noise introduced by ASR errors and the only reason for degradation in a cascade AST architecture is errorful transcription of source speech at inference/test time.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>AST Experiments</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">The very first AST experiment was to compare direct model performance with that of the cascade model. In earlier experiments with written text ASR carried out on LibriTTS <cite class="ltx_cite ltx_citemacro_cite">Zen et al. (<a href="#bib.bib15" title="" class="ltx_ref">2019</a>)</cite> data we observed slightly better performance of <code id="S3.SS3.p1.1.1" class="ltx_verbatim ltx_font_typewriter">LAS</code> <cite class="ltx_cite ltx_citemacro_citep">(Chan et al., <a href="#bib.bib4" title="" class="ltx_ref">2015</a>)</cite> versus <code id="S3.SS3.p1.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> models <cite class="ltx_cite ltx_citemacro_citep">(Rao et al., <a href="#bib.bib12" title="" class="ltx_ref">2018</a>)</cite> built by fine-tuning a <code id="S3.SS3.p1.1.3" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder: 8.5% and 10.9% on <code id="S3.SS3.p1.1.4" class="ltx_verbatim ltx_font_typewriter">dev-clean</code> and <code id="S3.SS3.p1.1.5" class="ltx_verbatim ltx_font_typewriter">test-other</code> partitions versus 8.8% and 11.2%. Given that observation and the fact that the MT decoder relies heavily on cross-attention to reorder the target side tokens relative to the source, we build a direct AST model using the <code id="S3.SS3.p1.1.6" class="ltx_verbatim ltx_font_typewriter">LAS</code> architecture. Table <a href="#S3.T3" title="Table 3 ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> compares SacreBleu for the direct AST model with the cascade model built by feeding <code id="S3.SS3.p1.1.7" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best transcriptions to the MT model. The <code id="S3.SS3.p1.1.8" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> model is built by fine-tuning a <code id="S3.SS3.p1.1.9" class="ltx_verbatim ltx_font_typewriter">USM</code> encoder (600M parameters) on MuST-C data. The same approach is used to build the <code id="S3.SS3.p1.1.10" class="ltx_verbatim ltx_font_typewriter">LAS</code> direct AST model.</p>
+</div>
+<figure id="S3.T3" class="ltx_table">
+<table id="S3.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T3.1.1.1" class="ltx_tr">
+<th id="S3.T3.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Model</th>
+<th id="S3.T3.1.1.1.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">Source Transcript</th>
+<td id="S3.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3">SacreBleu (%)</td>
+</tr>
+<tr id="S3.T3.1.2.2" class="ltx_tr">
+<th id="S3.T3.1.2.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S3.T3.1.2.2.2" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S3.T3.1.2.2.3" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T3.1.2.2.4" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T3.1.2.2.5" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T3.1.3.3" class="ltx_tr">
+<th id="S3.T3.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t" colspan="2">Direct model: USM encoder + LAS decoder</th>
+<td id="S3.T3.1.3.3.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">28.2</td>
+<td id="S3.T3.1.3.3.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">27.2</td>
+<td id="S3.T3.1.3.3.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">27.3</td>
+</tr>
+<tr id="S3.T3.1.4.4" class="ltx_tr">
+<th id="S3.T3.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T3.1.4.4.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<th id="S3.T3.1.4.4.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_r ltx_border_t">
+<code id="S3.T3.1.4.4.2.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T3.1.4.4.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.1</td>
+<td id="S3.T3.1.4.4.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.8</td>
+<td id="S3.T3.1.4.4.5" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">29.9</td>
+</tr>
+<tr id="S3.T3.1.5.5" class="ltx_tr">
+<th id="S3.T3.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r"><code id="S3.T3.1.5.5.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<th id="S3.T3.1.5.5.2" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_r">
+<code id="S3.T3.1.5.5.2.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T3.1.5.5.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.8</td>
+<td id="S3.T3.1.5.5.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.0</td>
+<td id="S3.T3.1.5.5.5" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">33.7</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Comparison of direct AST model with cascade architecture using either WMT baseline or incrementally trained WMT-MuST-C MT model on MuST-C data together with RNN-T ASR model also incrementally trained on MuST-C data.</figcaption>
+</figure>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">It is safe the attribute the large difference of 5-6% SacreBleu between direct and cascade models to the disparity in training data highlighted at the beginning of section <a href="#S3" title="3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>: due to their modular approach, cascade models have access to a much larger amount of training data in addition to what is available in <code id="S3.SS3.p2.1.1" class="ltx_verbatim ltx_font_typewriter">MuST-C</code>. This situation is quite representative of practical scenarios, so we focused our next set of experiments on cascade models. As explained in section <a href="#S1" title="1 Introduction ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, we take a multi-task and multi-input view on the AST problem: ASR transcripts are a side product of the speech translation task, and we seek to optimize speech translation performance while preserving state-of-the-art performance for both ASR and text MT.</p>
+</div>
+<section id="S3.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.3.1 </span>L2 Matcher Experiments</h4>
+
+<div id="S3.SS3.SSS1.p1" class="ltx_para">
+<p id="S3.SS3.SSS1.p1.1" class="ltx_p">A first experiment trained the exporter component (3 layer conformer) to ensure L2 match with the MT token embeddings. This uses the <code id="S3.SS3.SSS1.p1.1.1" class="ltx_verbatim ltx_font_typewriter">MuST-C</code> parallel data (speech, transcription). Table <a href="#S3.T4" title="Table 4 ‣ 3.3.1 L2 Matcher Experiments ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows the loss values after 25,000 training steps using a global batch size of 128. A very good fit between the encodings exported after CTC reduction and the MT token embeddings is achieved, within 0.001 (10/1024) absolute diff per dimension.</p>
+</div>
+<figure id="S3.T4" class="ltx_table">
+<table id="S3.T4.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T4.1.1.1" class="ltx_tr">
+<th id="S3.T4.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t">MT Model</th>
+<th id="S3.T4.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="3">L2-loss/token</th>
+</tr>
+<tr id="S3.T4.1.2.2" class="ltx_tr">
+<th id="S3.T4.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S3.T4.1.2.2.2" class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_r">dev</th>
+<th id="S3.T4.1.2.2.3" class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_r">tst-COMMON</th>
+<th id="S3.T4.1.2.2.4" class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_r">tst-HE</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T4.1.3.1" class="ltx_tr">
+<th id="S3.T4.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T4.1.3.1.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<td id="S3.T4.1.3.1.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">9.0</td>
+<td id="S3.T4.1.3.1.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">9.2</td>
+<td id="S3.T4.1.3.1.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">8.9</td>
+</tr>
+<tr id="S3.T4.1.4.2" class="ltx_tr">
+<th id="S3.T4.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r"><code id="S3.T4.1.4.2.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<td id="S3.T4.1.4.2.2" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">9.5</td>
+<td id="S3.T4.1.4.2.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">9.8</td>
+<td id="S3.T4.1.4.2.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">9.4</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>L2 loss per token summed across 1024 dimensions.</figcaption>
+</figure>
+<div id="S3.SS3.SSS1.p2" class="ltx_para">
+<p id="S3.SS3.SSS1.p2.1" class="ltx_p">We then proceeded to train the exporter from this initial point on parallel (speech, translation) MuST-C data in an attempt to improve AST performance beyond the initial one (step 0). We also verified that the AST performance at step 0 matches the cascade 1-best one as shown in Table <a href="#S3.T5" title="Table 5 ‣ 3.3.1 L2 Matcher Experiments ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>.</p>
+</div>
+<figure id="S3.T5" class="ltx_table">
+<table id="S3.T5.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T5.1.1.1" class="ltx_tr">
+<th id="S3.T5.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Cascade AST Model</th>
+<td id="S3.T5.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3">SacreBleu</td>
+</tr>
+<tr id="S3.T5.1.2.2" class="ltx_tr">
+<th id="S3.T5.1.2.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<td id="S3.T5.1.2.2.2" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T5.1.2.2.3" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T5.1.2.2.4" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T5.1.3.3" class="ltx_tr">
+<th id="S3.T5.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">transcript</th>
+<td id="S3.T5.1.3.3.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">32.7</td>
+<td id="S3.T5.1.3.3.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">34.2</td>
+<td id="S3.T5.1.3.3.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.9</td>
+</tr>
+<tr id="S3.T5.1.4.4" class="ltx_tr">
+<th id="S3.T5.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">
+<code id="S3.T5.1.4.4.1.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T5.1.4.4.2" class="ltx_td ltx_align_right ltx_border_r">31.1</td>
+<td id="S3.T5.1.4.4.3" class="ltx_td ltx_align_right ltx_border_r">30.8</td>
+<td id="S3.T5.1.4.4.4" class="ltx_td ltx_align_right ltx_border_r">29.9</td>
+</tr>
+<tr id="S3.T5.1.5.5" class="ltx_tr">
+<th id="S3.T5.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">
+<code id="S3.T5.1.5.5.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> 1-best</th>
+<td id="S3.T5.1.5.5.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.6</td>
+<td id="S3.T5.1.5.5.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.8</td>
+<td id="S3.T5.1.5.5.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">28.5</td>
+</tr>
+<tr id="S3.T5.1.6.6" class="ltx_tr">
+<th id="S3.T5.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">
+<code id="S3.T5.1.6.6.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss, step 0</th>
+<td id="S3.T5.1.6.6.2" class="ltx_td ltx_align_right ltx_border_r">30.7</td>
+<td id="S3.T5.1.6.6.3" class="ltx_td ltx_align_right ltx_border_r">30.6</td>
+<td id="S3.T5.1.6.6.4" class="ltx_td ltx_align_right ltx_border_r">28.7</td>
+</tr>
+<tr id="S3.T5.1.7.7" class="ltx_tr">
+<th id="S3.T5.1.7.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">
+<code id="S3.T5.1.7.7.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss, step 8k</th>
+<td id="S3.T5.1.7.7.2" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.5</td>
+<td id="S3.T5.1.7.7.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.5</td>
+<td id="S3.T5.1.7.7.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">31.8</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>AST performance for cascade architecture using L2 loss matcher for reduced CTC ASR, WMT MT model.</figcaption>
+</figure>
+<div id="S3.SS3.SSS1.p3" class="ltx_para">
+<p id="S3.SS3.SSS1.p3.1" class="ltx_p">As mentioned already, we first observe that the <code id="S3.SS3.SSS1.p3.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> 1-best AST performance is very close to the <code id="S3.SS3.SSS1.p3.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best one, owing to the small difference in WER between the two ASR models. The <code id="S3.SS3.SSS1.p3.1.3" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss architecture matches it at step 0, as expected due to the very close match in L2 loss between exporter encodings and <code id="S3.SS3.SSS1.p3.1.4" class="ltx_verbatim ltx_font_typewriter">WMT</code> token embeddings. Finally, we were pleasantly surprised to see that further training of the <code id="S3.SS3.SSS1.p3.1.5" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss model improves performance significantly, approaching the <code id="S3.SS3.SSS1.p3.1.6" class="ltx_verbatim ltx_font_typewriter">WMT</code> model performance on correct transcripts.</p>
+</div>
+<div id="S3.SS3.SSS1.p4" class="ltx_para">
+<p id="S3.SS3.SSS1.p4.1" class="ltx_p">We wish to note that when training the exporter on MuST-C AST data, there is task specific “leakage” into the model despite the fact that ASR/MT parameters are frozen. That should explain the ability to beat the <code id="S3.SS3.SSS1.p4.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code> translation model performance when feeding it correct transcripts for the MuST-C data, as observed on the tst-HE test set (last row in Table <a href="#S3.T5" title="Table 5 ‣ 3.3.1 L2 Matcher Experiments ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>).</p>
+</div>
+<div id="S3.SS3.SSS1.p5" class="ltx_para">
+<p id="S3.SS3.SSS1.p5.1" class="ltx_p">A second set of experiments confirmed that this was indeed the main reason for the improvements above: when using the <code id="S3.SS3.SSS1.p5.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code> translation back-end (a <code id="S3.SS3.SSS1.p5.1.2" class="ltx_verbatim ltx_font_typewriter">WMT</code> model adapted on MuST-C data) and an exporter matched to the token embeddings of this model there is no longer a significant gain from further training of the <code id="S3.SS3.SSS1.p5.1.3" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss model, as shown in Table <a href="#S3.T6" title="Table 6 ‣ 3.3.1 L2 Matcher Experiments ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>.</p>
+</div>
+<figure id="S3.T6" class="ltx_table">
+<table id="S3.T6.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T6.1.1.1" class="ltx_tr">
+<th id="S3.T6.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Cascade AST Model</th>
+<td id="S3.T6.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3">SacreBleu</td>
+</tr>
+<tr id="S3.T6.1.2.2" class="ltx_tr">
+<th id="S3.T6.1.2.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<td id="S3.T6.1.2.2.2" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T6.1.2.2.3" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T6.1.2.2.4" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T6.1.3.3" class="ltx_tr">
+<th id="S3.T6.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">transcript</th>
+<td id="S3.T6.1.3.3.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">35.3</td>
+<td id="S3.T6.1.3.3.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">35.8</td>
+<td id="S3.T6.1.3.3.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">35.3</td>
+</tr>
+<tr id="S3.T6.1.4.4" class="ltx_tr">
+<th id="S3.T6.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">
+<code id="S3.T6.1.4.4.1.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> 1-best</th>
+<td id="S3.T6.1.4.4.2" class="ltx_td ltx_align_right ltx_border_r">33.8</td>
+<td id="S3.T6.1.4.4.3" class="ltx_td ltx_align_right ltx_border_r">33.0</td>
+<td id="S3.T6.1.4.4.4" class="ltx_td ltx_align_right ltx_border_r">33.7</td>
+</tr>
+<tr id="S3.T6.1.5.5" class="ltx_tr">
+<th id="S3.T6.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">
+<code id="S3.T6.1.5.5.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> 1-best</th>
+<td id="S3.T6.1.5.5.2" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">32.8</td>
+<td id="S3.T6.1.5.5.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">32.0</td>
+<td id="S3.T6.1.5.5.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">32.4</td>
+</tr>
+<tr id="S3.T6.1.6.6" class="ltx_tr">
+<th id="S3.T6.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">
+<code id="S3.T6.1.6.6.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss, step 0</th>
+<td id="S3.T6.1.6.6.2" class="ltx_td ltx_align_right ltx_border_r">32.4</td>
+<td id="S3.T6.1.6.6.3" class="ltx_td ltx_align_right ltx_border_r">32.3</td>
+<td id="S3.T6.1.6.6.4" class="ltx_td ltx_align_right ltx_border_r">33.1</td>
+</tr>
+<tr id="S3.T6.1.7.7" class="ltx_tr">
+<th id="S3.T6.1.7.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">
+<code id="S3.T6.1.7.7.1.1" class="ltx_verbatim ltx_font_typewriter">Reduced CTC</code> L2 loss, step 11k</th>
+<td id="S3.T6.1.7.7.2" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.7</td>
+<td id="S3.T6.1.7.7.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.3</td>
+<td id="S3.T6.1.7.7.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.5</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 6: </span>AST performance for cascade architecture using L2 loss matcher for Reduced CTC ASR, incrementally trained WMT-MuST-C MT model.</figcaption>
+</figure>
+<div id="S3.SS3.SSS1.p6" class="ltx_para">
+<p id="S3.SS3.SSS1.p6.1" class="ltx_p">A last set of experiments aim at understanding to what extent the L2 loss initialization of the exporter module is useful. Table <a href="#S3.T7" title="Table 7 ‣ 3.3.1 L2 Matcher Experiments ‣ 3.3 AST Experiments ‣ 3 Experiments ‣ Coupling Speech Encoders with Downstream Text Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> shows the results of ablation experiments using both <code id="S3.SS3.SSS1.p6.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code> and <code id="S3.SS3.SSS1.p6.1.2" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code> translation models: we use random initialization for the exporter module instead of the L2 loss one described above.</p>
+</div>
+<figure id="S3.T7" class="ltx_table">
+<table id="S3.T7.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T7.1.1.1" class="ltx_tr">
+<th id="S3.T7.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">MT Model</th>
+<th id="S3.T7.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">Exporter Initialization</th>
+<td id="S3.T7.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3">SacreBleu</td>
+</tr>
+<tr id="S3.T7.1.2.2" class="ltx_tr">
+<th id="S3.T7.1.2.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S3.T7.1.2.2.2" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S3.T7.1.2.2.3" class="ltx_td ltx_align_right ltx_border_r">dev</td>
+<td id="S3.T7.1.2.2.4" class="ltx_td ltx_align_right ltx_border_r">tst-COMMON</td>
+<td id="S3.T7.1.2.2.5" class="ltx_td ltx_align_right ltx_border_r">tst-HE</td>
+</tr>
+<tr id="S3.T7.1.3.3" class="ltx_tr">
+<th id="S3.T7.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T7.1.3.3.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<th id="S3.T7.1.3.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">random</th>
+<td id="S3.T7.1.3.3.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.2</td>
+<td id="S3.T7.1.3.3.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.3</td>
+<td id="S3.T7.1.3.3.5" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.8</td>
+</tr>
+<tr id="S3.T7.1.4.4" class="ltx_tr">
+<th id="S3.T7.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r"><code id="S3.T7.1.4.4.1.1" class="ltx_verbatim ltx_font_typewriter">WMT</code></th>
+<th id="S3.T7.1.4.4.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">L2 loss matcher</th>
+<td id="S3.T7.1.4.4.3" class="ltx_td ltx_align_right ltx_border_r">32.5</td>
+<td id="S3.T7.1.4.4.4" class="ltx_td ltx_align_right ltx_border_r">32.5</td>
+<td id="S3.T7.1.4.4.5" class="ltx_td ltx_align_right ltx_border_r">31.8</td>
+</tr>
+<tr id="S3.T7.1.5.5" class="ltx_tr">
+<th id="S3.T7.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><code id="S3.T7.1.5.5.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<th id="S3.T7.1.5.5.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">random</th>
+<td id="S3.T7.1.5.5.3" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.0</td>
+<td id="S3.T7.1.5.5.4" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">30.4</td>
+<td id="S3.T7.1.5.5.5" class="ltx_td ltx_align_right ltx_border_r ltx_border_t">31.3</td>
+</tr>
+<tr id="S3.T7.1.6.6" class="ltx_tr">
+<th id="S3.T7.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r"><code id="S3.T7.1.6.6.1.1" class="ltx_verbatim ltx_font_typewriter">WMT-MuST-C</code></th>
+<th id="S3.T7.1.6.6.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r">L2 loss matcher</th>
+<td id="S3.T7.1.6.6.3" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.7</td>
+<td id="S3.T7.1.6.6.4" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.3</td>
+<td id="S3.T7.1.6.6.5" class="ltx_td ltx_align_right ltx_border_b ltx_border_r">32.5</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 7: </span>Ablation experiments comparing AST performance for cascade architecture using exporter initialized randomly versus L2 loss matcher with both WMT and incrementally trained WMT-MuST-C MT model.</figcaption>
+</figure>
+<div id="S3.SS3.SSS1.p7" class="ltx_para">
+<p id="S3.SS3.SSS1.p7.1" class="ltx_p">Using the L2 loss matcher to initialize the exporter before further training on the MuST-C data set is beneficial in both experimental conditions.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Related Work</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">A similar approach of coupling the ASR and MT components in cascade AST models, as well as their performance relative to direct models when leveraging all the data available is presented in <cite class="ltx_cite ltx_citemacro_citep">(Bahar et al., <a href="#bib.bib1" title="" class="ltx_ref">2020</a>)</cite>. Coupling the ASR and MT model using the ASR model embeddings along the 1-best alignment was introduced in <cite class="ltx_cite ltx_citemacro_cite">Dalmia et al. (<a href="#bib.bib6" title="" class="ltx_ref">2021</a>)</cite>; we take the additional step of adding the exporter module and initialize it to match the MT model token embeddings under the L2 loss. As shown by the ablation experiments, this initialization is important for achieving the best AST performance. Our work follows the same ideas as in LegoNN <cite class="ltx_cite ltx_citemacro_citep">(Dalmia et al., <a href="#bib.bib5" title="" class="ltx_ref">2023</a>)</cite>, primarily by building modular models that can leverage significantly larger amounts of training data than the limited parallel data available to build AST models; it stems from the same project as <cite class="ltx_cite ltx_citemacro_citep">(Botros et al., <a href="#bib.bib3" title="" class="ltx_ref">2023</a>)</cite>. The use of CTC reduced ASR for AST is novel to the best of our knowledge.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusions and Future Work</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We have presented a modular approach to building cascade AST models that guarantees that the resulting model performs no worse than the 1-best cascade baseline while preserving state-of-the-art ASR and text MT performance for a given task. The approach could be useful in scenarios where incremental training of the MT model is not an option and yet we seek to improve AST quality by leveraging (speech, transcription, translated transcription) data.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">Future work could improve our approach in a few directions. One is to replace the CTC reduced ASR with <code id="S5.p2.1.1" class="ltx_verbatim ltx_font_typewriter">RNN-T</code>: since the latter also produces a frame-level alignment one could export the <code id="S5.p2.1.2" class="ltx_verbatim ltx_font_typewriter">RNN-T</code> encoder embeddings just as well, guarantee even better ASR 1-best performance which is directly correlated with AST quality. Another is to augment the MT encoder with a (perhaps gated) cross-attention mechanism and allow it to reach into the encoder embeddings sequence as needed to extract any complementary information that may improve AST performance. The challenge is of course maintaining modularity and ensuring that text translation performance is not impacted negatively. It would be interesting to compare the two stage training approach with a single joint optimization, where the L2 loss is used as a regularizer rather than a pretraining stage</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p">Perhaps even more promising is a scenario that uses the matched-embeddings approach to couple ASR with an immutable LLM, leveraging long contextual information in refining the typically short segment-level (utterance) ASR results.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Acknowledgements</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">Thanks to the Pax <cite class="ltx_cite ltx_citemacro_citep">(Google, <a href="#bib.bib8" title="" class="ltx_ref">2022</a>)</cite> developers and users in Google for help in setting up experiments and debugging, in particular Laurent El Shafey; Markus Freitag for providing the WMT training data; Maxim Krikun and Ankush Garg for providing a Pax MT model implementation that we could build on; Sid Dalmia for useful comments and pointers to literature; Aren Jansen for a careful review of the paper and suggestions for potential improvements as future work.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bahar et al. (2020)</span>
+<span class="ltx_bibblock">
+Parnia Bahar, Tobias Bieschke, Ralf Schlüter, and Hermann Ney. 2020.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2011.12167" title="" class="ltx_ref ltx_href">Tight integrated end-to-end
+training for cascaded speech translation</a>.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bahdanau et al. (2016)</span>
+<span class="ltx_bibblock">
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. 2016.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1409.0473" title="" class="ltx_ref ltx_href">Neural machine translation by
+jointly learning to align and translate</a>.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Botros et al. (2023)</span>
+<span class="ltx_bibblock">
+Rami Botros, Rohit Prabhavalkar, Johan Schalkwyk, Ciprian Chelba, Tara N.
+Sainath, and Françoise Beaufays. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1109/ICASSP49357.2023.10095464" title="" class="ltx_ref ltx_href">Lego-features: Exporting modular encoder features for streaming and
+deliberation asr</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023 - 2023 IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP)</em>, pages 1–5.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chan et al. (2015)</span>
+<span class="ltx_bibblock">
+William Chan, Navdeep Jaitly, Quoc V. Le, and Oriol Vinyals. 2015.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1508.01211" title="" class="ltx_ref ltx_href">Listen, attend and spell</a>.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Dalmia et al. (2023)</span>
+<span class="ltx_bibblock">
+Siddharth Dalmia, Dmytro Okhonko, Mike Lewis, Sergey Edunov, Shinji Watanabe,
+Florian Metze, Luke Zettlemoyer, and Abdelrahman Mohamed. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://arxiv.org/pdf/2206.03318.pdf" title="" class="ltx_ref ltx_href">LegoNN: Building
+modular encoder-decoder models</a>.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on Audio, Speech, and Language
+Processing</em>.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Dalmia et al. (2021)</span>
+<span class="ltx_bibblock">
+Siddharth Dalmia, Brian Yan, Vikas Raunak, Florian Metze, and Shinji Watanabe.
+2021.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/2021.naacl-main.151" title="" class="ltx_ref ltx_href">Searchable
+hidden intermediates for end-to-end models of decomposable sequence tasks</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2021 Conference of the North American
+Chapter of the Association for Computational Linguistics: Human Language
+Technologies</em>, pages 1882–1896, Online. Association for Computational
+Linguistics.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Di Gangi et al. (2019)</span>
+<span class="ltx_bibblock">
+Mattia A. Di Gangi, Roldano Cattoni, Luisa Bentivogli, Matteo Negri, and Marco
+Turchi. 2019.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/N19-1202" title="" class="ltx_ref ltx_href">MuST-C: a
+Multilingual Speech Translation Corpus</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2019 Conference of the North American
+Chapter of the Association for Computational Linguistics: Human Language
+Technologies, Volume 1 (Long and Short Papers)</em>, pages 2012–2017,
+Minneapolis, Minnesota. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Google (2022)</span>
+<span class="ltx_bibblock">
+Google. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://github.com/google/paxml" title="" class="ltx_ref ltx_href">Pax: a framework to
+configure and run machine learning experiments on top of Jax.</a>
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic"><a target="_blank" href="https://github.com/google/paxml" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/google/paxml</a></em>.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Graves et al. (2006)</span>
+<span class="ltx_bibblock">
+Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen
+Schmidhuber. 2006.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.1145/1143844.1143891" title="" class="ltx_ref ltx_href">Connectionist
+temporal classification: labelling unsegmented sequence data with recurrent
+neural networks</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 23rd International Conference on Machine
+Learning</em>, ICML ’06, page 369–376, New York, NY, USA. Association for
+Computing Machinery.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Gulati et al. (2020)</span>
+<span class="ltx_bibblock">
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu,
+Wei Han, Shibo Wang, Zhengdong Zhang, Yonghui Wu, and Ruoming Pang. 2020.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2005.08100" title="" class="ltx_ref ltx_href">Conformer:
+Convolution-augmented transformer for speech recognition</a>.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kudo and Richardson (2018)</span>
+<span class="ltx_bibblock">
+Taku Kudo and John Richardson. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://doi.org/10.18653/v1/D18-2012" title="" class="ltx_ref ltx_href">SentencePiece: A
+simple and language independent subword tokenizer and detokenizer for neural
+text processing</a>.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2018 Conference on Empirical Methods in
+Natural Language Processing: System Demonstrations</em>, pages 66–71, Brussels,
+Belgium. Association for Computational Linguistics.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Rao et al. (2018)</span>
+<span class="ltx_bibblock">
+Kanishka Rao, Haşim Sak, and Rohit Prabhavalkar. 2018.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1801.00841" title="" class="ltx_ref ltx_href">Exploring architectures,
+data and units for streaming end-to-end speech recognition with
+rnn-transducer</a>.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Su et al. (2022)</span>
+<span class="ltx_bibblock">
+Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu.
+2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2104.09864" title="" class="ltx_ref ltx_href">Roformer: Enhanced
+transformer with rotary position embedding</a>.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al. (2022)</span>
+<span class="ltx_bibblock">
+Yongqiang Wang, Zhehuai Chen, Chengjian Zheng, Yu Zhang, Wei Han, and Parisa
+Haghani. 2022.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2210.16481" title="" class="ltx_ref ltx_href">Accelerating rnn-t training
+and inference using ctc guidance</a>.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zen et al. (2019)</span>
+<span class="ltx_bibblock">
+Heiga Zen, Viet Dang, Rob Clark, Yu Zhang, Ron J. Weiss, Ye Jia, Zhifeng Chen,
+and Yonghui Wu. 2019.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/1904.02882" title="" class="ltx_ref ltx_href">Libritts: A corpus derived
+from librispeech for text-to-speech</a>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2023)</span>
+<span class="ltx_bibblock">
+Yu Zhang, Wei Han, James Qin, Yongqiang Wang, Ankur Bapna, Zhehuai Chen, Nanxin
+Chen, Bo Li, Vera Axelrod, Gary Wang, Zhong Meng, Ke Hu, Andrew Rosenberg,
+Rohit Prabhavalkar, Daniel S. Park, Parisa Haghani, Jason Riesa, Ginger
+Perng, Hagen Soltau, Trevor Strohman, Bhuvana Ramabhadran, Tara Sainath,
+Pedro Moreno, Chung-Cheng Chiu, Johan Schalkwyk, Françoise Beaufays, and
+Yonghui Wu. 2023.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="http://arxiv.org/abs/2303.01037" title="" class="ltx_ref ltx_href">Google usm: Scaling
+automatic speech recognition beyond 100 languages</a>.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2407.17604" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2407.17605" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2407.17605">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2407.17605" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2407.17606" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Mon Aug  5 17:47:03 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

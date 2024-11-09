@@ -1,0 +1,853 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2409.06062] Retrieval Augmented Correction of Named Entity Speech Recognition Errors</title><meta property="og:description" content="In recent years, end-to-end automatic speech recognition (ASR) systems have proven themselves remarkably accurate and performant, but these systems still have a significant error rate for entity names which appear infr…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Retrieval Augmented Correction of Named Entity Speech Recognition Errors">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Retrieval Augmented Correction of Named Entity Speech Recognition Errors">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2409.06062">
+
+<!--Generated on Sun Oct  6 00:54:33 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Retrieval Augmented Correction of Named Entity Speech Recognition Errors</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Ernest Pusateri13, Anmol Walia13, Anirudh Kashi13, Bortik Bandyopadhyay13, Nadia Hyder13, 
+<br class="ltx_break">Sayantan Mahinder3,
+Raviteja Anantha3,
+Daben Liu24 and Sashank Gondala25
+</span><span class="ltx_author_notes">1 Equal contribution.2 Work done at Apple.
+<span class="ltx_contact ltx_role_affiliation">3Apple 
+<br class="ltx_break">Email: {epusateri,awalia,a_kashi,bbandyopadhyay,n_hyder}@apple.com
+
+</span>
+<span class="ltx_contact ltx_role_affiliation">4Capital One
+</span>
+<span class="ltx_contact ltx_role_affiliation">5Further AI
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">In recent years, end-to-end automatic speech recognition (ASR) systems have proven themselves remarkably accurate and performant, but these systems still have a significant error rate for entity names which appear infrequently in their training data. In parallel to the rise of end-to-end ASR systems, large language models (LLMs) have proven to be a versatile tool for various natural language processing (NLP) tasks. In NLP tasks where a database of relevant knowledge is available, retrieval augmented generation (RAG) has achieved impressive results when used with LLMs. In this work, we propose a RAG-like technique for correcting speech recognition entity name errors. Our approach uses a vector database to index a set of relevant entities. At runtime, database queries are generated from possibly errorful textual ASR hypotheses, and the entities retrieved using these queries are fed, along with the ASR hypotheses, to an LLM which has been adapted to correct ASR errors. Overall, our best system achieves 33%-39% relative word error rate reductions on synthetic test sets focused on voice assistant queries of rare music entities without regressing on the STOP test set, a publicly available voice assistant test set covering many domains.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">In recent years, end-to-end automatic speech recognition (ASR) systems have risen in prominence, as they have proven themselves remarkably accurate and performant <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. However, these systems still have a significant error rate for entity names that appear infrequently in their training data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. In parallel to the rise of end-to-end ASR systems, large language models (LLMs) have proven to be versatile tools for various natural language processing (NLP) tasks, including ASR error correction <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>. In NLP tasks where a database of relevant knowledge is available, retrieval augmented generation (RAG) approaches have been especially effective when used with LLMs, e.g. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>. In RAG-based approaches, information from an external knowledge base is retrieved and provided to the LLM as part of the input context. RAG-based approaches allow LLMs, especially those with fewer parameters, to perform better on tasks requiring a large amount of domain specific knowledge <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">In this work, we propose a RAG-like technique for correcting speech recognition entity name errors. Our approach uses a vector database to index a set of relevant entities. At runtime, database queries are generated from possibly errorful ASR hypotheses, and the entities retrieved using these queries are fed, along with the ASR hypotheses, to an LLM which has been adapted to correct ASR errors. Importantly for correcting ASR errors, the encodings used as queries and database keys capture information about the likely acoustics of the corresponding text strings.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">The main contributions of this work are a RAG-based technique for correcting entity name errors in textual ASR hypotheses using a large entity database, as well as an evaluation of strategies for retrieving relevant entities, generating queries and adapting an LLM within the proposed technique.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Approach</span>
+</h2>
+
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2409.06062/assets/flow4.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="707" height="130" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Our RAG-based approach. with an example. ASR errors are in red and corrected errors are in green. In the context, [H] precedes each hint, [A] precedes the ASR transcript and [P] is the cue for the LLM to start prediction.</figcaption>
+</figure>
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Our RAG-based approach uses a vector database to index the entities and retrieve them during runtime. Rather than querying the database using the full transcript, we use a query generation process to derive one or more queries. Hence, our approach consists of four steps, as illustrated in Figure <a href="#S2.F1" title="Figure 1 ‣ II Approach ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>: Query Generation, Entity Retrieval, Context Construction and LLM Application. We describe these steps in the following sub-sections.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS1.4.1.1" class="ltx_text">II-A</span> </span><span id="S2.SS1.5.2" class="ltx_text ltx_font_italic">Query Generation</span>
+</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Our goal in this step is to generate queries from the ASR hypothesis that are likely to result in relevant entities being retrieved. We explore three approaches, each with its own tradeoffs.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p"><span id="S2.SS1.p2.1.1" class="ltx_text ltx_font_italic">All N-grams</span>: In this approach, all subword sequences in the hypothesis up to an empirically determined length, <math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="N_{max}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><msub id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml"><mi id="S2.SS1.p2.1.m1.1.1.2" xref="S2.SS1.p2.1.m1.1.1.2.cmml">N</mi><mrow id="S2.SS1.p2.1.m1.1.1.3" xref="S2.SS1.p2.1.m1.1.1.3.cmml"><mi id="S2.SS1.p2.1.m1.1.1.3.2" xref="S2.SS1.p2.1.m1.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.3" xref="S2.SS1.p2.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.1.m1.1.1.3.1a" xref="S2.SS1.p2.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p2.1.m1.1.1.3.4" xref="S2.SS1.p2.1.m1.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><apply id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.1.m1.1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.1.m1.1.1.2.cmml" xref="S2.SS1.p2.1.m1.1.1.2">𝑁</ci><apply id="S2.SS1.p2.1.m1.1.1.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3"><times id="S2.SS1.p2.1.m1.1.1.3.1.cmml" xref="S2.SS1.p2.1.m1.1.1.3.1"></times><ci id="S2.SS1.p2.1.m1.1.1.3.2.cmml" xref="S2.SS1.p2.1.m1.1.1.3.2">𝑚</ci><ci id="S2.SS1.p2.1.m1.1.1.3.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3.3">𝑎</ci><ci id="S2.SS1.p2.1.m1.1.1.3.4.cmml" xref="S2.SS1.p2.1.m1.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">N_{max}</annotation></semantics></math> are used as queries. This approach has the advantage that it requires no separate model or set of rules. However, it will over-generate, which may make the task of using the retrieved entities for correction more difficult.</p>
+</div>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.1" class="ltx_p"><span id="S2.SS1.p3.1.1" class="ltx_text ltx_font_italic">Template Matching</span>: Here we use a hand-curated domain-inspired set of regular expressions to extract regions that likely correspond to named entities. For instance, <span id="S2.SS1.p3.1.2" class="ltx_text ltx_font_typewriter">/play (.*)/</span> might be used for the music domain. This approach has an advantage over the <span id="S2.SS1.p3.1.3" class="ltx_text ltx_font_italic">All N-grams</span> in that it will produce fewer queries. However, it requires the manual creation of a set of regular expressions, and these regular expressions will inevitably miss some edge cases.</p>
+</div>
+<div id="S2.SS1.p4" class="ltx_para">
+<p id="S2.SS1.p4.1" class="ltx_p"><span id="S2.SS1.p4.1.1" class="ltx_text ltx_font_italic">NE Tagging</span>: In this approach we train a separate named entity region tagger to mark regions of the ASR output likely to correspond to named entities. As with <span id="S2.SS1.p4.1.2" class="ltx_text ltx_font_italic">Template Matching</span>, this approach will produce fewer queries than <span id="S2.SS1.p4.1.3" class="ltx_text ltx_font_italic">All N-grams</span>. Unlike <span id="S2.SS1.p4.1.4" class="ltx_text ltx_font_italic">Template Matching</span>, this approach does not require creation of a set of regular expressions. It is also more likely to generalize to edge cases. This approach requires the training and application of a separate tagging model, which introduces complexity and increases inference time.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS2.4.1.1" class="ltx_text">II-B</span> </span><span id="S2.SS2.5.2" class="ltx_text ltx_font_italic">Entity Retrieval</span>
+</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">For retrieval, we construct a vector database from a list of named entities using one of three methods for query and key generation: <span id="S2.SS2.p1.1.1" class="ltx_text ltx_font_italic">Okapi BM25</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> and <span id="S2.SS2.p1.1.2" class="ltx_text ltx_font_italic">T5 Semantic Embeddings</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, which capture semantic similarity, and <span id="S2.SS2.p1.1.3" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, a type of acoustic word embedding. <span id="S2.SS2.p1.1.4" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span> are generated either from the orthography or pronunciation of a word sequence and are optimized to capture the likely acoustics of the word sequence. We evaluate generating embeddings from both orthography and pronunciation.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS3.4.1.1" class="ltx_text">II-C</span> </span><span id="S2.SS3.5.2" class="ltx_text ltx_font_italic">Context Construction and LLM Application</span>
+</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.2" class="ltx_p">To minimize compute and memory requirements without compromising accuracy, we want to keep the context size small while ensuring that relevant entities are included. To accomplish this, we use a two-step context generation process. We first filter the retrieved entities and then construct a <span id="S2.SS3.p1.2.1" class="ltx_text ltx_font_italic">hint</span> for each of the remaining entities. To filter, we apply two thresholds, 1. <math id="S2.SS3.p1.1.m1.1" class="ltx_Math" alttext="D_{max}" display="inline"><semantics id="S2.SS3.p1.1.m1.1a"><msub id="S2.SS3.p1.1.m1.1.1" xref="S2.SS3.p1.1.m1.1.1.cmml"><mi id="S2.SS3.p1.1.m1.1.1.2" xref="S2.SS3.p1.1.m1.1.1.2.cmml">D</mi><mrow id="S2.SS3.p1.1.m1.1.1.3" xref="S2.SS3.p1.1.m1.1.1.3.cmml"><mi id="S2.SS3.p1.1.m1.1.1.3.2" xref="S2.SS3.p1.1.m1.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p1.1.m1.1.1.3.1" xref="S2.SS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p1.1.m1.1.1.3.3" xref="S2.SS3.p1.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p1.1.m1.1.1.3.1a" xref="S2.SS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p1.1.m1.1.1.3.4" xref="S2.SS3.p1.1.m1.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.1.m1.1b"><apply id="S2.SS3.p1.1.m1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.1.m1.1.1.1.cmml" xref="S2.SS3.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS3.p1.1.m1.1.1.2.cmml" xref="S2.SS3.p1.1.m1.1.1.2">𝐷</ci><apply id="S2.SS3.p1.1.m1.1.1.3.cmml" xref="S2.SS3.p1.1.m1.1.1.3"><times id="S2.SS3.p1.1.m1.1.1.3.1.cmml" xref="S2.SS3.p1.1.m1.1.1.3.1"></times><ci id="S2.SS3.p1.1.m1.1.1.3.2.cmml" xref="S2.SS3.p1.1.m1.1.1.3.2">𝑚</ci><ci id="S2.SS3.p1.1.m1.1.1.3.3.cmml" xref="S2.SS3.p1.1.m1.1.1.3.3">𝑎</ci><ci id="S2.SS3.p1.1.m1.1.1.3.4.cmml" xref="S2.SS3.p1.1.m1.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.1.m1.1c">D_{max}</annotation></semantics></math>, as a Euclidean distance threshold for keeping the most relevant candidates and a count threshold, 2. <math id="S2.SS3.p1.2.m2.1" class="ltx_Math" alttext="R_{max}" display="inline"><semantics id="S2.SS3.p1.2.m2.1a"><msub id="S2.SS3.p1.2.m2.1.1" xref="S2.SS3.p1.2.m2.1.1.cmml"><mi id="S2.SS3.p1.2.m2.1.1.2" xref="S2.SS3.p1.2.m2.1.1.2.cmml">R</mi><mrow id="S2.SS3.p1.2.m2.1.1.3" xref="S2.SS3.p1.2.m2.1.1.3.cmml"><mi id="S2.SS3.p1.2.m2.1.1.3.2" xref="S2.SS3.p1.2.m2.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p1.2.m2.1.1.3.1" xref="S2.SS3.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p1.2.m2.1.1.3.3" xref="S2.SS3.p1.2.m2.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p1.2.m2.1.1.3.1a" xref="S2.SS3.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS3.p1.2.m2.1.1.3.4" xref="S2.SS3.p1.2.m2.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p1.2.m2.1b"><apply id="S2.SS3.p1.2.m2.1.1.cmml" xref="S2.SS3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS3.p1.2.m2.1.1.1.cmml" xref="S2.SS3.p1.2.m2.1.1">subscript</csymbol><ci id="S2.SS3.p1.2.m2.1.1.2.cmml" xref="S2.SS3.p1.2.m2.1.1.2">𝑅</ci><apply id="S2.SS3.p1.2.m2.1.1.3.cmml" xref="S2.SS3.p1.2.m2.1.1.3"><times id="S2.SS3.p1.2.m2.1.1.3.1.cmml" xref="S2.SS3.p1.2.m2.1.1.3.1"></times><ci id="S2.SS3.p1.2.m2.1.1.3.2.cmml" xref="S2.SS3.p1.2.m2.1.1.3.2">𝑚</ci><ci id="S2.SS3.p1.2.m2.1.1.3.3.cmml" xref="S2.SS3.p1.2.m2.1.1.3.3">𝑎</ci><ci id="S2.SS3.p1.2.m2.1.1.3.4.cmml" xref="S2.SS3.p1.2.m2.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p1.2.m2.1c">R_{max}</annotation></semantics></math> to limit the overall candidate counts.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p">We experiment with two different hint string formats: one containing only the retrieved entity, and the other containing the retrieved entity plus the search query used to retrieve the entities. The LLM input is constructed by appending the ASR hypothesis to the hint string. We use tags to delineate the the hints and ASR hypothesis, as shown in Figure <a href="#S2.F1" title="Figure 1 ‣ II Approach ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. Once the context is constructed, it is provided as input to an adapted LLM.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Related Work</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">There has been a great deal of previous work on the problem of ASR error correction in general, e.g. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, some of which was focused on correcting named entity errors in particular <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>. These entity-focused works include phonetic input representations to help the models leverage acoustic confusability, but none of these approaches include a retrieval step, which means they are limited by the model’s ability to memorize relevant entities.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">In work more similar to ours, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> presents a query rewriting approach that can leverage acoustic confusability and includes a database retrieval step from a large entity database. That work differs from ours in that the entire text input is encoded for entity retrieval from the database using a task-specific encoder, and correction is done using a task-specific model architecture. In contrast, our system is simpler, in that we use task-independent encoders and our model is a small LoRA adapter with a pre-trained LLM. The approach described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> is also similar to ours, but rather than an employing a adapted LLM for error correction, ASR is rerun with the generated context, making it more computationally costly. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, a RAG-like approach is applied to a dialog state tracking task. The database used in that work had only 2500 entities whereas we use a database of 2.6 million entitites. While our approach starts from a textual ASR hypothesis, both <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> requre the input audio, which means they cannot be applied in scenarios where only the textual ASR hypothesis is available.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">Experimental Design</span>
+</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS1.4.1.1" class="ltx_text">IV-A</span> </span><span id="S4.SS1.5.2" class="ltx_text ltx_font_italic">Data</span>
+</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">To evaluate our approach, we measure it’s effect in a scenario where we wish to improve accuracy on music entities within a voice assistant (VA) system without degrading accuracy in other domains. To construct this scenario, we use two data sources. To represent the general voice assistant task, we use the STOP dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, which includes human and synthetic audio recordings along with transcripts in eight VA domains. This dataset also includes semantic analyses, which we use to infer music entity spans. Music queries in this set account for only 9.2% of utterances and cover mostly common music entities.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">To cover a larger number of rare music entities, both for training and evaluation, we synthetically generated music queries using templates and entity lists as detailed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>. The synthetic queries were stratified according to rank percentiles, following the methodology outlined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, and we sampled training, validation and evaluation sets from each stratified partition (head, torso, tail). The corresponding audio was synthesized using a neural Text-to-Speech (TTS) system as described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. To ensure the integrity of the evaluation process, we constructed training and evaluation sets with non-overlapping entities and employed different TTS voices for audio generation.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">The sizes of the training and evaluation datasets from each data source are presented in Table <a href="#S4.T1" title="TABLE I ‣ IV-A Data ‣ IV Experimental Design ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>. The entity catalog from <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, consisting 2.6 million entities, was employed without modification in experiments involving the STOP dataset. All datasets are decoded using an in-house Connectionist Temporal Classification (CTC)-based end-to-end ASR system, following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. This system incorporates two word-level external language models (LMs): a neural LM trained on anonymized usage query logs and a 4-gram LM trained on synthetic queries, consistent with the methodology described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE I: </span>Dataset sizes</figcaption>
+<table id="S4.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"></th>
+<th id="S4.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="3"># of utterances</th>
+</tr>
+<tr id="S4.T1.1.2.2" class="ltx_tr">
+<th id="S4.T1.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T1.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">train</th>
+<th id="S4.T1.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">validation</th>
+<th id="S4.T1.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">eval</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.3.1" class="ltx_tr">
+<th id="S4.T1.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">head</th>
+<td id="S4.T1.1.3.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">98848</td>
+<td id="S4.T1.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">9913</td>
+<td id="S4.T1.1.3.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">9894</td>
+</tr>
+<tr id="S4.T1.1.4.2" class="ltx_tr">
+<th id="S4.T1.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">torso</th>
+<td id="S4.T1.1.4.2.2" class="ltx_td ltx_align_center ltx_border_r">96722</td>
+<td id="S4.T1.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">9667</td>
+<td id="S4.T1.1.4.2.4" class="ltx_td ltx_align_center ltx_border_r">9678</td>
+</tr>
+<tr id="S4.T1.1.5.3" class="ltx_tr">
+<th id="S4.T1.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">tail</th>
+<td id="S4.T1.1.5.3.2" class="ltx_td ltx_align_center ltx_border_r">95485</td>
+<td id="S4.T1.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">9516</td>
+<td id="S4.T1.1.5.3.4" class="ltx_td ltx_align_center ltx_border_r">9563</td>
+</tr>
+<tr id="S4.T1.1.6.4" class="ltx_tr">
+<th id="S4.T1.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">stop</th>
+<td id="S4.T1.1.6.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">120929</td>
+<td id="S4.T1.1.6.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">33387</td>
+<td id="S4.T1.1.6.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">75640</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS2.4.1.1" class="ltx_text">IV-B</span> </span><span id="S4.SS2.5.2" class="ltx_text ltx_font_italic">Models</span>
+</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">As mentioned in Section <a href="#S2.SS2" title="II-B Entity Retrieval ‣ II Approach ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-B</span></span></a>, we use the acoustic word embeddings proposed in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, <span id="S4.SS2.p1.1.1" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span>, as one approach to generate queries and keys used in the Entity Retrieval step. This approach involves training acoustic, phonetic and orthographic encoders to minimize the Euclidean distance between acoustic, phonetic and orthographic embeddings of the same phrase. Importantly for our purposes, this also has the effect of minimizing the Euclidean distance between encodings of phrases with similar acoustic realizations. In this work, we use 40-dimensional embeddings.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">For the generation task we used OpenLLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite> 7B model from the LLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite> family. For NE tagging in query generation as mentioned in section <a href="#S2.SS1" title="II-A Query Generation ‣ II Approach ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">II-A</span></span></a>, we separately adapt the OpenLLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite> model using LoRA adapters <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> with rank 16, employing the same hyperparameters as detailed in <a href="#S4.SS3" title="IV-C Hyperparameters ‣ IV Experimental Design ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text">IV-C</span></span></a>. To be consistent with the synthetic data, all music entity types in the STOP data are consolidated into a single type.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS3.4.1.1" class="ltx_text">IV-C</span> </span><span id="S4.SS3.5.2" class="ltx_text ltx_font_italic">Hyperparameters</span>
+</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.6" class="ltx_p">We set the distance threshold <math id="S4.SS3.p1.1.m1.1" class="ltx_Math" alttext="D_{max}" display="inline"><semantics id="S4.SS3.p1.1.m1.1a"><msub id="S4.SS3.p1.1.m1.1.1" xref="S4.SS3.p1.1.m1.1.1.cmml"><mi id="S4.SS3.p1.1.m1.1.1.2" xref="S4.SS3.p1.1.m1.1.1.2.cmml">D</mi><mrow id="S4.SS3.p1.1.m1.1.1.3" xref="S4.SS3.p1.1.m1.1.1.3.cmml"><mi id="S4.SS3.p1.1.m1.1.1.3.2" xref="S4.SS3.p1.1.m1.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.1.m1.1.1.3.1" xref="S4.SS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.1.m1.1.1.3.3" xref="S4.SS3.p1.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.1.m1.1.1.3.1a" xref="S4.SS3.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.1.m1.1.1.3.4" xref="S4.SS3.p1.1.m1.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.1.m1.1b"><apply id="S4.SS3.p1.1.m1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS3.p1.1.m1.1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1">subscript</csymbol><ci id="S4.SS3.p1.1.m1.1.1.2.cmml" xref="S4.SS3.p1.1.m1.1.1.2">𝐷</ci><apply id="S4.SS3.p1.1.m1.1.1.3.cmml" xref="S4.SS3.p1.1.m1.1.1.3"><times id="S4.SS3.p1.1.m1.1.1.3.1.cmml" xref="S4.SS3.p1.1.m1.1.1.3.1"></times><ci id="S4.SS3.p1.1.m1.1.1.3.2.cmml" xref="S4.SS3.p1.1.m1.1.1.3.2">𝑚</ci><ci id="S4.SS3.p1.1.m1.1.1.3.3.cmml" xref="S4.SS3.p1.1.m1.1.1.3.3">𝑎</ci><ci id="S4.SS3.p1.1.m1.1.1.3.4.cmml" xref="S4.SS3.p1.1.m1.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.1.m1.1c">D_{max}</annotation></semantics></math> to 1.0 in all experiments. <math id="S4.SS3.p1.2.m2.1" class="ltx_Math" alttext="N_{max}" display="inline"><semantics id="S4.SS3.p1.2.m2.1a"><msub id="S4.SS3.p1.2.m2.1.1" xref="S4.SS3.p1.2.m2.1.1.cmml"><mi id="S4.SS3.p1.2.m2.1.1.2" xref="S4.SS3.p1.2.m2.1.1.2.cmml">N</mi><mrow id="S4.SS3.p1.2.m2.1.1.3" xref="S4.SS3.p1.2.m2.1.1.3.cmml"><mi id="S4.SS3.p1.2.m2.1.1.3.2" xref="S4.SS3.p1.2.m2.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.2.m2.1.1.3.1" xref="S4.SS3.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.2.m2.1.1.3.3" xref="S4.SS3.p1.2.m2.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.2.m2.1.1.3.1a" xref="S4.SS3.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.2.m2.1.1.3.4" xref="S4.SS3.p1.2.m2.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.2.m2.1b"><apply id="S4.SS3.p1.2.m2.1.1.cmml" xref="S4.SS3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS3.p1.2.m2.1.1.1.cmml" xref="S4.SS3.p1.2.m2.1.1">subscript</csymbol><ci id="S4.SS3.p1.2.m2.1.1.2.cmml" xref="S4.SS3.p1.2.m2.1.1.2">𝑁</ci><apply id="S4.SS3.p1.2.m2.1.1.3.cmml" xref="S4.SS3.p1.2.m2.1.1.3"><times id="S4.SS3.p1.2.m2.1.1.3.1.cmml" xref="S4.SS3.p1.2.m2.1.1.3.1"></times><ci id="S4.SS3.p1.2.m2.1.1.3.2.cmml" xref="S4.SS3.p1.2.m2.1.1.3.2">𝑚</ci><ci id="S4.SS3.p1.2.m2.1.1.3.3.cmml" xref="S4.SS3.p1.2.m2.1.1.3.3">𝑎</ci><ci id="S4.SS3.p1.2.m2.1.1.3.4.cmml" xref="S4.SS3.p1.2.m2.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.2.m2.1c">N_{max}</annotation></semantics></math>, the maximum query length when using the all-ngrams query generation, is set to <math id="S4.SS3.p1.3.m3.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S4.SS3.p1.3.m3.1a"><mn id="S4.SS3.p1.3.m3.1.1" xref="S4.SS3.p1.3.m3.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.3.m3.1b"><cn type="integer" id="S4.SS3.p1.3.m3.1.1.cmml" xref="S4.SS3.p1.3.m3.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.3.m3.1c">5</annotation></semantics></math>. We experiment with <math id="S4.SS3.p1.4.m4.1" class="ltx_Math" alttext="R_{max}" display="inline"><semantics id="S4.SS3.p1.4.m4.1a"><msub id="S4.SS3.p1.4.m4.1.1" xref="S4.SS3.p1.4.m4.1.1.cmml"><mi id="S4.SS3.p1.4.m4.1.1.2" xref="S4.SS3.p1.4.m4.1.1.2.cmml">R</mi><mrow id="S4.SS3.p1.4.m4.1.1.3" xref="S4.SS3.p1.4.m4.1.1.3.cmml"><mi id="S4.SS3.p1.4.m4.1.1.3.2" xref="S4.SS3.p1.4.m4.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.4.m4.1.1.3.1" xref="S4.SS3.p1.4.m4.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.4.m4.1.1.3.3" xref="S4.SS3.p1.4.m4.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.4.m4.1.1.3.1a" xref="S4.SS3.p1.4.m4.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p1.4.m4.1.1.3.4" xref="S4.SS3.p1.4.m4.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.4.m4.1b"><apply id="S4.SS3.p1.4.m4.1.1.cmml" xref="S4.SS3.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S4.SS3.p1.4.m4.1.1.1.cmml" xref="S4.SS3.p1.4.m4.1.1">subscript</csymbol><ci id="S4.SS3.p1.4.m4.1.1.2.cmml" xref="S4.SS3.p1.4.m4.1.1.2">𝑅</ci><apply id="S4.SS3.p1.4.m4.1.1.3.cmml" xref="S4.SS3.p1.4.m4.1.1.3"><times id="S4.SS3.p1.4.m4.1.1.3.1.cmml" xref="S4.SS3.p1.4.m4.1.1.3.1"></times><ci id="S4.SS3.p1.4.m4.1.1.3.2.cmml" xref="S4.SS3.p1.4.m4.1.1.3.2">𝑚</ci><ci id="S4.SS3.p1.4.m4.1.1.3.3.cmml" xref="S4.SS3.p1.4.m4.1.1.3.3">𝑎</ci><ci id="S4.SS3.p1.4.m4.1.1.3.4.cmml" xref="S4.SS3.p1.4.m4.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.4.m4.1c">R_{max}</annotation></semantics></math> values of <math id="S4.SS3.p1.5.m5.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S4.SS3.p1.5.m5.1a"><mn id="S4.SS3.p1.5.m5.1.1" xref="S4.SS3.p1.5.m5.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.5.m5.1b"><cn type="integer" id="S4.SS3.p1.5.m5.1.1.cmml" xref="S4.SS3.p1.5.m5.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.5.m5.1c">1</annotation></semantics></math> and <math id="S4.SS3.p1.6.m6.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S4.SS3.p1.6.m6.1a"><mn id="S4.SS3.p1.6.m6.1.1" xref="S4.SS3.p1.6.m6.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.6.m6.1b"><cn type="integer" id="S4.SS3.p1.6.m6.1.1.cmml" xref="S4.SS3.p1.6.m6.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.6.m6.1c">5</annotation></semantics></math>.</p>
+</div>
+<div id="S4.SS3.p2" class="ltx_para">
+<p id="S4.SS3.p2.5" class="ltx_p">All experiments use the AdamW optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> for LLM adaptation, with <math id="S4.SS3.p2.1.m1.1" class="ltx_Math" alttext="\alpha=0.001" display="inline"><semantics id="S4.SS3.p2.1.m1.1a"><mrow id="S4.SS3.p2.1.m1.1.1" xref="S4.SS3.p2.1.m1.1.1.cmml"><mi id="S4.SS3.p2.1.m1.1.1.2" xref="S4.SS3.p2.1.m1.1.1.2.cmml">α</mi><mo id="S4.SS3.p2.1.m1.1.1.1" xref="S4.SS3.p2.1.m1.1.1.1.cmml">=</mo><mn id="S4.SS3.p2.1.m1.1.1.3" xref="S4.SS3.p2.1.m1.1.1.3.cmml">0.001</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.1.m1.1b"><apply id="S4.SS3.p2.1.m1.1.1.cmml" xref="S4.SS3.p2.1.m1.1.1"><eq id="S4.SS3.p2.1.m1.1.1.1.cmml" xref="S4.SS3.p2.1.m1.1.1.1"></eq><ci id="S4.SS3.p2.1.m1.1.1.2.cmml" xref="S4.SS3.p2.1.m1.1.1.2">𝛼</ci><cn type="float" id="S4.SS3.p2.1.m1.1.1.3.cmml" xref="S4.SS3.p2.1.m1.1.1.3">0.001</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.1.m1.1c">\alpha=0.001</annotation></semantics></math>, <math id="S4.SS3.p2.2.m2.1" class="ltx_Math" alttext="\beta_{1}=0.9" display="inline"><semantics id="S4.SS3.p2.2.m2.1a"><mrow id="S4.SS3.p2.2.m2.1.1" xref="S4.SS3.p2.2.m2.1.1.cmml"><msub id="S4.SS3.p2.2.m2.1.1.2" xref="S4.SS3.p2.2.m2.1.1.2.cmml"><mi id="S4.SS3.p2.2.m2.1.1.2.2" xref="S4.SS3.p2.2.m2.1.1.2.2.cmml">β</mi><mn id="S4.SS3.p2.2.m2.1.1.2.3" xref="S4.SS3.p2.2.m2.1.1.2.3.cmml">1</mn></msub><mo id="S4.SS3.p2.2.m2.1.1.1" xref="S4.SS3.p2.2.m2.1.1.1.cmml">=</mo><mn id="S4.SS3.p2.2.m2.1.1.3" xref="S4.SS3.p2.2.m2.1.1.3.cmml">0.9</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.2.m2.1b"><apply id="S4.SS3.p2.2.m2.1.1.cmml" xref="S4.SS3.p2.2.m2.1.1"><eq id="S4.SS3.p2.2.m2.1.1.1.cmml" xref="S4.SS3.p2.2.m2.1.1.1"></eq><apply id="S4.SS3.p2.2.m2.1.1.2.cmml" xref="S4.SS3.p2.2.m2.1.1.2"><csymbol cd="ambiguous" id="S4.SS3.p2.2.m2.1.1.2.1.cmml" xref="S4.SS3.p2.2.m2.1.1.2">subscript</csymbol><ci id="S4.SS3.p2.2.m2.1.1.2.2.cmml" xref="S4.SS3.p2.2.m2.1.1.2.2">𝛽</ci><cn type="integer" id="S4.SS3.p2.2.m2.1.1.2.3.cmml" xref="S4.SS3.p2.2.m2.1.1.2.3">1</cn></apply><cn type="float" id="S4.SS3.p2.2.m2.1.1.3.cmml" xref="S4.SS3.p2.2.m2.1.1.3">0.9</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.2.m2.1c">\beta_{1}=0.9</annotation></semantics></math>, <math id="S4.SS3.p2.3.m3.1" class="ltx_Math" alttext="\beta_{2}=0.999" display="inline"><semantics id="S4.SS3.p2.3.m3.1a"><mrow id="S4.SS3.p2.3.m3.1.1" xref="S4.SS3.p2.3.m3.1.1.cmml"><msub id="S4.SS3.p2.3.m3.1.1.2" xref="S4.SS3.p2.3.m3.1.1.2.cmml"><mi id="S4.SS3.p2.3.m3.1.1.2.2" xref="S4.SS3.p2.3.m3.1.1.2.2.cmml">β</mi><mn id="S4.SS3.p2.3.m3.1.1.2.3" xref="S4.SS3.p2.3.m3.1.1.2.3.cmml">2</mn></msub><mo id="S4.SS3.p2.3.m3.1.1.1" xref="S4.SS3.p2.3.m3.1.1.1.cmml">=</mo><mn id="S4.SS3.p2.3.m3.1.1.3" xref="S4.SS3.p2.3.m3.1.1.3.cmml">0.999</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.3.m3.1b"><apply id="S4.SS3.p2.3.m3.1.1.cmml" xref="S4.SS3.p2.3.m3.1.1"><eq id="S4.SS3.p2.3.m3.1.1.1.cmml" xref="S4.SS3.p2.3.m3.1.1.1"></eq><apply id="S4.SS3.p2.3.m3.1.1.2.cmml" xref="S4.SS3.p2.3.m3.1.1.2"><csymbol cd="ambiguous" id="S4.SS3.p2.3.m3.1.1.2.1.cmml" xref="S4.SS3.p2.3.m3.1.1.2">subscript</csymbol><ci id="S4.SS3.p2.3.m3.1.1.2.2.cmml" xref="S4.SS3.p2.3.m3.1.1.2.2">𝛽</ci><cn type="integer" id="S4.SS3.p2.3.m3.1.1.2.3.cmml" xref="S4.SS3.p2.3.m3.1.1.2.3">2</cn></apply><cn type="float" id="S4.SS3.p2.3.m3.1.1.3.cmml" xref="S4.SS3.p2.3.m3.1.1.3">0.999</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.3.m3.1c">\beta_{2}=0.999</annotation></semantics></math>, <math id="S4.SS3.p2.4.m4.1" class="ltx_Math" alttext="\epsilon=1e-8" display="inline"><semantics id="S4.SS3.p2.4.m4.1a"><mrow id="S4.SS3.p2.4.m4.1.1" xref="S4.SS3.p2.4.m4.1.1.cmml"><mi id="S4.SS3.p2.4.m4.1.1.2" xref="S4.SS3.p2.4.m4.1.1.2.cmml">ϵ</mi><mo id="S4.SS3.p2.4.m4.1.1.1" xref="S4.SS3.p2.4.m4.1.1.1.cmml">=</mo><mrow id="S4.SS3.p2.4.m4.1.1.3" xref="S4.SS3.p2.4.m4.1.1.3.cmml"><mrow id="S4.SS3.p2.4.m4.1.1.3.2" xref="S4.SS3.p2.4.m4.1.1.3.2.cmml"><mn id="S4.SS3.p2.4.m4.1.1.3.2.2" xref="S4.SS3.p2.4.m4.1.1.3.2.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S4.SS3.p2.4.m4.1.1.3.2.1" xref="S4.SS3.p2.4.m4.1.1.3.2.1.cmml">​</mo><mi id="S4.SS3.p2.4.m4.1.1.3.2.3" xref="S4.SS3.p2.4.m4.1.1.3.2.3.cmml">e</mi></mrow><mo id="S4.SS3.p2.4.m4.1.1.3.1" xref="S4.SS3.p2.4.m4.1.1.3.1.cmml">−</mo><mn id="S4.SS3.p2.4.m4.1.1.3.3" xref="S4.SS3.p2.4.m4.1.1.3.3.cmml">8</mn></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.4.m4.1b"><apply id="S4.SS3.p2.4.m4.1.1.cmml" xref="S4.SS3.p2.4.m4.1.1"><eq id="S4.SS3.p2.4.m4.1.1.1.cmml" xref="S4.SS3.p2.4.m4.1.1.1"></eq><ci id="S4.SS3.p2.4.m4.1.1.2.cmml" xref="S4.SS3.p2.4.m4.1.1.2">italic-ϵ</ci><apply id="S4.SS3.p2.4.m4.1.1.3.cmml" xref="S4.SS3.p2.4.m4.1.1.3"><minus id="S4.SS3.p2.4.m4.1.1.3.1.cmml" xref="S4.SS3.p2.4.m4.1.1.3.1"></minus><apply id="S4.SS3.p2.4.m4.1.1.3.2.cmml" xref="S4.SS3.p2.4.m4.1.1.3.2"><times id="S4.SS3.p2.4.m4.1.1.3.2.1.cmml" xref="S4.SS3.p2.4.m4.1.1.3.2.1"></times><cn type="integer" id="S4.SS3.p2.4.m4.1.1.3.2.2.cmml" xref="S4.SS3.p2.4.m4.1.1.3.2.2">1</cn><ci id="S4.SS3.p2.4.m4.1.1.3.2.3.cmml" xref="S4.SS3.p2.4.m4.1.1.3.2.3">𝑒</ci></apply><cn type="integer" id="S4.SS3.p2.4.m4.1.1.3.3.cmml" xref="S4.SS3.p2.4.m4.1.1.3.3">8</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.4.m4.1c">\epsilon=1e-8</annotation></semantics></math> and <math id="S4.SS3.p2.5.m5.1" class="ltx_Math" alttext="\lambda=0.001" display="inline"><semantics id="S4.SS3.p2.5.m5.1a"><mrow id="S4.SS3.p2.5.m5.1.1" xref="S4.SS3.p2.5.m5.1.1.cmml"><mi id="S4.SS3.p2.5.m5.1.1.2" xref="S4.SS3.p2.5.m5.1.1.2.cmml">λ</mi><mo id="S4.SS3.p2.5.m5.1.1.1" xref="S4.SS3.p2.5.m5.1.1.1.cmml">=</mo><mn id="S4.SS3.p2.5.m5.1.1.3" xref="S4.SS3.p2.5.m5.1.1.3.cmml">0.001</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.5.m5.1b"><apply id="S4.SS3.p2.5.m5.1.1.cmml" xref="S4.SS3.p2.5.m5.1.1"><eq id="S4.SS3.p2.5.m5.1.1.1.cmml" xref="S4.SS3.p2.5.m5.1.1.1"></eq><ci id="S4.SS3.p2.5.m5.1.1.2.cmml" xref="S4.SS3.p2.5.m5.1.1.2">𝜆</ci><cn type="float" id="S4.SS3.p2.5.m5.1.1.3.cmml" xref="S4.SS3.p2.5.m5.1.1.3">0.001</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.5.m5.1c">\lambda=0.001</annotation></semantics></math>. We use a cosine learning rate scheduler with a linear warmup of 100 steps. In LoRA experiments, we use 2000 training steps, whereas in full model fine tuning, we use 4000 training steps. In all experiments, we use an effective batch size of 128. For LLM inference, greedy decoding with 1000 maximum tokens is used in all experiments to minimize computational and memory overhead.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">V </span><span id="S5.1.1" class="ltx_text ltx_font_smallcaps">Results</span>
+</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We assess the overall efficacy of our approach using the standard ASR WER metric, quantifying the discrepancy between the fine-tuned LLM output and reference transcriptions. We start by evaluating methods for key and query vector generation for the Entity Retrieval step. For this purpose, we measure recall of the top 1, top 5, and top 10 closest matches for each method on the synthetic test sets. As text queries for retrieval, we use the (possibly errorful) span of words in the ASR output corresponding to an entity, extracted using the Template Matching approach. The results of this evaluation can be seen in Table <a href="#S5.T2" title="TABLE II ‣ V Results ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a>. We first observe that using orthography or phoneme <span id="S5.p1.1.1" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span> achieves much higher recall than either using <span id="S5.p1.1.2" class="ltx_text ltx_font_italic">T5 Semantic Embeddings</span> or <span id="S5.p1.1.3" class="ltx_text ltx_font_italic">Okapi BM25</span>. This is consistent with the intuition that in this task we are interested in acoustic similarity rather than semantic similarity.</p>
+</div>
+<figure id="S5.T2" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE II: </span>Comparison of different retrieval methods.</figcaption>
+<table id="S5.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T2.1.1.1" class="ltx_tr">
+<th id="S5.T2.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"></th>
+<th id="S5.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="3">Recall (top 1/top 5/top 10) (%)</th>
+</tr>
+<tr id="S5.T2.1.2.2" class="ltx_tr">
+<th id="S5.T2.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S5.T2.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">head</th>
+<th id="S5.T2.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">torso</th>
+<th id="S5.T2.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">tail</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T2.1.3.1" class="ltx_tr">
+<th id="S5.T2.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">Okapi BM25</th>
+<td id="S5.T2.1.3.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">53.5/71.2/74.6</td>
+<td id="S5.T2.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">56.6/71.5/74.1</td>
+<td id="S5.T2.1.3.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">59.5/72.6/74.9</td>
+</tr>
+<tr id="S5.T2.1.4.2" class="ltx_tr">
+<th id="S5.T2.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">T5</th>
+<td id="S5.T2.1.4.2.2" class="ltx_td ltx_align_center ltx_border_r">80.7/86.9/88.4</td>
+<td id="S5.T2.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">78.6/85.6/87.3</td>
+<td id="S5.T2.1.4.2.4" class="ltx_td ltx_align_center ltx_border_r">78.7/85.8/87.6</td>
+</tr>
+<tr id="S5.T2.1.5.3" class="ltx_tr">
+<th id="S5.T2.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">AN-Ortho</th>
+<td id="S5.T2.1.5.3.2" class="ltx_td ltx_align_center ltx_border_r">84.8/91.6/92.8</td>
+<td id="S5.T2.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">83.6/90.3/91.6</td>
+<td id="S5.T2.1.5.3.4" class="ltx_td ltx_align_center ltx_border_r">83.9/90.1/91.4</td>
+</tr>
+<tr id="S5.T2.1.6.4" class="ltx_tr">
+<th id="S5.T2.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">AN-Phoneme</th>
+<td id="S5.T2.1.6.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span id="S5.T2.1.6.4.2.1" class="ltx_text ltx_font_bold">85.6/92.1/93.3</span></td>
+<td id="S5.T2.1.6.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span id="S5.T2.1.6.4.3.1" class="ltx_text ltx_font_bold">84.1/90.7/92.1</span></td>
+<td id="S5.T2.1.6.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span id="S5.T2.1.6.4.4.1" class="ltx_text ltx_font_bold">84.4/90.7/92.0</span></td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">Focusing on <span id="S5.p2.1.1" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span>, we observe a large gain in recall when we compare using the top 5 closest matches to the top 1. However, increasing the number of matches further to 10 results in a less than 2% increase in recall. Comparing using <span id="S5.p2.1.2" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span> derived from orthography to those derived from phonemes, we see that using phonemes achieves less than 1% higher recall while having the additional requirement of a G2P model or lexicon. Based on these results, we chose orthography-based <span id="S5.p2.1.3" class="ltx_text ltx_font_italic">Acoustic Neighbor Embeddings</span> for our experiments and evaluated only using the best matches in the top-1 and top-5.</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p">Next we evaluate different strategies for adapting the LLM to our task: LoRA adapters <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> with 4 different ranks and full fine-tuning. In these experiments, we use the <span id="S5.p3.1.1" class="ltx_text ltx_font_italic">All N-gram</span> query generation method, and we do not include the query in the hints. Results are shown in Table <a href="#S5.T3" title="TABLE III ‣ V Results ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a>. We see that LoRA at all ranks and full fine-tuning achieve similar WERs. We also experimented with in-context learning (ICL), but this strategy resulted in large WER regressions. As rank 4 LoRA requires the fewest task-specific parameters of the best performing strategies, we use it for the remainder of our experiments.</p>
+</div>
+<figure id="S5.T3" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE III: </span>Comparison of different training strategies.</figcaption>
+<table id="S5.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T3.1.1.1" class="ltx_tr">
+<th id="S5.T3.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"></th>
+<th id="S5.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="4">WER (%)</th>
+</tr>
+<tr id="S5.T3.1.2.2" class="ltx_tr">
+<th id="S5.T3.1.2.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S5.T3.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">head</th>
+<th id="S5.T3.1.2.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">torso</th>
+<th id="S5.T3.1.2.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">tail</th>
+<th id="S5.T3.1.2.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">STOP</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T3.1.3.1" class="ltx_tr">
+<th id="S5.T3.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">LoRA-4</th>
+<td id="S5.T3.1.3.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.68</td>
+<td id="S5.T3.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">5.02</td>
+<td id="S5.T3.1.3.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.97</td>
+<td id="S5.T3.1.3.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.27</td>
+</tr>
+<tr id="S5.T3.1.4.2" class="ltx_tr">
+<th id="S5.T3.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">LoRA-8</th>
+<td id="S5.T3.1.4.2.2" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T3.1.4.2.2.1" class="ltx_text ltx_font_bold">4.66</span></td>
+<td id="S5.T3.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T3.1.4.2.3.1" class="ltx_text ltx_font_bold">5.02</span></td>
+<td id="S5.T3.1.4.2.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T3.1.4.2.4.1" class="ltx_text ltx_font_bold">4.93</span></td>
+<td id="S5.T3.1.4.2.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T3.1.4.2.5.1" class="ltx_text ltx_font_bold">4.23</span></td>
+</tr>
+<tr id="S5.T3.1.5.3" class="ltx_tr">
+<th id="S5.T3.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">LoRA-16</th>
+<td id="S5.T3.1.5.3.2" class="ltx_td ltx_align_center ltx_border_r">4.67</td>
+<td id="S5.T3.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">5.05</td>
+<td id="S5.T3.1.5.3.4" class="ltx_td ltx_align_center ltx_border_r">4.93</td>
+<td id="S5.T3.1.5.3.5" class="ltx_td ltx_align_center ltx_border_r">4.24</td>
+</tr>
+<tr id="S5.T3.1.6.4" class="ltx_tr">
+<th id="S5.T3.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">LoRA-32</th>
+<td id="S5.T3.1.6.4.2" class="ltx_td ltx_align_center ltx_border_r">4.80</td>
+<td id="S5.T3.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">5.11</td>
+<td id="S5.T3.1.6.4.4" class="ltx_td ltx_align_center ltx_border_r">5.1</td>
+<td id="S5.T3.1.6.4.5" class="ltx_td ltx_align_center ltx_border_r">4.65</td>
+</tr>
+<tr id="S5.T3.1.7.5" class="ltx_tr">
+<th id="S5.T3.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">Full fine-tuning</th>
+<td id="S5.T3.1.7.5.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.74</td>
+<td id="S5.T3.1.7.5.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">5.11</td>
+<td id="S5.T3.1.7.5.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">5.03</td>
+<td id="S5.T3.1.7.5.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.48</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.p4" class="ltx_para">
+<p id="S5.p4.1" class="ltx_p">Next, we evaluate different methods for the Query Generation step. The results of these experiments are shown in Table <a href="#S5.T4" title="TABLE IV ‣ V Results ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a>. We’ll first consider the result for no entity hints, which represents the scenario where the LLM is provided with no external information to correct the ASR hypothesis. Compared to the baseline system with no error correction, we see a relative WER improvement of 1-2% on synthetic sets and 5.7% on the STOP set. The greater improvements on the STOP set can be attributed to its inclusion of queries from diverse domains, which are more amenable to grammatical or formatting corrections, unlike the synthetic sets created with short templates. For example, the LLM effectively corrects a common ASR error where an ordinal date is misrecognized as its cardinal form (e.g., ’Thirteenth’ versus ’Thirteen’).</p>
+</div>
+<div id="S5.p5" class="ltx_para">
+<p id="S5.p5.1" class="ltx_p">Moving on to experiments with entity hints, we evaluate each query generation method with 1 match per query and 5 matches per query. As shown in Table <a href="#S5.T4" title="TABLE IV ‣ V Results ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a>, all query generation approaches demonstrate significant WER improvements in synthetic sets, achieving a relative reduction of WER of up to 39% in the tail set. The improvements observed on the STOP set are less pronounced and, upon deeper inspection, primarily due to correction of non-music-related words. This is expected, given that the number of music queries in the STOP dataset is only 9.2%, and these queries are heavily weighted toward more common music entities on which the speech recognizer makes few errors. However, the small improvements in WER on the STOP dataset do demonstrate that our approach does not degrade performance on average on queries outside the music domain or on music queries that are already correctly recognized. Among the query generation variants, <span id="S5.p5.1.1" class="ltx_text ltx_font_italic">Template Matching</span> and <span id="S5.p5.1.2" class="ltx_text ltx_font_italic">NE Tagging</span> outperform <span id="S5.p5.1.3" class="ltx_text ltx_font_italic">All N-gram</span>, albeit marginally. The <span id="S5.p5.1.4" class="ltx_text ltx_font_italic">All N-gram</span> method, while slightly less effective, offers a straightforward approach to query generation eliminating the need for separate model training or template curation.</p>
+</div>
+<div id="S5.p6" class="ltx_para">
+<p id="S5.p6.1" class="ltx_p">Incorporating multiple matches per query offers minimal improvement for <span id="S5.p6.1.1" class="ltx_text ltx_font_italic">NE Tagging</span> and <span id="S5.p6.1.2" class="ltx_text ltx_font_italic">Template Matching</span>, while increasing computational overhead during inference. However, it leads to regression in <span id="S5.p6.1.3" class="ltx_text ltx_font_italic">All N-gram</span>, as the additional matches seem to confuse the model by introducing more incorrect candidates into the context, compounded by the already increased number of queries in this approach. The lack of significant improvement when using multiple matches suggests that the adapted LLM lacks any intelligence that would help distinguish between acoustically similar entities, making the best strategy to consider only the most acoustically similar entity for any particular query.</p>
+</div>
+<figure id="S5.T4" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE IV: </span>Comparison of different query generation approaches.</figcaption>
+<table id="S5.T4.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.1.2.1" class="ltx_tr">
+<th id="S5.T4.1.2.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"></th>
+<th id="S5.T4.1.2.1.2" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"></th>
+<th id="S5.T4.1.2.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="4">WER (%)</th>
+</tr>
+<tr id="S5.T4.1.1" class="ltx_tr">
+<th id="S5.T4.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"><math id="S5.T4.1.1.1.m1.1" class="ltx_Math" alttext="R_{max}" display="inline"><semantics id="S5.T4.1.1.1.m1.1a"><msub id="S5.T4.1.1.1.m1.1.1" xref="S5.T4.1.1.1.m1.1.1.cmml"><mi id="S5.T4.1.1.1.m1.1.1.2" xref="S5.T4.1.1.1.m1.1.1.2.cmml">R</mi><mrow id="S5.T4.1.1.1.m1.1.1.3" xref="S5.T4.1.1.1.m1.1.1.3.cmml"><mi id="S5.T4.1.1.1.m1.1.1.3.2" xref="S5.T4.1.1.1.m1.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.T4.1.1.1.m1.1.1.3.1" xref="S5.T4.1.1.1.m1.1.1.3.1.cmml">​</mo><mi id="S5.T4.1.1.1.m1.1.1.3.3" xref="S5.T4.1.1.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S5.T4.1.1.1.m1.1.1.3.1a" xref="S5.T4.1.1.1.m1.1.1.3.1.cmml">​</mo><mi id="S5.T4.1.1.1.m1.1.1.3.4" xref="S5.T4.1.1.1.m1.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.T4.1.1.1.m1.1b"><apply id="S5.T4.1.1.1.m1.1.1.cmml" xref="S5.T4.1.1.1.m1.1.1"><csymbol cd="ambiguous" id="S5.T4.1.1.1.m1.1.1.1.cmml" xref="S5.T4.1.1.1.m1.1.1">subscript</csymbol><ci id="S5.T4.1.1.1.m1.1.1.2.cmml" xref="S5.T4.1.1.1.m1.1.1.2">𝑅</ci><apply id="S5.T4.1.1.1.m1.1.1.3.cmml" xref="S5.T4.1.1.1.m1.1.1.3"><times id="S5.T4.1.1.1.m1.1.1.3.1.cmml" xref="S5.T4.1.1.1.m1.1.1.3.1"></times><ci id="S5.T4.1.1.1.m1.1.1.3.2.cmml" xref="S5.T4.1.1.1.m1.1.1.3.2">𝑚</ci><ci id="S5.T4.1.1.1.m1.1.1.3.3.cmml" xref="S5.T4.1.1.1.m1.1.1.3.3">𝑎</ci><ci id="S5.T4.1.1.1.m1.1.1.3.4.cmml" xref="S5.T4.1.1.1.m1.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.1.1.1.m1.1c">R_{max}</annotation></semantics></math></th>
+<th id="S5.T4.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r">Generation Strategy</th>
+<th id="S5.T4.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">head</th>
+<th id="S5.T4.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">torso</th>
+<th id="S5.T4.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">tail</th>
+<th id="S5.T4.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">STOP</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.1.3.1" class="ltx_tr">
+<th id="S5.T4.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">-</th>
+<th id="S5.T4.1.3.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">No correction</th>
+<td id="S5.T4.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">6.98</td>
+<td id="S5.T4.1.3.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">7.68</td>
+<td id="S5.T4.1.3.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">7.98</td>
+<td id="S5.T4.1.3.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.53</td>
+</tr>
+<tr id="S5.T4.1.4.2" class="ltx_tr">
+<th id="S5.T4.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">-</th>
+<th id="S5.T4.1.4.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">No hints</th>
+<td id="S5.T4.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">6.9</td>
+<td id="S5.T4.1.4.2.4" class="ltx_td ltx_align_center ltx_border_r">7.58</td>
+<td id="S5.T4.1.4.2.5" class="ltx_td ltx_align_center ltx_border_r">7.84</td>
+<td id="S5.T4.1.4.2.6" class="ltx_td ltx_align_center ltx_border_r">4.27</td>
+</tr>
+<tr id="S5.T4.1.5.3" class="ltx_tr">
+<th id="S5.T4.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">1</th>
+<th id="S5.T4.1.5.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">All N-grams</th>
+<td id="S5.T4.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T4.1.5.3.3.1" class="ltx_text ltx_font_bold">4.68</span></td>
+<td id="S5.T4.1.5.3.4" class="ltx_td ltx_align_center ltx_border_r">5.02</td>
+<td id="S5.T4.1.5.3.5" class="ltx_td ltx_align_center ltx_border_r">4.97</td>
+<td id="S5.T4.1.5.3.6" class="ltx_td ltx_align_center ltx_border_r">4.27</td>
+</tr>
+<tr id="S5.T4.1.6.4" class="ltx_tr">
+<th id="S5.T4.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">1</th>
+<th id="S5.T4.1.6.4.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">Template Matching</th>
+<td id="S5.T4.1.6.4.3" class="ltx_td ltx_align_center ltx_border_r">4.7</td>
+<td id="S5.T4.1.6.4.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T4.1.6.4.4.1" class="ltx_text ltx_font_bold">4.97</span></td>
+<td id="S5.T4.1.6.4.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T4.1.6.4.5.1" class="ltx_text ltx_font_bold">4.87</span></td>
+<td id="S5.T4.1.6.4.6" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T4.1.6.4.6.1" class="ltx_text ltx_font_bold">4.18</span></td>
+</tr>
+<tr id="S5.T4.1.7.5" class="ltx_tr">
+<th id="S5.T4.1.7.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">1</th>
+<th id="S5.T4.1.7.5.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">NE Tagging</th>
+<td id="S5.T4.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r">4.75</td>
+<td id="S5.T4.1.7.5.4" class="ltx_td ltx_align_center ltx_border_r">5.0</td>
+<td id="S5.T4.1.7.5.5" class="ltx_td ltx_align_center ltx_border_r">4.92</td>
+<td id="S5.T4.1.7.5.6" class="ltx_td ltx_align_center ltx_border_r">4.24</td>
+</tr>
+<tr id="S5.T4.1.8.6" class="ltx_tr">
+<th id="S5.T4.1.8.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">5</th>
+<th id="S5.T4.1.8.6.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">All N-grams</th>
+<td id="S5.T4.1.8.6.3" class="ltx_td ltx_align_center ltx_border_r">4.83</td>
+<td id="S5.T4.1.8.6.4" class="ltx_td ltx_align_center ltx_border_r">5.08</td>
+<td id="S5.T4.1.8.6.5" class="ltx_td ltx_align_center ltx_border_r">5.02</td>
+<td id="S5.T4.1.8.6.6" class="ltx_td ltx_align_center ltx_border_r">4.31</td>
+</tr>
+<tr id="S5.T4.1.9.7" class="ltx_tr">
+<th id="S5.T4.1.9.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">5</th>
+<th id="S5.T4.1.9.7.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">Template Matching</th>
+<td id="S5.T4.1.9.7.3" class="ltx_td ltx_align_center ltx_border_r">4.69</td>
+<td id="S5.T4.1.9.7.4" class="ltx_td ltx_align_center ltx_border_r">5.0</td>
+<td id="S5.T4.1.9.7.5" class="ltx_td ltx_align_center ltx_border_r">4.89</td>
+<td id="S5.T4.1.9.7.6" class="ltx_td ltx_align_center ltx_border_r">4.2</td>
+</tr>
+<tr id="S5.T4.1.10.8" class="ltx_tr">
+<th id="S5.T4.1.10.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">5</th>
+<th id="S5.T4.1.10.8.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r">NE Tagging</th>
+<td id="S5.T4.1.10.8.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.7</td>
+<td id="S5.T4.1.10.8.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">5.0</td>
+<td id="S5.T4.1.10.8.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.9</td>
+<td id="S5.T4.1.10.8.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.19</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.p7" class="ltx_para">
+<p id="S5.p7.1" class="ltx_p">Finally, we evaluate the effect of including the queries in the hints. These results are shown in Table <a href="#S5.T5" title="TABLE V ‣ V Results ‣ Retrieval Augmented Correction of Named Entity Speech Recognition Errors" class="ltx_ref"><span class="ltx_text ltx_ref_tag">V</span></a>. Here we use the <span id="S5.p7.1.1" class="ltx_text ltx_font_italic">All N-gram</span> generation strategy, which seems likely to benefit most from query inclusion, as, in this strategy, hints are generated for multiple ASR hypothesis spans. We observe little impact on WER which suggests the model is able to easily infer the spans in the ASR hypothesis for which the retrieved entities are relevant.</p>
+</div>
+<figure id="S5.T5" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE V: </span>Effect of including query text in the context.</figcaption>
+<table id="S5.T5.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T5.1.2.1" class="ltx_tr">
+<th id="S5.T5.1.2.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"></th>
+<th id="S5.T5.1.2.1.2" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"></th>
+<th id="S5.T5.1.2.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="4">WER (%)</th>
+</tr>
+<tr id="S5.T5.1.1" class="ltx_tr">
+<th id="S5.T5.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"><math id="S5.T5.1.1.1.m1.1" class="ltx_Math" alttext="R_{max}" display="inline"><semantics id="S5.T5.1.1.1.m1.1a"><msub id="S5.T5.1.1.1.m1.1.1" xref="S5.T5.1.1.1.m1.1.1.cmml"><mi id="S5.T5.1.1.1.m1.1.1.2" xref="S5.T5.1.1.1.m1.1.1.2.cmml">R</mi><mrow id="S5.T5.1.1.1.m1.1.1.3" xref="S5.T5.1.1.1.m1.1.1.3.cmml"><mi id="S5.T5.1.1.1.m1.1.1.3.2" xref="S5.T5.1.1.1.m1.1.1.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.T5.1.1.1.m1.1.1.3.1" xref="S5.T5.1.1.1.m1.1.1.3.1.cmml">​</mo><mi id="S5.T5.1.1.1.m1.1.1.3.3" xref="S5.T5.1.1.1.m1.1.1.3.3.cmml">a</mi><mo lspace="0em" rspace="0em" id="S5.T5.1.1.1.m1.1.1.3.1a" xref="S5.T5.1.1.1.m1.1.1.3.1.cmml">​</mo><mi id="S5.T5.1.1.1.m1.1.1.3.4" xref="S5.T5.1.1.1.m1.1.1.3.4.cmml">x</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S5.T5.1.1.1.m1.1b"><apply id="S5.T5.1.1.1.m1.1.1.cmml" xref="S5.T5.1.1.1.m1.1.1"><csymbol cd="ambiguous" id="S5.T5.1.1.1.m1.1.1.1.cmml" xref="S5.T5.1.1.1.m1.1.1">subscript</csymbol><ci id="S5.T5.1.1.1.m1.1.1.2.cmml" xref="S5.T5.1.1.1.m1.1.1.2">𝑅</ci><apply id="S5.T5.1.1.1.m1.1.1.3.cmml" xref="S5.T5.1.1.1.m1.1.1.3"><times id="S5.T5.1.1.1.m1.1.1.3.1.cmml" xref="S5.T5.1.1.1.m1.1.1.3.1"></times><ci id="S5.T5.1.1.1.m1.1.1.3.2.cmml" xref="S5.T5.1.1.1.m1.1.1.3.2">𝑚</ci><ci id="S5.T5.1.1.1.m1.1.1.3.3.cmml" xref="S5.T5.1.1.1.m1.1.1.3.3">𝑎</ci><ci id="S5.T5.1.1.1.m1.1.1.3.4.cmml" xref="S5.T5.1.1.1.m1.1.1.3.4">𝑥</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.1.1.1.m1.1c">R_{max}</annotation></semantics></math></th>
+<th id="S5.T5.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r">Query Included</th>
+<th id="S5.T5.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">head</th>
+<th id="S5.T5.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">torso</th>
+<th id="S5.T5.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">tail</th>
+<th id="S5.T5.1.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">STOP</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T5.1.3.1" class="ltx_tr">
+<th id="S5.T5.1.3.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t">1</th>
+<th id="S5.T5.1.3.1.2" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_t"></th>
+<td id="S5.T5.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T5.1.3.1.3.1" class="ltx_text ltx_font_bold">4.68</span></td>
+<td id="S5.T5.1.3.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">5.02</td>
+<td id="S5.T5.1.3.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">4.97</td>
+<td id="S5.T5.1.3.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T5.1.3.1.6.1" class="ltx_text ltx_font_bold">4.27</span></td>
+</tr>
+<tr id="S5.T5.1.4.2" class="ltx_tr">
+<th id="S5.T5.1.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">1</th>
+<th id="S5.T5.1.4.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">✓</th>
+<td id="S5.T5.1.4.2.3" class="ltx_td ltx_align_center ltx_border_r">4.69</td>
+<td id="S5.T5.1.4.2.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T5.1.4.2.4.1" class="ltx_text ltx_font_bold">5.01</span></td>
+<td id="S5.T5.1.4.2.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T5.1.4.2.5.1" class="ltx_text ltx_font_bold">4.94</span></td>
+<td id="S5.T5.1.4.2.6" class="ltx_td ltx_align_center ltx_border_r">4.29</td>
+</tr>
+<tr id="S5.T5.1.5.3" class="ltx_tr">
+<th id="S5.T5.1.5.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_l ltx_border_r">5</th>
+<th id="S5.T5.1.5.3.2" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S5.T5.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r">4.83</td>
+<td id="S5.T5.1.5.3.4" class="ltx_td ltx_align_center ltx_border_r">5.08</td>
+<td id="S5.T5.1.5.3.5" class="ltx_td ltx_align_center ltx_border_r">5.02</td>
+<td id="S5.T5.1.5.3.6" class="ltx_td ltx_align_center ltx_border_r">4.31</td>
+</tr>
+<tr id="S5.T5.1.6.4" class="ltx_tr">
+<th id="S5.T5.1.6.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r">5</th>
+<th id="S5.T5.1.6.4.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r">✓</th>
+<td id="S5.T5.1.6.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.81</td>
+<td id="S5.T5.1.6.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">5.08</td>
+<td id="S5.T5.1.6.4.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.98</td>
+<td id="S5.T5.1.6.4.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">4.33</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<div id="S5.p8" class="ltx_para">
+<p id="S5.p8.1" class="ltx_p">Overall, the best system achieves 32.6%, 35.3%, 39.0% and 7.7% relative WER reductions on the head, torso, tail and STOP test sets respectively over doing no error correction.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VI </span><span id="S6.1.1" class="ltx_text ltx_font_smallcaps">Conclusion</span>
+</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this work, we presented a RAG-based technique for correcting entity name errors in ASR hypotheses using an adapted LLM. We evaluated different embedding methods to use for entity retrieval and found that Acoustic Neighbor Embeddings significantly outperformed semantic embeddings, achieving entity recall rates more than 4% higher. We also showed that using a LoRA adapter with rank 4 works as well as higher rank LoRA adapters or full fine-tuning on this task when using the 7B parameter OpenLLaMA LLM. Our best system achieved 33%-39% relative WER reductions on synthetic test sets focused on voice assistant queries of rare music entities without regressing
+on the STOP test set which covers many domains.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+R. Prabhavalkar, T. Hori, T. N. Sainath, R. Schlüter, and S. Watanabe,
+“End-to-end speech recognition: A survey,” <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">IEEE/ACM Transactions on
+Audio, Speech, and Language Processing</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+C. Van Gysel, “Modeling spoken information queries for virtual assistants:
+Open problems, challenges and opportunities,” in <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Proceedings of the
+46th International ACM SIGIR Conference on Research and Development in
+Information Retrieval</em>, 2023, pp. 3335–3338.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+R. Ma, M. Qian, P. Manakul, M. Gales, and K. Knill, “Can generative large
+language models perform ASR error correction?” <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2307.04172</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+G. Izacard, P. Lewis, M. Lomeli, L. Hosseini, F. Petroni, T. Schick,
+J. Dwivedi-Yu, A. Joulin, S. Riedel, and E. Grave, “ATLAS: Few-shot
+learning with retrieval augmented language models,” <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Journal of Machine
+Learning Research</em>, vol. 24, no. 251, pp. 1–43, 2023.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+N. Kandpal, H. Deng, A. Roberts, E. Wallace, and C. Raffel, “Large language
+models struggle to learn long-tail knowledge,” in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">International
+Conference on Machine Learning</em>.   PMLR,
+2023, pp. 15 696–15 707.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+S. E. Robertson, S. Walker, S. Jones, M. M. Hancock-Beaulieu, M. Gatford
+<em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Okapi at TREC-3,” <em id="bib.bib6.2.2" class="ltx_emph ltx_font_italic">Nist Special Publication Sp</em>,
+vol. 109, p. 109, 1995.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+J. Ni, G. H. Abrego, N. Constant, J. Ma, K. B. Hall, D. Cer, and Y. Yang,
+“Sentence-T5: Scalable sentence encoders from pre-trained text-to-text
+models,” <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2108.08877</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+W. Jeon, “Acoustic neighbor embeddings,” <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2007.10329</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+J. Guo, T. N. Sainath, and R. J. Weiss, “A spelling correction model for
+end-to-end speech recognition,” in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">ICASSP 2019</em>.   IEEE, 2019, pp. 5651–5655.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Z. Gu, T. Likhomanenko, H. Bai, E. McDermott, R. Collobert, and N. Jaitly,
+“Denoising LM: Pushing the limits of error correction models for speech
+recognition,” <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2405.15216</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+A. Raghuvanshi, V. Ramakrishnan, V. Embar, L. Carroll, and K. Raghunathan,
+“Entity resolution for noisy ASR transcripts,” in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Proceedings of
+the 2019 Conference on Empirical Methods in Natural Language Processing and
+the 9th International Joint Conference on Natural Language Processing</em>, 2019,
+pp. 61–66.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+H. Wang, S. Dong, Y. Liu, J. Logan, A. K. Agrawal, and Y. Liu, “ASR error
+correction with augmented transformer for entity retrieval,” in
+<em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">Interspeech 2020</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+I. E. Kang, C. Van Gysel, and M.-H. Siu, “Transformer-based model for ASR
+n-best rescoring and rewriting,” in <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Interspeech 2024</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+J. Cai, M. Li, Z. Jiang, E. Cho, Z. Chen, Y. Liu, X. Fan, and C. Guo,
+“KG-ECO: Knowledge graph enhanced entity correction for query rewriting,”
+in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023</em>.   IEEE, 2023, pp.
+1–5.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+M. Zhang, X. Qiao, Y. Zhao, C. Su, Y. Li, Y. Li, M. Zhu, M. Piao, S. Peng,
+S. Tao <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Knowledge prompt for Whisper: An ASR entity
+correction approach with knowledge base,” in <em id="bib.bib15.2.2" class="ltx_emph ltx_font_italic">2023 IEEE International
+Conference on Big Data</em>.   IEEE, 2023,
+pp. 2975–2979.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+M. Wang, I. Shafran, H. Soltau, W. Han, Y. Cao, D. Yu, and L. El Shafey,
+“Retrieval augmented end-to-end spoken dialog models,” in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">ICASSP
+2024</em>.   IEEE, 2024, pp.
+12 056–12 060.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+P. Tomasello, A. Shrivastava, D. Lazar, P.-C. Hsu, D. Le, A. Sagar, A. Elkahky,
+J. Copet, W.-N. Hsu, Y. Adi <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “STOP: A dataset for spoken
+task oriented semantic parsing,” in <em id="bib.bib17.2.2" class="ltx_emph ltx_font_italic">SLT 2022</em>.   IEEE, 2023, pp. 991–998.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+C. Van Gysel, M. Hannemann, E. Pusateri, Y. Oualil, and I. Oparin,
+“Space-efficient representation of entity-centric query language models,”
+in <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">Interspeech 2022</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+S. Achanta, A. Antony, L. Golipour, J. Li, T. Raitio, R. Rasipuram, F. Rossi,
+J. Shi, J. Upadhyay, D. Winarsky <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “On-device neural speech
+synthesis,” in <em id="bib.bib19.2.2" class="ltx_emph ltx_font_italic">ASRU 2021</em>.   IEEE, 2021, pp. 1155–1161.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+B. Zhang, D. Wu, Z. Peng, X. Song, Z. Yao, H. Lv, L. Xie, C. Yang, F. Pan, and
+J. Niu, “Wenet 2.0: More productive end-to-end speech recognition toolkit,”
+<em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2203.15455</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Z. Lei, E. Pusateri, S. Han, L. Liu, M. Xu, T. Ng, R. Travadi, Y. Zhang,
+M. Hannemann, M.-H. Siu <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Personalization of CTC-based
+end-to-end speech recognition using pronunciation-driven subword
+tokenization,” in <em id="bib.bib21.2.2" class="ltx_emph ltx_font_italic">ICASSP 2024</em>.   IEEE, 2024, pp. 10 096–10 100.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Z. Lei, M. Xu, S. Han, L. Liu, Z. Huang, T. Ng, Y. Zhang, E. Pusateri,
+M. Hannemann, Y. Deng <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Acoustic model fusion for end-to-end
+speech recognition,” in <em id="bib.bib22.2.2" class="ltx_emph ltx_font_italic">ASRU 2023</em>.   IEEE, 2023, pp. 1–7.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+X. Geng and H. Liu, “OpenLLaMA: An open reproduction of LLaMA,” May 2023.
+[Online]. Available: https://github.com/openlm-research/open_llama
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix,
+B. Rozière, N. Goyal, E. Hambro, F. Azhar <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “LLaMA: Open
+and efficient foundation language models,” <em id="bib.bib24.2.2" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2302.13971</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and
+W. Chen, “LoRA: Low-rank adaptation of large language models,” 2021.
+[Online]. Available: https://arxiv.org/abs/2106.09685
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+I. Loshchilov, F. Hutter <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Fixing weight decay regularization in
+adam,” <em id="bib.bib26.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1711.05101</em>, vol. 5, 2017.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2409.06061" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2409.06062" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2409.06062">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2409.06062" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2409.06063" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sun Oct  6 00:54:33 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

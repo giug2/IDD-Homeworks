@@ -1,0 +1,1140 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.09569] Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time</title><meta property="og:description" content="We introduce Speech ReaLLM, a new ASR architecture that marries ``decoder-only'' ASR with the RNN-T to make multi-modal LLM architectures capable of real-time streaming. This is the first ``decoder-only'' ASR architect…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.09569">
+
+<!--Generated on Fri Jul  5 18:18:53 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">FrankSeide
+<span id="p1.3.1" class="ltx_ERROR undefined">\name</span>MorrieDoulaty
+<span id="p1.3.2" class="ltx_ERROR undefined">\name</span>YangyangShi
+<span id="p1.3.3" class="ltx_ERROR undefined">\name</span>YasheshGaur
+<span id="p1.3.4" class="ltx_ERROR undefined">\name</span>JuntengJia
+<span id="p1.3.5" class="ltx_ERROR undefined">\name</span>ChunyangWu
+
+
+</p>
+</div>
+<h1 class="ltx_title ltx_title_document">Speech ReaLLM – Real-time Streaming Speech Recognition
+<br class="ltx_break">with Multimodal LLMs by Teaching the Flow of Time</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">We introduce <span id="id1.id1.1" class="ltx_text ltx_font_italic">Speech ReaLLM</span>, a new ASR architecture that marries ``decoder-only'' ASR with the RNN-T to make multi-modal LLM architectures capable of real-time streaming. This is the first ``decoder-only'' ASR architecture designed to handle continuous audio without explicit end-pointing.
+Speech ReaLLM is a special case of the more general <span id="id1.id1.2" class="ltx_text ltx_font_italic">ReaLLM</span> (``real-time LLM'') approach, also introduced here for the first time. The idea is inspired by RNN-T: Instead of generating a response only at the end of a user prompt, generate <span id="id1.id1.3" class="ltx_text ltx_font_italic">after every input token</span> received <span id="id1.id1.4" class="ltx_text ltx_font_italic">in real time</span> (it is often empty).
+On Librispeech ``test,'' an 80M Speech ReaLLM achieves WERs of 3.0% and 7.4% in real time (without an external LM or auxiliary loss). This is only slightly above a 3x larger Attention-Encoder-Decoder baseline. We also show that this way, an LLM architecture can learn to represent and reproduce the <span id="id1.id1.5" class="ltx_text ltx_font_italic">flow of time</span>; and that a pre-trained 7B LLM can be fine-tuned to do reasonably well on this task.</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>Speech recognition, real-time ASR, streaming ASR, large language models, LLM, decoder-only, RNN-T
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">It is the year 2024.
+Despite unprecedented progress in AI with Large Language Models,
+Artificial General Intelligence remains elusive.
+Experts highlight a fundamental limitation of LLMs: they are ``not coupled in real time with the world'' <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">This paper introduces a new way of using multi-modal LLM architectures for processing input in a <span id="S1.p2.1.1" class="ltx_text ltx_font_italic">real-time streaming fashion</span>—not by changing the model architecture itself, but by extending <span id="S1.p2.1.2" class="ltx_text ltx_font_italic">how the model is used and trained</span>.
+We refer to this as <span id="S1.p2.1.3" class="ltx_text ltx_font_italic">the ReaLLM</span> for ``real-time LLM.''</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">We test the ReaLLM approach on the task of automatic speech recognition (ASR). We call that variant the <span id="S1.p3.1.1" class="ltx_text ltx_font_italic">Speech ReaLLM</span>. On Librispeech, we find, for both a ``toy''-sized LLMs trained from scratch and a fine-tuned pre-trained LLM, that Speech ReaLLM is a viable architecture for real-time, streaming ASR—the first ``decoder-only'' ASR architecture designed for continuous audio input without explicit end-pointing.
+Note that we use the term LLM loosely to mean <span id="S1.p3.1.2" class="ltx_text ltx_font_italic">generative ``decoder-only'' architectures</span> as used by popular LLM-based chatbots, but without implying pre-training or billions of parameters.</p>
+</div>
+<section id="S1.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.1 </span>The problem with LLMs</h3>
+
+<div id="S1.SS1.p1" class="ltx_para">
+<p id="S1.SS1.p1.1" class="ltx_p">Today's LLM-based chat bots like ChatGPT, Claude, or Meta AI all operate turn-by-turn.
+A user types a prompt and hits enter; or speaks a prompt and pauses long enough for endpointing to trigger.
+Only then will the LLM encode (``pre-fill'') the prompt, and invoke the LLM response-generation routine which will generate tokens until a special end-of-sentence (EOS) token has been predicted.
+These LLMs are <span id="S1.SS1.p1.1.1" class="ltx_text ltx_font_italic">reactive</span>.</p>
+</div>
+<div id="S1.SS1.p2" class="ltx_para">
+<p id="S1.SS1.p2.1" class="ltx_p">Enabling LLMs to operate in real time—to be <span id="S1.SS1.p2.1.1" class="ltx_text ltx_font_italic">pro-active</span>—opens up applications from small time scales such as real-time transcription or acoustic-event detection; via sentence-scale speech scenarios like natural dialogs; to long-span processes like monitoring sensors via a spoken standing prompt.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<table id="S1.F1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S1.F1.1.1" class="ltx_tr">
+<td id="S1.F1.1.1.1" class="ltx_td ltx_align_center ltx_align_top" colspan="3"><img src="" id="S1.F1.1.1.1.g1" class="ltx_graphics ltx_missing ltx_missing_image" alt="Refer to caption"></td>
+</tr>
+<tr id="S1.F1.1.2.1" class="ltx_tr">
+<td id="S1.F1.1.2.1.1" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S1.F1.1.2.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S1.F1.1.2.1.1.1.1" class="ltx_p" style="width:143.1pt;"><span id="S1.F1.1.2.1.1.1.1.1" class="ltx_text" style="font-size:80%;">(a) Speech ReaLLM (this paper)</span></span>
+</span>
+</td>
+<td id="S1.F1.1.2.1.2" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S1.F1.1.2.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S1.F1.1.2.1.2.1.1" class="ltx_p" style="width:143.1pt;"><span id="S1.F1.1.2.1.2.1.1.1" class="ltx_text" style="font-size:80%;">(b) Speech LLM </span><cite class="ltx_cite ltx_centering ltx_citemacro_cite"><span id="S1.F1.1.2.1.2.1.1.2.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S1.F1.1.2.1.2.1.1.3.2" class="ltx_text" style="font-size:80%;">]</span></cite></span>
+</span>
+</td>
+<td id="S1.F1.1.2.1.3" class="ltx_td ltx_align_justify ltx_align_top">
+<span id="S1.F1.1.2.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S1.F1.1.2.1.3.1.1" class="ltx_p" style="width:143.1pt;"><span id="S1.F1.1.2.1.3.1.1.1" class="ltx_text" style="font-size:80%;">(c) RNN-T </span><cite class="ltx_cite ltx_centering ltx_citemacro_cite"><span id="S1.F1.1.2.1.3.1.1.2.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S1.F1.1.2.1.3.1.1.3.2" class="ltx_text" style="font-size:80%;">]</span></cite><span id="S1.F1.1.2.1.3.1.1.4" class="ltx_text" style="font-size:80%;"> with joint-network </span><cite class="ltx_cite ltx_centering ltx_citemacro_cite"><span id="S1.F1.1.2.1.3.1.1.5.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S1.F1.1.2.1.3.1.1.6.2" class="ltx_text" style="font-size:80%;">]</span></cite></span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption" style="font-size:80%;"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Comparison of how the three system architectures process and combine encoded speech chunks and decoded labels.</figcaption>
+</figure>
+</section>
+<section id="S1.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.2 </span>The ReaLLM (Real-time LLM)</h3>
+
+<div id="S1.SS2.p1" class="ltx_para">
+<p id="S1.SS2.p1.1" class="ltx_p">We propose to use and train LLMs differently: Instead of invoking generation at the end of a prompt, invoke generation <span id="S1.SS2.p1.1.1" class="ltx_text ltx_font_italic">after every single input token received in real time</span> to immediately generate a ``response''—although responses would be the empty string most of the time, and non-empty only when appropriate.</p>
+</div>
+<div id="S1.SS2.p2" class="ltx_para">
+<p id="S1.SS2.p2.1" class="ltx_p">One can see how this can implement real-time ASR if a ``token'' is a chunk of newly received speech while the user is still speaking; and the ``response'' is any new word(s) heard (or empty).<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>Although we are concerned with ASR,
+ReaLLM is not limited to speech. Input tokens could be A/V feeds from a home security camera (“Let me know if you hear the sound of smashing glass in my home”), health sensors, etc.</span></span></span>
+Readers familiar with Recurrent Neural-Network Transducers, or RNN-Ts <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>, will recognize this as a quite natural generalization of the RNN-T's BLANK mechanism.</p>
+</div>
+</section>
+<section id="S1.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.3 </span>The Speech ReaLLM</h3>
+
+<div id="S1.SS3.p1" class="ltx_para">
+<p id="S1.SS3.p1.1" class="ltx_p">We validate ReaLLM on ASR, for which well-known data sets and evaluation metrics exist.
+<span id="S1.SS3.p1.1.1" class="ltx_text ltx_font_italic">Speech ReaLLM</span> shall mean applying the ReaLLM idea to streaming ASR.
+Unlike non-streaming decoder-only ASR models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> or Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>, Speech ReaLLM does not see the entire speech utterance from the start. Rather,
+speech is revealed chunk by chunk each time the LLM's generation loop terminates,
+realizing streaming.</p>
+</div>
+</section>
+<section id="S1.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.4 </span>Related Work</h3>
+
+<div id="S1.SS4.p1" class="ltx_para">
+<p id="S1.SS4.p1.1" class="ltx_p">To our best knowledge, this combination of LLM/decoder-only based ASR with streaming has not been done before.
+The closest are the RNN-T <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> and streaming variants of
+Attention-Encoder-Decoder (AED) models like <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>
+that use an explicit READ/WRITE model to alternate between generating output (WRITE) and receiving new input (READ).
+Unlike Speech ReaLLM, both RNN-T and streaming AED require complex loss functions or learning algorithms like Monotonic Multihead Attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, Monotonic Chunkwise Attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>, Monotonic attention with Infinite Lookback <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, or EMMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>.</p>
+</div>
+<div id="S1.SS4.p2" class="ltx_para">
+<p id="S1.SS4.p2.1" class="ltx_p">Besides these, literature about ``real time LLMs'' tends to refer to unrelated topics of either re-active use of LLMs with real-time databases, or efficient LLM evaluation.</p>
+</div>
+<div id="S1.SS4.p3" class="ltx_para">
+<p id="S1.SS4.p3.1" class="ltx_p">In the following, we introduce the Speech ReaLLM streaming model in detail and how to train it. We then present results comparing Speech ReaLLM on Librispeech to its two ancestors, Speech LLM and RNN-T, and a fine-tuned 7B LLM.</p>
+</div>
+</section>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>``Decoder-Only'' Streaming ASR</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Speech ReaLLM can be colloquially described as ``Speech LLM and RNN-T having a baby,''
+where with Speech LLM, we refer to non-streaming multi-modal ``decoder-only''<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>“Decoder-only” is in quotes because this term has come to denote models
+without cross-attention into an encoder.
+Like most MM-LLMs, Speech ReaLLM surely has an encoder, just not via cross-attention.
+</span></span></span> ASR architectures <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>.
+<span id="S2.p1.1.1" class="ltx_text ltx_font_bold">From Speech LLMs</span>, Speech ReaLLM inherits the decoder, which centers around a stack of Llama-2 type Transformer decoder layers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>, and a multi-modal encoder that encodes speech input into a sequence of embedding vectors used in place of/mixed with text embeddings.<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>If we use a pre-trained LLM, the encoder would learn to “fool” the LLM into treating the speech embeddings like text tokens.</span></span></span>
+For real-time ASR, a streaming encoder is required, such as an Emformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>, or Streaming Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>.
+<span id="S2.p1.1.2" class="ltx_text ltx_font_bold">From the RNN-T</span>, Speech ReaLLM inherits the <span id="S2.p1.1.3" class="ltx_text ltx_font_italic">BLANK token</span>, which the RNN-T emits to indicate that no more tokens can be generated without first receiving more speech input.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">Speech ReaLLM's operation is best illustrated by its greedy inference algorithm:<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span>Extension to beam search is left as an exercise to the reader.</span></span></span></p>
+</div>
+<figure id="alg1" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span id="alg1.2.1.1" class="ltx_text ltx_font_bold">Algorithm 1</span> </span> ReaLLM Greedy Inference</figcaption>
+<div id="alg1.3" class="ltx_listing ltx_listing">
+<div id="alg1.l1" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l1.1.1.1" class="ltx_text" style="font-size:80%;">1:</span></span><math id="alg1.l1.m1.1" class="ltx_Math" alttext="h\leftarrow" display="inline"><semantics id="alg1.l1.m1.1a"><mrow id="alg1.l1.m1.1.1" xref="alg1.l1.m1.1.1.cmml"><mi id="alg1.l1.m1.1.1.2" xref="alg1.l1.m1.1.1.2.cmml">h</mi><mo stretchy="false" id="alg1.l1.m1.1.1.1" xref="alg1.l1.m1.1.1.1.cmml">←</mo><mi id="alg1.l1.m1.1.1.3" xref="alg1.l1.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l1.m1.1b"><apply id="alg1.l1.m1.1.1.cmml" xref="alg1.l1.m1.1.1"><ci id="alg1.l1.m1.1.1.1.cmml" xref="alg1.l1.m1.1.1.1">←</ci><ci id="alg1.l1.m1.1.1.2.cmml" xref="alg1.l1.m1.1.1.2">ℎ</ci><csymbol cd="latexml" id="alg1.l1.m1.1.1.3.cmml" xref="alg1.l1.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l1.m1.1c">h\leftarrow</annotation></semantics></math> [<span id="alg1.l1.2" class="ltx_text ltx_font_smallcaps">embed token</span>(BOS)]
+
+</div>
+<div id="alg1.l2" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l2.1.1.1" class="ltx_text" style="font-size:80%;">2:</span></span><span id="alg1.l2.2" class="ltx_text ltx_font_bold">while</span> <math id="alg1.l2.m1.1" class="ltx_Math" alttext="e\leftarrow" display="inline"><semantics id="alg1.l2.m1.1a"><mrow id="alg1.l2.m1.1.1" xref="alg1.l2.m1.1.1.cmml"><mi id="alg1.l2.m1.1.1.2" xref="alg1.l2.m1.1.1.2.cmml">e</mi><mo stretchy="false" id="alg1.l2.m1.1.1.1" xref="alg1.l2.m1.1.1.1.cmml">←</mo><mi id="alg1.l2.m1.1.1.3" xref="alg1.l2.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l2.m1.1b"><apply id="alg1.l2.m1.1.1.cmml" xref="alg1.l2.m1.1.1"><ci id="alg1.l2.m1.1.1.1.cmml" xref="alg1.l2.m1.1.1.1">←</ci><ci id="alg1.l2.m1.1.1.2.cmml" xref="alg1.l2.m1.1.1.2">𝑒</ci><csymbol cd="latexml" id="alg1.l2.m1.1.1.3.cmml" xref="alg1.l2.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l2.m1.1c">e\leftarrow</annotation></semantics></math><span id="alg1.l2.3" class="ltx_text ltx_font_smallcaps">await &amp; embed next real-time input</span> <span id="alg1.l2.4" class="ltx_text ltx_font_bold">do</span> 
+
+</div>
+<div id="alg1.l3" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l3.1.1.1" class="ltx_text" style="font-size:80%;">3:</span></span>     <math id="alg1.l3.m1.1" class="ltx_Math" alttext="h." display="inline"><semantics id="alg1.l3.m1.1a"><mrow id="alg1.l3.m1.1.2.2"><mi id="alg1.l3.m1.1.1" xref="alg1.l3.m1.1.1.cmml">h</mi><mo lspace="0em" id="alg1.l3.m1.1.2.2.1">.</mo></mrow><annotation-xml encoding="MathML-Content" id="alg1.l3.m1.1b"><ci id="alg1.l3.m1.1.1.cmml" xref="alg1.l3.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.m1.1c">h.</annotation></semantics></math><span id="alg1.l3.2" class="ltx_text ltx_font_smallcaps">add</span>(<math id="alg1.l3.m2.1" class="ltx_Math" alttext="e" display="inline"><semantics id="alg1.l3.m2.1a"><mi id="alg1.l3.m2.1.1" xref="alg1.l3.m2.1.1.cmml">e</mi><annotation-xml encoding="MathML-Content" id="alg1.l3.m2.1b"><ci id="alg1.l3.m2.1.1.cmml" xref="alg1.l3.m2.1.1">𝑒</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.m2.1c">e</annotation></semantics></math>)
+
+</div>
+<div id="alg1.l4" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l4.1.1.1" class="ltx_text" style="font-size:80%;">4:</span></span>     <span id="alg1.l4.2" class="ltx_text ltx_font_bold">while</span> <math id="alg1.l4.m1.1" class="ltx_Math" alttext="w\leftarrow" display="inline"><semantics id="alg1.l4.m1.1a"><mrow id="alg1.l4.m1.1.1" xref="alg1.l4.m1.1.1.cmml"><mi id="alg1.l4.m1.1.1.2" xref="alg1.l4.m1.1.1.2.cmml">w</mi><mo stretchy="false" id="alg1.l4.m1.1.1.1" xref="alg1.l4.m1.1.1.1.cmml">←</mo><mi id="alg1.l4.m1.1.1.3" xref="alg1.l4.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l4.m1.1b"><apply id="alg1.l4.m1.1.1.cmml" xref="alg1.l4.m1.1.1"><ci id="alg1.l4.m1.1.1.1.cmml" xref="alg1.l4.m1.1.1.1">←</ci><ci id="alg1.l4.m1.1.1.2.cmml" xref="alg1.l4.m1.1.1.2">𝑤</ci><csymbol cd="latexml" id="alg1.l4.m1.1.1.3.cmml" xref="alg1.l4.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l4.m1.1c">w\leftarrow</annotation></semantics></math><span id="alg1.l4.3" class="ltx_text ltx_font_smallcaps">predict token</span>(h), <math id="alg1.l4.m2.1" class="ltx_Math" alttext="w\neq" display="inline"><semantics id="alg1.l4.m2.1a"><mrow id="alg1.l4.m2.1.1" xref="alg1.l4.m2.1.1.cmml"><mi id="alg1.l4.m2.1.1.2" xref="alg1.l4.m2.1.1.2.cmml">w</mi><mo id="alg1.l4.m2.1.1.1" xref="alg1.l4.m2.1.1.1.cmml">≠</mo><mi id="alg1.l4.m2.1.1.3" xref="alg1.l4.m2.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l4.m2.1b"><apply id="alg1.l4.m2.1.1.cmml" xref="alg1.l4.m2.1.1"><neq id="alg1.l4.m2.1.1.1.cmml" xref="alg1.l4.m2.1.1.1"></neq><ci id="alg1.l4.m2.1.1.2.cmml" xref="alg1.l4.m2.1.1.2">𝑤</ci><csymbol cd="latexml" id="alg1.l4.m2.1.1.3.cmml" xref="alg1.l4.m2.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l4.m2.1c">w\neq</annotation></semantics></math> BLANK <span id="alg1.l4.4" class="ltx_text ltx_font_bold">do</span> 
+
+</div>
+<div id="alg1.l5" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l5.1.1.1" class="ltx_text" style="font-size:80%;">5:</span></span>         <math id="alg1.l5.m1.1" class="ltx_Math" alttext="h." display="inline"><semantics id="alg1.l5.m1.1a"><mrow id="alg1.l5.m1.1.2.2"><mi id="alg1.l5.m1.1.1" xref="alg1.l5.m1.1.1.cmml">h</mi><mo lspace="0em" id="alg1.l5.m1.1.2.2.1">.</mo></mrow><annotation-xml encoding="MathML-Content" id="alg1.l5.m1.1b"><ci id="alg1.l5.m1.1.1.cmml" xref="alg1.l5.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l5.m1.1c">h.</annotation></semantics></math><span id="alg1.l5.2" class="ltx_text ltx_font_smallcaps">add</span>(<span id="alg1.l5.3" class="ltx_text ltx_font_smallcaps">embed token</span>(w)) 
+     
+</div>
+<div id="alg1.l6" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l6.1.1.1" class="ltx_text" style="font-size:80%;">6:</span></span><math id="alg1.l6.m1.1" class="ltx_Math" alttext="h." display="inline"><semantics id="alg1.l6.m1.1a"><mrow id="alg1.l6.m1.1.2.2"><mi id="alg1.l6.m1.1.1" xref="alg1.l6.m1.1.1.cmml">h</mi><mo lspace="0em" id="alg1.l6.m1.1.2.2.1">.</mo></mrow><annotation-xml encoding="MathML-Content" id="alg1.l6.m1.1b"><ci id="alg1.l6.m1.1.1.cmml" xref="alg1.l6.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l6.m1.1c">h.</annotation></semantics></math><span id="alg1.l6.2" class="ltx_text ltx_font_smallcaps">add</span>(<span id="alg1.l6.3" class="ltx_text ltx_font_smallcaps">embed token</span>(EOS)) 
+
+</div>
+<div id="alg1.l7" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l7.1.1.1" class="ltx_text" style="font-size:80%;">7:</span></span><span id="alg1.l7.2" class="ltx_text ltx_font_bold">while</span> <math id="alg1.l7.m1.1" class="ltx_Math" alttext="w\leftarrow" display="inline"><semantics id="alg1.l7.m1.1a"><mrow id="alg1.l7.m1.1.1" xref="alg1.l7.m1.1.1.cmml"><mi id="alg1.l7.m1.1.1.2" xref="alg1.l7.m1.1.1.2.cmml">w</mi><mo stretchy="false" id="alg1.l7.m1.1.1.1" xref="alg1.l7.m1.1.1.1.cmml">←</mo><mi id="alg1.l7.m1.1.1.3" xref="alg1.l7.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l7.m1.1b"><apply id="alg1.l7.m1.1.1.cmml" xref="alg1.l7.m1.1.1"><ci id="alg1.l7.m1.1.1.1.cmml" xref="alg1.l7.m1.1.1.1">←</ci><ci id="alg1.l7.m1.1.1.2.cmml" xref="alg1.l7.m1.1.1.2">𝑤</ci><csymbol cd="latexml" id="alg1.l7.m1.1.1.3.cmml" xref="alg1.l7.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l7.m1.1c">w\leftarrow</annotation></semantics></math><span id="alg1.l7.3" class="ltx_text ltx_font_smallcaps">predict token</span>(h), <math id="alg1.l7.m2.1" class="ltx_Math" alttext="w\neq" display="inline"><semantics id="alg1.l7.m2.1a"><mrow id="alg1.l7.m2.1.1" xref="alg1.l7.m2.1.1.cmml"><mi id="alg1.l7.m2.1.1.2" xref="alg1.l7.m2.1.1.2.cmml">w</mi><mo id="alg1.l7.m2.1.1.1" xref="alg1.l7.m2.1.1.1.cmml">≠</mo><mi id="alg1.l7.m2.1.1.3" xref="alg1.l7.m2.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l7.m2.1b"><apply id="alg1.l7.m2.1.1.cmml" xref="alg1.l7.m2.1.1"><neq id="alg1.l7.m2.1.1.1.cmml" xref="alg1.l7.m2.1.1.1"></neq><ci id="alg1.l7.m2.1.1.2.cmml" xref="alg1.l7.m2.1.1.2">𝑤</ci><csymbol cd="latexml" id="alg1.l7.m2.1.1.3.cmml" xref="alg1.l7.m2.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l7.m2.1c">w\neq</annotation></semantics></math> EOS <span id="alg1.l7.4" class="ltx_text ltx_font_bold">do</span>
+
+</div>
+<div id="alg1.l8" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline"><span id="alg1.l8.1.1.1" class="ltx_text" style="font-size:80%;">8:</span></span>     <math id="alg1.l8.m1.1" class="ltx_Math" alttext="h." display="inline"><semantics id="alg1.l8.m1.1a"><mrow id="alg1.l8.m1.1.2.2"><mi id="alg1.l8.m1.1.1" xref="alg1.l8.m1.1.1.cmml">h</mi><mo lspace="0em" id="alg1.l8.m1.1.2.2.1">.</mo></mrow><annotation-xml encoding="MathML-Content" id="alg1.l8.m1.1b"><ci id="alg1.l8.m1.1.1.cmml" xref="alg1.l8.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l8.m1.1c">h.</annotation></semantics></math><span id="alg1.l8.2" class="ltx_text ltx_font_smallcaps">add</span>(<span id="alg1.l8.3" class="ltx_text ltx_font_smallcaps">embed token</span>(w))
+
+</div>
+</div>
+</figure>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">The algorithm processes speech input one embedding vector <math id="S2.p3.1.m1.1" class="ltx_Math" alttext="e" display="inline"><semantics id="S2.p3.1.m1.1a"><mi id="S2.p3.1.m1.1.1" xref="S2.p3.1.m1.1.1.cmml">e</mi><annotation-xml encoding="MathML-Content" id="S2.p3.1.m1.1b"><ci id="S2.p3.1.m1.1.1.cmml" xref="S2.p3.1.m1.1.1">𝑒</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p3.1.m1.1c">e</annotation></semantics></math> at a time, where
+in a real-time setting, line <a href="#alg1.l2" title="In Algorithm 1 ‣ 2 ``Decoder-Only'' Streaming ASR ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> would block until sufficient additional audio
+data has been received to produce the next embedding vector. In our case, an input embedding is generated every 240 ms of audio.</p>
+</div>
+<div id="S2.p4" class="ltx_para">
+<p id="S2.p4.1" class="ltx_p">Each time a speech embedding has been received, it is added to the LLM history <math id="S2.p4.1.m1.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S2.p4.1.m1.1a"><mi id="S2.p4.1.m1.1.1" xref="S2.p4.1.m1.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S2.p4.1.m1.1b"><ci id="S2.p4.1.m1.1.1.cmml" xref="S2.p4.1.m1.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p4.1.m1.1c">h</annotation></semantics></math>.
+Unlike traditional (non-real-time) LLM decoding, however, we now <span id="S2.p4.1.1" class="ltx_text ltx_font_italic">immediately</span> perform text generation (line <a href="#alg1.l4" title="In Algorithm 1 ‣ 2 ``Decoder-Only'' Streaming ASR ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> ff.)
+until a special BLANK token has been predicted.
+When no new words were received, the model would immediately predict BLANK, ending the loop right away.<span id="footnote5" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">5</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">5</sup><span class="ltx_tag ltx_tag_note">5</span>If we delete the inner loop (line <a href="#alg1.l4" title="In Algorithm 1 ‣ 2 ``Decoder-Only'' Streaming ASR ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>), we get non-streaming inference.</span></span></span></p>
+</div>
+<div id="S2.p5" class="ltx_para">
+<p id="S2.p5.1" class="ltx_p">Note that the first <a href="#alg1.l5" title="In Algorithm 1 ‣ 2 ``Decoder-Only'' Streaming ASR ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> lines are sufficient for streaming transcription of a continuous audio stream in real time; but to decode audio files, we need to allow the model to emit additional trailing tokens at the end (line <a href="#alg1.l6" title="In Algorithm 1 ‣ 2 ``Decoder-Only'' Streaming ASR ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> ff.). The end of speech input is communicated to the decoder as an EOS embedding.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Training The Speech ReaLLM</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">The training objective for Speech ReaLLM is not immediately obvious due to the need for time alignment.
+An efficient algorithm like the RNN-T loss, which marginalizes over all possible alignments via forward-backward, does not exist because the decoder-only structure cannot be factorized accordingly.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">We approximate such loss by using fixed alignments generated by an external CTC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> model, the ``alignment-teacher.''
+Initially we considered to delay the label emissions by, say, half a second, to give the model an opportunity to see some limited future context.
+However it turned out to be more effective to provide future context acoustically in the streaming encoder.</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.7" class="ltx_p">Consider this time-aligned example training utterance:</p>
+<table id="S3.p3.2.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.p3.2.2.3.1" class="ltx_tr">
+<th id="S3.p3.2.2.3.1.1" class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_rr ltx_border_t"><span id="S3.p3.2.2.3.1.1.1" class="ltx_text" style="font-size:80%;">Word</span></th>
+<th id="S3.p3.2.2.3.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.2.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">and</span></th>
+<th id="S3.p3.2.2.3.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.3.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">hand</span></th>
+<th id="S3.p3.2.2.3.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.4.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">it</span></th>
+<th id="S3.p3.2.2.3.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.5.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">over</span></th>
+<th id="S3.p3.2.2.3.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.6.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">to</span></th>
+<th id="S3.p3.2.2.3.1.7" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.7.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;">you</span></th>
+<th id="S3.p3.2.2.3.1.8" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.p3.2.2.3.1.8.1" class="ltx_text" style="font-size:80%;">end</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.p3.1.1.1" class="ltx_tr">
+<th id="S3.p3.1.1.1.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_l ltx_border_rr ltx_border_t">
+<math id="S3.p3.1.1.1.1.m1.1" class="ltx_Math" alttext="t_{\mathrm{start}}" display="inline"><semantics id="S3.p3.1.1.1.1.m1.1a"><msub id="S3.p3.1.1.1.1.m1.1.1" xref="S3.p3.1.1.1.1.m1.1.1.cmml"><mi mathsize="80%" id="S3.p3.1.1.1.1.m1.1.1.2" xref="S3.p3.1.1.1.1.m1.1.1.2.cmml">t</mi><mi mathsize="80%" id="S3.p3.1.1.1.1.m1.1.1.3" xref="S3.p3.1.1.1.1.m1.1.1.3.cmml">start</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.1.1.1.1.m1.1b"><apply id="S3.p3.1.1.1.1.m1.1.1.cmml" xref="S3.p3.1.1.1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p3.1.1.1.1.m1.1.1.1.cmml" xref="S3.p3.1.1.1.1.m1.1.1">subscript</csymbol><ci id="S3.p3.1.1.1.1.m1.1.1.2.cmml" xref="S3.p3.1.1.1.1.m1.1.1.2">𝑡</ci><ci id="S3.p3.1.1.1.1.m1.1.1.3.cmml" xref="S3.p3.1.1.1.1.m1.1.1.3">start</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.1.1.1.1.m1.1c">t_{\mathrm{start}}</annotation></semantics></math><span id="S3.p3.1.1.1.1.1" class="ltx_text" style="font-size:80%;"> [ms]</span>
+</th>
+<td id="S3.p3.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.2.1" class="ltx_text" style="font-size:80%;">140</span></td>
+<td id="S3.p3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.3.1" class="ltx_text" style="font-size:80%;">460</span></td>
+<td id="S3.p3.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.4.1" class="ltx_text" style="font-size:80%;">740</span></td>
+<td id="S3.p3.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.5.1" class="ltx_text" style="font-size:80%;">900</span></td>
+<td id="S3.p3.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.6.1" class="ltx_text" style="font-size:80%;">1180</span></td>
+<td id="S3.p3.1.1.1.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.7.1" class="ltx_text" style="font-size:80%;">1380</span></td>
+<td id="S3.p3.1.1.1.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.p3.1.1.1.8.1" class="ltx_text" style="font-size:80%;">2180</span></td>
+</tr>
+<tr id="S3.p3.2.2.2" class="ltx_tr">
+<th id="S3.p3.2.2.2.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_rr ltx_border_t">
+<math id="S3.p3.2.2.2.1.m1.1" class="ltx_Math" alttext="t_{\mathrm{end}}" display="inline"><semantics id="S3.p3.2.2.2.1.m1.1a"><msub id="S3.p3.2.2.2.1.m1.1.1" xref="S3.p3.2.2.2.1.m1.1.1.cmml"><mi mathsize="80%" id="S3.p3.2.2.2.1.m1.1.1.2" xref="S3.p3.2.2.2.1.m1.1.1.2.cmml">t</mi><mi mathsize="80%" id="S3.p3.2.2.2.1.m1.1.1.3" xref="S3.p3.2.2.2.1.m1.1.1.3.cmml">end</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.2.2.2.1.m1.1b"><apply id="S3.p3.2.2.2.1.m1.1.1.cmml" xref="S3.p3.2.2.2.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p3.2.2.2.1.m1.1.1.1.cmml" xref="S3.p3.2.2.2.1.m1.1.1">subscript</csymbol><ci id="S3.p3.2.2.2.1.m1.1.1.2.cmml" xref="S3.p3.2.2.2.1.m1.1.1.2">𝑡</ci><ci id="S3.p3.2.2.2.1.m1.1.1.3.cmml" xref="S3.p3.2.2.2.1.m1.1.1.3">end</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.2.2.2.1.m1.1c">t_{\mathrm{end}}</annotation></semantics></math><span id="S3.p3.2.2.2.1.1" class="ltx_text" style="font-size:80%;"> [ms]</span>
+</th>
+<td id="S3.p3.2.2.2.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.2.1" class="ltx_text" style="font-size:80%;">380</span></td>
+<td id="S3.p3.2.2.2.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.3.1" class="ltx_text" style="font-size:80%;">740</span></td>
+<td id="S3.p3.2.2.2.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.4.1" class="ltx_text" style="font-size:80%;">860</span></td>
+<td id="S3.p3.2.2.2.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.5.1" class="ltx_text" style="font-size:80%;">1180</span></td>
+<td id="S3.p3.2.2.2.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.6.1" class="ltx_text" style="font-size:80%;">1380</span></td>
+<td id="S3.p3.2.2.2.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S3.p3.2.2.2.7.1" class="ltx_text" style="font-size:80%;">1700</span></td>
+<td id="S3.p3.2.2.2.8" class="ltx_td ltx_border_b ltx_border_r ltx_border_t"></td>
+</tr>
+</tbody>
+</table>
+<p id="S3.p3.8" class="ltx_p">To form the training target sequence, we convert this into a label sequence where a BLANK symbol (denoted as <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span>) stands for an embedding vector that represents 240 ms of speech:</p>
+<div id="S3.p3.3" class="ltx_logical-block">
+<div id="S3.p3.3.p1" class="ltx_para ltx_noindent ltx_align_center">
+<p id="S3.p3.3.p1.1" class="ltx_p"><span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span><span id="S3.p3.3.p1.1.1" class="ltx_text ltx_font_typewriter" style="font-size:80%;"> <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> and <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> hand it <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> over <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> to <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> you <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> <span class="ltx_rule" style="width:4.8pt;height:0.5pt;background:black;display:inline-block;"> </span> EOS
+</span></p>
+</div>
+</div>
+<p id="S3.p3.9" class="ltx_p">We derive the embedding sequence at the input of the LLM decoder by embedding each word label, while for each BLANK, we substitute the speech embedding for the corresponding time:</p>
+<div id="S3.p3.4" class="ltx_logical-block">
+<div id="S3.p3.4.p1" class="ltx_para ltx_noindent ltx_align_center">
+<p id="S3.p3.4.p1.9" class="ltx_p"><span id="S3.p3.4.p1.9.9" class="ltx_text ltx_font_typewriter" style="font-size:80%;">BOS f<sub id="S3.p3.4.p1.9.9.1" class="ltx_sub"><span id="S3.p3.4.p1.9.9.1.1" class="ltx_text ltx_font_serif">1</span></sub> f<sub id="S3.p3.4.p1.9.9.2" class="ltx_sub"><span id="S3.p3.4.p1.9.9.2.1" class="ltx_text ltx_font_serif">2</span></sub> and f<sub id="S3.p3.4.p1.9.9.3" class="ltx_sub"><span id="S3.p3.4.p1.9.9.3.1" class="ltx_text ltx_font_serif">3</span></sub>  f<sub id="S3.p3.4.p1.9.9.4" class="ltx_sub"><span id="S3.p3.4.p1.9.9.4.1" class="ltx_text ltx_font_serif">4</span></sub> hand it f<sub id="S3.p3.4.p1.9.9.5" class="ltx_sub"><span id="S3.p3.4.p1.9.9.5.1" class="ltx_text ltx_font_serif">5</span></sub> over f<sub id="S3.p3.4.p1.9.9.6" class="ltx_sub"><span id="S3.p3.4.p1.9.9.6.1" class="ltx_text ltx_font_serif">6</span></sub> to f<sub id="S3.p3.4.p1.9.9.7" class="ltx_sub"><span id="S3.p3.4.p1.9.9.7.1" class="ltx_text ltx_font_serif">7</span></sub> f<sub id="S3.p3.4.p1.9.9.8" class="ltx_sub"><span id="S3.p3.4.p1.9.9.8.1" class="ltx_text ltx_font_serif">8</span></sub> you f<sub id="S3.p3.4.p1.9.9.9" class="ltx_sub"><span id="S3.p3.4.p1.9.9.9.1" class="ltx_text ltx_font_serif">9</span></sub> EOS
+</span></p>
+</div>
+</div>
+<p id="S3.p3.6" class="ltx_p">where <span id="S3.p3.5.1" class="ltx_text ltx_font_typewriter">f<sub id="S3.p3.5.1.1" class="ltx_sub"><span id="S3.p3.5.1.1.1" class="ltx_text ltx_font_serif">1</span></sub></span>, <span id="S3.p3.6.2" class="ltx_text ltx_font_typewriter">f<sub id="S3.p3.6.2.1" class="ltx_sub"><span id="S3.p3.6.2.1.1" class="ltx_text ltx_font_serif">2</span></sub></span>, … are encoder frames.
+With such target sequence and interleaved speech/word-token embeddings, we can now train the model end-to-end with CE loss.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.6" class="ltx_p">Fig. <a href="#S1.F1" title="Figure 1 ‣ 1.1 The problem with LLMs ‣ 1 Introduction ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> contrasts how speech and word-token embeddings flow through the system for Speech ReaLLM compared to Speech LLM and RNN-T.
+For ReaLLM (a), speech and text embeddings are sequentially interleaved, time index <math id="S3.p4.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.p4.1.m1.1a"><mi id="S3.p4.1.m1.1.1" xref="S3.p4.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.p4.1.m1.1b"><ci id="S3.p4.1.m1.1.1.cmml" xref="S3.p4.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.1.m1.1c">t</annotation></semantics></math> and labels index <math id="S3.p4.2.m2.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.p4.2.m2.1a"><mi id="S3.p4.2.m2.1.1" xref="S3.p4.2.m2.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.p4.2.m2.1b"><ci id="S3.p4.2.m2.1.1.cmml" xref="S3.p4.2.m2.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.2.m2.1c">k</annotation></semantics></math> being independent variables.
+For Speech LLM (b), the speech embeddings precede the text embeddings, i.e. all speech must be
+present before the first token can be emitted; hence Speech LLM is non-streaming.
+RNN-T also has independent time and label indices <math id="S3.p4.3.m3.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.p4.3.m3.1a"><mi id="S3.p4.3.m3.1.1" xref="S3.p4.3.m3.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.p4.3.m3.1b"><ci id="S3.p4.3.m3.1.1.cmml" xref="S3.p4.3.m3.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.3.m3.1c">t</annotation></semantics></math> and <math id="S3.p4.4.m4.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.p4.4.m4.1a"><mi id="S3.p4.4.m4.1.1" xref="S3.p4.4.m4.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.p4.4.m4.1b"><ci id="S3.p4.4.m4.1.1.cmml" xref="S3.p4.4.m4.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.4.m4.1c">k</annotation></semantics></math>, but while for ReaLLM we pursue exactly
+one alignment (from the alignment teacher), RNN-T hypothesizes all valid alignments of label indices <math id="S3.p4.5.m5.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S3.p4.5.m5.1a"><mi id="S3.p4.5.m5.1.1" xref="S3.p4.5.m5.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S3.p4.5.m5.1b"><ci id="S3.p4.5.m5.1.1.cmml" xref="S3.p4.5.m5.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.5.m5.1c">k</annotation></semantics></math> over time <math id="S3.p4.6.m6.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.p4.6.m6.1a"><mi id="S3.p4.6.m6.1.1" xref="S3.p4.6.m6.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.p4.6.m6.1b"><ci id="S3.p4.6.m6.1.1.cmml" xref="S3.p4.6.m6.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.6.m6.1c">t</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experiments and Results</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Dataset</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">We evaluated Speech ReaLLM using the well-known Librispeech benchmark <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>.
+Librispeech consists of audio books in the public domain.
+It includes a training set of 960h, as well as
+an evaluation set (``test'') set and a development set (``dev''),
+each consisting of an easier ``clean'' and a harder ``other'' subset, of 5.3 hours each.
+No external language model was used.
+</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>System parameters</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">We compare Speech ReaLLM against two baseline architectures: (1) the non-streaming Speech LLM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>
+and (2) an RNN-T <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> with joint network <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>.
+Unless otherwise noted, all models have about 80M parameters and are trained from scratch for up to 900 epochs, at max. learning rate of 0.0005, with a tri-partite scheduler (warmup/holding/decay of 32/64/128 epochs).</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">All share the same 80-channel log-FBANK front-end with SpecAugment, and the same Streaming Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> encoder with 20 layers, a hidden dimension of 320, a widened FFN dimension of 2048, a temporal convolution of 7 frames, and a large Conformer segment size of 1.92 seconds with left and right context of 1 and 0.96 seconds, resp., with relative position embeddings <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.
+The Conformer operates on 20-ms frames from two-way frame stacking; its
+output is further frame-reduced by stacking and projection to 240 ms<span id="footnote6" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">6</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">6</sup><span class="ltx_tag ltx_tag_note">6</span>240 ms is roughly the duration of one spoken word.</span></span></span> for Speech ReaLLM and Speech LLM, and to 60 ms for the RNN-T.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">In Speech ReaLLM and Speech LLM, the encoder is followed by a Llama-2 decoder stack <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>. For training from scratch on 960h,
+we reduced it to only two layers, an 8-head Transformer with dimension of 256, and a FFN dimension of 2048.
+The RNN-T has a two-layer predictor LSTM of the same dimensions.
+The output vocabulary is 4096 sentence pieces.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Results</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Table <a href="#S4.T1" title="Table 1 ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the main result.
+Our 80M-parameter Speech ReaLLM has WERs of 3.0 and 7.4% for test-clean and other, resp., which is within 9% relative of the 3x larger LAS-SpecAugment model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>, a well-known baseline model without additional training data, external LM, auxiliary losses, or other tricks besides SpecAugment.<span id="footnote7" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">7</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">7</sup><span class="ltx_tag ltx_tag_note">7</span>SoTA on Librispeech is much better, as low as 1.4% (test-clean, no LM) with a non-streaming Conformer, wav2vec, and semi-supervised data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>; techniques not relevant to the investigation at hand.
+</span></span></span></p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<table id="S4.T1.8.8" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T1.8.8.9.1" class="ltx_tr">
+<th id="S4.T1.8.8.9.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T1.8.8.9.1.1.1" class="ltx_text" style="font-size:80%;">Id</span></th>
+<th id="S4.T1.8.8.9.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T1.8.8.9.1.2.1" class="ltx_text" style="font-size:80%;">Architecture</span></th>
+<td id="S4.T1.8.8.9.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.8.8.9.1.3.1" class="ltx_text" style="font-size:80%;">Params</span></td>
+<td id="S4.T1.8.8.9.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.8.8.9.1.4.1" class="ltx_text" style="font-size:80%;">Strea-</span></td>
+<td id="S4.T1.8.8.9.1.5" class="ltx_td ltx_align_center ltx_border_t" colspan="2"><span id="S4.T1.8.8.9.1.5.1" class="ltx_text" style="font-size:80%;">WER test</span></td>
+<td id="S4.T1.8.8.9.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="2"><span id="S4.T1.8.8.9.1.6.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+</tr>
+<tr id="S4.T1.8.8.10.2" class="ltx_tr">
+<th id="S4.T1.8.8.10.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T1.8.8.10.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S4.T1.8.8.10.2.2.1" class="ltx_text" style="font-size:80%;">family</span></th>
+<td id="S4.T1.8.8.10.2.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.3.1" class="ltx_text" style="font-size:80%;">[M]</span></td>
+<td id="S4.T1.8.8.10.2.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.4.1" class="ltx_text" style="font-size:80%;">ming?</span></td>
+<td id="S4.T1.8.8.10.2.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.5.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T1.8.8.10.2.6" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.6.1" class="ltx_text" style="font-size:80%;">other</span></td>
+<td id="S4.T1.8.8.10.2.7" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.7.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T1.8.8.10.2.8" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T1.8.8.10.2.8.1" class="ltx_text" style="font-size:80%;">other</span></td>
+</tr>
+<tr id="S4.T1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T1.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T1.1.1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.1.1.1.1.m1.1.1" xref="S4.T1.1.1.1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T1.1.1.1.1.m1.1b"><ci id="S4.T1.1.1.1.1.m1.1.1.cmml" xref="S4.T1.1.1.1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.1.1.1.1.m1.1c">\mathcal{R}</annotation></semantics></math></th>
+<th id="S4.T1.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.2.1" class="ltx_text" style="font-size:80%;">Speech ReaLLM</span></th>
+<td id="S4.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.3.1" class="ltx_text" style="font-size:80%;">81.6</span></td>
+<td id="S4.T1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.4.1" class="ltx_text" style="font-size:80%;">Yes</span></td>
+<td id="S4.T1.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.5.1" class="ltx_text" style="font-size:80%;">3.0</span></td>
+<td id="S4.T1.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.6.1" class="ltx_text" style="font-size:80%;">7.4</span></td>
+<td id="S4.T1.1.1.1.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.7.1" class="ltx_text" style="font-size:80%;">2.7</span></td>
+<td id="S4.T1.1.1.1.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.1.1.1.8.1" class="ltx_text" style="font-size:80%;">7.6</span></td>
+</tr>
+<tr id="S4.T1.2.2.2" class="ltx_tr">
+<th id="S4.T1.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T1.2.2.2.1.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T1.2.2.2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.2.2.2.1.m1.1.1" xref="S4.T1.2.2.2.1.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T1.2.2.2.1.m1.1b"><ci id="S4.T1.2.2.2.1.m1.1.1.cmml" xref="S4.T1.2.2.2.1.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.2.2.2.1.m1.1c">\mathcal{L}</annotation></semantics></math></th>
+<th id="S4.T1.2.2.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.2.1" class="ltx_text" style="font-size:80%;">Speech LLM</span></th>
+<td id="S4.T1.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.3.1" class="ltx_text" style="font-size:80%;">81.6</span></td>
+<td id="S4.T1.2.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.4.1" class="ltx_text" style="font-size:80%;">No</span></td>
+<td id="S4.T1.2.2.2.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.5.1" class="ltx_text" style="font-size:80%;">4.8</span></td>
+<td id="S4.T1.2.2.2.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.6.1" class="ltx_text" style="font-size:80%;">8.0</span></td>
+<td id="S4.T1.2.2.2.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.7.1" class="ltx_text" style="font-size:80%;">4.2</span></td>
+<td id="S4.T1.2.2.2.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.8.1" class="ltx_text" style="font-size:80%;">8.3</span></td>
+</tr>
+<tr id="S4.T1.3.3.3" class="ltx_tr">
+<th id="S4.T1.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T1.3.3.3.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.T1.3.3.3.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.3.3.3.1.m1.1.1" xref="S4.T1.3.3.3.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.T1.3.3.3.1.m1.1b"><ci id="S4.T1.3.3.3.1.m1.1.1.cmml" xref="S4.T1.3.3.3.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.3.3.3.1.m1.1c">\mathcal{T}</annotation></semantics></math></th>
+<th id="S4.T1.3.3.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.2.1" class="ltx_text" style="font-size:80%;">RNN-T</span></th>
+<td id="S4.T1.3.3.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.3.1" class="ltx_text" style="font-size:80%;">79.3</span></td>
+<td id="S4.T1.3.3.3.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.4.1" class="ltx_text" style="font-size:80%;">Yes</span></td>
+<td id="S4.T1.3.3.3.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.5.1" class="ltx_text" style="font-size:80%;">3.6</span></td>
+<td id="S4.T1.3.3.3.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.6.1" class="ltx_text" style="font-size:80%;">9.4</span></td>
+<td id="S4.T1.3.3.3.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.7.1" class="ltx_text" style="font-size:80%;">3.3</span></td>
+<td id="S4.T1.3.3.3.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.3.3.3.8.1" class="ltx_text" style="font-size:80%;">9.6</span></td>
+</tr>
+<tr id="S4.T1.6.6.6" class="ltx_tr">
+<th id="S4.T1.4.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T1.4.4.4.1.m1.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S4.T1.4.4.4.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.4.4.4.1.m1.1.1" xref="S4.T1.4.4.4.1.m1.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S4.T1.4.4.4.1.m1.1b"><ci id="S4.T1.4.4.4.1.m1.1.1.cmml" xref="S4.T1.4.4.4.1.m1.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.4.4.4.1.m1.1c">\mathcal{P}</annotation></semantics></math></th>
+<th id="S4.T1.6.6.6.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">
+<math id="S4.T1.5.5.5.2.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T1.5.5.5.2.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.5.5.5.2.m1.1.1" xref="S4.T1.5.5.5.2.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T1.5.5.5.2.m1.1b"><ci id="S4.T1.5.5.5.2.m1.1.1.cmml" xref="S4.T1.5.5.5.2.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.5.5.5.2.m1.1c">\mathcal{R}</annotation></semantics></math><span id="S4.T1.6.6.6.3.1" class="ltx_text" style="font-size:80%;"> </span><math id="S4.T1.6.6.6.3.m2.1" class="ltx_Math" alttext="+" display="inline"><semantics id="S4.T1.6.6.6.3.m2.1a"><mo mathsize="80%" id="S4.T1.6.6.6.3.m2.1.1" xref="S4.T1.6.6.6.3.m2.1.1.cmml">+</mo><annotation-xml encoding="MathML-Content" id="S4.T1.6.6.6.3.m2.1b"><plus id="S4.T1.6.6.6.3.m2.1.1.cmml" xref="S4.T1.6.6.6.3.m2.1.1"></plus></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.6.6.6.3.m2.1c">+</annotation></semantics></math><span id="S4.T1.6.6.6.3.2" class="ltx_text" style="font-size:80%;"> pre-trained</span>
+</th>
+<td id="S4.T1.6.6.6.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.4.1" class="ltx_text" style="font-size:80%;">7B</span></td>
+<td id="S4.T1.6.6.6.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.5.1" class="ltx_text" style="font-size:80%;">Yes</span></td>
+<td id="S4.T1.6.6.6.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.6.1" class="ltx_text" style="font-size:80%;">4.7</span></td>
+<td id="S4.T1.6.6.6.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.7.1" class="ltx_text" style="font-size:80%;">9.1</span></td>
+<td id="S4.T1.6.6.6.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.8.1" class="ltx_text" style="font-size:80%;">4.2</span></td>
+<td id="S4.T1.6.6.6.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.6.6.6.9.1" class="ltx_text" style="font-size:80%;">9.5</span></td>
+</tr>
+<tr id="S4.T1.8.8.8" class="ltx_tr">
+<th id="S4.T1.7.7.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T1.7.7.7.1.m1.1" class="ltx_Math" alttext="\mathcal{S}" display="inline"><semantics id="S4.T1.7.7.7.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T1.7.7.7.1.m1.1.1" xref="S4.T1.7.7.7.1.m1.1.1.cmml">𝒮</mi><annotation-xml encoding="MathML-Content" id="S4.T1.7.7.7.1.m1.1b"><ci id="S4.T1.7.7.7.1.m1.1.1.cmml" xref="S4.T1.7.7.7.1.m1.1.1">𝒮</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.7.7.7.1.m1.1c">\mathcal{S}</annotation></semantics></math></th>
+<th id="S4.T1.8.8.8.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_tt">
+<span id="S4.T1.8.8.8.3.1" class="ltx_text" style="font-size:80%;">LAS-SpecAug. </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.T1.8.8.8.3.2.1" class="ltx_text" style="font-size:80%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S4.T1.8.8.8.3.3.2" class="ltx_text" style="font-size:80%;">]</span></cite>
+</th>
+<td id="S4.T1.8.8.8.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt">
+<math id="S4.T1.8.8.8.2.m1.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S4.T1.8.8.8.2.m1.1a"><mo mathsize="80%" id="S4.T1.8.8.8.2.m1.1.1" xref="S4.T1.8.8.8.2.m1.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S4.T1.8.8.8.2.m1.1b"><gt id="S4.T1.8.8.8.2.m1.1.1.cmml" xref="S4.T1.8.8.8.2.m1.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.8.8.8.2.m1.1c">&gt;</annotation></semantics></math><span id="S4.T1.8.8.8.2.1" class="ltx_text" style="font-size:80%;">270</span>
+</td>
+<td id="S4.T1.8.8.8.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T1.8.8.8.4.1" class="ltx_text" style="font-size:80%;">No</span></td>
+<td id="S4.T1.8.8.8.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T1.8.8.8.5.1" class="ltx_text" style="font-size:80%;">2.8</span></td>
+<td id="S4.T1.8.8.8.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T1.8.8.8.6.1" class="ltx_text" style="font-size:80%;">6.8</span></td>
+<td id="S4.T1.8.8.8.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T1.8.8.8.7.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+<td id="S4.T1.8.8.8.8" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T1.8.8.8.8.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Speech ReaLLM works. Comparing 80M Speech ReaLLM (<math id="S4.T1.14.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T1.14.m1.1b"><mi class="ltx_font_mathcaligraphic" id="S4.T1.14.m1.1.1" xref="S4.T1.14.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T1.14.m1.1c"><ci id="S4.T1.14.m1.1.1.cmml" xref="S4.T1.14.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.14.m1.1d">\mathcal{R}</annotation></semantics></math>, this paper) with non-streaming Speech LLM (<math id="S4.T1.15.m2.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T1.15.m2.1b"><mi class="ltx_font_mathcaligraphic" id="S4.T1.15.m2.1.1" xref="S4.T1.15.m2.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T1.15.m2.1c"><ci id="S4.T1.15.m2.1.1.cmml" xref="S4.T1.15.m2.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.15.m2.1d">\mathcal{L}</annotation></semantics></math>), RNN-T (<math id="S4.T1.16.m3.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.T1.16.m3.1b"><mi class="ltx_font_mathcaligraphic" id="S4.T1.16.m3.1.1" xref="S4.T1.16.m3.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.T1.16.m3.1c"><ci id="S4.T1.16.m3.1.1.cmml" xref="S4.T1.16.m3.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.16.m3.1d">\mathcal{T}</annotation></semantics></math>), and a matched public baseline (<math id="S4.T1.17.m4.1" class="ltx_Math" alttext="\mathcal{S}" display="inline"><semantics id="S4.T1.17.m4.1b"><mi class="ltx_font_mathcaligraphic" id="S4.T1.17.m4.1.1" xref="S4.T1.17.m4.1.1.cmml">𝒮</mi><annotation-xml encoding="MathML-Content" id="S4.T1.17.m4.1c"><ci id="S4.T1.17.m4.1.1.cmml" xref="S4.T1.17.m4.1.1">𝒮</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.17.m4.1d">\mathcal{S}</annotation></semantics></math>, LAS-SpecAugment); all trained from scratch on Librispeech only.
+A 7B Speech ReaLLM with a pre-trained fine-tuned Llama-7B decoder (<math id="S4.T1.18.m5.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S4.T1.18.m5.1b"><mi class="ltx_font_mathcaligraphic" id="S4.T1.18.m5.1.1" xref="S4.T1.18.m5.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S4.T1.18.m5.1c"><ci id="S4.T1.18.m5.1.1.cmml" xref="S4.T1.18.m5.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.18.m5.1d">\mathcal{P}</annotation></semantics></math>) also works in principle, but with some regression.</figcaption>
+</figure>
+<div id="S4.SS3.p2" class="ltx_para">
+<p id="S4.SS3.p2.1" class="ltx_p">A non-streaming 80M Speech LLM model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, at 4.8 and 8.0% is worse, but as we will see in section <a href="#S4.SS3.SSS4" title="4.3.4 Utterance length ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3.4</span></a>, this is due to particular problems with the longest utterances, without which it would outperform Speech ReaLLM.
+The RNN-T, at 3.6 and 9.4%, performs worst of all models.
+<span id="S4.SS3.p2.1.1" class="ltx_text ltx_font_bold">Speech ReaLLM is a viable new ASR architecture.</span></p>
+</div>
+<section id="S4.SS3.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.3.1 </span>Can a ``decoder-only'' LM learn the flow of time?</h4>
+
+<div id="S4.SS3.SSS1.p1" class="ltx_para">
+<p id="S4.SS3.SSS1.p1.1" class="ltx_p">In a simplified experiment, we trained a non-streaming <span id="S4.SS3.SSS1.p1.1.1" class="ltx_text ltx_font_italic">Time-aligned Speech LLM</span> model that, like Speech LLM, gets the entire speech in its prompt, but like Speech ReaLLM, has BLANK symbols in the target strings. Do decoded BLANK symbols represent time alignment?
+Table <a href="#S4.T2" title="Table 2 ‣ 4.3.1 Can a ``decoder-only'' LM learn the flow of time? ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows Alignment Error Rate (AER—how many words were expected vs. decoded in each 240-ms speech chunk) and Length Error Rate (LER how many utterances had a wrong predicted length).
+The alignments are good, with AERs below 7%, and the LERs under 2%.
+<span id="S4.SS3.SSS1.p1.1.2" class="ltx_text ltx_font_bold">A ``decoder-only'' LM is able to learn and reproduce the flow of time.</span>
+We also see that Time-Aligned Speech LLM itself is a functional ASR model, with no WER regression.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.3.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.3.3.4.1" class="ltx_tr">
+<th id="S4.T2.3.3.4.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T2.3.3.4.1.1.1" class="ltx_text" style="font-size:80%;">Id</span></th>
+<th id="S4.T2.3.3.4.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T2.3.3.4.1.2.1" class="ltx_text" style="font-size:80%;">Architecture</span></th>
+<th id="S4.T2.3.3.4.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="2"><span id="S4.T2.3.3.4.1.3.1" class="ltx_text" style="font-size:80%;">AER dev</span></th>
+<th id="S4.T2.3.3.4.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="2"><span id="S4.T2.3.3.4.1.4.1" class="ltx_text" style="font-size:80%;">LER dev</span></th>
+<th id="S4.T2.3.3.4.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="2"><span id="S4.T2.3.3.4.1.5.1" class="ltx_text" style="font-size:80%;">WER dev</span></th>
+</tr>
+<tr id="S4.T2.3.3.5.2" class="ltx_tr">
+<th id="S4.T2.3.3.5.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T2.3.3.5.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r"><span id="S4.T2.3.3.5.2.2.1" class="ltx_text" style="font-size:80%;">family</span></th>
+<th id="S4.T2.3.3.5.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.3.1" class="ltx_text" style="font-size:80%;">clean</span></th>
+<th id="S4.T2.3.3.5.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.4.1" class="ltx_text" style="font-size:80%;">other</span></th>
+<th id="S4.T2.3.3.5.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.5.1" class="ltx_text" style="font-size:80%;">clean</span></th>
+<th id="S4.T2.3.3.5.2.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.6.1" class="ltx_text" style="font-size:80%;">other</span></th>
+<th id="S4.T2.3.3.5.2.7" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.7.1" class="ltx_text" style="font-size:80%;">clean</span></th>
+<th id="S4.T2.3.3.5.2.8" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T2.3.3.5.2.8.1" class="ltx_text" style="font-size:80%;">other</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.1.1" class="ltx_tr">
+<th id="S4.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T2.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T2.1.1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T2.1.1.1.1.m1.1.1" xref="S4.T2.1.1.1.1.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T2.1.1.1.1.m1.1b"><ci id="S4.T2.1.1.1.1.m1.1.1.cmml" xref="S4.T2.1.1.1.1.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.1.1.1.1.m1.1c">\mathcal{L}</annotation></semantics></math></th>
+<th id="S4.T2.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.2.1" class="ltx_text" style="font-size:80%;">Speech LLM</span></th>
+<td id="S4.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.3.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+<td id="S4.T2.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.4.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+<td id="S4.T2.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.5.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+<td id="S4.T2.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.6.1" class="ltx_text" style="font-size:80%;">n/a</span></td>
+<td id="S4.T2.1.1.1.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.7.1" class="ltx_text" style="font-size:80%;">4.2</span></td>
+<td id="S4.T2.1.1.1.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.1.1.1.8.1" class="ltx_text" style="font-size:80%;">8.3</span></td>
+</tr>
+<tr id="S4.T2.3.3.3" class="ltx_tr">
+<th id="S4.T2.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T2.2.2.2.1.m1.1" class="ltx_Math" alttext="\mathcal{A}" display="inline"><semantics id="S4.T2.2.2.2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T2.2.2.2.1.m1.1.1" xref="S4.T2.2.2.2.1.m1.1.1.cmml">𝒜</mi><annotation-xml encoding="MathML-Content" id="S4.T2.2.2.2.1.m1.1b"><ci id="S4.T2.2.2.2.1.m1.1.1.cmml" xref="S4.T2.2.2.2.1.m1.1.1">𝒜</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.2.2.2.1.m1.1c">\mathcal{A}</annotation></semantics></math></th>
+<th id="S4.T2.3.3.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t">
+<math id="S4.T2.3.3.3.2.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T2.3.3.3.2.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T2.3.3.3.2.m1.1.1" xref="S4.T2.3.3.3.2.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T2.3.3.3.2.m1.1b"><ci id="S4.T2.3.3.3.2.m1.1.1.cmml" xref="S4.T2.3.3.3.2.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.3.3.3.2.m1.1c">\mathcal{L}</annotation></semantics></math><span id="S4.T2.3.3.3.2.1" class="ltx_text" style="font-size:80%;"> + Time-aligned</span>
+</th>
+<td id="S4.T2.3.3.3.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.3.1" class="ltx_text" style="font-size:80%;">4.9</span></td>
+<td id="S4.T2.3.3.3.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.4.1" class="ltx_text" style="font-size:80%;">6.5</span></td>
+<td id="S4.T2.3.3.3.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.5.1" class="ltx_text" style="font-size:80%;">1.0</span></td>
+<td id="S4.T2.3.3.3.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.6.1" class="ltx_text" style="font-size:80%;">1.4</span></td>
+<td id="S4.T2.3.3.3.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.7.1" class="ltx_text" style="font-size:80%;">4.1</span></td>
+<td id="S4.T2.3.3.3.8" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.3.3.3.8.1" class="ltx_text" style="font-size:80%;">7.6</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>A Speech LLM architecture can indeed be trained to accurately reproduce the times at which words were spoken.</figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.3.2 </span>Can a pre-trained Llama-7B be fine-tuned to learn time?</h4>
+
+<div id="S4.SS3.SSS2.p1" class="ltx_para">
+<p id="S4.SS3.SSS2.p1.1" class="ltx_p">To validate ReaLLM's compatibility with real large pre-trained LLMs, we fine-tuned the ReaLLM mechanism into a frozen pre-trained 7B Llama-2 (<span id="S4.SS3.SSS2.p1.1.1" class="ltx_text ltx_font_typewriter">llama-2-7b-hf</span>), via rank-16 LoRA adapters on all Transformer projections.
+The encoder is also frozen, from row <math id="S4.SS3.SSS2.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.SS3.SSS2.p1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS2.p1.1.m1.1.1" xref="S4.SS3.SSS2.p1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS2.p1.1.m1.1b"><ci id="S4.SS3.SSS2.p1.1.m1.1.1.cmml" xref="S4.SS3.SSS2.p1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS2.p1.1.m1.1c">\mathcal{R}</annotation></semantics></math>, with a two-layer adapter MLP to map 256-dimensional embeddings to the Llama's 4096-dimensional space. We arbitrarily repurposed a character of the existing vocabulary, the underscore, as BLANK. A total of 27.3M trainable parameters are fine-tuned on Librispeech for 27 epochs.</p>
+</div>
+<div id="S4.SS3.SSS2.p2" class="ltx_para">
+<p id="S4.SS3.SSS2.p2.1" class="ltx_p">Row <math id="S4.SS3.SSS2.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S4.SS3.SSS2.p2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS2.p2.1.m1.1.1" xref="S4.SS3.SSS2.p2.1.m1.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS2.p2.1.m1.1b"><ci id="S4.SS3.SSS2.p2.1.m1.1.1.cmml" xref="S4.SS3.SSS2.p2.1.m1.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS2.p2.1.m1.1c">\mathcal{P}</annotation></semantics></math> in Table <a href="#S4.T1" title="Table 1 ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows that it works, although the WERs of 4.2 to 9.5% are in the upper range compared to 80M models that had been trained from scratch.
+Inspecting the ASR output reveals that the model frequently inserts a random hallucinated word at the start of the utterance, while otherwise doing well after that.
+We feel it is fair to conclude that, at least in principle,
+<span id="S4.SS3.SSS2.p2.1.1" class="ltx_text ltx_font_bold">a 7B Llama model can be fine-tuned to learn the ReaLLM behavior</span>, although further analysis and understanding is required.</p>
+</div>
+<figure id="S4.T3" class="ltx_table">
+<table id="S4.T3.5.5" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.5.5.6.1" class="ltx_tr">
+<th id="S4.T3.5.5.6.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T3.5.5.6.1.1.1" class="ltx_text" style="font-size:80%;">Id</span></th>
+<th id="S4.T3.5.5.6.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T3.5.5.6.1.2.1" class="ltx_text" style="font-size:80%;">Architecture</span></th>
+<th id="S4.T3.5.5.6.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S4.T3.5.5.6.1.3.1" class="ltx_text" style="font-size:80%;">Label</span></th>
+<th id="S4.T3.5.5.6.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S4.T3.5.5.6.1.4.1" class="ltx_text" style="font-size:80%;">Right</span></th>
+<th id="S4.T3.5.5.6.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t" colspan="2"><span id="S4.T3.5.5.6.1.5.1" class="ltx_text" style="font-size:80%;">WER dev</span></th>
+</tr>
+<tr id="S4.T3.5.5.7.2" class="ltx_tr">
+<th id="S4.T3.5.5.7.2.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T3.5.5.7.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r"><span id="S4.T3.5.5.7.2.2.1" class="ltx_text" style="font-size:80%;">family</span></th>
+<th id="S4.T3.5.5.7.2.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T3.5.5.7.2.3.1" class="ltx_text" style="font-size:80%;">delay</span></th>
+<th id="S4.T3.5.5.7.2.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T3.5.5.7.2.4.1" class="ltx_text" style="font-size:80%;">context</span></th>
+<th id="S4.T3.5.5.7.2.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T3.5.5.7.2.5.1" class="ltx_text" style="font-size:80%;">clean</span></th>
+<th id="S4.T3.5.5.7.2.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r"><span id="S4.T3.5.5.7.2.6.1" class="ltx_text" style="font-size:80%;">other</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.1.1" class="ltx_tr">
+<th id="S4.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T3.1.1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T3.1.1.1.1.m1.1.1" xref="S4.T3.1.1.1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T3.1.1.1.1.m1.1b"><ci id="S4.T3.1.1.1.1.m1.1.1.cmml" xref="S4.T3.1.1.1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.1.1.1.1.m1.1c">\mathcal{R}</annotation></semantics></math></th>
+<th id="S4.T3.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.2.1" class="ltx_text" style="font-size:80%;">Speech ReaLLM</span></th>
+<td id="S4.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.3.1" class="ltx_text" style="font-size:80%;">0 ms</span></td>
+<td id="S4.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.4.1" class="ltx_text" style="font-size:80%;">960 ms</span></td>
+<td id="S4.T3.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.5.1" class="ltx_text" style="font-size:80%;">2.7</span></td>
+<td id="S4.T3.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.6.1" class="ltx_text" style="font-size:80%;">7.6</span></td>
+</tr>
+<tr id="S4.T3.5.5.5" class="ltx_tr">
+<th id="S4.T3.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T3.2.2.2.1.m1.1" class="ltx_Math" alttext="\mathcal{D}" display="inline"><semantics id="S4.T3.2.2.2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T3.2.2.2.1.m1.1.1" xref="S4.T3.2.2.2.1.m1.1.1.cmml">𝒟</mi><annotation-xml encoding="MathML-Content" id="S4.T3.2.2.2.1.m1.1b"><ci id="S4.T3.2.2.2.1.m1.1.1.cmml" xref="S4.T3.2.2.2.1.m1.1.1">𝒟</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.2.2.2.1.m1.1c">\mathcal{D}</annotation></semantics></math></th>
+<th id="S4.T3.5.5.5.4" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t">
+<math id="S4.T3.3.3.3.2.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T3.3.3.3.2.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T3.3.3.3.2.m1.1.1" xref="S4.T3.3.3.3.2.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T3.3.3.3.2.m1.1b"><ci id="S4.T3.3.3.3.2.m1.1.1.cmml" xref="S4.T3.3.3.3.2.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.3.3.3.2.m1.1c">\mathcal{R}</annotation></semantics></math><span id="S4.T3.5.5.5.4.1" class="ltx_text" style="font-size:80%;"> </span><math id="S4.T3.4.4.4.3.m2.1" class="ltx_Math" alttext="+" display="inline"><semantics id="S4.T3.4.4.4.3.m2.1a"><mo mathsize="80%" id="S4.T3.4.4.4.3.m2.1.1" xref="S4.T3.4.4.4.3.m2.1.1.cmml">+</mo><annotation-xml encoding="MathML-Content" id="S4.T3.4.4.4.3.m2.1b"><plus id="S4.T3.4.4.4.3.m2.1.1.cmml" xref="S4.T3.4.4.4.3.m2.1.1"></plus></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.4.4.4.3.m2.1c">+</annotation></semantics></math><span id="S4.T3.5.5.5.4.2" class="ltx_text" style="font-size:80%;"> label delay </span><math id="S4.T3.5.5.5.4.m3.1" class="ltx_Math" alttext="-" display="inline"><semantics id="S4.T3.5.5.5.4.m3.1a"><mo mathsize="80%" id="S4.T3.5.5.5.4.m3.1.1" xref="S4.T3.5.5.5.4.m3.1.1.cmml">−</mo><annotation-xml encoding="MathML-Content" id="S4.T3.5.5.5.4.m3.1b"><minus id="S4.T3.5.5.5.4.m3.1.1.cmml" xref="S4.T3.5.5.5.4.m3.1.1"></minus></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.5.5.5.4.m3.1c">-</annotation></semantics></math><span id="S4.T3.5.5.5.4.3" class="ltx_text" style="font-size:80%;"> right context</span>
+</th>
+<td id="S4.T3.5.5.5.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T3.5.5.5.5.1" class="ltx_text" style="font-size:80%;">480 ms</span></td>
+<td id="S4.T3.5.5.5.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T3.5.5.5.6.1" class="ltx_text" style="font-size:80%;">480 ms</span></td>
+<td id="S4.T3.5.5.5.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T3.5.5.5.7.1" class="ltx_text" style="font-size:80%;">4.4</span></td>
+<td id="S4.T3.5.5.5.8" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T3.5.5.5.8.1" class="ltx_text" style="font-size:80%;">9.1</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 3: </span>Shifting 480 ms of future context from the encoder to the decoder leads to accuracy regression.</figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.3.3 </span>Time alignment and the loss function</h4>
+
+<div id="S4.SS3.SSS3.p1" class="ltx_para">
+<p id="S4.SS3.SSS3.p1.1" class="ltx_p">Is it better to provide the ASR system future context via the encoder or the decoder?
+We tried predicting output words at a delay of 2 tokens (480 ms), giving the decoder access to two future labels; while reducing the Conformer right context by the same amount.
+Table <a href="#S4.T3" title="Table 3 ‣ 4.3.2 Can a pre-trained Llama-7B be fine-tuned to learn time? ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows that this does not work as well, possibly because the decoder is much smaller. It may be different with a deeper decoder trained on more training data.</p>
+</div>
+</section>
+<section id="S4.SS3.SSS4" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.3.4 </span>Utterance length</h4>
+
+<div id="S4.SS3.SSS4.p1" class="ltx_para">
+<p id="S4.SS3.SSS4.p1.2" class="ltx_p">Table <a href="#S4.T4" title="Table 4 ‣ 4.3.4 Utterance length ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows the dev-set results from Table <a href="#S4.T1" title="Table 1 ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> broken out by grouping the test utterances into three length groups.
+Amongst the 80M models trained from scratch,
+the streaming <span id="S4.SS3.SSS4.p1.1.1" class="ltx_text ltx_font_bold">Speech ReaLLM (<math id="S4.SS3.SSS4.p1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.SS3.SSS4.p1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS4.p1.1.1.m1.1.1" xref="S4.SS3.SSS4.p1.1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS4.p1.1.1.m1.1b"><ci id="S4.SS3.SSS4.p1.1.1.m1.1.1.cmml" xref="S4.SS3.SSS4.p1.1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS4.p1.1.1.m1.1c">\mathcal{R}</annotation></semantics></math>) performs consistently across lengths</span>, as does the RNN-T (<math id="S4.SS3.SSS4.p1.2.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.SS3.SSS4.p1.2.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS4.p1.2.m1.1.1" xref="S4.SS3.SSS4.p1.2.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS4.p1.2.m1.1b"><ci id="S4.SS3.SSS4.p1.2.m1.1.1.cmml" xref="S4.SS3.SSS4.p1.2.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS4.p1.2.m1.1c">\mathcal{T}</annotation></semantics></math>).</p>
+</div>
+<figure id="S4.T4" class="ltx_table">
+<table id="S4.T4.8.8" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T4.8.8.9.1" class="ltx_tr">
+<th id="S4.T4.8.8.9.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T4.8.8.9.1.1.1" class="ltx_text" style="font-size:80%;">Id</span></th>
+<th id="S4.T4.8.8.9.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T4.8.8.9.1.2.1" class="ltx_text" style="font-size:80%;">Architecture</span></th>
+<td id="S4.T4.8.8.9.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="2"><span id="S4.T4.8.8.9.1.3.1" class="ltx_text" style="font-size:80%;">Short</span></td>
+<td id="S4.T4.8.8.9.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="2"><span id="S4.T4.8.8.9.1.4.1" class="ltx_text" style="font-size:80%;">Medium</span></td>
+<td id="S4.T4.8.8.9.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="2"><span id="S4.T4.8.8.9.1.5.1" class="ltx_text" style="font-size:80%;">Longest 100</span></td>
+</tr>
+<tr id="S4.T4.8.8.10.2" class="ltx_tr">
+<th id="S4.T4.8.8.10.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T4.8.8.10.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S4.T4.8.8.10.2.2.1" class="ltx_text" style="font-size:80%;">family</span></th>
+<td id="S4.T4.8.8.10.2.3" class="ltx_td ltx_align_center ltx_border_r" colspan="2"><span id="S4.T4.8.8.10.2.3.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+<td id="S4.T4.8.8.10.2.4" class="ltx_td ltx_align_center ltx_border_r" colspan="2"><span id="S4.T4.8.8.10.2.4.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+<td id="S4.T4.8.8.10.2.5" class="ltx_td ltx_align_center ltx_border_r" colspan="2"><span id="S4.T4.8.8.10.2.5.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+</tr>
+<tr id="S4.T4.8.8.11.3" class="ltx_tr">
+<th id="S4.T4.8.8.11.3.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T4.8.8.11.3.2" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S4.T4.8.8.11.3.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.3.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T4.8.8.11.3.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.4.1" class="ltx_text" style="font-size:80%;">other</span></td>
+<td id="S4.T4.8.8.11.3.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.5.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T4.8.8.11.3.6" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.6.1" class="ltx_text" style="font-size:80%;">other</span></td>
+<td id="S4.T4.8.8.11.3.7" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.7.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T4.8.8.11.3.8" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T4.8.8.11.3.8.1" class="ltx_text" style="font-size:80%;">other</span></td>
+</tr>
+<tr id="S4.T4.1.1.1" class="ltx_tr">
+<th id="S4.T4.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T4.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T4.1.1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.1.1.1.1.m1.1.1" xref="S4.T4.1.1.1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T4.1.1.1.1.m1.1b"><ci id="S4.T4.1.1.1.1.m1.1.1.cmml" xref="S4.T4.1.1.1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.1.1.1.1.m1.1c">\mathcal{R}</annotation></semantics></math></th>
+<th id="S4.T4.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.2.1" class="ltx_text" style="font-size:80%;">Speech ReaLLM</span></th>
+<td id="S4.T4.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.3.1" class="ltx_text" style="font-size:80%;">3.1</span></td>
+<td id="S4.T4.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.4.1" class="ltx_text" style="font-size:80%;">8.0</span></td>
+<td id="S4.T4.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.5.1" class="ltx_text" style="font-size:80%;">2.4</span></td>
+<td id="S4.T4.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.6.1" class="ltx_text" style="font-size:80%;">7.3</span></td>
+<td id="S4.T4.1.1.1.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.7.1" class="ltx_text" style="font-size:80%;">2.6</span></td>
+<td id="S4.T4.1.1.1.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.1.1.1.8.1" class="ltx_text" style="font-size:80%;">7.4</span></td>
+</tr>
+<tr id="S4.T4.2.2.2" class="ltx_tr">
+<th id="S4.T4.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T4.2.2.2.1.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T4.2.2.2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.2.2.2.1.m1.1.1" xref="S4.T4.2.2.2.1.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T4.2.2.2.1.m1.1b"><ci id="S4.T4.2.2.2.1.m1.1.1.cmml" xref="S4.T4.2.2.2.1.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.2.2.2.1.m1.1c">\mathcal{L}</annotation></semantics></math></th>
+<th id="S4.T4.2.2.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.2.1" class="ltx_text" style="font-size:80%;">Speech LLM</span></th>
+<td id="S4.T4.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.3.1" class="ltx_text" style="font-size:80%;">2.8</span></td>
+<td id="S4.T4.2.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.4.1" class="ltx_text" style="font-size:80%;">7.2</span></td>
+<td id="S4.T4.2.2.2.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.5.1" class="ltx_text" style="font-size:80%;">2.3</span></td>
+<td id="S4.T4.2.2.2.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.6.1" class="ltx_text" style="font-size:80%;">6.1</span></td>
+<td id="S4.T4.2.2.2.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.7.1" class="ltx_text" style="font-size:80%;">17.8</span></td>
+<td id="S4.T4.2.2.2.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.2.2.2.8.1" class="ltx_text" style="font-size:80%;">22.0</span></td>
+</tr>
+<tr id="S4.T4.4.4.4" class="ltx_tr">
+<th id="S4.T4.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T4.3.3.3.1.m1.1" class="ltx_Math" alttext="\mathcal{A}" display="inline"><semantics id="S4.T4.3.3.3.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.3.3.3.1.m1.1.1" xref="S4.T4.3.3.3.1.m1.1.1.cmml">𝒜</mi><annotation-xml encoding="MathML-Content" id="S4.T4.3.3.3.1.m1.1b"><ci id="S4.T4.3.3.3.1.m1.1.1.cmml" xref="S4.T4.3.3.3.1.m1.1.1">𝒜</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.3.3.3.1.m1.1c">\mathcal{A}</annotation></semantics></math></th>
+<th id="S4.T4.4.4.4.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t">
+<math id="S4.T4.4.4.4.2.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T4.4.4.4.2.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.4.4.4.2.m1.1.1" xref="S4.T4.4.4.4.2.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T4.4.4.4.2.m1.1b"><ci id="S4.T4.4.4.4.2.m1.1.1.cmml" xref="S4.T4.4.4.4.2.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.4.4.4.2.m1.1c">\mathcal{L}</annotation></semantics></math><span id="S4.T4.4.4.4.2.1" class="ltx_text" style="font-size:80%;"> + Time Aligned</span>
+</th>
+<td id="S4.T4.4.4.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.3.1" class="ltx_text" style="font-size:80%;">2.7</span></td>
+<td id="S4.T4.4.4.4.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.4.1" class="ltx_text" style="font-size:80%;">6.6</span></td>
+<td id="S4.T4.4.4.4.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.5.1" class="ltx_text" style="font-size:80%;">2.2</span></td>
+<td id="S4.T4.4.4.4.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.6.1" class="ltx_text" style="font-size:80%;">6.2</span></td>
+<td id="S4.T4.4.4.4.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.7.1" class="ltx_text" style="font-size:80%;">17.3</span></td>
+<td id="S4.T4.4.4.4.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.4.4.4.8.1" class="ltx_text" style="font-size:80%;">17.4</span></td>
+</tr>
+<tr id="S4.T4.5.5.5" class="ltx_tr">
+<th id="S4.T4.5.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T4.5.5.5.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.T4.5.5.5.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.5.5.5.1.m1.1.1" xref="S4.T4.5.5.5.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.T4.5.5.5.1.m1.1b"><ci id="S4.T4.5.5.5.1.m1.1.1.cmml" xref="S4.T4.5.5.5.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.5.5.5.1.m1.1c">\mathcal{T}</annotation></semantics></math></th>
+<th id="S4.T4.5.5.5.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.2.1" class="ltx_text" style="font-size:80%;">RNN-T</span></th>
+<td id="S4.T4.5.5.5.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.3.1" class="ltx_text" style="font-size:80%;">4.5</span></td>
+<td id="S4.T4.5.5.5.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.4.1" class="ltx_text" style="font-size:80%;">10.0</span></td>
+<td id="S4.T4.5.5.5.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.5.1" class="ltx_text" style="font-size:80%;">3.1</span></td>
+<td id="S4.T4.5.5.5.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.6.1" class="ltx_text" style="font-size:80%;">9.4</span></td>
+<td id="S4.T4.5.5.5.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.7.1" class="ltx_text" style="font-size:80%;">3.1</span></td>
+<td id="S4.T4.5.5.5.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T4.5.5.5.8.1" class="ltx_text" style="font-size:80%;">9.3</span></td>
+</tr>
+<tr id="S4.T4.8.8.8" class="ltx_tr">
+<th id="S4.T4.6.6.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T4.6.6.6.1.m1.1" class="ltx_Math" alttext="\mathcal{P}" display="inline"><semantics id="S4.T4.6.6.6.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.6.6.6.1.m1.1.1" xref="S4.T4.6.6.6.1.m1.1.1.cmml">𝒫</mi><annotation-xml encoding="MathML-Content" id="S4.T4.6.6.6.1.m1.1b"><ci id="S4.T4.6.6.6.1.m1.1.1.cmml" xref="S4.T4.6.6.6.1.m1.1.1">𝒫</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.6.6.6.1.m1.1c">\mathcal{P}</annotation></semantics></math></th>
+<th id="S4.T4.8.8.8.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt">
+<math id="S4.T4.7.7.7.2.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T4.7.7.7.2.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T4.7.7.7.2.m1.1.1" xref="S4.T4.7.7.7.2.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T4.7.7.7.2.m1.1b"><ci id="S4.T4.7.7.7.2.m1.1.1.cmml" xref="S4.T4.7.7.7.2.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.7.7.7.2.m1.1c">\mathcal{R}</annotation></semantics></math><span id="S4.T4.8.8.8.3.1" class="ltx_text" style="font-size:80%;"> </span><math id="S4.T4.8.8.8.3.m2.1" class="ltx_Math" alttext="+" display="inline"><semantics id="S4.T4.8.8.8.3.m2.1a"><mo mathsize="80%" id="S4.T4.8.8.8.3.m2.1.1" xref="S4.T4.8.8.8.3.m2.1.1.cmml">+</mo><annotation-xml encoding="MathML-Content" id="S4.T4.8.8.8.3.m2.1b"><plus id="S4.T4.8.8.8.3.m2.1.1.cmml" xref="S4.T4.8.8.8.3.m2.1.1"></plus></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.8.8.8.3.m2.1c">+</annotation></semantics></math><span id="S4.T4.8.8.8.3.2" class="ltx_text" style="font-size:80%;"> pre-trained</span>
+</th>
+<td id="S4.T4.8.8.8.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.4.1" class="ltx_text" style="font-size:80%;">4.9</span></td>
+<td id="S4.T4.8.8.8.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.5.1" class="ltx_text" style="font-size:80%;">10.4</span></td>
+<td id="S4.T4.8.8.8.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.6.1" class="ltx_text" style="font-size:80%;">3.7</span></td>
+<td id="S4.T4.8.8.8.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.7.1" class="ltx_text" style="font-size:80%;">8.8</span></td>
+<td id="S4.T4.8.8.8.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.8.1" class="ltx_text" style="font-size:80%;">3.8</span></td>
+<td id="S4.T4.8.8.8.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.8.9.1" class="ltx_text" style="font-size:80%;">8.7</span></td>
+</tr>
+<tr id="S4.T4.8.8.12.4" class="ltx_tr">
+<th id="S4.T4.8.8.12.4.1" class="ltx_td ltx_align_right ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_tt" colspan="2"><span id="S4.T4.8.8.12.4.1.1" class="ltx_text" style="font-size:80%;">Avg. length</span></th>
+<td id="S4.T4.8.8.12.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.2.1" class="ltx_text ltx_font_italic" style="font-size:80%;">12.6</span></td>
+<td id="S4.T4.8.8.12.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">11.6</span></td>
+<td id="S4.T4.8.8.12.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.4.1" class="ltx_text ltx_font_italic" style="font-size:80%;">32.0</span></td>
+<td id="S4.T4.8.8.12.4.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.5.1" class="ltx_text ltx_font_italic" style="font-size:80%;">28.5</span></td>
+<td id="S4.T4.8.8.12.4.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.6.1" class="ltx_text ltx_font_italic" style="font-size:80%;">61.75</span></td>
+<td id="S4.T4.8.8.12.4.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_tt"><span id="S4.T4.8.8.12.4.7.1" class="ltx_text ltx_font_italic" style="font-size:80%;">54.7</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 4: </span>The Speech LLM architecture stumbles over long sentences. Speech ReaLLM and RNN-T are unfazed.</figcaption>
+</figure>
+<div id="S4.SS3.SSS4.p2" class="ltx_para">
+<p id="S4.SS3.SSS4.p2.2" class="ltx_p">The non-streaming Speech LLM (<math id="S4.SS3.SSS4.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.SS3.SSS4.p2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS4.p2.1.m1.1.1" xref="S4.SS3.SSS4.p2.1.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS4.p2.1.m1.1b"><ci id="S4.SS3.SSS4.p2.1.m1.1.1.cmml" xref="S4.SS3.SSS4.p2.1.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS4.p2.1.m1.1c">\mathcal{L}</annotation></semantics></math>), however, struggles, with WERs above 17% on the longest 100 utterances. Its output has words dropped and in wrong order.
+The Time-Aligned Speech LLM (<math id="S4.SS3.SSS4.p2.2.m2.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.SS3.SSS4.p2.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS4.p2.2.m2.1.1" xref="S4.SS3.SSS4.p2.2.m2.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS4.p2.2.m2.1b"><ci id="S4.SS3.SSS4.p2.2.m2.1.1.cmml" xref="S4.SS3.SSS4.p2.2.m2.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS4.p2.2.m2.1c">\mathcal{T}</annotation></semantics></math>, Sec. <a href="#S4.SS3.SSS1" title="4.3.1 Can a ``decoder-only'' LM learn the flow of time? ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3.1</span></a>) exhibits almost the same pattern.
+Additionally, it so happened that, by means of a configuration bug, we incidentally trained a Llama-ReaLLM ``chimera''
+that received the speech frames in both the left context (like Llama) and interleaved
+ReaLLM); this chimera exhibited a similar issue, except less pronounced.
+This points to a challenge with modeling the long-span dependency into the prompt—the two-layer speech decoder may be too small to model this, or undertrained given the lack of long utterances in the training data. Both Speech ReaLLM and RNN-T gracefully avoid this issue, presumably by virtue of their different modes of operation.</p>
+</div>
+<div id="S4.SS3.SSS4.p3" class="ltx_para">
+<p id="S4.SS3.SSS4.p3.1" class="ltx_p">We also find that a 7B
+Speech ReaLLM with a pre-trained Llama-2 decoder handles long utterances just fine.</p>
+</div>
+</section>
+<section id="S4.SS3.SSS5" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">4.3.5 </span>Inference cost, Real-time Factor, and Beam Search</h4>
+
+<div id="S4.SS3.SSS5.p1" class="ltx_para">
+<p id="S4.SS3.SSS5.p1.8" class="ltx_p">How does the inference cost of Speech ReaLLM compare to Speech LLM and RNN-T?
+A back-of-the-envelope estimate of inference cost—for greedy search to keep it simple—is:</p>
+<table id="S6.EGx1" class="ltx_equationgroup ltx_eqn_eqnarray ltx_eqn_table">
+
+<tbody id="S4.Ex1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.Ex1.m1.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{common}}" display="inline"><semantics id="S4.Ex1.m1.1a"><msub id="S4.Ex1.m1.1.1" xref="S4.Ex1.m1.1.1.cmml"><mi id="S4.Ex1.m1.1.1.2" xref="S4.Ex1.m1.1.1.2.cmml">C</mi><mi id="S4.Ex1.m1.1.1.3" xref="S4.Ex1.m1.1.1.3.cmml">common</mi></msub><annotation-xml encoding="MathML-Content" id="S4.Ex1.m1.1b"><apply id="S4.Ex1.m1.1.1.cmml" xref="S4.Ex1.m1.1.1"><csymbol cd="ambiguous" id="S4.Ex1.m1.1.1.1.cmml" xref="S4.Ex1.m1.1.1">subscript</csymbol><ci id="S4.Ex1.m1.1.1.2.cmml" xref="S4.Ex1.m1.1.1.2">𝐶</ci><ci id="S4.Ex1.m1.1.1.3.cmml" xref="S4.Ex1.m1.1.1.3">common</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex1.m1.1c">\displaystyle C_{\mathrm{common}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_eqn_cell"><math id="S4.Ex1.m2.1" class="ltx_Math" alttext="\displaystyle=" display="inline"><semantics id="S4.Ex1.m2.1a"><mo id="S4.Ex1.m2.1.1" xref="S4.Ex1.m2.1.1.cmml">=</mo><annotation-xml encoding="MathML-Content" id="S4.Ex1.m2.1b"><eq id="S4.Ex1.m2.1.1.cmml" xref="S4.Ex1.m2.1.1"></eq></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex1.m2.1c">\displaystyle=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.Ex1.m3.1" class="ltx_Math" alttext="\displaystyle T\cdot\mathcal{E}+U\cdot\mathcal{D}(T)+U\cdot\mathcal{O}" display="inline"><semantics id="S4.Ex1.m3.1a"><mrow id="S4.Ex1.m3.1.2" xref="S4.Ex1.m3.1.2.cmml"><mrow id="S4.Ex1.m3.1.2.2" xref="S4.Ex1.m3.1.2.2.cmml"><mi id="S4.Ex1.m3.1.2.2.2" xref="S4.Ex1.m3.1.2.2.2.cmml">T</mi><mo lspace="0.222em" rspace="0.222em" id="S4.Ex1.m3.1.2.2.1" xref="S4.Ex1.m3.1.2.2.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex1.m3.1.2.2.3" xref="S4.Ex1.m3.1.2.2.3.cmml">ℰ</mi></mrow><mo id="S4.Ex1.m3.1.2.1" xref="S4.Ex1.m3.1.2.1.cmml">+</mo><mrow id="S4.Ex1.m3.1.2.3" xref="S4.Ex1.m3.1.2.3.cmml"><mrow id="S4.Ex1.m3.1.2.3.2" xref="S4.Ex1.m3.1.2.3.2.cmml"><mi id="S4.Ex1.m3.1.2.3.2.2" xref="S4.Ex1.m3.1.2.3.2.2.cmml">U</mi><mo lspace="0.222em" rspace="0.222em" id="S4.Ex1.m3.1.2.3.2.1" xref="S4.Ex1.m3.1.2.3.2.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex1.m3.1.2.3.2.3" xref="S4.Ex1.m3.1.2.3.2.3.cmml">𝒟</mi></mrow><mo lspace="0em" rspace="0em" id="S4.Ex1.m3.1.2.3.1" xref="S4.Ex1.m3.1.2.3.1.cmml">​</mo><mrow id="S4.Ex1.m3.1.2.3.3.2" xref="S4.Ex1.m3.1.2.3.cmml"><mo stretchy="false" id="S4.Ex1.m3.1.2.3.3.2.1" xref="S4.Ex1.m3.1.2.3.cmml">(</mo><mi id="S4.Ex1.m3.1.1" xref="S4.Ex1.m3.1.1.cmml">T</mi><mo stretchy="false" id="S4.Ex1.m3.1.2.3.3.2.2" xref="S4.Ex1.m3.1.2.3.cmml">)</mo></mrow></mrow><mo id="S4.Ex1.m3.1.2.1a" xref="S4.Ex1.m3.1.2.1.cmml">+</mo><mrow id="S4.Ex1.m3.1.2.4" xref="S4.Ex1.m3.1.2.4.cmml"><mi id="S4.Ex1.m3.1.2.4.2" xref="S4.Ex1.m3.1.2.4.2.cmml">U</mi><mo lspace="0.222em" rspace="0.222em" id="S4.Ex1.m3.1.2.4.1" xref="S4.Ex1.m3.1.2.4.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex1.m3.1.2.4.3" xref="S4.Ex1.m3.1.2.4.3.cmml">𝒪</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex1.m3.1b"><apply id="S4.Ex1.m3.1.2.cmml" xref="S4.Ex1.m3.1.2"><plus id="S4.Ex1.m3.1.2.1.cmml" xref="S4.Ex1.m3.1.2.1"></plus><apply id="S4.Ex1.m3.1.2.2.cmml" xref="S4.Ex1.m3.1.2.2"><ci id="S4.Ex1.m3.1.2.2.1.cmml" xref="S4.Ex1.m3.1.2.2.1">⋅</ci><ci id="S4.Ex1.m3.1.2.2.2.cmml" xref="S4.Ex1.m3.1.2.2.2">𝑇</ci><ci id="S4.Ex1.m3.1.2.2.3.cmml" xref="S4.Ex1.m3.1.2.2.3">ℰ</ci></apply><apply id="S4.Ex1.m3.1.2.3.cmml" xref="S4.Ex1.m3.1.2.3"><times id="S4.Ex1.m3.1.2.3.1.cmml" xref="S4.Ex1.m3.1.2.3.1"></times><apply id="S4.Ex1.m3.1.2.3.2.cmml" xref="S4.Ex1.m3.1.2.3.2"><ci id="S4.Ex1.m3.1.2.3.2.1.cmml" xref="S4.Ex1.m3.1.2.3.2.1">⋅</ci><ci id="S4.Ex1.m3.1.2.3.2.2.cmml" xref="S4.Ex1.m3.1.2.3.2.2">𝑈</ci><ci id="S4.Ex1.m3.1.2.3.2.3.cmml" xref="S4.Ex1.m3.1.2.3.2.3">𝒟</ci></apply><ci id="S4.Ex1.m3.1.1.cmml" xref="S4.Ex1.m3.1.1">𝑇</ci></apply><apply id="S4.Ex1.m3.1.2.4.cmml" xref="S4.Ex1.m3.1.2.4"><ci id="S4.Ex1.m3.1.2.4.1.cmml" xref="S4.Ex1.m3.1.2.4.1">⋅</ci><ci id="S4.Ex1.m3.1.2.4.2.cmml" xref="S4.Ex1.m3.1.2.4.2">𝑈</ci><ci id="S4.Ex1.m3.1.2.4.3.cmml" xref="S4.Ex1.m3.1.2.4.3">𝒪</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex1.m3.1c">\displaystyle T\cdot\mathcal{E}+U\cdot\mathcal{D}(T)+U\cdot\mathcal{O}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+<tbody id="S4.Ex2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.Ex2.m1.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{ReaLLM}}" display="inline"><semantics id="S4.Ex2.m1.1a"><msub id="S4.Ex2.m1.1.1" xref="S4.Ex2.m1.1.1.cmml"><mi id="S4.Ex2.m1.1.1.2" xref="S4.Ex2.m1.1.1.2.cmml">C</mi><mi id="S4.Ex2.m1.1.1.3" xref="S4.Ex2.m1.1.1.3.cmml">ReaLLM</mi></msub><annotation-xml encoding="MathML-Content" id="S4.Ex2.m1.1b"><apply id="S4.Ex2.m1.1.1.cmml" xref="S4.Ex2.m1.1.1"><csymbol cd="ambiguous" id="S4.Ex2.m1.1.1.1.cmml" xref="S4.Ex2.m1.1.1">subscript</csymbol><ci id="S4.Ex2.m1.1.1.2.cmml" xref="S4.Ex2.m1.1.1.2">𝐶</ci><ci id="S4.Ex2.m1.1.1.3.cmml" xref="S4.Ex2.m1.1.1.3">ReaLLM</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex2.m1.1c">\displaystyle C_{\mathrm{ReaLLM}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_eqn_cell"><math id="S4.Ex2.m2.1" class="ltx_Math" alttext="\displaystyle=" display="inline"><semantics id="S4.Ex2.m2.1a"><mo id="S4.Ex2.m2.1.1" xref="S4.Ex2.m2.1.1.cmml">=</mo><annotation-xml encoding="MathML-Content" id="S4.Ex2.m2.1b"><eq id="S4.Ex2.m2.1.1.cmml" xref="S4.Ex2.m2.1.1"></eq></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex2.m2.1c">\displaystyle=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.Ex2.m3.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{common}}+Tf\cdot\mathcal{D}(T)+Tf\cdot\mathcal{O}" display="inline"><semantics id="S4.Ex2.m3.1a"><mrow id="S4.Ex2.m3.1.2" xref="S4.Ex2.m3.1.2.cmml"><msub id="S4.Ex2.m3.1.2.2" xref="S4.Ex2.m3.1.2.2.cmml"><mi id="S4.Ex2.m3.1.2.2.2" xref="S4.Ex2.m3.1.2.2.2.cmml">C</mi><mi id="S4.Ex2.m3.1.2.2.3" xref="S4.Ex2.m3.1.2.2.3.cmml">common</mi></msub><mo id="S4.Ex2.m3.1.2.1" xref="S4.Ex2.m3.1.2.1.cmml">+</mo><mrow id="S4.Ex2.m3.1.2.3" xref="S4.Ex2.m3.1.2.3.cmml"><mrow id="S4.Ex2.m3.1.2.3.2" xref="S4.Ex2.m3.1.2.3.2.cmml"><mrow id="S4.Ex2.m3.1.2.3.2.2" xref="S4.Ex2.m3.1.2.3.2.2.cmml"><mi id="S4.Ex2.m3.1.2.3.2.2.2" xref="S4.Ex2.m3.1.2.3.2.2.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S4.Ex2.m3.1.2.3.2.2.1" xref="S4.Ex2.m3.1.2.3.2.2.1.cmml">​</mo><mi id="S4.Ex2.m3.1.2.3.2.2.3" xref="S4.Ex2.m3.1.2.3.2.2.3.cmml">f</mi></mrow><mo lspace="0.222em" rspace="0.222em" id="S4.Ex2.m3.1.2.3.2.1" xref="S4.Ex2.m3.1.2.3.2.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex2.m3.1.2.3.2.3" xref="S4.Ex2.m3.1.2.3.2.3.cmml">𝒟</mi></mrow><mo lspace="0em" rspace="0em" id="S4.Ex2.m3.1.2.3.1" xref="S4.Ex2.m3.1.2.3.1.cmml">​</mo><mrow id="S4.Ex2.m3.1.2.3.3.2" xref="S4.Ex2.m3.1.2.3.cmml"><mo stretchy="false" id="S4.Ex2.m3.1.2.3.3.2.1" xref="S4.Ex2.m3.1.2.3.cmml">(</mo><mi id="S4.Ex2.m3.1.1" xref="S4.Ex2.m3.1.1.cmml">T</mi><mo stretchy="false" id="S4.Ex2.m3.1.2.3.3.2.2" xref="S4.Ex2.m3.1.2.3.cmml">)</mo></mrow></mrow><mo id="S4.Ex2.m3.1.2.1a" xref="S4.Ex2.m3.1.2.1.cmml">+</mo><mrow id="S4.Ex2.m3.1.2.4" xref="S4.Ex2.m3.1.2.4.cmml"><mrow id="S4.Ex2.m3.1.2.4.2" xref="S4.Ex2.m3.1.2.4.2.cmml"><mi id="S4.Ex2.m3.1.2.4.2.2" xref="S4.Ex2.m3.1.2.4.2.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S4.Ex2.m3.1.2.4.2.1" xref="S4.Ex2.m3.1.2.4.2.1.cmml">​</mo><mi id="S4.Ex2.m3.1.2.4.2.3" xref="S4.Ex2.m3.1.2.4.2.3.cmml">f</mi></mrow><mo lspace="0.222em" rspace="0.222em" id="S4.Ex2.m3.1.2.4.1" xref="S4.Ex2.m3.1.2.4.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex2.m3.1.2.4.3" xref="S4.Ex2.m3.1.2.4.3.cmml">𝒪</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex2.m3.1b"><apply id="S4.Ex2.m3.1.2.cmml" xref="S4.Ex2.m3.1.2"><plus id="S4.Ex2.m3.1.2.1.cmml" xref="S4.Ex2.m3.1.2.1"></plus><apply id="S4.Ex2.m3.1.2.2.cmml" xref="S4.Ex2.m3.1.2.2"><csymbol cd="ambiguous" id="S4.Ex2.m3.1.2.2.1.cmml" xref="S4.Ex2.m3.1.2.2">subscript</csymbol><ci id="S4.Ex2.m3.1.2.2.2.cmml" xref="S4.Ex2.m3.1.2.2.2">𝐶</ci><ci id="S4.Ex2.m3.1.2.2.3.cmml" xref="S4.Ex2.m3.1.2.2.3">common</ci></apply><apply id="S4.Ex2.m3.1.2.3.cmml" xref="S4.Ex2.m3.1.2.3"><times id="S4.Ex2.m3.1.2.3.1.cmml" xref="S4.Ex2.m3.1.2.3.1"></times><apply id="S4.Ex2.m3.1.2.3.2.cmml" xref="S4.Ex2.m3.1.2.3.2"><ci id="S4.Ex2.m3.1.2.3.2.1.cmml" xref="S4.Ex2.m3.1.2.3.2.1">⋅</ci><apply id="S4.Ex2.m3.1.2.3.2.2.cmml" xref="S4.Ex2.m3.1.2.3.2.2"><times id="S4.Ex2.m3.1.2.3.2.2.1.cmml" xref="S4.Ex2.m3.1.2.3.2.2.1"></times><ci id="S4.Ex2.m3.1.2.3.2.2.2.cmml" xref="S4.Ex2.m3.1.2.3.2.2.2">𝑇</ci><ci id="S4.Ex2.m3.1.2.3.2.2.3.cmml" xref="S4.Ex2.m3.1.2.3.2.2.3">𝑓</ci></apply><ci id="S4.Ex2.m3.1.2.3.2.3.cmml" xref="S4.Ex2.m3.1.2.3.2.3">𝒟</ci></apply><ci id="S4.Ex2.m3.1.1.cmml" xref="S4.Ex2.m3.1.1">𝑇</ci></apply><apply id="S4.Ex2.m3.1.2.4.cmml" xref="S4.Ex2.m3.1.2.4"><ci id="S4.Ex2.m3.1.2.4.1.cmml" xref="S4.Ex2.m3.1.2.4.1">⋅</ci><apply id="S4.Ex2.m3.1.2.4.2.cmml" xref="S4.Ex2.m3.1.2.4.2"><times id="S4.Ex2.m3.1.2.4.2.1.cmml" xref="S4.Ex2.m3.1.2.4.2.1"></times><ci id="S4.Ex2.m3.1.2.4.2.2.cmml" xref="S4.Ex2.m3.1.2.4.2.2">𝑇</ci><ci id="S4.Ex2.m3.1.2.4.2.3.cmml" xref="S4.Ex2.m3.1.2.4.2.3">𝑓</ci></apply><ci id="S4.Ex2.m3.1.2.4.3.cmml" xref="S4.Ex2.m3.1.2.4.3">𝒪</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex2.m3.1c">\displaystyle C_{\mathrm{common}}+Tf\cdot\mathcal{D}(T)+Tf\cdot\mathcal{O}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+<tbody id="S4.Ex3"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.Ex3.m1.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{Llama}}" display="inline"><semantics id="S4.Ex3.m1.1a"><msub id="S4.Ex3.m1.1.1" xref="S4.Ex3.m1.1.1.cmml"><mi id="S4.Ex3.m1.1.1.2" xref="S4.Ex3.m1.1.1.2.cmml">C</mi><mi id="S4.Ex3.m1.1.1.3" xref="S4.Ex3.m1.1.1.3.cmml">Llama</mi></msub><annotation-xml encoding="MathML-Content" id="S4.Ex3.m1.1b"><apply id="S4.Ex3.m1.1.1.cmml" xref="S4.Ex3.m1.1.1"><csymbol cd="ambiguous" id="S4.Ex3.m1.1.1.1.cmml" xref="S4.Ex3.m1.1.1">subscript</csymbol><ci id="S4.Ex3.m1.1.1.2.cmml" xref="S4.Ex3.m1.1.1.2">𝐶</ci><ci id="S4.Ex3.m1.1.1.3.cmml" xref="S4.Ex3.m1.1.1.3">Llama</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex3.m1.1c">\displaystyle C_{\mathrm{Llama}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_eqn_cell"><math id="S4.Ex3.m2.1" class="ltx_Math" alttext="\displaystyle=" display="inline"><semantics id="S4.Ex3.m2.1a"><mo id="S4.Ex3.m2.1.1" xref="S4.Ex3.m2.1.1.cmml">=</mo><annotation-xml encoding="MathML-Content" id="S4.Ex3.m2.1b"><eq id="S4.Ex3.m2.1.1.cmml" xref="S4.Ex3.m2.1.1"></eq></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex3.m2.1c">\displaystyle=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.Ex3.m3.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{common}}+Tf\cdot\mathcal{D}(T)" display="inline"><semantics id="S4.Ex3.m3.1a"><mrow id="S4.Ex3.m3.1.2" xref="S4.Ex3.m3.1.2.cmml"><msub id="S4.Ex3.m3.1.2.2" xref="S4.Ex3.m3.1.2.2.cmml"><mi id="S4.Ex3.m3.1.2.2.2" xref="S4.Ex3.m3.1.2.2.2.cmml">C</mi><mi id="S4.Ex3.m3.1.2.2.3" xref="S4.Ex3.m3.1.2.2.3.cmml">common</mi></msub><mo id="S4.Ex3.m3.1.2.1" xref="S4.Ex3.m3.1.2.1.cmml">+</mo><mrow id="S4.Ex3.m3.1.2.3" xref="S4.Ex3.m3.1.2.3.cmml"><mrow id="S4.Ex3.m3.1.2.3.2" xref="S4.Ex3.m3.1.2.3.2.cmml"><mrow id="S4.Ex3.m3.1.2.3.2.2" xref="S4.Ex3.m3.1.2.3.2.2.cmml"><mi id="S4.Ex3.m3.1.2.3.2.2.2" xref="S4.Ex3.m3.1.2.3.2.2.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S4.Ex3.m3.1.2.3.2.2.1" xref="S4.Ex3.m3.1.2.3.2.2.1.cmml">​</mo><mi id="S4.Ex3.m3.1.2.3.2.2.3" xref="S4.Ex3.m3.1.2.3.2.2.3.cmml">f</mi></mrow><mo lspace="0.222em" rspace="0.222em" id="S4.Ex3.m3.1.2.3.2.1" xref="S4.Ex3.m3.1.2.3.2.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex3.m3.1.2.3.2.3" xref="S4.Ex3.m3.1.2.3.2.3.cmml">𝒟</mi></mrow><mo lspace="0em" rspace="0em" id="S4.Ex3.m3.1.2.3.1" xref="S4.Ex3.m3.1.2.3.1.cmml">​</mo><mrow id="S4.Ex3.m3.1.2.3.3.2" xref="S4.Ex3.m3.1.2.3.cmml"><mo stretchy="false" id="S4.Ex3.m3.1.2.3.3.2.1" xref="S4.Ex3.m3.1.2.3.cmml">(</mo><mi id="S4.Ex3.m3.1.1" xref="S4.Ex3.m3.1.1.cmml">T</mi><mo stretchy="false" id="S4.Ex3.m3.1.2.3.3.2.2" xref="S4.Ex3.m3.1.2.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex3.m3.1b"><apply id="S4.Ex3.m3.1.2.cmml" xref="S4.Ex3.m3.1.2"><plus id="S4.Ex3.m3.1.2.1.cmml" xref="S4.Ex3.m3.1.2.1"></plus><apply id="S4.Ex3.m3.1.2.2.cmml" xref="S4.Ex3.m3.1.2.2"><csymbol cd="ambiguous" id="S4.Ex3.m3.1.2.2.1.cmml" xref="S4.Ex3.m3.1.2.2">subscript</csymbol><ci id="S4.Ex3.m3.1.2.2.2.cmml" xref="S4.Ex3.m3.1.2.2.2">𝐶</ci><ci id="S4.Ex3.m3.1.2.2.3.cmml" xref="S4.Ex3.m3.1.2.2.3">common</ci></apply><apply id="S4.Ex3.m3.1.2.3.cmml" xref="S4.Ex3.m3.1.2.3"><times id="S4.Ex3.m3.1.2.3.1.cmml" xref="S4.Ex3.m3.1.2.3.1"></times><apply id="S4.Ex3.m3.1.2.3.2.cmml" xref="S4.Ex3.m3.1.2.3.2"><ci id="S4.Ex3.m3.1.2.3.2.1.cmml" xref="S4.Ex3.m3.1.2.3.2.1">⋅</ci><apply id="S4.Ex3.m3.1.2.3.2.2.cmml" xref="S4.Ex3.m3.1.2.3.2.2"><times id="S4.Ex3.m3.1.2.3.2.2.1.cmml" xref="S4.Ex3.m3.1.2.3.2.2.1"></times><ci id="S4.Ex3.m3.1.2.3.2.2.2.cmml" xref="S4.Ex3.m3.1.2.3.2.2.2">𝑇</ci><ci id="S4.Ex3.m3.1.2.3.2.2.3.cmml" xref="S4.Ex3.m3.1.2.3.2.2.3">𝑓</ci></apply><ci id="S4.Ex3.m3.1.2.3.2.3.cmml" xref="S4.Ex3.m3.1.2.3.2.3">𝒟</ci></apply><ci id="S4.Ex3.m3.1.1.cmml" xref="S4.Ex3.m3.1.1">𝑇</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex3.m3.1c">\displaystyle C_{\mathrm{common}}+Tf\cdot\mathcal{D}(T)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+<tbody id="S4.Ex4"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S4.Ex4.m1.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{RNN-T}}" display="inline"><semantics id="S4.Ex4.m1.1a"><msub id="S4.Ex4.m1.1.1" xref="S4.Ex4.m1.1.1.cmml"><mi id="S4.Ex4.m1.1.1.2" xref="S4.Ex4.m1.1.1.2.cmml">C</mi><mrow id="S4.Ex4.m1.1.1.3" xref="S4.Ex4.m1.1.1.3.cmml"><mi id="S4.Ex4.m1.1.1.3.2" xref="S4.Ex4.m1.1.1.3.2.cmml">RNN</mi><mo id="S4.Ex4.m1.1.1.3.1" xref="S4.Ex4.m1.1.1.3.1.cmml">−</mo><mi mathvariant="normal" id="S4.Ex4.m1.1.1.3.3" xref="S4.Ex4.m1.1.1.3.3.cmml">T</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.Ex4.m1.1b"><apply id="S4.Ex4.m1.1.1.cmml" xref="S4.Ex4.m1.1.1"><csymbol cd="ambiguous" id="S4.Ex4.m1.1.1.1.cmml" xref="S4.Ex4.m1.1.1">subscript</csymbol><ci id="S4.Ex4.m1.1.1.2.cmml" xref="S4.Ex4.m1.1.1.2">𝐶</ci><apply id="S4.Ex4.m1.1.1.3.cmml" xref="S4.Ex4.m1.1.1.3"><minus id="S4.Ex4.m1.1.1.3.1.cmml" xref="S4.Ex4.m1.1.1.3.1"></minus><ci id="S4.Ex4.m1.1.1.3.2.cmml" xref="S4.Ex4.m1.1.1.3.2">RNN</ci><ci id="S4.Ex4.m1.1.1.3.3.cmml" xref="S4.Ex4.m1.1.1.3.3">T</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex4.m1.1c">\displaystyle C_{\mathrm{RNN-T}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_center ltx_eqn_cell"><math id="S4.Ex4.m2.1" class="ltx_Math" alttext="\displaystyle=" display="inline"><semantics id="S4.Ex4.m2.1a"><mo id="S4.Ex4.m2.1.1" xref="S4.Ex4.m2.1.1.cmml">=</mo><annotation-xml encoding="MathML-Content" id="S4.Ex4.m2.1b"><eq id="S4.Ex4.m2.1.1.cmml" xref="S4.Ex4.m2.1.1"></eq></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex4.m2.1c">\displaystyle=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S4.Ex4.m3.1" class="ltx_Math" alttext="\displaystyle C_{\mathrm{common}}+Tf^{\prime}\cdot\mathcal{O}" display="inline"><semantics id="S4.Ex4.m3.1a"><mrow id="S4.Ex4.m3.1.1" xref="S4.Ex4.m3.1.1.cmml"><msub id="S4.Ex4.m3.1.1.2" xref="S4.Ex4.m3.1.1.2.cmml"><mi id="S4.Ex4.m3.1.1.2.2" xref="S4.Ex4.m3.1.1.2.2.cmml">C</mi><mi id="S4.Ex4.m3.1.1.2.3" xref="S4.Ex4.m3.1.1.2.3.cmml">common</mi></msub><mo id="S4.Ex4.m3.1.1.1" xref="S4.Ex4.m3.1.1.1.cmml">+</mo><mrow id="S4.Ex4.m3.1.1.3" xref="S4.Ex4.m3.1.1.3.cmml"><mrow id="S4.Ex4.m3.1.1.3.2" xref="S4.Ex4.m3.1.1.3.2.cmml"><mi id="S4.Ex4.m3.1.1.3.2.2" xref="S4.Ex4.m3.1.1.3.2.2.cmml">T</mi><mo lspace="0em" rspace="0em" id="S4.Ex4.m3.1.1.3.2.1" xref="S4.Ex4.m3.1.1.3.2.1.cmml">​</mo><msup id="S4.Ex4.m3.1.1.3.2.3" xref="S4.Ex4.m3.1.1.3.2.3.cmml"><mi id="S4.Ex4.m3.1.1.3.2.3.2" xref="S4.Ex4.m3.1.1.3.2.3.2.cmml">f</mi><mo id="S4.Ex4.m3.1.1.3.2.3.3" xref="S4.Ex4.m3.1.1.3.2.3.3.cmml">′</mo></msup></mrow><mo lspace="0.222em" rspace="0.222em" id="S4.Ex4.m3.1.1.3.1" xref="S4.Ex4.m3.1.1.3.1.cmml">⋅</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex4.m3.1.1.3.3" xref="S4.Ex4.m3.1.1.3.3.cmml">𝒪</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex4.m3.1b"><apply id="S4.Ex4.m3.1.1.cmml" xref="S4.Ex4.m3.1.1"><plus id="S4.Ex4.m3.1.1.1.cmml" xref="S4.Ex4.m3.1.1.1"></plus><apply id="S4.Ex4.m3.1.1.2.cmml" xref="S4.Ex4.m3.1.1.2"><csymbol cd="ambiguous" id="S4.Ex4.m3.1.1.2.1.cmml" xref="S4.Ex4.m3.1.1.2">subscript</csymbol><ci id="S4.Ex4.m3.1.1.2.2.cmml" xref="S4.Ex4.m3.1.1.2.2">𝐶</ci><ci id="S4.Ex4.m3.1.1.2.3.cmml" xref="S4.Ex4.m3.1.1.2.3">common</ci></apply><apply id="S4.Ex4.m3.1.1.3.cmml" xref="S4.Ex4.m3.1.1.3"><ci id="S4.Ex4.m3.1.1.3.1.cmml" xref="S4.Ex4.m3.1.1.3.1">⋅</ci><apply id="S4.Ex4.m3.1.1.3.2.cmml" xref="S4.Ex4.m3.1.1.3.2"><times id="S4.Ex4.m3.1.1.3.2.1.cmml" xref="S4.Ex4.m3.1.1.3.2.1"></times><ci id="S4.Ex4.m3.1.1.3.2.2.cmml" xref="S4.Ex4.m3.1.1.3.2.2">𝑇</ci><apply id="S4.Ex4.m3.1.1.3.2.3.cmml" xref="S4.Ex4.m3.1.1.3.2.3"><csymbol cd="ambiguous" id="S4.Ex4.m3.1.1.3.2.3.1.cmml" xref="S4.Ex4.m3.1.1.3.2.3">superscript</csymbol><ci id="S4.Ex4.m3.1.1.3.2.3.2.cmml" xref="S4.Ex4.m3.1.1.3.2.3.2">𝑓</ci><ci id="S4.Ex4.m3.1.1.3.2.3.3.cmml" xref="S4.Ex4.m3.1.1.3.2.3.3">′</ci></apply></apply><ci id="S4.Ex4.m3.1.1.3.3.cmml" xref="S4.Ex4.m3.1.1.3.3">𝒪</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex4.m3.1c">\displaystyle C_{\mathrm{common}}+Tf^{\prime}\cdot\mathcal{O}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S4.SS3.SSS5.p1.7" class="ltx_p">with duration <math id="S4.SS3.SSS5.p1.1.m1.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S4.SS3.SSS5.p1.1.m1.1a"><mi id="S4.SS3.SSS5.p1.1.m1.1.1" xref="S4.SS3.SSS5.p1.1.m1.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.1.m1.1b"><ci id="S4.SS3.SSS5.p1.1.m1.1.1.cmml" xref="S4.SS3.SSS5.p1.1.m1.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.1.m1.1c">T</annotation></semantics></math>
+; encoder frame rate <math id="S4.SS3.SSS5.p1.2.m2.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S4.SS3.SSS5.p1.2.m2.1a"><mi id="S4.SS3.SSS5.p1.2.m2.1.1" xref="S4.SS3.SSS5.p1.2.m2.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.2.m2.1b"><ci id="S4.SS3.SSS5.p1.2.m2.1.1.cmml" xref="S4.SS3.SSS5.p1.2.m2.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.2.m2.1c">f</annotation></semantics></math> for LLM and <math id="S4.SS3.SSS5.p1.3.m3.1" class="ltx_Math" alttext="f^{\prime}" display="inline"><semantics id="S4.SS3.SSS5.p1.3.m3.1a"><msup id="S4.SS3.SSS5.p1.3.m3.1.1" xref="S4.SS3.SSS5.p1.3.m3.1.1.cmml"><mi id="S4.SS3.SSS5.p1.3.m3.1.1.2" xref="S4.SS3.SSS5.p1.3.m3.1.1.2.cmml">f</mi><mo id="S4.SS3.SSS5.p1.3.m3.1.1.3" xref="S4.SS3.SSS5.p1.3.m3.1.1.3.cmml">′</mo></msup><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.3.m3.1b"><apply id="S4.SS3.SSS5.p1.3.m3.1.1.cmml" xref="S4.SS3.SSS5.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS3.SSS5.p1.3.m3.1.1.1.cmml" xref="S4.SS3.SSS5.p1.3.m3.1.1">superscript</csymbol><ci id="S4.SS3.SSS5.p1.3.m3.1.1.2.cmml" xref="S4.SS3.SSS5.p1.3.m3.1.1.2">𝑓</ci><ci id="S4.SS3.SSS5.p1.3.m3.1.1.3.cmml" xref="S4.SS3.SSS5.p1.3.m3.1.1.3">′</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.3.m3.1c">f^{\prime}</annotation></semantics></math> for RNN-T; number of output tokens <math id="S4.SS3.SSS5.p1.4.m4.1" class="ltx_Math" alttext="U" display="inline"><semantics id="S4.SS3.SSS5.p1.4.m4.1a"><mi id="S4.SS3.SSS5.p1.4.m4.1.1" xref="S4.SS3.SSS5.p1.4.m4.1.1.cmml">U</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.4.m4.1b"><ci id="S4.SS3.SSS5.p1.4.m4.1.1.cmml" xref="S4.SS3.SSS5.p1.4.m4.1.1">𝑈</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.4.m4.1c">U</annotation></semantics></math>; encoder cost per second <math id="S4.SS3.SSS5.p1.5.m5.1" class="ltx_Math" alttext="\mathcal{E}" display="inline"><semantics id="S4.SS3.SSS5.p1.5.m5.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS5.p1.5.m5.1.1" xref="S4.SS3.SSS5.p1.5.m5.1.1.cmml">ℰ</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.5.m5.1b"><ci id="S4.SS3.SSS5.p1.5.m5.1.1.cmml" xref="S4.SS3.SSS5.p1.5.m5.1.1">ℰ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.5.m5.1c">\mathcal{E}</annotation></semantics></math>; average decoder/predictor cost per token <math id="S4.SS3.SSS5.p1.6.m6.1" class="ltx_Math" alttext="\mathcal{D}(T)" display="inline"><semantics id="S4.SS3.SSS5.p1.6.m6.1a"><mrow id="S4.SS3.SSS5.p1.6.m6.1.2" xref="S4.SS3.SSS5.p1.6.m6.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS5.p1.6.m6.1.2.2" xref="S4.SS3.SSS5.p1.6.m6.1.2.2.cmml">𝒟</mi><mo lspace="0em" rspace="0em" id="S4.SS3.SSS5.p1.6.m6.1.2.1" xref="S4.SS3.SSS5.p1.6.m6.1.2.1.cmml">​</mo><mrow id="S4.SS3.SSS5.p1.6.m6.1.2.3.2" xref="S4.SS3.SSS5.p1.6.m6.1.2.cmml"><mo stretchy="false" id="S4.SS3.SSS5.p1.6.m6.1.2.3.2.1" xref="S4.SS3.SSS5.p1.6.m6.1.2.cmml">(</mo><mi id="S4.SS3.SSS5.p1.6.m6.1.1" xref="S4.SS3.SSS5.p1.6.m6.1.1.cmml">T</mi><mo stretchy="false" id="S4.SS3.SSS5.p1.6.m6.1.2.3.2.2" xref="S4.SS3.SSS5.p1.6.m6.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.6.m6.1b"><apply id="S4.SS3.SSS5.p1.6.m6.1.2.cmml" xref="S4.SS3.SSS5.p1.6.m6.1.2"><times id="S4.SS3.SSS5.p1.6.m6.1.2.1.cmml" xref="S4.SS3.SSS5.p1.6.m6.1.2.1"></times><ci id="S4.SS3.SSS5.p1.6.m6.1.2.2.cmml" xref="S4.SS3.SSS5.p1.6.m6.1.2.2">𝒟</ci><ci id="S4.SS3.SSS5.p1.6.m6.1.1.cmml" xref="S4.SS3.SSS5.p1.6.m6.1.1">𝑇</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.6.m6.1c">\mathcal{D}(T)</annotation></semantics></math> (length-dependent for Transformers), and output/joint-network cost <math id="S4.SS3.SSS5.p1.7.m7.1" class="ltx_Math" alttext="\mathcal{O}" display="inline"><semantics id="S4.SS3.SSS5.p1.7.m7.1a"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.SSS5.p1.7.m7.1.1" xref="S4.SS3.SSS5.p1.7.m7.1.1.cmml">𝒪</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p1.7.m7.1b"><ci id="S4.SS3.SSS5.p1.7.m7.1.1.cmml" xref="S4.SS3.SSS5.p1.7.m7.1.1">𝒪</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p1.7.m7.1c">\mathcal{O}</annotation></semantics></math>.</p>
+</div>
+<div id="S4.SS3.SSS5.p2" class="ltx_para">
+<p id="S4.SS3.SSS5.p2.1" class="ltx_p">The expressions are confirmed by Table <a href="#S4.T5" title="Table 5 ‣ 4.3.5 Inference cost, Real-time Factor, and Beam Search ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, which shows real-time factors measured on a typical x64 development server (Intel Core/Broadwell, 16 MB cache, 1.995 GHz, CentOS 9) for single-threaded fp32 decoding in interpreted Python via PyTorch eager mode,
+on 11 equidistantly selected utterances from the length-sorted dev-other set, on average 7.4s long.</p>
+</div>
+<div id="S4.SS3.SSS5.p3" class="ltx_para">
+<p id="S4.SS3.SSS5.p3.1" class="ltx_p">At an RTF of 0.94, Speech ReaLLM is a bit more costly than Speech LLM at 0.81, because it runs the output layer also for each input chunk. Furthermore, Speech LLM pre-fills all speech embeddings at once, benefitting from weight reuse.
+RNN-T in our case is slower, 1.0, than Speech ReaLLM, as it requires a higher encoder frame rate <math id="S4.SS3.SSS5.p3.1.m1.1" class="ltx_Math" alttext="f^{\prime}\,=\,4f" display="inline"><semantics id="S4.SS3.SSS5.p3.1.m1.1a"><mrow id="S4.SS3.SSS5.p3.1.m1.1.1" xref="S4.SS3.SSS5.p3.1.m1.1.1.cmml"><msup id="S4.SS3.SSS5.p3.1.m1.1.1.2" xref="S4.SS3.SSS5.p3.1.m1.1.1.2.cmml"><mi id="S4.SS3.SSS5.p3.1.m1.1.1.2.2" xref="S4.SS3.SSS5.p3.1.m1.1.1.2.2.cmml">f</mi><mo id="S4.SS3.SSS5.p3.1.m1.1.1.2.3" xref="S4.SS3.SSS5.p3.1.m1.1.1.2.3.cmml">′</mo></msup><mo lspace="0.448em" id="S4.SS3.SSS5.p3.1.m1.1.1.1" xref="S4.SS3.SSS5.p3.1.m1.1.1.1.cmml">=</mo><mrow id="S4.SS3.SSS5.p3.1.m1.1.1.3" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.cmml"><mn id="S4.SS3.SSS5.p3.1.m1.1.1.3.2" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.2.cmml"> 4</mn><mo lspace="0em" rspace="0em" id="S4.SS3.SSS5.p3.1.m1.1.1.3.1" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.1.cmml">​</mo><mi id="S4.SS3.SSS5.p3.1.m1.1.1.3.3" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.3.cmml">f</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.SSS5.p3.1.m1.1b"><apply id="S4.SS3.SSS5.p3.1.m1.1.1.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1"><eq id="S4.SS3.SSS5.p3.1.m1.1.1.1.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.1"></eq><apply id="S4.SS3.SSS5.p3.1.m1.1.1.2.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.2"><csymbol cd="ambiguous" id="S4.SS3.SSS5.p3.1.m1.1.1.2.1.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.2">superscript</csymbol><ci id="S4.SS3.SSS5.p3.1.m1.1.1.2.2.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.2.2">𝑓</ci><ci id="S4.SS3.SSS5.p3.1.m1.1.1.2.3.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.2.3">′</ci></apply><apply id="S4.SS3.SSS5.p3.1.m1.1.1.3.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.3"><times id="S4.SS3.SSS5.p3.1.m1.1.1.3.1.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.1"></times><cn type="integer" id="S4.SS3.SSS5.p3.1.m1.1.1.3.2.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.2">4</cn><ci id="S4.SS3.SSS5.p3.1.m1.1.1.3.3.cmml" xref="S4.SS3.SSS5.p3.1.m1.1.1.3.3">𝑓</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.SSS5.p3.1.m1.1c">f^{\prime}\,=\,4f</annotation></semantics></math> for good accuracy.
+Overall, the differences are limited as the runtime is dominated by the 20-layer encoder.
+</p>
+</div>
+<figure id="S4.T5" class="ltx_table">
+<table id="S4.T5.3.3" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T5.3.3.4.1" class="ltx_tr">
+<th id="S4.T5.3.3.4.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T5.3.3.4.1.1.1" class="ltx_text" style="font-size:80%;">Id</span></th>
+<th id="S4.T5.3.3.4.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T5.3.3.4.1.2.1" class="ltx_text" style="font-size:80%;">Architecture</span></th>
+<td id="S4.T5.3.3.4.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3"><span id="S4.T5.3.3.4.1.3.1" class="ltx_text" style="font-size:80%;">Beam Search (4)</span></td>
+<td id="S4.T5.3.3.4.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="3"><span id="S4.T5.3.3.4.1.4.1" class="ltx_text" style="font-size:80%;">Greedy Search</span></td>
+</tr>
+<tr id="S4.T5.3.3.5.2" class="ltx_tr">
+<th id="S4.T5.3.3.5.2.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T5.3.3.5.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S4.T5.3.3.5.2.2.1" class="ltx_text" style="font-size:80%;">family</span></th>
+<td id="S4.T5.3.3.5.2.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.5.2.3.1" class="ltx_text" style="font-size:80%;">RTF</span></td>
+<td id="S4.T5.3.3.5.2.4" class="ltx_td ltx_align_center ltx_border_r" colspan="2"><span id="S4.T5.3.3.5.2.4.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+<td id="S4.T5.3.3.5.2.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.5.2.5.1" class="ltx_text" style="font-size:80%;">RTF</span></td>
+<td id="S4.T5.3.3.5.2.6" class="ltx_td ltx_align_center ltx_border_r" colspan="2"><span id="S4.T5.3.3.5.2.6.1" class="ltx_text" style="font-size:80%;">WER dev</span></td>
+</tr>
+<tr id="S4.T5.3.3.6.3" class="ltx_tr">
+<th id="S4.T5.3.3.6.3.1" class="ltx_td ltx_th ltx_th_row ltx_border_l ltx_border_r"></th>
+<th id="S4.T5.3.3.6.3.2" class="ltx_td ltx_th ltx_th_row ltx_border_r"></th>
+<td id="S4.T5.3.3.6.3.3" class="ltx_td ltx_border_r"></td>
+<td id="S4.T5.3.3.6.3.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.6.3.4.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T5.3.3.6.3.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.6.3.5.1" class="ltx_text" style="font-size:80%;">other</span></td>
+<td id="S4.T5.3.3.6.3.6" class="ltx_td ltx_border_r"></td>
+<td id="S4.T5.3.3.6.3.7" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.6.3.7.1" class="ltx_text" style="font-size:80%;">clean</span></td>
+<td id="S4.T5.3.3.6.3.8" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T5.3.3.6.3.8.1" class="ltx_text" style="font-size:80%;">other</span></td>
+</tr>
+<tr id="S4.T5.1.1.1" class="ltx_tr">
+<th id="S4.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T5.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathcal{R}" display="inline"><semantics id="S4.T5.1.1.1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T5.1.1.1.1.m1.1.1" xref="S4.T5.1.1.1.1.m1.1.1.cmml">ℛ</mi><annotation-xml encoding="MathML-Content" id="S4.T5.1.1.1.1.m1.1b"><ci id="S4.T5.1.1.1.1.m1.1.1.cmml" xref="S4.T5.1.1.1.1.m1.1.1">ℛ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.1.1.1.1.m1.1c">\mathcal{R}</annotation></semantics></math></th>
+<th id="S4.T5.1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.2.1" class="ltx_text" style="font-size:80%;">Speech ReaLLM</span></th>
+<td id="S4.T5.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.3.1" class="ltx_text" style="font-size:80%;">0.94</span></td>
+<td id="S4.T5.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.4.1" class="ltx_text" style="font-size:80%;">2.7</span></td>
+<td id="S4.T5.1.1.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.5.1" class="ltx_text" style="font-size:80%;">7.6</span></td>
+<td id="S4.T5.1.1.1.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.6.1" class="ltx_text" style="font-size:80%;">0.79</span></td>
+<td id="S4.T5.1.1.1.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.7.1" class="ltx_text" style="font-size:80%;">2.8</span></td>
+<td id="S4.T5.1.1.1.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.1.1.1.8.1" class="ltx_text" style="font-size:80%;">7.8</span></td>
+</tr>
+<tr id="S4.T5.2.2.2" class="ltx_tr">
+<th id="S4.T5.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_l ltx_border_r ltx_border_tt"><math id="S4.T5.2.2.2.1.m1.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S4.T5.2.2.2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T5.2.2.2.1.m1.1.1" xref="S4.T5.2.2.2.1.m1.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S4.T5.2.2.2.1.m1.1b"><ci id="S4.T5.2.2.2.1.m1.1.1.cmml" xref="S4.T5.2.2.2.1.m1.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.2.2.2.1.m1.1c">\mathcal{L}</annotation></semantics></math></th>
+<th id="S4.T5.2.2.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.2.1" class="ltx_text" style="font-size:80%;">Speech LLM</span></th>
+<td id="S4.T5.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.3.1" class="ltx_text" style="font-size:80%;">0.81</span></td>
+<td id="S4.T5.2.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.4.1" class="ltx_text" style="font-size:80%;">4.2</span></td>
+<td id="S4.T5.2.2.2.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.5.1" class="ltx_text" style="font-size:80%;">8.3</span></td>
+<td id="S4.T5.2.2.2.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.6.1" class="ltx_text" style="font-size:80%;">0.73</span></td>
+<td id="S4.T5.2.2.2.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.7.1" class="ltx_text" style="font-size:80%;">4.5</span></td>
+<td id="S4.T5.2.2.2.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T5.2.2.2.8.1" class="ltx_text" style="font-size:80%;">7.9</span></td>
+</tr>
+<tr id="S4.T5.3.3.3" class="ltx_tr">
+<th id="S4.T5.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_l ltx_border_r ltx_border_t"><math id="S4.T5.3.3.3.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.T5.3.3.3.1.m1.1a"><mi class="ltx_font_mathcaligraphic" mathsize="80%" id="S4.T5.3.3.3.1.m1.1.1" xref="S4.T5.3.3.3.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.T5.3.3.3.1.m1.1b"><ci id="S4.T5.3.3.3.1.m1.1.1.cmml" xref="S4.T5.3.3.3.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.3.3.3.1.m1.1c">\mathcal{T}</annotation></semantics></math></th>
+<th id="S4.T5.3.3.3.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.2.1" class="ltx_text" style="font-size:80%;">RNN-T</span></th>
+<td id="S4.T5.3.3.3.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.3.1" class="ltx_text" style="font-size:80%;">1.00</span></td>
+<td id="S4.T5.3.3.3.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.4.1" class="ltx_text" style="font-size:80%;">3.3</span></td>
+<td id="S4.T5.3.3.3.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.5.1" class="ltx_text" style="font-size:80%;">9.6</span></td>
+<td id="S4.T5.3.3.3.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.6.1" class="ltx_text" style="font-size:80%;">0.90</span></td>
+<td id="S4.T5.3.3.3.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.7.1" class="ltx_text" style="font-size:80%;">3.5</span></td>
+<td id="S4.T5.3.3.3.8" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T5.3.3.3.8.1" class="ltx_text" style="font-size:80%;">10.0</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 5: </span>Real-time factor and sensitivity of Speech ReaLLM and the Speech LLM and RNN-T baselines to search beam.</figcaption>
+</figure>
+<div id="S4.SS3.SSS5.p4" class="ltx_para">
+<p id="S4.SS3.SSS5.p4.1" class="ltx_p"><span id="S4.SS3.SSS5.p4.1.1" class="ltx_text ltx_font_bold">80M Speech ReaLLM runs in real time</span> on a dev server.
+With its two narrow decoder layers, it is approximately as large as an RNN-T model one could run on a wearable device. Thus, we estimate that an 8-bit quantized 80M Speech ReaLLM could comfortably run in real time on a wearable processor with multi-threaded or hardware-accelerated execution.</p>
+</div>
+<div id="S4.SS3.SSS5.p5" class="ltx_para">
+<p id="S4.SS3.SSS5.p5.1" class="ltx_p">Inference can be sped up by using greedy search instead of beam search.
+Table <a href="#S4.T5" title="Table 5 ‣ 4.3.5 Inference cost, Real-time Factor, and Beam Search ‣ 4.3 Results ‣ 4 Experiments and Results ‣ Speech ReaLLM – Real-time Streaming Speech Recognition with Multimodal LLMs by Teaching the Flow of Time" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> shows a slight accuracy regression of 3–10% relative from greedy search for all models, but the runtime benefits are drowned out by the dominating speech encoder.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusions</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We have introduced a new way of using ``decoder-only'' models (``LLMs'') to imbue them with the ability to process inputs in a real-time streaming fashion, via an RNN-T-like BLANK mechanism.
+We have validated this approach, which we termed <span id="S5.p1.1.1" class="ltx_text ltx_font_italic">ReaLLM</span> for ``real-time LLM'',
+for real-time streaming ASR.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p"><span id="S5.p2.1.1" class="ltx_text ltx_font_italic">Speech ReaLLM</span> has been found to be a viable new ASR architecture.
+Its 80M variant runs in real time and achieves accuracy on par with or better than a non-streaming baseline Speech LLM architecture and an RNN-T of the same size,
+and close to a 3x larger non-streaming LAS-SpecAugment AED baseline.
+Unlike Speech LLM and AED architectures, it is designed to handle streaming input without explicit end-pointing,
+and indeed generalizes well to long utterances which are poorly represented in the training data.
+Unlike RNN-T, it has a simple loss function.
+We also show that the ReaLLM architecture can learn to represent and reproduce the passing of time.</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p">We also find that the ReaLLM mechanism can be fine-tuned into a 7B Llama-2 decoder,
+although the resulting system is not as good as the small models trained from scratch.
+More research is needed into making best use of the pre-trained 7B LLM. For example, can one replace the distinct BLANK symbol by EOS? Can such a model benefit from textual context, such as an audio stream's metadata or other context? And to what degree does the fine-tuned LLM retain its original capabilities?</p>
+</div>
+<div id="S5.p4" class="ltx_para">
+<p id="S5.p4.1" class="ltx_p">We close with the expectation that the ReaLLM architecture has potential beyond ASR and may open up many interesting applications beyond speech transcription, from more natural human-computer dialogs to more general real-time aware intelligent assistants—possibly taking us one baby step closer towards AGI?</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Acknowledgments</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">The authors would like to thank Egor Lakomkin and Zeeshan Ahmed for helping with the LoRA experiments.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+J. Bach, ``Synthetic sentience: Can artificial intelligence become conscious?''
+in <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">37th Chaos Communication Congress (37C3): Unlocked</em>, 2023. [Online].
+Available: <a target="_blank" href="https://www.youtube.com/watch?v=Ms96Py8p8Jg" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://www.youtube.com/watch?v=Ms96Py8p8Jg</a>
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+J. Wu, Y. Gaur, Z. Chen, and Others, ``On decoder-only architecture for
+speech-to-text and large language model integration,'' in <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Proceedings
+of ASRU</em>, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Y. Fathullah, C. Wu, E. Lakomkin, J. Jia, Y. Shangguan, K. Li, J. Guo,
+W. Xiong, J. Mahadeokar, O. Kalinli <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Prompting large language
+models with speech recognition abilities,'' <em id="bib.bib3.2.2" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2307.11795</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+A. Graves, ``Sequence transduction with recurrent neural networks,''
+<em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/1211.3711, 2012. [Online]. Available:
+<a target="_blank" href="http://arxiv.org/abs/1211.3711" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://arxiv.org/abs/1211.3711</a>
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+R. Prabhavalkar, K. Rao, T. N. Sainath, and Others, ``A comparison of
+sequence-to-sequence models for speech recognition,'' in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Proceedings of
+Interspeech</em>, 2017.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+A. Radford, J. W. Kim, T. Xu, and Others, ``Robust speech recognition via
+Large-Scale weak supervision,'' in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proceedings of ICML</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+L. Barrault <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Seamlessm4t: Massively multilingual &amp; multimodal
+machine translation,'' <em id="bib.bib7.2.2" class="ltx_emph ltx_font_italic">ArXiv</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+C. Raffel, M. Luong, P. J. Liu, R. J. Weiss, and D. Eck, ``Online and
+linear-time attention by enforcing monotonic alignments,'' <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol.
+abs/1704.00784, 2017. [Online]. Available:
+<a target="_blank" href="http://arxiv.org/abs/1704.00784" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://arxiv.org/abs/1704.00784</a>
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+C.-C. Chiu* and C. Raffel*, ``Monotonic chunkwise attention,'' in
+<em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>, 2018. [Online].
+Available: <a target="_blank" href="https://openreview.net/forum?id=Hko85plCW" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://openreview.net/forum?id=Hko85plCW</a>
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+N. Arivazhagan, C. Cherry, W. Macherey, C. Chiu, S. Yavuz, R. Pang, W. Li, and
+C. Raffel, ``Monotonic infinite lookback attention for simultaneous machine
+translation,'' <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/1906.05218, 2019. [Online]. Available:
+<a target="_blank" href="http://arxiv.org/abs/1906.05218" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://arxiv.org/abs/1906.05218</a>
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+X. Ma, A. Sun, S. Ouyang, H. Inaguma, and P. Tomasello, ``Efficient monotonic
+multihead attention,'' 2023.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+H. Touvron, L. Martin, K. Stone, P. Albert, and Others, ``Llama 2: Open
+foundation and fine-tuned chat models,'' <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:2307.09288</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Y. Shi, Y. Wang, C. Wu, and Others, ``Emformer: Efficient memory transformer
+based acoustic model for low latency streaming speech recognition,'' in
+<em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">Proceedings of ICASSP</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+A. Gulati, J. Qin, C.-C. Chiu, and Others, ``Conformer: Convolution-augmented
+transformer for speech recognition,'' <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2005.08100</em>,
+2020.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Y. Shi, C. Wu, D. Wang, and Others, ``Streaming transformer transducer based
+speech recognition using Non-Causal convolution,'' in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">Proceedings of
+ICASSP</em>, 2022.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+A. Graves, S. Fernández, F. Gomez, and J. Schmidhuber, ``Connectionist
+temporal classification: labelling unsegmented sequence data with recurrent
+neural networks,'' in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Proceedings of ICML</em>, 2006, pp. 369–376.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, ``Librispeech: An ASR
+corpus based on public domain audio books,'' in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Proceedings of ICASSP</em>,
+2015.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+P. Shaw, J. Uszkoreit, and A. Vaswani, ``Self-attention with relative position
+representations,'' <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1803.02155</em>.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+D. S. Park, W. Chan, Y. Zhang, and Others, ``SpecAugment: A simple data
+augmentation method for automatic speech recognition,'' <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">arXiv preprint
+arXiv:1904.08779</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Y. Zhang, J. Qin, D. S. Park, and Others, ``Pushing the limits of
+Semi-Supervised learning for automatic speech recognition,'' <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">arXiv
+preprint arXiv:2010.10504</em>, 2020.
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.09568" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.09569" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.09569">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.09569" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.09570" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Jul  5 18:18:53 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

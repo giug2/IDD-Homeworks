@@ -1,0 +1,816 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2205.03494] Online Model Compression for Federated Learning with Large Models</title><meta property="og:description" content="This paper addresses the challenges of training large neural network models under federated learning settings: high on-device memory usage and communication cost. The proposed Online Model Compression (OMC) provides a …">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Online Model Compression for Federated Learning with Large Models">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Online Model Compression for Federated Learning with Large Models">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2205.03494">
+
+<!--Generated on Mon Mar 11 15:14:29 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\bstctlcite</span>
+<p id="p1.2" class="ltx_p"><span id="p1.2.1" class="ltx_text" style="font-size:90%;">IEEEexample:BSTcontrol</span></p>
+</div>
+<h1 class="ltx_title ltx_title_document" style="font-size:90%;">Online Model Compression for Federated Learning with Large Models</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p"><span id="id1.id1.1" class="ltx_text" style="font-size:90%;">This paper addresses the challenges of training large neural network models under federated learning settings: high on-device memory usage and communication cost. The proposed Online Model Compression (OMC) provides a framework that stores model parameters in a compressed format and decompresses them only when needed. We use quantization as the compression method in this paper and propose three methods, (1) using per-variable transformation, (2) weight matrices only quantization, and (3) partial parameter quantization, to minimize the impact on model accuracy. According to our experiments on two recent neural networks for speech recognition and two different datasets, OMC can reduce memory usage and communication cost of model parameters by up to 59% while attaining comparable accuracy and training speed when compared with full-precision training.</span></p>
+</div>
+<div id="p2" class="ltx_para ltx_noindent">
+<p id="p2.1" class="ltx_p"><span id="p2.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Index Terms</span><span id="p2.1.2" class="ltx_text" style="font-size:90%;">: federated learning, speech recognition, deep learning, neural network</span></p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p"><span id="S1.p1.1.1" class="ltx_text" style="font-size:90%;">Federated learning (FL) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a><span id="S1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.4" class="ltx_text" style="font-size:90%;"> allows training neural network models directly on edge devices (referred to as </span><em id="S1.p1.1.5" class="ltx_emph ltx_font_italic" style="font-size:90%;">clients</em><span id="S1.p1.1.6" class="ltx_text" style="font-size:90%;">) instead of transferring their data back to a server for centralized training to preserve users’ privacy. FL is composed of multiple </span><em id="S1.p1.1.7" class="ltx_emph ltx_font_italic" style="font-size:90%;">federated rounds</em><span id="S1.p1.1.8" class="ltx_text" style="font-size:90%;">. In a standard federated round, a server model is first transported to clients. Then, the clients train the model on their local data. The trained models are finally transported back to the server and aggregated to improve the server model. This process is repeated until the server model converges.</span></p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p"><span id="S1.p2.1.1" class="ltx_text" style="font-size:90%;">FL involves on-device training and model transportation between servers and clients, which lead to two main challenges. The first challenge is that edge devices usually have limited memory available for training. Given the fact that recent Automatic Speech Recognition (ASR) models typically contain hundreds of millions of parameters or more </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S1.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.4" class="ltx_text" style="font-size:90%;">, keeping these parameters in full precision in memory may exceed the available memory. Although there is a significant effort in the field on reducing memory usage of parameters during </span><em id="S1.p2.1.5" class="ltx_emph ltx_font_italic" style="font-size:90%;">inference</em><span id="S1.p2.1.6" class="ltx_text" style="font-size:90%;">, such as quantization-aware training </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.7.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S1.p2.1.8.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.9" class="ltx_text" style="font-size:90%;">, it is usually at the cost of higher memory usage during training. Reducing the memory usage of parameters during </span><em id="S1.p2.1.10" class="ltx_emph ltx_font_italic" style="font-size:90%;">training</em><span id="S1.p2.1.11" class="ltx_text" style="font-size:90%;"> with FL is less explored. The second challenge is the high communication cost. Communication can be much slower than computation </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.12.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S1.p2.1.13.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.14" class="ltx_text" style="font-size:90%;">, and transporting models in full precision also burdens the communication network.</span></p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p"><span id="S1.p3.1.1" class="ltx_text" style="font-size:90%;">In this paper, we propose </span><em id="S1.p3.1.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">Online Model Compression (OMC)</em><span id="S1.p3.1.3" class="ltx_text" style="font-size:90%;"> to address the above challenges of on-device FL. Different from regular full-precision FL, where each client keeps, updates, and transports </span><em id="S1.p3.1.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">full-precision</em><span id="S1.p3.1.5" class="ltx_text" style="font-size:90%;"> parameters, OMC keeps and transports the parameters in a compressed format. During training, when an operation needs the value of a compressed parameter, OMC decompresses it on-the-fly and deallocates memory for the decompressed value immediately after it is consumed. Therefore, OMC only keeps the compressed parameters and a small number of transient decompressed parameters in memory, which uses less memory than the full-precision parameters.</span></p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p"><span id="S1.p4.1.1" class="ltx_text" style="font-size:90%;">The main design challenge of OMC is achieving a favorable accuracy-efficiency trade-off. An important characteristic of OMC is that compression and decompression occur in every training iteration. As a result, the error introduced by compression can accumulate very quickly and degrade model accuracy significantly. On the other hand, we cannot use a very complicated algorithm to control the accumulated error because this will significantly slow down training. Therefore, OMC needs to be as simple and fast as possible and has a minimal impact on accuracy. It achieves this goal by using quantization, per-variable transformation, weight matrices only quantization, and partial parameter quantization.</span></p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p"><span id="S1.p5.1.1" class="ltx_text" style="font-size:90%;">The following summarizes the benefits of OMC:</span></p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p"><span id="S1.I1.i1.p1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Reducing memory usage</span><span id="S1.I1.i1.p1.1.2" class="ltx_text" style="font-size:90%;">: There are three main sources of memory usage: model parameters, activations, and gradients. OMC aims to reduce the memory usage of model parameters.</span></p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p"><span id="S1.I1.i2.p1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Reducing communication cost</span><span id="S1.I1.i2.p1.1.2" class="ltx_text" style="font-size:90%;">: Because models are transported between servers and clients, reducing the model size helps reduce communication cost.</span></p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p"><span id="S1.I1.i3.p1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Lightweight operation</span><span id="S1.I1.i3.p1.1.2" class="ltx_text" style="font-size:90%;">: OMC does not significantly slow down the training process even though compression and decompression occur frequently.</span></p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Framework of Online Model Compression</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p"><span id="S2.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">Fig. </span><a href="#S2.F1" title="Figure 1 ‣ 2.1 Framework of Online Model Compression ‣ 2 Methodology ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S2.SS1.p1.1.2" class="ltx_text" style="font-size:90%;"> illustrates the framework of the proposed Online Model Compression (OMC). OMC stores parameters in a compressed format, such as floating-point numbers with reduced bitwidths, but performs computations in full precision or other hardware-supported formats. This design decouples compression formats and hardware-supported formats to provide higher flexibility for choosing the compression format and method to achieve better memory usage reduction.</span></p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p"><span id="S2.SS1.p2.1.1" class="ltx_text" style="font-size:90%;">When performing forward propagation for a layer (the blue path in Fig. </span><a href="#S2.F1" title="Figure 1 ‣ 2.1 Framework of Online Model Compression ‣ 2 Methodology ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S2.SS1.p2.1.2" class="ltx_text" style="font-size:90%;">), OMC decompresses the required parameters for that layer on the fly and deallocates the decompressed copies immediately after they are consumed. When performing backward propagation for a layer (the red path in Fig. </span><a href="#S2.F1" title="Figure 1 ‣ 2.1 Framework of Online Model Compression ‣ 2 Methodology ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S2.SS1.p2.1.3" class="ltx_text" style="font-size:90%;">), OMC decompresses the required parameters and applies the gradients to update them. The updated decompressed parameters are then compressed and discarded immediately. Therefore, OMC only keeps the compressed parameters and a small number of transient decompressed copies in memory.</span></p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2205.03494/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="242" height="139" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>The illustration of the framework of the proposed online model compression. The cubes with dashed borderlines are transient variables.</figcaption>
+</figure>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Quantization-Based Online Model Compression</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p"><span id="S2.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">Given the simplicity of quantization, we adopt it as the compression method in this paper. Quantization reduces the number of bits (i.e., bitwidth) for representing a value. While full precision (32 bits) is usually used in deep learning, many works in the literature have shown that neural networks are error-resilient and allow using much lower bitwidths, such as 1 to 8 bits, without harming prediction accuracy </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S2.SS2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS2.p1.1.4" class="ltx_text" style="font-size:90%;">. However, such low bitwidths are usually achieved for inference. Reducing memory usage by quantization during training is more difficult because training requires more bits to precisely accumulate the small gradients across training iterations.</span></p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p"><span id="S2.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">OMC adopts the floating-point format in this paper as an example although other formats, such as the fixed-point format, can also be used. The floating-point format consists of three parts: the sign bits, the exponent bits, and the mantissa bits. For example, the format of FP32 (32-bit single-precision floating-point format) is composed of 1-bit sign, 8-bit exponent, and 23-bit mantissa. To quantize a floating-point value, we reduce the numbers of bits for the exponent and the mantissa, which are the two hyper-parameters of floating-point quantization.</span></p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Per-Variable Transformation</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p"><span id="S2.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">Quantization is a lossy operation and thus, introduces quantization errors. As a result, quantizing parameters every training iteration can lead to a large accumulated error and prevent us from using fewer bits with the original accuracy maintained. To minimize the quantization error, OMC applies a linear transformation on the decompressed parameters, which is illustrated in Fig. </span><a href="#S2.F2" title="Figure 2 ‣ 2.3 Per-Variable Transformation ‣ 2 Methodology ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S2.SS3.p1.1.2" class="ltx_text" style="font-size:90%;">. This step is performed </span><em id="S2.SS3.p1.1.3" class="ltx_emph ltx_font_italic" style="font-size:90%;">per variable</em><span id="S2.SS3.p1.1.4" class="ltx_text" style="font-size:90%;">, such as per weight matrices, so that all the model parameters in a variable can share a few transformation-related parameters to make the memory overhead negligible.</span></p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.9" class="ltx_p"><span id="S2.SS3.p2.9.1" class="ltx_text" style="font-size:90%;">The transformed variable (vector or flattened tensor) </span><math id="S2.SS3.p2.1.m1.1" class="ltx_Math" alttext="\bm{\bar{V}}\in\mathbb{R}^{n}" display="inline"><semantics id="S2.SS3.p2.1.m1.1a"><mrow id="S2.SS3.p2.1.m1.1.1" xref="S2.SS3.p2.1.m1.1.1.cmml"><mover accent="true" id="S2.SS3.p2.1.m1.1.1.2" xref="S2.SS3.p2.1.m1.1.1.2.cmml"><mi mathsize="90%" id="S2.SS3.p2.1.m1.1.1.2.2" xref="S2.SS3.p2.1.m1.1.1.2.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.1.m1.1.1.2.1" xref="S2.SS3.p2.1.m1.1.1.2.1.cmml">¯</mo></mover><mo mathsize="90%" id="S2.SS3.p2.1.m1.1.1.1" xref="S2.SS3.p2.1.m1.1.1.1.cmml">∈</mo><msup id="S2.SS3.p2.1.m1.1.1.3" xref="S2.SS3.p2.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.1.m1.1.1.3.2" xref="S2.SS3.p2.1.m1.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS3.p2.1.m1.1.1.3.3" xref="S2.SS3.p2.1.m1.1.1.3.3.cmml">n</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.1.m1.1b"><apply id="S2.SS3.p2.1.m1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1"><in id="S2.SS3.p2.1.m1.1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1.1"></in><apply id="S2.SS3.p2.1.m1.1.1.2.cmml" xref="S2.SS3.p2.1.m1.1.1.2"><ci id="S2.SS3.p2.1.m1.1.1.2.1.cmml" xref="S2.SS3.p2.1.m1.1.1.2.1">bold-¯</ci><ci id="S2.SS3.p2.1.m1.1.1.2.2.cmml" xref="S2.SS3.p2.1.m1.1.1.2.2">𝑽</ci></apply><apply id="S2.SS3.p2.1.m1.1.1.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.p2.1.m1.1.1.3.1.cmml" xref="S2.SS3.p2.1.m1.1.1.3">superscript</csymbol><ci id="S2.SS3.p2.1.m1.1.1.3.2.cmml" xref="S2.SS3.p2.1.m1.1.1.3.2">ℝ</ci><ci id="S2.SS3.p2.1.m1.1.1.3.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3.3">𝑛</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.1.m1.1c">\bm{\bar{V}}\in\mathbb{R}^{n}</annotation></semantics></math><span id="S2.SS3.p2.9.2" class="ltx_text" style="font-size:90%;"> can be written as </span><math id="S2.SS3.p2.2.m2.1" class="ltx_Math" alttext="\bm{\bar{V}}=s\bm{\tilde{V}}+b\bm{\mathbb{1}}" display="inline"><semantics id="S2.SS3.p2.2.m2.1a"><mrow id="S2.SS3.p2.2.m2.1.1" xref="S2.SS3.p2.2.m2.1.1.cmml"><mover accent="true" id="S2.SS3.p2.2.m2.1.1.2" xref="S2.SS3.p2.2.m2.1.1.2.cmml"><mi mathsize="90%" id="S2.SS3.p2.2.m2.1.1.2.2" xref="S2.SS3.p2.2.m2.1.1.2.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.2.m2.1.1.2.1" xref="S2.SS3.p2.2.m2.1.1.2.1.cmml">¯</mo></mover><mo mathsize="90%" id="S2.SS3.p2.2.m2.1.1.1" xref="S2.SS3.p2.2.m2.1.1.1.cmml">=</mo><mrow id="S2.SS3.p2.2.m2.1.1.3" xref="S2.SS3.p2.2.m2.1.1.3.cmml"><mrow id="S2.SS3.p2.2.m2.1.1.3.2" xref="S2.SS3.p2.2.m2.1.1.3.2.cmml"><mi mathsize="90%" id="S2.SS3.p2.2.m2.1.1.3.2.2" xref="S2.SS3.p2.2.m2.1.1.3.2.2.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.2.1" xref="S2.SS3.p2.2.m2.1.1.3.2.1.cmml">​</mo><mover accent="true" id="S2.SS3.p2.2.m2.1.1.3.2.3" xref="S2.SS3.p2.2.m2.1.1.3.2.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.2.m2.1.1.3.2.3.2" xref="S2.SS3.p2.2.m2.1.1.3.2.3.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.2.m2.1.1.3.2.3.1" xref="S2.SS3.p2.2.m2.1.1.3.2.3.1.cmml">~</mo></mover></mrow><mo mathsize="90%" id="S2.SS3.p2.2.m2.1.1.3.1" xref="S2.SS3.p2.2.m2.1.1.3.1.cmml">+</mo><mrow id="S2.SS3.p2.2.m2.1.1.3.3" xref="S2.SS3.p2.2.m2.1.1.3.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.2.m2.1.1.3.3.2" xref="S2.SS3.p2.2.m2.1.1.3.3.2.cmml">b</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.2.m2.1.1.3.3.1" xref="S2.SS3.p2.2.m2.1.1.3.3.1.cmml">​</mo><mn mathsize="90%" id="S2.SS3.p2.2.m2.1.1.3.3.3" xref="S2.SS3.p2.2.m2.1.1.3.3.3.cmml">𝟙</mn></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.2.m2.1b"><apply id="S2.SS3.p2.2.m2.1.1.cmml" xref="S2.SS3.p2.2.m2.1.1"><eq id="S2.SS3.p2.2.m2.1.1.1.cmml" xref="S2.SS3.p2.2.m2.1.1.1"></eq><apply id="S2.SS3.p2.2.m2.1.1.2.cmml" xref="S2.SS3.p2.2.m2.1.1.2"><ci id="S2.SS3.p2.2.m2.1.1.2.1.cmml" xref="S2.SS3.p2.2.m2.1.1.2.1">bold-¯</ci><ci id="S2.SS3.p2.2.m2.1.1.2.2.cmml" xref="S2.SS3.p2.2.m2.1.1.2.2">𝑽</ci></apply><apply id="S2.SS3.p2.2.m2.1.1.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3"><plus id="S2.SS3.p2.2.m2.1.1.3.1.cmml" xref="S2.SS3.p2.2.m2.1.1.3.1"></plus><apply id="S2.SS3.p2.2.m2.1.1.3.2.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2"><times id="S2.SS3.p2.2.m2.1.1.3.2.1.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2.1"></times><ci id="S2.SS3.p2.2.m2.1.1.3.2.2.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2.2">𝑠</ci><apply id="S2.SS3.p2.2.m2.1.1.3.2.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2.3"><ci id="S2.SS3.p2.2.m2.1.1.3.2.3.1.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2.3.1">bold-~</ci><ci id="S2.SS3.p2.2.m2.1.1.3.2.3.2.cmml" xref="S2.SS3.p2.2.m2.1.1.3.2.3.2">𝑽</ci></apply></apply><apply id="S2.SS3.p2.2.m2.1.1.3.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3.3"><times id="S2.SS3.p2.2.m2.1.1.3.3.1.cmml" xref="S2.SS3.p2.2.m2.1.1.3.3.1"></times><ci id="S2.SS3.p2.2.m2.1.1.3.3.2.cmml" xref="S2.SS3.p2.2.m2.1.1.3.3.2">𝑏</ci><cn type="integer" id="S2.SS3.p2.2.m2.1.1.3.3.3.cmml" xref="S2.SS3.p2.2.m2.1.1.3.3.3">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.2.m2.1c">\bm{\bar{V}}=s\bm{\tilde{V}}+b\bm{\mathbb{1}}</annotation></semantics></math><span id="S2.SS3.p2.9.3" class="ltx_text" style="font-size:90%;">, where </span><math id="S2.SS3.p2.3.m3.1" class="ltx_Math" alttext="\bm{\tilde{V}}\in\mathbb{R}^{n}" display="inline"><semantics id="S2.SS3.p2.3.m3.1a"><mrow id="S2.SS3.p2.3.m3.1.1" xref="S2.SS3.p2.3.m3.1.1.cmml"><mover accent="true" id="S2.SS3.p2.3.m3.1.1.2" xref="S2.SS3.p2.3.m3.1.1.2.cmml"><mi mathsize="90%" id="S2.SS3.p2.3.m3.1.1.2.2" xref="S2.SS3.p2.3.m3.1.1.2.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.3.m3.1.1.2.1" xref="S2.SS3.p2.3.m3.1.1.2.1.cmml">~</mo></mover><mo mathsize="90%" id="S2.SS3.p2.3.m3.1.1.1" xref="S2.SS3.p2.3.m3.1.1.1.cmml">∈</mo><msup id="S2.SS3.p2.3.m3.1.1.3" xref="S2.SS3.p2.3.m3.1.1.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.3.m3.1.1.3.2" xref="S2.SS3.p2.3.m3.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS3.p2.3.m3.1.1.3.3" xref="S2.SS3.p2.3.m3.1.1.3.3.cmml">n</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.3.m3.1b"><apply id="S2.SS3.p2.3.m3.1.1.cmml" xref="S2.SS3.p2.3.m3.1.1"><in id="S2.SS3.p2.3.m3.1.1.1.cmml" xref="S2.SS3.p2.3.m3.1.1.1"></in><apply id="S2.SS3.p2.3.m3.1.1.2.cmml" xref="S2.SS3.p2.3.m3.1.1.2"><ci id="S2.SS3.p2.3.m3.1.1.2.1.cmml" xref="S2.SS3.p2.3.m3.1.1.2.1">bold-~</ci><ci id="S2.SS3.p2.3.m3.1.1.2.2.cmml" xref="S2.SS3.p2.3.m3.1.1.2.2">𝑽</ci></apply><apply id="S2.SS3.p2.3.m3.1.1.3.cmml" xref="S2.SS3.p2.3.m3.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.p2.3.m3.1.1.3.1.cmml" xref="S2.SS3.p2.3.m3.1.1.3">superscript</csymbol><ci id="S2.SS3.p2.3.m3.1.1.3.2.cmml" xref="S2.SS3.p2.3.m3.1.1.3.2">ℝ</ci><ci id="S2.SS3.p2.3.m3.1.1.3.3.cmml" xref="S2.SS3.p2.3.m3.1.1.3.3">𝑛</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.3.m3.1c">\bm{\tilde{V}}\in\mathbb{R}^{n}</annotation></semantics></math><span id="S2.SS3.p2.9.4" class="ltx_text" style="font-size:90%;"> denotes the decompressed variable, </span><math id="S2.SS3.p2.4.m4.1" class="ltx_Math" alttext="\bm{\mathbb{1}}\in\mathbb{R}^{n}" display="inline"><semantics id="S2.SS3.p2.4.m4.1a"><mrow id="S2.SS3.p2.4.m4.1.1" xref="S2.SS3.p2.4.m4.1.1.cmml"><mn mathsize="90%" id="S2.SS3.p2.4.m4.1.1.2" xref="S2.SS3.p2.4.m4.1.1.2.cmml">𝟙</mn><mo mathsize="90%" id="S2.SS3.p2.4.m4.1.1.1" xref="S2.SS3.p2.4.m4.1.1.1.cmml">∈</mo><msup id="S2.SS3.p2.4.m4.1.1.3" xref="S2.SS3.p2.4.m4.1.1.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.4.m4.1.1.3.2" xref="S2.SS3.p2.4.m4.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS3.p2.4.m4.1.1.3.3" xref="S2.SS3.p2.4.m4.1.1.3.3.cmml">n</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.4.m4.1b"><apply id="S2.SS3.p2.4.m4.1.1.cmml" xref="S2.SS3.p2.4.m4.1.1"><in id="S2.SS3.p2.4.m4.1.1.1.cmml" xref="S2.SS3.p2.4.m4.1.1.1"></in><cn type="integer" id="S2.SS3.p2.4.m4.1.1.2.cmml" xref="S2.SS3.p2.4.m4.1.1.2">1</cn><apply id="S2.SS3.p2.4.m4.1.1.3.cmml" xref="S2.SS3.p2.4.m4.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.p2.4.m4.1.1.3.1.cmml" xref="S2.SS3.p2.4.m4.1.1.3">superscript</csymbol><ci id="S2.SS3.p2.4.m4.1.1.3.2.cmml" xref="S2.SS3.p2.4.m4.1.1.3.2">ℝ</ci><ci id="S2.SS3.p2.4.m4.1.1.3.3.cmml" xref="S2.SS3.p2.4.m4.1.1.3.3">𝑛</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.4.m4.1c">\bm{\mathbb{1}}\in\mathbb{R}^{n}</annotation></semantics></math><span id="S2.SS3.p2.9.5" class="ltx_text" style="font-size:90%;"> is a one vector, and </span><math id="S2.SS3.p2.5.m5.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS3.p2.5.m5.1a"><mi mathsize="90%" id="S2.SS3.p2.5.m5.1.1" xref="S2.SS3.p2.5.m5.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.5.m5.1b"><ci id="S2.SS3.p2.5.m5.1.1.cmml" xref="S2.SS3.p2.5.m5.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.5.m5.1c">s</annotation></semantics></math><span id="S2.SS3.p2.9.6" class="ltx_text" style="font-size:90%;"> and </span><math id="S2.SS3.p2.6.m6.1" class="ltx_Math" alttext="b" display="inline"><semantics id="S2.SS3.p2.6.m6.1a"><mi mathsize="90%" id="S2.SS3.p2.6.m6.1.1" xref="S2.SS3.p2.6.m6.1.1.cmml">b</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.6.m6.1b"><ci id="S2.SS3.p2.6.m6.1.1.cmml" xref="S2.SS3.p2.6.m6.1.1">𝑏</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.6.m6.1c">b</annotation></semantics></math><span id="S2.SS3.p2.9.7" class="ltx_text" style="font-size:90%;"> denote the </span><em id="S2.SS3.p2.9.8" class="ltx_emph ltx_font_italic" style="font-size:90%;">per-variable</em><span id="S2.SS3.p2.9.9" class="ltx_text" style="font-size:90%;"> scaling factor and bias, respectively. OMC determines the scaling factor and the bias analytically by minimizing the </span><math id="S2.SS3.p2.7.m7.1" class="ltx_Math" alttext="\ell 2" display="inline"><semantics id="S2.SS3.p2.7.m7.1a"><mrow id="S2.SS3.p2.7.m7.1.1" xref="S2.SS3.p2.7.m7.1.1.cmml"><mi mathsize="90%" mathvariant="normal" id="S2.SS3.p2.7.m7.1.1.2" xref="S2.SS3.p2.7.m7.1.1.2.cmml">ℓ</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.7.m7.1.1.1" xref="S2.SS3.p2.7.m7.1.1.1.cmml">​</mo><mn mathsize="90%" id="S2.SS3.p2.7.m7.1.1.3" xref="S2.SS3.p2.7.m7.1.1.3.cmml">2</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.7.m7.1b"><apply id="S2.SS3.p2.7.m7.1.1.cmml" xref="S2.SS3.p2.7.m7.1.1"><times id="S2.SS3.p2.7.m7.1.1.1.cmml" xref="S2.SS3.p2.7.m7.1.1.1"></times><ci id="S2.SS3.p2.7.m7.1.1.2.cmml" xref="S2.SS3.p2.7.m7.1.1.2">ℓ</ci><cn type="integer" id="S2.SS3.p2.7.m7.1.1.3.cmml" xref="S2.SS3.p2.7.m7.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.7.m7.1c">\ell 2</annotation></semantics></math><span id="S2.SS3.p2.9.10" class="ltx_text" style="font-size:90%;">-norm of the difference between the decompressed and transformed variable (</span><math id="S2.SS3.p2.8.m8.1" class="ltx_Math" alttext="\bm{\bar{V}}" display="inline"><semantics id="S2.SS3.p2.8.m8.1a"><mover accent="true" id="S2.SS3.p2.8.m8.1.1" xref="S2.SS3.p2.8.m8.1.1.cmml"><mi mathsize="90%" id="S2.SS3.p2.8.m8.1.1.2" xref="S2.SS3.p2.8.m8.1.1.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.8.m8.1.1.1" xref="S2.SS3.p2.8.m8.1.1.1.cmml">¯</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.8.m8.1b"><apply id="S2.SS3.p2.8.m8.1.1.cmml" xref="S2.SS3.p2.8.m8.1.1"><ci id="S2.SS3.p2.8.m8.1.1.1.cmml" xref="S2.SS3.p2.8.m8.1.1.1">bold-¯</ci><ci id="S2.SS3.p2.8.m8.1.1.2.cmml" xref="S2.SS3.p2.8.m8.1.1.2">𝑽</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.8.m8.1c">\bm{\bar{V}}</annotation></semantics></math><span id="S2.SS3.p2.9.11" class="ltx_text" style="font-size:90%;">) and the full-precision variable before compression (</span><math id="S2.SS3.p2.9.m9.1" class="ltx_Math" alttext="\bm{V}\in\mathbb{R}^{n}" display="inline"><semantics id="S2.SS3.p2.9.m9.1a"><mrow id="S2.SS3.p2.9.m9.1.1" xref="S2.SS3.p2.9.m9.1.1.cmml"><mi mathsize="90%" id="S2.SS3.p2.9.m9.1.1.2" xref="S2.SS3.p2.9.m9.1.1.2.cmml">𝑽</mi><mo mathsize="90%" id="S2.SS3.p2.9.m9.1.1.1" xref="S2.SS3.p2.9.m9.1.1.1.cmml">∈</mo><msup id="S2.SS3.p2.9.m9.1.1.3" xref="S2.SS3.p2.9.m9.1.1.3.cmml"><mi mathsize="90%" id="S2.SS3.p2.9.m9.1.1.3.2" xref="S2.SS3.p2.9.m9.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS3.p2.9.m9.1.1.3.3" xref="S2.SS3.p2.9.m9.1.1.3.3.cmml">n</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.9.m9.1b"><apply id="S2.SS3.p2.9.m9.1.1.cmml" xref="S2.SS3.p2.9.m9.1.1"><in id="S2.SS3.p2.9.m9.1.1.1.cmml" xref="S2.SS3.p2.9.m9.1.1.1"></in><ci id="S2.SS3.p2.9.m9.1.1.2.cmml" xref="S2.SS3.p2.9.m9.1.1.2">𝑽</ci><apply id="S2.SS3.p2.9.m9.1.1.3.cmml" xref="S2.SS3.p2.9.m9.1.1.3"><csymbol cd="ambiguous" id="S2.SS3.p2.9.m9.1.1.3.1.cmml" xref="S2.SS3.p2.9.m9.1.1.3">superscript</csymbol><ci id="S2.SS3.p2.9.m9.1.1.3.2.cmml" xref="S2.SS3.p2.9.m9.1.1.3.2">ℝ</ci><ci id="S2.SS3.p2.9.m9.1.1.3.3.cmml" xref="S2.SS3.p2.9.m9.1.1.3.3">𝑛</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.9.m9.1c">\bm{V}\in\mathbb{R}^{n}</annotation></semantics></math><span id="S2.SS3.p2.9.12" class="ltx_text" style="font-size:90%;">). The closed-form solutions are</span></p>
+<table id="S6.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.Ex1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.Ex1.m1.1" class="ltx_Math" alttext="\displaystyle s=" display="inline"><semantics id="S2.Ex1.m1.1a"><mrow id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml"><mi mathsize="90%" id="S2.Ex1.m1.1.1.2" xref="S2.Ex1.m1.1.1.2.cmml">s</mi><mo mathsize="90%" id="S2.Ex1.m1.1.1.1" xref="S2.Ex1.m1.1.1.1.cmml">=</mo><mi id="S2.Ex1.m1.1.1.3" xref="S2.Ex1.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.1b"><apply id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1"><eq id="S2.Ex1.m1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1"></eq><ci id="S2.Ex1.m1.1.1.2.cmml" xref="S2.Ex1.m1.1.1.2">𝑠</ci><csymbol cd="latexml" id="S2.Ex1.m1.1.1.3.cmml" xref="S2.Ex1.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.1c">\displaystyle s=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.Ex1.m2.1" class="ltx_Math" alttext="\displaystyle\frac{n\sum_{k}V_{k}\tilde{V}_{k}-\sum_{k}V_{k}\sum_{k}\tilde{V}_{k}}{n\sum_{k}V_{k}^{2}-(\sum_{k}\tilde{V}_{k})^{2}}," display="inline"><semantics id="S2.Ex1.m2.1a"><mrow id="S2.Ex1.m2.1.2.2" xref="S2.Ex1.m2.1.1.cmml"><mstyle displaystyle="true" id="S2.Ex1.m2.1.1" xref="S2.Ex1.m2.1.1.cmml"><mfrac id="S2.Ex1.m2.1.1a" xref="S2.Ex1.m2.1.1.cmml"><mrow id="S2.Ex1.m2.1.1.3" xref="S2.Ex1.m2.1.1.3.cmml"><mrow id="S2.Ex1.m2.1.1.3.2" xref="S2.Ex1.m2.1.1.3.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.2" xref="S2.Ex1.m2.1.1.3.2.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m2.1.1.3.2.1" xref="S2.Ex1.m2.1.1.3.2.1.cmml">​</mo><mrow id="S2.Ex1.m2.1.1.3.2.3" xref="S2.Ex1.m2.1.1.3.2.3.cmml"><msub id="S2.Ex1.m2.1.1.3.2.3.1" xref="S2.Ex1.m2.1.1.3.2.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex1.m2.1.1.3.2.3.1.2" xref="S2.Ex1.m2.1.1.3.2.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.1.3" xref="S2.Ex1.m2.1.1.3.2.3.1.3.cmml">k</mi></msub><mrow id="S2.Ex1.m2.1.1.3.2.3.2" xref="S2.Ex1.m2.1.1.3.2.3.2.cmml"><msub id="S2.Ex1.m2.1.1.3.2.3.2.2" xref="S2.Ex1.m2.1.1.3.2.3.2.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.2.2.2" xref="S2.Ex1.m2.1.1.3.2.3.2.2.2.cmml">V</mi><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.2.2.3" xref="S2.Ex1.m2.1.1.3.2.3.2.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex1.m2.1.1.3.2.3.2.1" xref="S2.Ex1.m2.1.1.3.2.3.2.1.cmml">​</mo><msub id="S2.Ex1.m2.1.1.3.2.3.2.3" xref="S2.Ex1.m2.1.1.3.2.3.2.3.cmml"><mover accent="true" id="S2.Ex1.m2.1.1.3.2.3.2.3.2" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.2.3.2.2" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2.2.cmml">V</mi><mo mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.2.3.2.1" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2.1.cmml">~</mo></mover><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.2.3.2.3.3" xref="S2.Ex1.m2.1.1.3.2.3.2.3.3.cmml">k</mi></msub></mrow></mrow></mrow><mo mathsize="90%" rspace="0.055em" id="S2.Ex1.m2.1.1.3.1" xref="S2.Ex1.m2.1.1.3.1.cmml">−</mo><mrow id="S2.Ex1.m2.1.1.3.3" xref="S2.Ex1.m2.1.1.3.3.cmml"><msub id="S2.Ex1.m2.1.1.3.3.1" xref="S2.Ex1.m2.1.1.3.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex1.m2.1.1.3.3.1.2" xref="S2.Ex1.m2.1.1.3.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.1.3" xref="S2.Ex1.m2.1.1.3.3.1.3.cmml">k</mi></msub><mrow id="S2.Ex1.m2.1.1.3.3.2" xref="S2.Ex1.m2.1.1.3.3.2.cmml"><msub id="S2.Ex1.m2.1.1.3.3.2.2" xref="S2.Ex1.m2.1.1.3.3.2.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.2.2" xref="S2.Ex1.m2.1.1.3.3.2.2.2.cmml">V</mi><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.2.3" xref="S2.Ex1.m2.1.1.3.3.2.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex1.m2.1.1.3.3.2.1" xref="S2.Ex1.m2.1.1.3.3.2.1.cmml">​</mo><mrow id="S2.Ex1.m2.1.1.3.3.2.3" xref="S2.Ex1.m2.1.1.3.3.2.3.cmml"><msub id="S2.Ex1.m2.1.1.3.3.2.3.1" xref="S2.Ex1.m2.1.1.3.3.2.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex1.m2.1.1.3.3.2.3.1.2" xref="S2.Ex1.m2.1.1.3.3.2.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.3.1.3" xref="S2.Ex1.m2.1.1.3.3.2.3.1.3.cmml">k</mi></msub><msub id="S2.Ex1.m2.1.1.3.3.2.3.2" xref="S2.Ex1.m2.1.1.3.3.2.3.2.cmml"><mover accent="true" id="S2.Ex1.m2.1.1.3.3.2.3.2.2" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.3.2.2.2" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2.2.cmml">V</mi><mo mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.3.2.2.1" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2.1.cmml">~</mo></mover><mi mathsize="90%" id="S2.Ex1.m2.1.1.3.3.2.3.2.3" xref="S2.Ex1.m2.1.1.3.3.2.3.2.3.cmml">k</mi></msub></mrow></mrow></mrow></mrow><mrow id="S2.Ex1.m2.1.1.1" xref="S2.Ex1.m2.1.1.1.cmml"><mrow id="S2.Ex1.m2.1.1.1.3" xref="S2.Ex1.m2.1.1.1.3.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.3.2" xref="S2.Ex1.m2.1.1.1.3.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m2.1.1.1.3.1" xref="S2.Ex1.m2.1.1.1.3.1.cmml">​</mo><mrow id="S2.Ex1.m2.1.1.1.3.3" xref="S2.Ex1.m2.1.1.1.3.3.cmml"><msub id="S2.Ex1.m2.1.1.1.3.3.1" xref="S2.Ex1.m2.1.1.1.3.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex1.m2.1.1.1.3.3.1.2" xref="S2.Ex1.m2.1.1.1.3.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.3.3.1.3" xref="S2.Ex1.m2.1.1.1.3.3.1.3.cmml">k</mi></msub><msubsup id="S2.Ex1.m2.1.1.1.3.3.2" xref="S2.Ex1.m2.1.1.1.3.3.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.3.3.2.2.2" xref="S2.Ex1.m2.1.1.1.3.3.2.2.2.cmml">V</mi><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.3.3.2.2.3" xref="S2.Ex1.m2.1.1.1.3.3.2.2.3.cmml">k</mi><mn mathsize="90%" id="S2.Ex1.m2.1.1.1.3.3.2.3" xref="S2.Ex1.m2.1.1.1.3.3.2.3.cmml">2</mn></msubsup></mrow></mrow><mo mathsize="90%" id="S2.Ex1.m2.1.1.1.2" xref="S2.Ex1.m2.1.1.1.2.cmml">−</mo><msup id="S2.Ex1.m2.1.1.1.1" xref="S2.Ex1.m2.1.1.1.1.cmml"><mrow id="S2.Ex1.m2.1.1.1.1.1.1" xref="S2.Ex1.m2.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.2" xref="S2.Ex1.m2.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex1.m2.1.1.1.1.1.1.1" xref="S2.Ex1.m2.1.1.1.1.1.1.1.cmml"><msub id="S2.Ex1.m2.1.1.1.1.1.1.1.1" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1.cmml"><mo lspace="0em" maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex1.m2.1.1.1.1.1.1.1.1.2" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.1.1.3" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1.3.cmml">k</mi></msub><msub id="S2.Ex1.m2.1.1.1.1.1.1.1.2" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.cmml"><mover accent="true" id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.cmml"><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.2" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.2.cmml">V</mi><mo mathsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.1" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.1.cmml">~</mo></mover><mi mathsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.1.2.3" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.3.cmml">k</mi></msub></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex1.m2.1.1.1.1.1.1.3" xref="S2.Ex1.m2.1.1.1.1.1.1.1.cmml">)</mo></mrow><mn mathsize="90%" id="S2.Ex1.m2.1.1.1.1.3" xref="S2.Ex1.m2.1.1.1.1.3.cmml">2</mn></msup></mrow></mfrac></mstyle><mo mathsize="90%" id="S2.Ex1.m2.1.2.2.1" xref="S2.Ex1.m2.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m2.1b"><apply id="S2.Ex1.m2.1.1.cmml" xref="S2.Ex1.m2.1.2.2"><divide id="S2.Ex1.m2.1.1.2.cmml" xref="S2.Ex1.m2.1.2.2"></divide><apply id="S2.Ex1.m2.1.1.3.cmml" xref="S2.Ex1.m2.1.1.3"><minus id="S2.Ex1.m2.1.1.3.1.cmml" xref="S2.Ex1.m2.1.1.3.1"></minus><apply id="S2.Ex1.m2.1.1.3.2.cmml" xref="S2.Ex1.m2.1.1.3.2"><times id="S2.Ex1.m2.1.1.3.2.1.cmml" xref="S2.Ex1.m2.1.1.3.2.1"></times><ci id="S2.Ex1.m2.1.1.3.2.2.cmml" xref="S2.Ex1.m2.1.1.3.2.2">𝑛</ci><apply id="S2.Ex1.m2.1.1.3.2.3.cmml" xref="S2.Ex1.m2.1.1.3.2.3"><apply id="S2.Ex1.m2.1.1.3.2.3.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.2.3.1.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.1">subscript</csymbol><sum id="S2.Ex1.m2.1.1.3.2.3.1.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.1.2"></sum><ci id="S2.Ex1.m2.1.1.3.2.3.1.3.cmml" xref="S2.Ex1.m2.1.1.3.2.3.1.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.3.2.3.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2"><times id="S2.Ex1.m2.1.1.3.2.3.2.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.1"></times><apply id="S2.Ex1.m2.1.1.3.2.3.2.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.2.3.2.2.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.2">subscript</csymbol><ci id="S2.Ex1.m2.1.1.3.2.3.2.2.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.2.2">𝑉</ci><ci id="S2.Ex1.m2.1.1.3.2.3.2.2.3.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.2.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.3.2.3.2.3.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.2.3.2.3.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3">subscript</csymbol><apply id="S2.Ex1.m2.1.1.3.2.3.2.3.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2"><ci id="S2.Ex1.m2.1.1.3.2.3.2.3.2.1.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2.1">~</ci><ci id="S2.Ex1.m2.1.1.3.2.3.2.3.2.2.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3.2.2">𝑉</ci></apply><ci id="S2.Ex1.m2.1.1.3.2.3.2.3.3.cmml" xref="S2.Ex1.m2.1.1.3.2.3.2.3.3">𝑘</ci></apply></apply></apply></apply><apply id="S2.Ex1.m2.1.1.3.3.cmml" xref="S2.Ex1.m2.1.1.3.3"><apply id="S2.Ex1.m2.1.1.3.3.1.cmml" xref="S2.Ex1.m2.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.3.1.1.cmml" xref="S2.Ex1.m2.1.1.3.3.1">subscript</csymbol><sum id="S2.Ex1.m2.1.1.3.3.1.2.cmml" xref="S2.Ex1.m2.1.1.3.3.1.2"></sum><ci id="S2.Ex1.m2.1.1.3.3.1.3.cmml" xref="S2.Ex1.m2.1.1.3.3.1.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.3.3.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2"><times id="S2.Ex1.m2.1.1.3.3.2.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.1"></times><apply id="S2.Ex1.m2.1.1.3.3.2.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.3.2.2.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.2">subscript</csymbol><ci id="S2.Ex1.m2.1.1.3.3.2.2.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.2.2">𝑉</ci><ci id="S2.Ex1.m2.1.1.3.3.2.2.3.cmml" xref="S2.Ex1.m2.1.1.3.3.2.2.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.3.3.2.3.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3"><apply id="S2.Ex1.m2.1.1.3.3.2.3.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.3.2.3.1.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.1">subscript</csymbol><sum id="S2.Ex1.m2.1.1.3.3.2.3.1.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.1.2"></sum><ci id="S2.Ex1.m2.1.1.3.3.2.3.1.3.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.1.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.3.3.2.3.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.3.3.2.3.2.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2">subscript</csymbol><apply id="S2.Ex1.m2.1.1.3.3.2.3.2.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2"><ci id="S2.Ex1.m2.1.1.3.3.2.3.2.2.1.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2.1">~</ci><ci id="S2.Ex1.m2.1.1.3.3.2.3.2.2.2.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2.2.2">𝑉</ci></apply><ci id="S2.Ex1.m2.1.1.3.3.2.3.2.3.cmml" xref="S2.Ex1.m2.1.1.3.3.2.3.2.3">𝑘</ci></apply></apply></apply></apply></apply><apply id="S2.Ex1.m2.1.1.1.cmml" xref="S2.Ex1.m2.1.1.1"><minus id="S2.Ex1.m2.1.1.1.2.cmml" xref="S2.Ex1.m2.1.1.1.2"></minus><apply id="S2.Ex1.m2.1.1.1.3.cmml" xref="S2.Ex1.m2.1.1.1.3"><times id="S2.Ex1.m2.1.1.1.3.1.cmml" xref="S2.Ex1.m2.1.1.1.3.1"></times><ci id="S2.Ex1.m2.1.1.1.3.2.cmml" xref="S2.Ex1.m2.1.1.1.3.2">𝑛</ci><apply id="S2.Ex1.m2.1.1.1.3.3.cmml" xref="S2.Ex1.m2.1.1.1.3.3"><apply id="S2.Ex1.m2.1.1.1.3.3.1.cmml" xref="S2.Ex1.m2.1.1.1.3.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.3.3.1.1.cmml" xref="S2.Ex1.m2.1.1.1.3.3.1">subscript</csymbol><sum id="S2.Ex1.m2.1.1.1.3.3.1.2.cmml" xref="S2.Ex1.m2.1.1.1.3.3.1.2"></sum><ci id="S2.Ex1.m2.1.1.1.3.3.1.3.cmml" xref="S2.Ex1.m2.1.1.1.3.3.1.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.1.3.3.2.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.3.3.2.1.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2">superscript</csymbol><apply id="S2.Ex1.m2.1.1.1.3.3.2.2.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.3.3.2.2.1.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2">subscript</csymbol><ci id="S2.Ex1.m2.1.1.1.3.3.2.2.2.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2.2.2">𝑉</ci><ci id="S2.Ex1.m2.1.1.1.3.3.2.2.3.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2.2.3">𝑘</ci></apply><cn type="integer" id="S2.Ex1.m2.1.1.1.3.3.2.3.cmml" xref="S2.Ex1.m2.1.1.1.3.3.2.3">2</cn></apply></apply></apply><apply id="S2.Ex1.m2.1.1.1.1.cmml" xref="S2.Ex1.m2.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.1.2.cmml" xref="S2.Ex1.m2.1.1.1.1">superscript</csymbol><apply id="S2.Ex1.m2.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1"><apply id="S2.Ex1.m2.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1">subscript</csymbol><sum id="S2.Ex1.m2.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1.2"></sum><ci id="S2.Ex1.m2.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.1.3">𝑘</ci></apply><apply id="S2.Ex1.m2.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex1.m2.1.1.1.1.1.1.1.2.1.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2">subscript</csymbol><apply id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2"><ci id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.1.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.1">~</ci><ci id="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.2.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.2.2">𝑉</ci></apply><ci id="S2.Ex1.m2.1.1.1.1.1.1.1.2.3.cmml" xref="S2.Ex1.m2.1.1.1.1.1.1.1.2.3">𝑘</ci></apply></apply><cn type="integer" id="S2.Ex1.m2.1.1.1.1.3.cmml" xref="S2.Ex1.m2.1.1.1.1.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m2.1c">\displaystyle\frac{n\sum_{k}V_{k}\tilde{V}_{k}-\sum_{k}V_{k}\sum_{k}\tilde{V}_{k}}{n\sum_{k}V_{k}^{2}-(\sum_{k}\tilde{V}_{k})^{2}},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+<tbody id="S2.Ex2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.Ex2.m1.1" class="ltx_Math" alttext="\displaystyle b=" display="inline"><semantics id="S2.Ex2.m1.1a"><mrow id="S2.Ex2.m1.1.1" xref="S2.Ex2.m1.1.1.cmml"><mi mathsize="90%" id="S2.Ex2.m1.1.1.2" xref="S2.Ex2.m1.1.1.2.cmml">b</mi><mo mathsize="90%" id="S2.Ex2.m1.1.1.1" xref="S2.Ex2.m1.1.1.1.cmml">=</mo><mi id="S2.Ex2.m1.1.1.3" xref="S2.Ex2.m1.1.1.3.cmml"></mi></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex2.m1.1b"><apply id="S2.Ex2.m1.1.1.cmml" xref="S2.Ex2.m1.1.1"><eq id="S2.Ex2.m1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1"></eq><ci id="S2.Ex2.m1.1.1.2.cmml" xref="S2.Ex2.m1.1.1.2">𝑏</ci><csymbol cd="latexml" id="S2.Ex2.m1.1.1.3.cmml" xref="S2.Ex2.m1.1.1.3">absent</csymbol></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex2.m1.1c">\displaystyle b=</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.Ex2.m2.1" class="ltx_Math" alttext="\displaystyle\frac{n\sum_{k}V_{k}-s\sum_{k}\tilde{V}_{k}}{n}," display="inline"><semantics id="S2.Ex2.m2.1a"><mrow id="S2.Ex2.m2.1.2.2" xref="S2.Ex2.m2.1.1.cmml"><mstyle displaystyle="true" id="S2.Ex2.m2.1.1" xref="S2.Ex2.m2.1.1.cmml"><mfrac id="S2.Ex2.m2.1.1a" xref="S2.Ex2.m2.1.1.cmml"><mrow id="S2.Ex2.m2.1.1.2" xref="S2.Ex2.m2.1.1.2.cmml"><mrow id="S2.Ex2.m2.1.1.2.2" xref="S2.Ex2.m2.1.1.2.2.cmml"><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.2.2" xref="S2.Ex2.m2.1.1.2.2.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m2.1.1.2.2.1" xref="S2.Ex2.m2.1.1.2.2.1.cmml">​</mo><mrow id="S2.Ex2.m2.1.1.2.2.3" xref="S2.Ex2.m2.1.1.2.2.3.cmml"><msub id="S2.Ex2.m2.1.1.2.2.3.1" xref="S2.Ex2.m2.1.1.2.2.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex2.m2.1.1.2.2.3.1.2" xref="S2.Ex2.m2.1.1.2.2.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.2.3.1.3" xref="S2.Ex2.m2.1.1.2.2.3.1.3.cmml">k</mi></msub><msub id="S2.Ex2.m2.1.1.2.2.3.2" xref="S2.Ex2.m2.1.1.2.2.3.2.cmml"><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.2.3.2.2" xref="S2.Ex2.m2.1.1.2.2.3.2.2.cmml">V</mi><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.2.3.2.3" xref="S2.Ex2.m2.1.1.2.2.3.2.3.cmml">k</mi></msub></mrow></mrow><mo mathsize="90%" id="S2.Ex2.m2.1.1.2.1" xref="S2.Ex2.m2.1.1.2.1.cmml">−</mo><mrow id="S2.Ex2.m2.1.1.2.3" xref="S2.Ex2.m2.1.1.2.3.cmml"><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.3.2" xref="S2.Ex2.m2.1.1.2.3.2.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m2.1.1.2.3.1" xref="S2.Ex2.m2.1.1.2.3.1.cmml">​</mo><mrow id="S2.Ex2.m2.1.1.2.3.3" xref="S2.Ex2.m2.1.1.2.3.3.cmml"><msub id="S2.Ex2.m2.1.1.2.3.3.1" xref="S2.Ex2.m2.1.1.2.3.3.1.cmml"><mo maxsize="90%" minsize="90%" stretchy="true" id="S2.Ex2.m2.1.1.2.3.3.1.2" xref="S2.Ex2.m2.1.1.2.3.3.1.2.cmml">∑</mo><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.3.3.1.3" xref="S2.Ex2.m2.1.1.2.3.3.1.3.cmml">k</mi></msub><msub id="S2.Ex2.m2.1.1.2.3.3.2" xref="S2.Ex2.m2.1.1.2.3.3.2.cmml"><mover accent="true" id="S2.Ex2.m2.1.1.2.3.3.2.2" xref="S2.Ex2.m2.1.1.2.3.3.2.2.cmml"><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.3.3.2.2.2" xref="S2.Ex2.m2.1.1.2.3.3.2.2.2.cmml">V</mi><mo mathsize="90%" id="S2.Ex2.m2.1.1.2.3.3.2.2.1" xref="S2.Ex2.m2.1.1.2.3.3.2.2.1.cmml">~</mo></mover><mi mathsize="90%" id="S2.Ex2.m2.1.1.2.3.3.2.3" xref="S2.Ex2.m2.1.1.2.3.3.2.3.cmml">k</mi></msub></mrow></mrow></mrow><mi mathsize="90%" id="S2.Ex2.m2.1.1.3" xref="S2.Ex2.m2.1.1.3.cmml">n</mi></mfrac></mstyle><mo mathsize="90%" id="S2.Ex2.m2.1.2.2.1" xref="S2.Ex2.m2.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex2.m2.1b"><apply id="S2.Ex2.m2.1.1.cmml" xref="S2.Ex2.m2.1.2.2"><divide id="S2.Ex2.m2.1.1.1.cmml" xref="S2.Ex2.m2.1.2.2"></divide><apply id="S2.Ex2.m2.1.1.2.cmml" xref="S2.Ex2.m2.1.1.2"><minus id="S2.Ex2.m2.1.1.2.1.cmml" xref="S2.Ex2.m2.1.1.2.1"></minus><apply id="S2.Ex2.m2.1.1.2.2.cmml" xref="S2.Ex2.m2.1.1.2.2"><times id="S2.Ex2.m2.1.1.2.2.1.cmml" xref="S2.Ex2.m2.1.1.2.2.1"></times><ci id="S2.Ex2.m2.1.1.2.2.2.cmml" xref="S2.Ex2.m2.1.1.2.2.2">𝑛</ci><apply id="S2.Ex2.m2.1.1.2.2.3.cmml" xref="S2.Ex2.m2.1.1.2.2.3"><apply id="S2.Ex2.m2.1.1.2.2.3.1.cmml" xref="S2.Ex2.m2.1.1.2.2.3.1"><csymbol cd="ambiguous" id="S2.Ex2.m2.1.1.2.2.3.1.1.cmml" xref="S2.Ex2.m2.1.1.2.2.3.1">subscript</csymbol><sum id="S2.Ex2.m2.1.1.2.2.3.1.2.cmml" xref="S2.Ex2.m2.1.1.2.2.3.1.2"></sum><ci id="S2.Ex2.m2.1.1.2.2.3.1.3.cmml" xref="S2.Ex2.m2.1.1.2.2.3.1.3">𝑘</ci></apply><apply id="S2.Ex2.m2.1.1.2.2.3.2.cmml" xref="S2.Ex2.m2.1.1.2.2.3.2"><csymbol cd="ambiguous" id="S2.Ex2.m2.1.1.2.2.3.2.1.cmml" xref="S2.Ex2.m2.1.1.2.2.3.2">subscript</csymbol><ci id="S2.Ex2.m2.1.1.2.2.3.2.2.cmml" xref="S2.Ex2.m2.1.1.2.2.3.2.2">𝑉</ci><ci id="S2.Ex2.m2.1.1.2.2.3.2.3.cmml" xref="S2.Ex2.m2.1.1.2.2.3.2.3">𝑘</ci></apply></apply></apply><apply id="S2.Ex2.m2.1.1.2.3.cmml" xref="S2.Ex2.m2.1.1.2.3"><times id="S2.Ex2.m2.1.1.2.3.1.cmml" xref="S2.Ex2.m2.1.1.2.3.1"></times><ci id="S2.Ex2.m2.1.1.2.3.2.cmml" xref="S2.Ex2.m2.1.1.2.3.2">𝑠</ci><apply id="S2.Ex2.m2.1.1.2.3.3.cmml" xref="S2.Ex2.m2.1.1.2.3.3"><apply id="S2.Ex2.m2.1.1.2.3.3.1.cmml" xref="S2.Ex2.m2.1.1.2.3.3.1"><csymbol cd="ambiguous" id="S2.Ex2.m2.1.1.2.3.3.1.1.cmml" xref="S2.Ex2.m2.1.1.2.3.3.1">subscript</csymbol><sum id="S2.Ex2.m2.1.1.2.3.3.1.2.cmml" xref="S2.Ex2.m2.1.1.2.3.3.1.2"></sum><ci id="S2.Ex2.m2.1.1.2.3.3.1.3.cmml" xref="S2.Ex2.m2.1.1.2.3.3.1.3">𝑘</ci></apply><apply id="S2.Ex2.m2.1.1.2.3.3.2.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2"><csymbol cd="ambiguous" id="S2.Ex2.m2.1.1.2.3.3.2.1.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2">subscript</csymbol><apply id="S2.Ex2.m2.1.1.2.3.3.2.2.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2.2"><ci id="S2.Ex2.m2.1.1.2.3.3.2.2.1.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2.2.1">~</ci><ci id="S2.Ex2.m2.1.1.2.3.3.2.2.2.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2.2.2">𝑉</ci></apply><ci id="S2.Ex2.m2.1.1.2.3.3.2.3.cmml" xref="S2.Ex2.m2.1.1.2.3.3.2.3">𝑘</ci></apply></apply></apply></apply><ci id="S2.Ex2.m2.1.1.3.cmml" xref="S2.Ex2.m2.1.1.3">𝑛</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex2.m2.1c">\displaystyle\frac{n\sum_{k}V_{k}-s\sum_{k}\tilde{V}_{k}}{n},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS3.p2.22" class="ltx_p"><span id="S2.SS3.p2.22.1" class="ltx_text" style="font-size:90%;">where </span><math id="S2.SS3.p2.10.m1.1" class="ltx_Math" alttext="V_{k}" display="inline"><semantics id="S2.SS3.p2.10.m1.1a"><msub id="S2.SS3.p2.10.m1.1.1" xref="S2.SS3.p2.10.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS3.p2.10.m1.1.1.2" xref="S2.SS3.p2.10.m1.1.1.2.cmml">V</mi><mi mathsize="90%" id="S2.SS3.p2.10.m1.1.1.3" xref="S2.SS3.p2.10.m1.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.10.m1.1b"><apply id="S2.SS3.p2.10.m1.1.1.cmml" xref="S2.SS3.p2.10.m1.1.1"><csymbol cd="ambiguous" id="S2.SS3.p2.10.m1.1.1.1.cmml" xref="S2.SS3.p2.10.m1.1.1">subscript</csymbol><ci id="S2.SS3.p2.10.m1.1.1.2.cmml" xref="S2.SS3.p2.10.m1.1.1.2">𝑉</ci><ci id="S2.SS3.p2.10.m1.1.1.3.cmml" xref="S2.SS3.p2.10.m1.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.10.m1.1c">V_{k}</annotation></semantics></math><span id="S2.SS3.p2.22.2" class="ltx_text" style="font-size:90%;"> denotes the </span><math id="S2.SS3.p2.11.m2.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.SS3.p2.11.m2.1a"><mi mathsize="90%" id="S2.SS3.p2.11.m2.1.1" xref="S2.SS3.p2.11.m2.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.11.m2.1b"><ci id="S2.SS3.p2.11.m2.1.1.cmml" xref="S2.SS3.p2.11.m2.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.11.m2.1c">k</annotation></semantics></math><span id="S2.SS3.p2.22.3" class="ltx_text" style="font-size:90%;">-th element of </span><math id="S2.SS3.p2.12.m3.1" class="ltx_Math" alttext="\bm{V}" display="inline"><semantics id="S2.SS3.p2.12.m3.1a"><mi mathsize="90%" id="S2.SS3.p2.12.m3.1.1" xref="S2.SS3.p2.12.m3.1.1.cmml">𝑽</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.12.m3.1b"><ci id="S2.SS3.p2.12.m3.1.1.cmml" xref="S2.SS3.p2.12.m3.1.1">𝑽</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.12.m3.1c">\bm{V}</annotation></semantics></math><span id="S2.SS3.p2.22.4" class="ltx_text" style="font-size:90%;">. Note that the degenerated case is when the denominator of </span><math id="S2.SS3.p2.13.m4.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS3.p2.13.m4.1a"><mi mathsize="90%" id="S2.SS3.p2.13.m4.1.1" xref="S2.SS3.p2.13.m4.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.13.m4.1b"><ci id="S2.SS3.p2.13.m4.1.1.cmml" xref="S2.SS3.p2.13.m4.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.13.m4.1c">s</annotation></semantics></math><span id="S2.SS3.p2.22.5" class="ltx_text" style="font-size:90%;"> is </span><math id="S2.SS3.p2.14.m5.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S2.SS3.p2.14.m5.1a"><mn mathsize="90%" id="S2.SS3.p2.14.m5.1.1" xref="S2.SS3.p2.14.m5.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.14.m5.1b"><cn type="integer" id="S2.SS3.p2.14.m5.1.1.cmml" xref="S2.SS3.p2.14.m5.1.1">0</cn></annotation-xml></semantics></math><span id="S2.SS3.p2.22.6" class="ltx_text" style="font-size:90%;">, which happens (only) when all elements in each of </span><math id="S2.SS3.p2.15.m6.1" class="ltx_Math" alttext="\bm{V}" display="inline"><semantics id="S2.SS3.p2.15.m6.1a"><mi mathsize="90%" id="S2.SS3.p2.15.m6.1.1" xref="S2.SS3.p2.15.m6.1.1.cmml">𝑽</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.15.m6.1b"><ci id="S2.SS3.p2.15.m6.1.1.cmml" xref="S2.SS3.p2.15.m6.1.1">𝑽</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.15.m6.1c">\bm{V}</annotation></semantics></math><span id="S2.SS3.p2.22.7" class="ltx_text" style="font-size:90%;"> and </span><math id="S2.SS3.p2.16.m7.1" class="ltx_Math" alttext="\bm{\tilde{V}}" display="inline"><semantics id="S2.SS3.p2.16.m7.1a"><mover accent="true" id="S2.SS3.p2.16.m7.1.1" xref="S2.SS3.p2.16.m7.1.1.cmml"><mi mathsize="90%" id="S2.SS3.p2.16.m7.1.1.2" xref="S2.SS3.p2.16.m7.1.1.2.cmml">𝑽</mi><mo class="ltx_mathvariant_bold" mathsize="90%" mathvariant="bold" id="S2.SS3.p2.16.m7.1.1.1" xref="S2.SS3.p2.16.m7.1.1.1.cmml">~</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.16.m7.1b"><apply id="S2.SS3.p2.16.m7.1.1.cmml" xref="S2.SS3.p2.16.m7.1.1"><ci id="S2.SS3.p2.16.m7.1.1.1.cmml" xref="S2.SS3.p2.16.m7.1.1.1">bold-~</ci><ci id="S2.SS3.p2.16.m7.1.1.2.cmml" xref="S2.SS3.p2.16.m7.1.1.2">𝑽</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.16.m7.1c">\bm{\tilde{V}}</annotation></semantics></math><span id="S2.SS3.p2.22.8" class="ltx_text" style="font-size:90%;"> are the same according to inequality of arithmetic and geometric means. We set </span><math id="S2.SS3.p2.17.m8.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS3.p2.17.m8.1a"><mi mathsize="90%" id="S2.SS3.p2.17.m8.1.1" xref="S2.SS3.p2.17.m8.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.17.m8.1b"><ci id="S2.SS3.p2.17.m8.1.1.cmml" xref="S2.SS3.p2.17.m8.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.17.m8.1c">s</annotation></semantics></math><span id="S2.SS3.p2.22.9" class="ltx_text" style="font-size:90%;"> to </span><math id="S2.SS3.p2.18.m9.1" class="ltx_Math" alttext="1.0" display="inline"><semantics id="S2.SS3.p2.18.m9.1a"><mn mathsize="90%" id="S2.SS3.p2.18.m9.1.1" xref="S2.SS3.p2.18.m9.1.1.cmml">1.0</mn><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.18.m9.1b"><cn type="float" id="S2.SS3.p2.18.m9.1.1.cmml" xref="S2.SS3.p2.18.m9.1.1">1.0</cn></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.18.m9.1c">1.0</annotation></semantics></math><span id="S2.SS3.p2.22.10" class="ltx_text" style="font-size:90%;"> for this degenerated case. In our implementation, </span><math id="S2.SS3.p2.19.m10.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS3.p2.19.m10.1a"><mi mathsize="90%" id="S2.SS3.p2.19.m10.1.1" xref="S2.SS3.p2.19.m10.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.19.m10.1b"><ci id="S2.SS3.p2.19.m10.1.1.cmml" xref="S2.SS3.p2.19.m10.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.19.m10.1c">s</annotation></semantics></math><span id="S2.SS3.p2.22.11" class="ltx_text" style="font-size:90%;"> and </span><math id="S2.SS3.p2.20.m11.1" class="ltx_Math" alttext="b" display="inline"><semantics id="S2.SS3.p2.20.m11.1a"><mi mathsize="90%" id="S2.SS3.p2.20.m11.1.1" xref="S2.SS3.p2.20.m11.1.1.cmml">b</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.20.m11.1b"><ci id="S2.SS3.p2.20.m11.1.1.cmml" xref="S2.SS3.p2.20.m11.1.1">𝑏</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.20.m11.1c">b</annotation></semantics></math><span id="S2.SS3.p2.22.12" class="ltx_text" style="font-size:90%;"> are computed in the 64-bit floating-point precision, but the final </span><math id="S2.SS3.p2.21.m12.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS3.p2.21.m12.1a"><mi mathsize="90%" id="S2.SS3.p2.21.m12.1.1" xref="S2.SS3.p2.21.m12.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.21.m12.1b"><ci id="S2.SS3.p2.21.m12.1.1.cmml" xref="S2.SS3.p2.21.m12.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.21.m12.1c">s</annotation></semantics></math><span id="S2.SS3.p2.22.13" class="ltx_text" style="font-size:90%;"> and </span><math id="S2.SS3.p2.22.m13.1" class="ltx_Math" alttext="b" display="inline"><semantics id="S2.SS3.p2.22.m13.1a"><mi mathsize="90%" id="S2.SS3.p2.22.m13.1.1" xref="S2.SS3.p2.22.m13.1.1.cmml">b</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.22.m13.1b"><ci id="S2.SS3.p2.22.m13.1.1.cmml" xref="S2.SS3.p2.22.m13.1.1">𝑏</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.22.m13.1c">b</annotation></semantics></math><span id="S2.SS3.p2.22.14" class="ltx_text" style="font-size:90%;"> are still stored as FP32 values.</span></p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2205.03494/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="242" height="52" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>The illustration of per-variable transformation. The cubes with dashed borderlines are transient variables.</figcaption>
+</figure>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Weight Matrices Only Quantization</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p"><span id="S2.SS4.p1.1.1" class="ltx_text" style="font-size:90%;">We empirically found that some types of parameters are more sensitive to quantization than the others. These sensitive parameters include the scaling factors and biases in normalization layers. In contrast, weight matrices in convolutional and feed-forward layers are less sensitive to quantization but dominate the model size. For example, the weight matrices in the streaming Conformer model we use in Sec. </span><a href="#S3" title="3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S2.SS4.p1.1.2" class="ltx_text" style="font-size:90%;"> accounts for 99.8% of the model size. Hence, OMC only quantizes weight matrices and keeps the remaining variables in FP32. This method helps maintain accuracy while saving a large amount of memory.</span></p>
+</div>
+</section>
+<section id="S2.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.5 </span>Partial Parameter Quantization</h3>
+
+<div id="S2.SS5.p1" class="ltx_para">
+<p id="S2.SS5.p1.1" class="ltx_p"><span id="S2.SS5.p1.1.1" class="ltx_text" style="font-size:90%;">OMC also leverages the feature of federated learning that there are many clients training a model in parallel to further reduce quantization errors. This feature provides an opportunity to quantize only a subset of parameters for each client and vary the selection from one client to another. As a result, the server can receive high-quality and precise update of each parameter from the clients that do not quantize this parameter.</span></p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Results</h2>
+
+<figure id="S3.T1" class="ltx_table">
+<div id="S3.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:415.0pt;height:72pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(0.0pt,0.0pt) scale(1.0,1.0) ;">
+<table id="S3.T1.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.1.1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_tt" rowspan="2"></th>
+<th id="S3.T1.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_tt" rowspan="2"><span id="S3.T1.1.1.1.1.2.1" class="ltx_text" style="font-size:90%;">WERs</span></th>
+<th id="S3.T1.1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt" colspan="2"><span id="S3.T1.1.1.1.1.3.1" class="ltx_text" style="font-size:90%;">Resource</span></th>
+</tr>
+<tr id="S3.T1.1.1.2.2" class="ltx_tr">
+<th id="S3.T1.1.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S3.T1.1.1.2.2.1.1" class="ltx_text" style="font-size:90%;">Parameter Memory / Communication</span></th>
+<th id="S3.T1.1.1.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S3.T1.1.1.2.2.2.1" class="ltx_text" style="font-size:90%;">Speed (Rounds/Min)</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1.3.1" class="ltx_tr">
+<th id="S3.T1.1.1.3.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T1.1.1.3.1.1.1" class="ltx_text" style="font-size:90%;">FP32 (S1E8M23)</span></th>
+<th id="S3.T1.1.1.3.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T1.1.1.3.1.2.1" class="ltx_text" style="font-size:90%;">2.1/4.6/2.2/4.8</span></th>
+<td id="S3.T1.1.1.3.1.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.3.1.3.1" class="ltx_text" style="font-size:90%;">474MB (100%)</span></td>
+<td id="S3.T1.1.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.1.3.1.4.1" class="ltx_text" style="font-size:90%;">29.5 (100%)</span></td>
+</tr>
+<tr id="S3.T1.1.1.4.2" class="ltx_tr">
+<th id="S3.T1.1.1.4.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S3.T1.1.1.4.2.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">OMC (S1E4M14)</span></th>
+<th id="S3.T1.1.1.4.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S3.T1.1.1.4.2.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">2.1/4.7/2.2/4.6</span></th>
+<td id="S3.T1.1.1.4.2.3" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T1.1.1.4.2.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">301MB (64%)</span></td>
+<td id="S3.T1.1.1.4.2.4" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T1.1.1.4.2.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">26.8 (91%)</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 1: </span>The results of Non-Streaming Conformer on IID LibriSpeech.</figcaption>
+</figure>
+<figure id="S3.T2" class="ltx_table">
+<div id="S3.T2.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:384.8pt;height:108pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(0.0pt,0.0pt) scale(1.0,1.0) ;">
+<table id="S3.T2.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T2.1.1.1.1" class="ltx_tr">
+<th id="S3.T2.1.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_tt" rowspan="2"></th>
+<th id="S3.T2.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt" rowspan="2"><span id="S3.T2.1.1.1.1.2.1" class="ltx_text" style="font-size:90%;">WERs</span></th>
+<td id="S3.T2.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt" colspan="2"><span id="S3.T2.1.1.1.1.3.1" class="ltx_text" style="font-size:90%;">Resource</span></td>
+</tr>
+<tr id="S3.T2.1.1.2.2" class="ltx_tr">
+<td id="S3.T2.1.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.2.2.1.1" class="ltx_text" style="font-size:90%;">Parameter Memory / Communication</span></td>
+<td id="S3.T2.1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.2.2.2.1" class="ltx_text" style="font-size:90%;">Speed (Rounds/Min)</span></td>
+</tr>
+<tr id="S3.T2.1.1.3.3" class="ltx_tr">
+<th id="S3.T2.1.1.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T2.1.1.3.3.1.1" class="ltx_text" style="font-size:90%;">Before Adaptation</span></th>
+<th id="S3.T2.1.1.3.3.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T2.1.1.3.3.2.1" class="ltx_text" style="font-size:90%;">6.7</span></th>
+<td id="S3.T2.1.1.3.3.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.3.3.3.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T2.1.1.3.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.3.3.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+</tr>
+<tr id="S3.T2.1.1.4.4" class="ltx_tr">
+<th id="S3.T2.1.1.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S3.T2.1.1.4.4.1.1" class="ltx_text" style="font-size:90%;">FP32 (S1E8M23)</span></th>
+<th id="S3.T2.1.1.4.4.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S3.T2.1.1.4.4.2.1" class="ltx_text" style="font-size:90%;">4.6</span></th>
+<td id="S3.T2.1.1.4.4.3" class="ltx_td ltx_align_center"><span id="S3.T2.1.1.4.4.3.1" class="ltx_text" style="font-size:90%;">548MB (100%)</span></td>
+<td id="S3.T2.1.1.4.4.4" class="ltx_td ltx_align_center"><span id="S3.T2.1.1.4.4.4.1" class="ltx_text" style="font-size:90%;">11.9 (100%)</span></td>
+</tr>
+<tr id="S3.T2.1.1.5.5" class="ltx_tr">
+<th id="S3.T2.1.1.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T2.1.1.5.5.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">OMC (S1E3M7)</span></th>
+<th id="S3.T2.1.1.5.5.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T2.1.1.5.5.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">4.6</span></th>
+<td id="S3.T2.1.1.5.5.3" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.5.5.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">224MB (41%)</span></td>
+<td id="S3.T2.1.1.5.5.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T2.1.1.5.5.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">11.1 (93%)</span></td>
+</tr>
+<tr id="S3.T2.1.1.6.6" class="ltx_tr">
+<th id="S3.T2.1.1.6.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S3.T2.1.1.6.6.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">OMC (S1E2M3)</span></th>
+<th id="S3.T2.1.1.6.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S3.T2.1.1.6.6.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">5.9</span></th>
+<td id="S3.T2.1.1.6.6.3" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T2.1.1.6.6.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">147MB (29%)</span></td>
+<td id="S3.T2.1.1.6.6.4" class="ltx_td ltx_align_center ltx_border_bb"><span id="S3.T2.1.1.6.6.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 2: </span>The results of Streaming Conformer on the Multi-Domain dataset. The WER is on the MF domain.</figcaption>
+</figure>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Experimental Settings</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p"><span id="S3.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">In this section, we validate and demonstrate the effectiveness of OMC across various use cases, including small and large datasets, IID and non-IID data distributions, streaming and non-streaming network architectures, and from-scratch and domain-adaptation training settings.</span></p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p"><span id="S3.SS1.p2.1.1" class="ltx_text" style="font-size:90%;">The first dataset is the LibriSpeech dataset </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib7" title="" class="ltx_ref">7</a><span id="S3.SS1.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p2.1.4" class="ltx_text" style="font-size:90%;">. By partitioning LibriSpeech in two different ways, we derive the </span><em id="S3.SS1.p2.1.5" class="ltx_emph ltx_font_italic" style="font-size:90%;">IID LibriSpeech</em><span id="S3.SS1.p2.1.6" class="ltx_text" style="font-size:90%;"> and the </span><em id="S3.SS1.p2.1.7" class="ltx_emph ltx_font_italic" style="font-size:90%;">Non-IID LibriSpeech</em><span id="S3.SS1.p2.1.8" class="ltx_text" style="font-size:90%;"> dataset from the original LibriSpeech dataset to simulate different client data distributions. </span><em id="S3.SS1.p2.1.9" class="ltx_emph ltx_font_italic" style="font-size:90%;">IID LibriSpeech</em><span id="S3.SS1.p2.1.10" class="ltx_text" style="font-size:90%;"> is generated by random partition while </span><em id="S3.SS1.p2.1.11" class="ltx_emph ltx_font_italic" style="font-size:90%;">Non-IID LibriSpeech</em><span id="S3.SS1.p2.1.12" class="ltx_text" style="font-size:90%;"> is generated by partitioning by speakers. For LibriSpeech related experiments, the models are trained from scratch. The Word Error Rates (WERs) will be reported in the format of </span><em id="S3.SS1.p2.1.13" class="ltx_emph ltx_font_italic" style="font-size:90%;">dev/dev-other/test/test-other</em><span id="S3.SS1.p2.1.14" class="ltx_text" style="font-size:90%;">, where each item corresponds to the WER of the dev, dev-other, test, and test-other set from left to right.</span></p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p"><span id="S3.SS1.p3.1.1" class="ltx_text" style="font-size:90%;">The second dataset is an anonymized Multi-Domain (MD) dataset and much larger than LibriSpeech. The MD dataset contains around 400K hours of utterances from domains such as YouTube, farfield, search, and telephony </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S3.SS1.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p3.1.4" class="ltx_text" style="font-size:90%;">. We partition this dataset into the Medium Form (MF) domain dataset and the Non-MF domain dataset. These two partitions will be used to evaluate OMC under the domain adaptation scenario (from Non-MF domain to MF domain). For MD related experiments, a model will be first trained on the Non-MF domain dataset and then finetuned on the MF domain dataset. The WERs are reported on a disjoint test set from the MF domain.</span></p>
+</div>
+<div id="S3.SS1.p4" class="ltx_para">
+<p id="S3.SS1.p4.1" class="ltx_p"><span id="S3.SS1.p4.1.1" class="ltx_text" style="font-size:90%;">We also experiment with two ASR models to evaluate OMC under non-streaming and streaming use cases. The first model is similar to the largest Conformer in the paper </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p4.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S3.SS1.p4.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p4.1.4" class="ltx_text" style="font-size:90%;">. The only difference is that we replace batch normalization by group normalization, which is more suitable for federated learning at a small degradation in accuracy </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p4.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib10" title="" class="ltx_ref">10</a><span id="S3.SS1.p4.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p4.1.7" class="ltx_text" style="font-size:90%;">. We refer to this model as </span><em id="S3.SS1.p4.1.8" class="ltx_emph ltx_font_italic" style="font-size:90%;">Non-streaming Conformer</em><span id="S3.SS1.p4.1.9" class="ltx_text" style="font-size:90%;">. The second model is our production-grade Conformer variant </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p4.1.10.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib11" title="" class="ltx_ref">11</a><span id="S3.SS1.p4.1.11.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p4.1.12" class="ltx_text" style="font-size:90%;">, which contains approximately 130M trainable parameters and supports streaming use cases. We refer to this model as </span><em id="S3.SS1.p4.1.13" class="ltx_emph ltx_font_italic" style="font-size:90%;">streaming Conformer</em><span id="S3.SS1.p4.1.14" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<div id="S3.SS1.p5" class="ltx_para">
+<p id="S3.SS1.p5.3" class="ltx_p"><span id="S3.SS1.p5.3.1" class="ltx_text" style="font-size:90%;">Unless otherwise specified, we randomly quantize 90% of the weight matrices and vary the selection from round to round and from client to client. There are 128 clients, and each client trains a model with 1 local step. The batch size is 16 per client. For resource consumption, we report the theoretical memory usage of parameters, the communication cost, and the training speed on TPUs. The memory saving observed in practice with our implementation is also provided in Sec. </span><a href="#S3.SS4" title="3.4 Measured Memory Usage on Pixel 4 Phones ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.4</span></a><span id="S3.SS1.p5.3.2" class="ltx_text" style="font-size:90%;">. We use </span><em id="S3.SS1.p5.3.3" class="ltx_emph ltx_font_italic" style="font-size:90%;">SxEyMz</em><span id="S3.SS1.p5.3.4" class="ltx_text" style="font-size:90%;"> to represent a floating-point format with </span><math id="S3.SS1.p5.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S3.SS1.p5.1.m1.1a"><mi mathsize="90%" id="S3.SS1.p5.1.m1.1.1" xref="S3.SS1.p5.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p5.1.m1.1b"><ci id="S3.SS1.p5.1.m1.1.1.cmml" xref="S3.SS1.p5.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p5.1.m1.1c">x</annotation></semantics></math><span id="S3.SS1.p5.3.5" class="ltx_text" style="font-size:90%;"> sign bits, </span><math id="S3.SS1.p5.2.m2.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S3.SS1.p5.2.m2.1a"><mi mathsize="90%" id="S3.SS1.p5.2.m2.1.1" xref="S3.SS1.p5.2.m2.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p5.2.m2.1b"><ci id="S3.SS1.p5.2.m2.1.1.cmml" xref="S3.SS1.p5.2.m2.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p5.2.m2.1c">y</annotation></semantics></math><span id="S3.SS1.p5.3.6" class="ltx_text" style="font-size:90%;"> exponent bits and </span><math id="S3.SS1.p5.3.m3.1" class="ltx_Math" alttext="z" display="inline"><semantics id="S3.SS1.p5.3.m3.1a"><mi mathsize="90%" id="S3.SS1.p5.3.m3.1.1" xref="S3.SS1.p5.3.m3.1.1.cmml">z</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p5.3.m3.1b"><ci id="S3.SS1.p5.3.m3.1.1.cmml" xref="S3.SS1.p5.3.m3.1.1">𝑧</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p5.3.m3.1c">z</annotation></semantics></math><span id="S3.SS1.p5.3.7" class="ltx_text" style="font-size:90%;"> mantissa bits. For example, the FP32 format is represented by S1E8M23.</span></p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Non-Streaming Conformer on LibriSpeech</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><span id="S3.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">Table </span><a href="#S3.T1" title="Table 1 ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS2.p1.1.2" class="ltx_text" style="font-size:90%;"> summarizes the results of Non-Streaming Conformer on IID LibriSpeech. Compared with FP32 (S1E8M32), OMC can achieve similar WERs with 64% memory usage of parameters and communication cost by using the 19-bit S1E4M14 format. OMC is also pretty lightweight. In this experiment, OMC only decreases the speed by 9%.</span></p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p"><span id="S3.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">Table </span><a href="#S3.T3" title="Table 3 ‣ 3.2 Non-Streaming Conformer on LibriSpeech ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S3.SS2.p2.1.2" class="ltx_text" style="font-size:90%;"> summarizes the WERs of Non-Streaming Conformer on Non-IID LibriSpeech with the same bitwidth as that of the IID LibriSpeech experiment. Even with non-IID data, OMC can still attain comparable WERs to using FP32. The reduction in memory usage of parameters and communication cost is the same as the previous IID experiment and, hence, omitted in Table </span><a href="#S3.T3" title="Table 3 ‣ 3.2 Non-Streaming Conformer on LibriSpeech ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S3.SS2.p2.1.3" class="ltx_text" style="font-size:90%;">. These experiments show the versatility of OMC to work well with both IID and non-IID data distribution.</span></p>
+</div>
+<figure id="S3.T3" class="ltx_table">
+<div id="S3.T3.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:201.5pt;height:36pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(0.0pt,0.0pt) scale(1.0,1.0) ;">
+<table id="S3.T3.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T3.1.1.1.1" class="ltx_tr">
+<th id="S3.T3.1.1.1.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_tt"></th>
+<td id="S3.T3.1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T3.1.1.1.1.2.1" class="ltx_text" style="font-size:90%;">FP32 (S1E8M23)</span></td>
+<td id="S3.T3.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T3.1.1.1.1.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">OMC (S1E4M14)</span></td>
+</tr>
+<tr id="S3.T3.1.1.2.2" class="ltx_tr">
+<th id="S3.T3.1.1.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r ltx_border_t"><span id="S3.T3.1.1.2.2.1.1" class="ltx_text" style="font-size:90%;">WER</span></th>
+<td id="S3.T3.1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S3.T3.1.1.2.2.2.1" class="ltx_text" style="font-size:90%;">2.0/4.7/2.2/4.9</span></td>
+<td id="S3.T3.1.1.2.2.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S3.T3.1.1.2.2.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">2.0/4.8/2.2/4.9</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 3: </span>The WERs of Non-Streaming Conformer on Non-IID LibriSpeech.</figcaption>
+</figure>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Streaming Conformer on Multi-Domain Dataset</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p"><span id="S3.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">We observe that domain adaptation may allow using a smaller bitwidth than from-scratch training. Table </span><a href="#S3.T2" title="Table 2 ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S3.SS3.p1.1.2" class="ltx_text" style="font-size:90%;"> summarizes the results of Streaming Conformer on the Multi-Domain dataset. Compared to FP32, OMC can achieve similar WERs with 41% memory usage of parameters and communication cost by using the 11-bit S1E3M7 format. We can further reduce the bitwidth to 6 bits (S1E2M3) and still improve the WERs over the before-adaptation baseline. Moreover, OMC only has a negligible impact on the training speed, by 7% in this case.</span></p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Measured Memory Usage on Pixel 4 Phones</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p"><span id="S3.SS4.p1.1.1" class="ltx_text" style="font-size:90%;">In this section, we measured the memory usage on Google Pixel 4 with parameters quantized to FP16 (S1E5M10). We implemented federated learning with Tensorflow Federated </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a><span id="S3.SS4.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.4" class="ltx_text" style="font-size:90%;"> and applied gradient recomputation </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S3.SS4.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.7" class="ltx_text" style="font-size:90%;"> to force releasing the memory occupied by transient parameters. The code has been uploaded to the Lingvo </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS4.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a><span id="S3.SS4.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS4.p1.1.10" class="ltx_text" style="font-size:90%;"> repository on Github. For the Streaming Conformer, OMC reduces the peak memory usage by 197 MB (38% of the model size). For a smaller Streaming Conformer model with 3 Conformer blocks in the encoder, OMC reduces the peak memory usage by 84 MB (45% of the model size).</span></p>
+</div>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Ablation Study</h3>
+
+<div id="S3.SS5.p1" class="ltx_para">
+<p id="S3.SS5.p1.1" class="ltx_p"><span id="S3.SS5.p1.1.1" class="ltx_text" style="font-size:90%;">In the ablation study, we use Streaming Conformer on Multi-Domain dataset as the study target unless otherwise specified.</span></p>
+</div>
+<section id="S3.SS5.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.5.1 </span>Impact of Proposed Methods</h4>
+
+<div id="S3.SS5.SSS1.p1" class="ltx_para">
+<p id="S3.SS5.SSS1.p1.1" class="ltx_p"><span id="S3.SS5.SSS1.p1.1.1" class="ltx_text" style="font-size:90%;">We start from studying the impact of each of the proposed methods on WERs. The results are summarized in Table </span><a href="#S3.T4" title="Table 4 ‣ 3.5.1 Impact of Proposed Methods ‣ 3.5 Ablation Study ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4</span></a><span id="S3.SS5.SSS1.p1.1.2" class="ltx_text" style="font-size:90%;">. After we quantize the parameters to 11 bits (S1E3M7), the WER significantly increases by 2.3. The WER gap is first closed by the proposed per-variable transformation, which reduces the WER by 0.4. Then, the proposed weight matrices only quantization reduces the WER by another 1.8. Finally, the proposed partial parameter quantization brings down the WER to 4.6, which matches the FP32 baseline.</span></p>
+</div>
+<figure id="S3.T4" class="ltx_table">
+<div id="S3.T4.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:243.5pt;height:111.7pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-21.5pt,9.9pt) scale(0.85,0.85) ;">
+<table id="S3.T4.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T4.1.1.1.1" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<table id="S3.T4.1.1.1.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T4.1.1.1.1.1.1.1" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.1.1.1.1.1" class="ltx_text" style="font-size:90%;">Quantization</span></td>
+</tr>
+<tr id="S3.T4.1.1.1.1.1.1.2" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.1.1.2.1.1" class="ltx_text" style="font-size:90%;">(S1E3M7)</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T4.1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<table id="S3.T4.1.1.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T4.1.1.1.1.2.1.1" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.2.1.1.1.1" class="ltx_text" style="font-size:90%;">Per-Variable</span></td>
+</tr>
+<tr id="S3.T4.1.1.1.1.2.1.2" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.2.1.2.1.1" class="ltx_text" style="font-size:90%;">Transformation</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T4.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">
+<table id="S3.T4.1.1.1.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T4.1.1.1.1.3.1.1" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.3.1.1.1.1" class="ltx_text" style="font-size:90%;">Weights</span></td>
+</tr>
+<tr id="S3.T4.1.1.1.1.3.1.2" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.3.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.3.1.2.1.1" class="ltx_text" style="font-size:90%;">Only</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T4.1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_rr ltx_border_tt">
+<table id="S3.T4.1.1.1.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T4.1.1.1.1.4.1.1" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.4.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.4.1.1.1.1" class="ltx_text" style="font-size:90%;">90%</span></td>
+</tr>
+<tr id="S3.T4.1.1.1.1.4.1.2" class="ltx_tr">
+<td id="S3.T4.1.1.1.1.4.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center"><span id="S3.T4.1.1.1.1.4.1.2.1.1" class="ltx_text" style="font-size:90%;">Weights</span></td>
+</tr>
+</table>
+</td>
+<td id="S3.T4.1.1.1.1.5" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T4.1.1.1.1.5.1" class="ltx_text" style="font-size:90%;">WER</span></td>
+</tr>
+<tr id="S3.T4.1.1.2.2" class="ltx_tr">
+<td id="S3.T4.1.1.2.2.1" class="ltx_td ltx_border_r ltx_border_tt"></td>
+<td id="S3.T4.1.1.2.2.2" class="ltx_td ltx_border_r ltx_border_tt"></td>
+<td id="S3.T4.1.1.2.2.3" class="ltx_td ltx_border_r ltx_border_tt"></td>
+<td id="S3.T4.1.1.2.2.4" class="ltx_td ltx_border_rr ltx_border_tt"></td>
+<td id="S3.T4.1.1.2.2.5" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T4.1.1.2.2.5.1" class="ltx_text" style="font-size:90%;">4.6</span></td>
+</tr>
+<tr id="S3.T4.1.1.3.3" class="ltx_tr">
+<td id="S3.T4.1.1.3.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.3.3.1.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.3.3.2" class="ltx_td ltx_border_r ltx_border_t"></td>
+<td id="S3.T4.1.1.3.3.3" class="ltx_td ltx_border_r ltx_border_t"></td>
+<td id="S3.T4.1.1.3.3.4" class="ltx_td ltx_border_rr ltx_border_t"></td>
+<td id="S3.T4.1.1.3.3.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T4.1.1.3.3.5.1" class="ltx_text" style="font-size:90%;">6.9</span></td>
+</tr>
+<tr id="S3.T4.1.1.4.4" class="ltx_tr">
+<td id="S3.T4.1.1.4.4.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.4.4.1.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.4.4.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.4.4.2.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.4.4.3" class="ltx_td ltx_border_r ltx_border_t"></td>
+<td id="S3.T4.1.1.4.4.4" class="ltx_td ltx_border_rr ltx_border_t"></td>
+<td id="S3.T4.1.1.4.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T4.1.1.4.4.5.1" class="ltx_text" style="font-size:90%;">6.5</span></td>
+</tr>
+<tr id="S3.T4.1.1.5.5" class="ltx_tr">
+<td id="S3.T4.1.1.5.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.5.5.1.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.5.5.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.5.5.2.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.5.5.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T4.1.1.5.5.3.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.5.5.4" class="ltx_td ltx_border_rr ltx_border_t"></td>
+<td id="S3.T4.1.1.5.5.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T4.1.1.5.5.5.1" class="ltx_text" style="font-size:90%;">4.7</span></td>
+</tr>
+<tr id="S3.T4.1.1.6.6" class="ltx_tr">
+<td id="S3.T4.1.1.6.6.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span id="S3.T4.1.1.6.6.1.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.6.6.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span id="S3.T4.1.1.6.6.2.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.6.6.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r ltx_border_t"><span id="S3.T4.1.1.6.6.3.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.6.6.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_rr ltx_border_t"><span id="S3.T4.1.1.6.6.4.1" class="ltx_text" style="font-size:90%;">✓</span></td>
+<td id="S3.T4.1.1.6.6.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S3.T4.1.1.6.6.5.1" class="ltx_text" style="font-size:90%;">4.6</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table">Table 4: </span>The change in WER when we apply each of the proposed methods sequentially.</figcaption>
+</figure>
+</section>
+<section id="S3.SS5.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.5.2 </span>Per-Variable Transformation for From-Scratch Training</h4>
+
+<div id="S3.SS5.SSS2.p1" class="ltx_para">
+<p id="S3.SS5.SSS2.p1.1" class="ltx_p"><span id="S3.SS5.SSS2.p1.1.1" class="ltx_text" style="font-size:90%;">In the previous section, we showed the effectiveness of the proposed per-variable transformation for domain adaptation. We found that per-variable transformation is even more critical for from-scratch training. Fig. </span><a href="#S3.F3" title="Figure 3 ‣ 3.5.2 Per-Variable Transformation for From-Scratch Training ‣ 3.5 Ablation Study ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S3.SS5.SSS2.p1.1.2" class="ltx_text" style="font-size:90%;"> shows its impact on WERs when we train the Non-Streaming Conformer on IID LibriSpeech dataset from scratch with the S1E5M10 format. Without applying per-variable transformation, the training is unstable. The WER first decreases and then increases after 12000 federated rounds. This issue is resolved by adding per-variable transformation, which helps stabilize training to make the WER keep decreasing.</span></p>
+</div>
+<figure id="S3.F3" class="ltx_figure"><img src="/html/2205.03494/assets/x3.png" id="S3.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="180" height="111" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The comparison between with and without using per-variable transformation (PVT) when training Non-Streaming Conformer on IID LibriSpeech dataset from scratch with the S1E5M10 format.</figcaption>
+</figure>
+</section>
+<section id="S3.SS5.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.5.3 </span>With and Without Partial Parameter Quantization</h4>
+
+<div id="S3.SS5.SSS3.p1" class="ltx_para">
+<p id="S3.SS5.SSS3.p1.1" class="ltx_p"><span id="S3.SS5.SSS3.p1.1.1" class="ltx_text" style="font-size:90%;">In the case of quantizing 90% parameters with the 11-bit format (S1E3M7), keeping the remaining 10% parameters unquantized increases the average bitwidth by around 2 bits. In this study, we compare this 11-bit format with 90% parameters quantized with various 13-bit formats with all parameters quantized. We create these 13-bit formats by allocating the extra 2 bits to the exponent and mantissa parts in different ways. These 13-bit formats are S1E3M9, S1E4M8, and S1E5M7. The training results of these formats are summarized in Fig. </span><a href="#S3.F4" title="Figure 4 ‣ 3.5.3 With and Without Partial Parameter Quantization ‣ 3.5 Ablation Study ‣ 3 Experimental Results ‣ Online Model Compression for Federated Learning with Large Models" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4</span></a><span id="S3.SS5.SSS3.p1.1.2" class="ltx_text" style="font-size:90%;">. We observe that using the proposed partial parameter quantization with 11 bits results in faster convergence than all parameter quantization with 13 bits. Moreover, none of these 13-bit formats can achieve a WER as low as that of partial parameter quantization with 11 bits.</span></p>
+</div>
+<figure id="S3.F4" class="ltx_figure"><img src="/html/2205.03494/assets/x4.png" id="S3.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="180" height="111" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>The comparison between partial parameter quantization (PPQ) with the 11-bit format (S1E3M7) and 90% parameters quantized and all parameter quantization (APQ) with various 13-bit formats (S1E3M9, S1E4M8, and S1E5M7) and 100% parameters quantized.</figcaption>
+</figure>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">4 </span>Related Works</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text" style="font-size:90%;">Most of the related works in the literature that improve inference or training efficiency focus on centralized training. One widely adopted approach is reducing the complexity of models, such as manual design </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S4.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.4" class="ltx_text" style="font-size:90%;">, pruning </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S4.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.7" class="ltx_text" style="font-size:90%;">, or neural architecture search </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a><span id="S4.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.10" class="ltx_text" style="font-size:90%;">. However, reducing complexity typically limits the potential of the model for continuous improvement over growing data. Model transport compression </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib22" title="" class="ltx_ref">22</a><span id="S4.p1.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.13" class="ltx_text" style="font-size:90%;"> and gradient transport compression </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p1.1.14.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib23" title="" class="ltx_ref">23</a><span id="S4.p1.1.15.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p1.1.16" class="ltx_text" style="font-size:90%;"> keep the model unchanged and compress the transported data to save the communication cost but with the same memory usage.</span></p>
+</div>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.1" class="ltx_p"><span id="S4.p2.1.1" class="ltx_text" style="font-size:90%;">Similar to OMC, Quantization-Aware Training (QAT) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S4.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p2.1.4" class="ltx_text" style="font-size:90%;"> also quantizes parameters. The main difference is that OMC aims to reduce memory usage </span><em id="S4.p2.1.5" class="ltx_emph ltx_font_italic" style="font-size:90%;">during training</em><span id="S4.p2.1.6" class="ltx_text" style="font-size:90%;"> while QAT focuses on saving memory </span><em id="S4.p2.1.7" class="ltx_emph ltx_font_italic" style="font-size:90%;">during inference</em><span id="S4.p2.1.8" class="ltx_text" style="font-size:90%;">. When training a model, QAT stores parameters in </span><em id="S4.p2.1.9" class="ltx_emph ltx_font_italic" style="font-size:90%;">FP32</em><span id="S4.p2.1.10" class="ltx_text" style="font-size:90%;"> and quantizes them on demand while OMC stores parameters in a </span><em id="S4.p2.1.11" class="ltx_emph ltx_font_italic" style="font-size:90%;">compressed format</em><span id="S4.p2.1.12" class="ltx_text" style="font-size:90%;"> and decompresses them on demand. Storing parameters in FP32 allows QAT to precisely accumulate small gradients to achieve lower bitwidths for inference at the cost of no reduction in the memory usage of parameters during training. In contrast, storing parameters in a compressed format enables OMC to reduce the memory usage of parameters during training but makes it more challenging to control the quantization error and reduce bitwidths. In this paper, we propose multiple methods to effectively address this challenge.</span></p>
+</div>
+<div id="S4.p3" class="ltx_para">
+<p id="S4.p3.1" class="ltx_p"><span id="S4.p3.1.1" class="ltx_text" style="font-size:90%;">There are a few works aiming to improve the efficiency of federated learning. Federated dropout </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a><span id="S4.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p3.1.4" class="ltx_text" style="font-size:90%;"> trains only part of the server model on clients, so that the server model can be much more complicated than client models. However, because the client models differ from the server model, federated dropout needs to maintain a mapping between them. Similar to federate dropout, group knowledge transfer </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p3.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib26" title="" class="ltx_ref">26</a><span id="S4.p3.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p3.1.7" class="ltx_text" style="font-size:90%;"> also uses different models on a server and clients. The clients run a small feature extractors to extract features, which are then used to train the server model. This approach decreases client loading at the cost of increased server loading. Partial variable training </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.p3.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib27" title="" class="ltx_ref">27</a><span id="S4.p3.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S4.p3.1.10" class="ltx_text" style="font-size:90%;"> freezes parameters to reduce the memory usage of activations and gradients and the client-to-server communication, but the memory usage of </span><em id="S4.p3.1.11" class="ltx_emph ltx_font_italic" style="font-size:90%;">parameters</em><span id="S4.p3.1.12" class="ltx_text" style="font-size:90%;"> and the </span><em id="S4.p3.1.13" class="ltx_emph ltx_font_italic" style="font-size:90%;">server-to-client</em><span id="S4.p3.1.14" class="ltx_text" style="font-size:90%;"> communication are not changed. Compared to the above methods, OMC can reduce both memory usage and communication cost of parameters for federated learning without their downsides and can be further combined with them to achieve even better efficiency.</span></p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p"><span id="S5.p1.1.1" class="ltx_text" style="font-size:90%;">In this paper, we proposed Online Model Compression to reduce memory usage and communication cost of model parameters for federated learning. Our realization of OMC consists of floating-point quantization, per-variable transformation, weight matrices only quantization, and partial parameter quantization. The experiments show that OMC is lightweight but can effectively maintain accuracy with significant efficiency improvement. We believe this technique will help bring state-of-the-art ASR models onto edge devices to improve user experience.</span></p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="font-size:90%;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="font-size:90%;">
+P. Kairouz, H. Brendan McMahan, B. Avent </span><em id="bib.bib1.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib1.3.3" class="ltx_text" style="font-size:90%;">, “Advances and open
+problems in federated learning,” </span><em id="bib.bib1.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1912.04977</em><span id="bib.bib1.5.5" class="ltx_text" style="font-size:90%;">,
+2019.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="font-size:90%;">
+J. Wang, Z. Charles, Z. Xu </span><em id="bib.bib2.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib2.3.3" class="ltx_text" style="font-size:90%;">, “A field guide to federated
+optimization,” </span><em id="bib.bib2.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2107.06917</em><span id="bib.bib2.5.5" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="font-size:90%;">
+A. Gulati, J. Qin, C.-C. Chiu </span><em id="bib.bib3.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib3.3.3" class="ltx_text" style="font-size:90%;">, “Conformer: Convolution-augmented
+transformer for speech recognition,” in </span><em id="bib.bib3.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">Conference of the
+International Speech Communication Association (INTERSPEECH)</em><span id="bib.bib3.5.5" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="font-size:90%;">
+M. Rastegari, V. Ordonez, J. Redmon </span><em id="bib.bib4.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib4.3.3" class="ltx_text" style="font-size:90%;">, “Xnor-net: Imagenet
+classification using binary convolutional neural networks,” in
+</span><em id="bib.bib4.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">European Conference on Computer Vision (ECCV)</em><span id="bib.bib4.5.5" class="ltx_text" style="font-size:90%;">, 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="font-size:90%;">
+A. Abdolrashidi, L. Wang, S. Agrawal </span><em id="bib.bib5.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib5.3.3" class="ltx_text" style="font-size:90%;">, “Pareto-optimal quantized
+resnet is mostly 4-bit,” </span><em id="bib.bib5.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2105.03536</em><span id="bib.bib5.5.5" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="font-size:90%;">
+J. Huang, F. Qian, Y. Guo </span><em id="bib.bib6.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib6.3.3" class="ltx_text" style="font-size:90%;">, “An in-depth study of lte: Effect of
+network protocol and application behavior on performance,” in
+</span><em id="bib.bib6.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">Proceedings of the ACM SIGCOMM Conference on SIGCOMM</em><span id="bib.bib6.5.5" class="ltx_text" style="font-size:90%;">, 2013.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="font-size:90%;">
+V. Panayotov, G. Chen, D. Povey </span><em id="bib.bib7.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib7.3.3" class="ltx_text" style="font-size:90%;">, “Librispeech: An asr corpus
+based on public domain audio books,” in </span><em id="bib.bib7.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE International Conference
+on Acoustics, Speech and Signal Processing (ICASSP)</em><span id="bib.bib7.5.5" class="ltx_text" style="font-size:90%;">, 2015.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="font-size:90%;">
+A. Narayanan, R. Prabhavalkar, C.-C. Chiu </span><em id="bib.bib8.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib8.3.3" class="ltx_text" style="font-size:90%;">, “Recognizing
+long-form speech using streaming end-to-end models,” in </span><em id="bib.bib8.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE
+Automatic Speech Recognition and Understanding Workshop</em><span id="bib.bib8.5.5" class="ltx_text" style="font-size:90%;">, 2019.
+</span><a target="_blank" href="https://doi.org/10.1109/ASRU46091.2019.9003913" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">https://doi.org/10.1109/ASRU46091.2019.9003913</a><span id="bib.bib8.6.6" class="ltx_text" style="font-size:90%;">
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="font-size:90%;">
+A. Misra, D. Hwang, Z. Huo </span><em id="bib.bib9.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib9.3.3" class="ltx_text" style="font-size:90%;">, “A Comparison of Supervised and
+Unsupervised Pre-Training of End-to-End Models,” in </span><em id="bib.bib9.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">Conference of the
+International Speech Communication Association (INTERSPEECH)</em><span id="bib.bib9.5.5" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="font-size:90%;">
+K. Hsieh, A. Phanishayee, O. Mutlu </span><em id="bib.bib10.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib10.3.3" class="ltx_text" style="font-size:90%;">, “The non-iid data quagmire
+of decentralized machine learning,” </span><em id="bib.bib10.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1910.00189</em><span id="bib.bib10.5.5" class="ltx_text" style="font-size:90%;">,
+2019.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="font-size:90%;">
+B. Li, A. Gulati, J. Yu </span><em id="bib.bib11.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib11.3.3" class="ltx_text" style="font-size:90%;">, “A better and faster end-to-end model
+for streaming asr,” in </span><em id="bib.bib11.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE International Conference on Acoustics,
+Speech and Signal Processing (ICASSP)</em><span id="bib.bib11.5.5" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="font-size:90%;">
+</span><a target="_blank" href="https://www.tensorflow.org/federated" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">https://www.tensorflow.org/federated</a><span id="bib.bib12.2.2" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="font-size:90%;">
+T. Chen, B. Xu, C. Zhang </span><em id="bib.bib13.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib13.3.3" class="ltx_text" style="font-size:90%;">, “Training deep nets with sublinear
+memory cost,” </span><em id="bib.bib13.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1604.06174</em><span id="bib.bib13.5.5" class="ltx_text" style="font-size:90%;">, 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="font-size:90%;">
+J. Shen, P. Nguyen, Y. Wu </span><em id="bib.bib14.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib14.3.3" class="ltx_text" style="font-size:90%;">, “Lingvo: a modular and scalable
+framework for sequence-to-sequence modeling,” </span><em id="bib.bib14.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">CoRR</em><span id="bib.bib14.5.5" class="ltx_text" style="font-size:90%;">, vol.
+abs/1902.08295, 2019. </span><a target="_blank" href="http://arxiv.org/abs/1902.08295" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">http://arxiv.org/abs/1902.08295</a><span id="bib.bib14.6.6" class="ltx_text" style="font-size:90%;">
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="font-size:90%;">
+</span><a target="_blank" href="https://github.com/tensorflow/lingvo" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">https://github.com/tensorflow/lingvo</a><span id="bib.bib15.2.2" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="font-size:90%;">
+A. G. Howard, M. Zhu, B. Chen </span><em id="bib.bib16.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib16.3.3" class="ltx_text" style="font-size:90%;">, “Mobilenets: Efficient
+convolutional neural networks for mobile vision applications,” </span><em id="bib.bib16.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv
+preprint arXiv:1704.04861</em><span id="bib.bib16.5.5" class="ltx_text" style="font-size:90%;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="font-size:90%;">
+M. Sandler, A. Howard, M. Zhu </span><em id="bib.bib17.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib17.3.3" class="ltx_text" style="font-size:90%;">, “Mobilenetv2: Inverted residuals
+and linear bottlenecks,” in </span><em id="bib.bib17.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">The IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR)</em><span id="bib.bib17.5.5" class="ltx_text" style="font-size:90%;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="font-size:90%;">
+S. Han, H. Mao, and W. J. Dally, “Deep compression: Compressing deep neural
+networks with pruning, trained quantization and huffman coding,” in
+</span><em id="bib.bib18.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">International Conference on Learning Representations (ICLR)</em><span id="bib.bib18.3.3" class="ltx_text" style="font-size:90%;">, 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="font-size:90%;">
+T.-J. Yang, Y.-H. Chen, and V. Sze, “Designing energy-efficient convolutional
+neural networks using energy-aware pruning,” in </span><em id="bib.bib19.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE Conference on
+Computer Vision and Pattern Recognition (CVPR)</em><span id="bib.bib19.3.3" class="ltx_text" style="font-size:90%;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="font-size:90%;">
+B. Zoph and Q. V. Le, “Neural architecture search with reinforcement
+learning,” in </span><em id="bib.bib20.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">International Conference on Learning Representations
+(ICLR)</em><span id="bib.bib20.3.3" class="ltx_text" style="font-size:90%;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="font-size:90%;">
+T.-J. Yang, Y.-L. Liao, and V. Sze, “Netadaptv2: Efficient neural architecture
+search with fast super-network training and architecture optimization,” in
+</span><em id="bib.bib21.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">Conference on Computer Vision and Pattern Recognition (CVPR)</em><span id="bib.bib21.3.3" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="font-size:90%;">
+S. Chraibi, A. Khaled, D. Kovalev </span><em id="bib.bib22.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib22.3.3" class="ltx_text" style="font-size:90%;">, “Distributed fixed point
+methods with compressed iterates,” </span><em id="bib.bib22.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1912.09925</em><span id="bib.bib22.5.5" class="ltx_text" style="font-size:90%;">,
+2019.
+</span>
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text" style="font-size:90%;">
+J. Konečný, H. B. McMahan, F. X. Yu </span><em id="bib.bib23.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib23.3.3" class="ltx_text" style="font-size:90%;">, “Federated learning:
+Strategies for improving communication efficiency,” in </span><em id="bib.bib23.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">Advances in
+Neural Information Processing Systems (NeurIPS) Workshop on Private
+Multi-Party Machine Learning</em><span id="bib.bib23.5.5" class="ltx_text" style="font-size:90%;">, 2016. </span><a target="_blank" href="https://arxiv.org/abs/1610.05492" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">https://arxiv.org/abs/1610.05492</a><span id="bib.bib23.6.6" class="ltx_text" style="font-size:90%;">
+</span>
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text" style="font-size:90%;">
+S. Caldas, J. Konečný, H. B. McMahan </span><em id="bib.bib24.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib24.3.3" class="ltx_text" style="font-size:90%;">, “Expanding the
+reach of federated learning by reducing client resource requirements,”
+</span><em id="bib.bib24.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1812.07210</em><span id="bib.bib24.5.5" class="ltx_text" style="font-size:90%;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text" style="font-size:90%;">
+D. Guliani, L. Zhou, C. Ryu </span><em id="bib.bib25.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib25.3.3" class="ltx_text" style="font-size:90%;">, “Enabling on-device training of
+speech recognition models with federated dropout,” in </span><em id="bib.bib25.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE
+International Conference on Acoustics, Speech and Signal Processing
+(ICASSP)</em><span id="bib.bib25.5.5" class="ltx_text" style="font-size:90%;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text" style="font-size:90%;">
+C. He, M. Annavaram, and S. Avestimehr, “Group knowledge transfer: Federated
+learning of large cnns at the edge,” in </span><em id="bib.bib26.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">Advances in Neural Information
+Processing Systems (NeurIPS)</em><span id="bib.bib26.3.3" class="ltx_text" style="font-size:90%;">, 2020.
+</span><a target="_blank" href="https://proceedings.neurips.cc/paper/2020/file/a1d4c20b182ad7137ab3606f0e3fc8a4-Paper.pdf" title="" class="ltx_ref ltx_url ltx_font_typewriter" style="font-size:90%;">https://proceedings.neurips.cc/paper/2020/file/a1d4c20b182ad7137ab3606f0e3fc8a4-Paper.pdf</a><span id="bib.bib26.4.4" class="ltx_text" style="font-size:90%;">
+</span>
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text" style="font-size:90%;">
+T.-J. Yang, D. Guliani, F. Beaufays </span><em id="bib.bib27.2.2" class="ltx_emph ltx_font_italic" style="font-size:90%;">et al.</em><span id="bib.bib27.3.3" class="ltx_text" style="font-size:90%;">, “Partial variable training
+for efficient on-device federated learning,” in </span><em id="bib.bib27.4.4" class="ltx_emph ltx_font_italic" style="font-size:90%;">IEEE International
+Conference on Acoustics, Speech and Signal Processing (ICASSP)</em><span id="bib.bib27.5.5" class="ltx_text" style="font-size:90%;">, 2022.
+</span>
+</span>
+</li>
+</ul>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">6 </span>Acknowledgements</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p"><span id="S6.p1.1.1" class="ltx_text" style="font-size:90%;">We thank Petr Zadrazil for inspiring this project and Dhruv Guliani for reviewing this paper. We also thank Sean Augenstein, Zachary Garrett and Hubert Eichner for their helpful discussions on the experiments.</span></p>
+</div>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2205.03493" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2205.03494" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2205.03494">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2205.03494" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2205.03495" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Mon Mar 11 15:14:29 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

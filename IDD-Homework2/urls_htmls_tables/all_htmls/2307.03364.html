@@ -1,0 +1,593 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2307.03364] Distilled Pruning: Using Synthetic Data to Win the Lottery</title><meta property="og:description" content="This work introduces a novel approach to pruning deep learning models by using distilled data. Unlike conventional strategies which primarily focus on architectural or algorithmic optimization, our method reconsiders t…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Distilled Pruning: Using Synthetic Data to Win the Lottery">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Distilled Pruning: Using Synthetic Data to Win the Lottery">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2307.03364">
+
+<!--Generated on Wed Feb 28 19:43:17 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Distilled Pruning: Using Synthetic Data to Win the Lottery</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname"><span id="id1.1.id1" class="ltx_text"><a href="mailto:luke@modernintelligence.ai" title="" class="ltx_ref ltx_href">Luke McDermott</a></span>
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Modern Intelligence
+</span></span></span>
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname"><span id="id2.1.id1" class="ltx_text"><a href="mailto:daniel@modernintelligence.ai" title="" class="ltx_ref ltx_href">Daniel Cummings</a></span>
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation">Modern Intelligence
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id3.id1" class="ltx_p">This work introduces a novel approach to pruning deep learning models by using distilled data. Unlike conventional strategies which primarily focus on architectural or algorithmic optimization, our method reconsiders the role of data in these scenarios. Distilled datasets capture essential patterns from larger datasets, and we demonstrate how to leverage this capability to enable a computationally efficient pruning process. Our approach can find sparse, trainable subnetworks (a.k.a. lottery tickets) up to 5x faster than Iterative Magnitude Pruning at comparable sparsity on CIFAR-10. The experimental results highlight the potential of using distilled data for resource-efficient neural network pruning, model compression, and neural architecture search.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span id="S1.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">1  </span><span id="S1.2.2" class="ltx_text ltx_font_bold">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">As prevalent types of deep learning models continue to grow in size and scale, the study of model compression techniques continues to be vitally essential as it addresses the issues of cost-effectiveness, limited computational resources, and model complexity or latency. One key capability in this field, neural network pruning <cite class="ltx_cite ltx_citemacro_citep">(Lecun et al.,, <a href="#bib.bib9" title="" class="ltx_ref">1989</a>; Han et al.,, <a href="#bib.bib5" title="" class="ltx_ref">2015</a>)</cite>, has naturally risen in popularity
+as it aims to prune or cut out unnecessary parameters in models. Early pruning literature believed that, while dense, overparameterized models are important for training, they are not necessary for inference. This led pruning to be viewed as a post-training procedure, focusing on efficiency of models at inference. <cite class="ltx_cite ltx_citemacro_cite">Frankle and Carbin, (<a href="#bib.bib3" title="" class="ltx_ref">2019</a>)</cite> have shown that this is not the case, emphasizing the potential for pruning at initialization. The Lottery Ticket Hypothesis states that sparse, trainable subnetworks exist at initialization within these dense, overparameterized neural networks. To find these subnetworks or lottery tickets, Iterative Magnitude Pruning (IMP) is augmented with weight rewinding. The IMP process iterates by training a network, pruning the lowest magnitude weights, and rewinding the weights to their initial values or to some point early in training. This repeats until the desired sparsity<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>We denote sparsity as percentage of parameters pruned.</span></span></span> is achieved. With weight rewinding, IMP requires the use of post-training information to find optimal masks at initialization. This algorithm enables the study of sparse neural architecture <cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.bib14" title="" class="ltx_ref">Paul et al., 2022a, </a>; Chen et al.,, <a href="#bib.bib2" title="" class="ltx_ref">2021</a>; Ma et al.,, <a href="#bib.bib11" title="" class="ltx_ref">2021</a>; Frankle et al.,, <a href="#bib.bib4" title="" class="ltx_ref">2020</a>)</cite>, providing a way for researchers to consistently find “lucky" lottery tickets.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Even as a fundamental research tool, IMP is largely inefficient due to the extensive retraining process. To achieve some sparse model with IMP, one must retrain some network numerous times over to achieve the mask, then retrain one final time to validate the sparsity mask. To address this issue, we employ the same framework as IMP, but instead use distilled data <cite class="ltx_cite ltx_citemacro_citep">(Wang et al.,, <a href="#bib.bib19" title="" class="ltx_ref">2020</a>)</cite>, essentially a summarized version of our training data, in the inner training loop to approximate trained weights. As a result, sparsity masks can be generated in considerably less time while still being capable of achieving full accuracy when trained with real training data. We show in our setting that distilled data can pick winning tickets.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Previous work, such as <cite class="ltx_cite ltx_citemacro_cite"><a href="#bib.bib15" title="" class="ltx_ref">Paul et al., 2022b </a></cite>, demonstrated that subsets of the training data are sufficient for finding lottery tickets. We improve upon this idea by distilling the essential features of a class into a few synthetic images. Data distillation condenses a dataset into a small, synthetic sample, which, when used for training, yields similar performance to training on the real dataset. Often, this means reducing a dataset to 1, 10, or 50 images per class. This topic has seen rapidly growing interest due to the benefits of lower computational overhead for model training and can broadly be separately into the subcategories of meta-model matching, gradient matching, distribution matches, and trajectory matching <cite class="ltx_cite ltx_citemacro_citep">(Sachdeva and McAuley,, <a href="#bib.bib16" title="" class="ltx_ref">2023</a>; Zhou et al.,, <a href="#bib.bib20" title="" class="ltx_ref">2022</a>; Cazenavette et al.,, <a href="#bib.bib1" title="" class="ltx_ref">2022</a>; Loo et al.,, <a href="#bib.bib10" title="" class="ltx_ref">2023</a>; Nguyen et al.,, <a href="#bib.bib12" title="" class="ltx_ref">2021</a>)</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">A downside of state-of-the-art data distillation methods is that they require significant memory overhead which limits their ability to scale to larger model sizes (and thus lack of cross-architecture generalizability). Recent works like <cite class="ltx_cite ltx_citemacro_cite">Loo et al., (<a href="#bib.bib10" title="" class="ltx_ref">2023</a>)</cite> and <cite class="ltx_cite ltx_citemacro_cite">Zhou et al., (<a href="#bib.bib20" title="" class="ltx_ref">2022</a>)</cite> have explored the transferrability of datasets generated by such methods on ResNet <cite class="ltx_cite ltx_citemacro_citep">(He et al.,, <a href="#bib.bib6" title="" class="ltx_ref">2015</a>)</cite> and VGG <cite class="ltx_cite ltx_citemacro_citep">(Simonyan and Zisserman,, <a href="#bib.bib17" title="" class="ltx_ref">2015</a>)</cite>, but since these results leave a lot of room for improvement, we focus our work to more computationally tractable convolutional networks. Despite concerns of distillation methods, in our unique setting with heavy retraining in IMP, poorly-generalizing distillation methods still show substantial utility in improving the retraining process since we only have to optimize the distilled data for one model family.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">In this paper, we introduce data distillation as a means to accelerate retraining in iterative pruning methods, while still accurately identifying winning tickets for the original dataset. We emphasize the use for distilled pruning as a means of rapid experimentation in pruning and NAS research, taking advantage of the efficiency/performance trade off. Data distillation and neural network nruning can be viewed as orthogonal approaches to computational efficiency, so data distillation provides additional speed up in retraining that can be used with other efficient pruning methods, not just IMP.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span id="S2.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">2  </span><span id="S2.2.2" class="ltx_text ltx_font_bold">Method</span>
+</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.9" class="ltx_p">Formally, the Lottery Ticket Hypothesis <cite class="ltx_cite ltx_citemacro_citep">(Frankle and Carbin,, <a href="#bib.bib3" title="" class="ltx_ref">2019</a>)</cite> conjectures that for some randomly initialized, dense neural network <math id="S2.p1.1.m1.2" class="ltx_Math" alttext="f(x;\theta)" display="inline"><semantics id="S2.p1.1.m1.2a"><mrow id="S2.p1.1.m1.2.3" xref="S2.p1.1.m1.2.3.cmml"><mi id="S2.p1.1.m1.2.3.2" xref="S2.p1.1.m1.2.3.2.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.p1.1.m1.2.3.1" xref="S2.p1.1.m1.2.3.1.cmml">​</mo><mrow id="S2.p1.1.m1.2.3.3.2" xref="S2.p1.1.m1.2.3.3.1.cmml"><mo stretchy="false" id="S2.p1.1.m1.2.3.3.2.1" xref="S2.p1.1.m1.2.3.3.1.cmml">(</mo><mi id="S2.p1.1.m1.1.1" xref="S2.p1.1.m1.1.1.cmml">x</mi><mo id="S2.p1.1.m1.2.3.3.2.2" xref="S2.p1.1.m1.2.3.3.1.cmml">;</mo><mi id="S2.p1.1.m1.2.2" xref="S2.p1.1.m1.2.2.cmml">θ</mi><mo stretchy="false" id="S2.p1.1.m1.2.3.3.2.3" xref="S2.p1.1.m1.2.3.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.1.m1.2b"><apply id="S2.p1.1.m1.2.3.cmml" xref="S2.p1.1.m1.2.3"><times id="S2.p1.1.m1.2.3.1.cmml" xref="S2.p1.1.m1.2.3.1"></times><ci id="S2.p1.1.m1.2.3.2.cmml" xref="S2.p1.1.m1.2.3.2">𝑓</ci><list id="S2.p1.1.m1.2.3.3.1.cmml" xref="S2.p1.1.m1.2.3.3.2"><ci id="S2.p1.1.m1.1.1.cmml" xref="S2.p1.1.m1.1.1">𝑥</ci><ci id="S2.p1.1.m1.2.2.cmml" xref="S2.p1.1.m1.2.2">𝜃</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.1.m1.2c">f(x;\theta)</annotation></semantics></math>, there exists a non-trivial binary mask <math id="S2.p1.2.m2.3" class="ltx_Math" alttext="m\in\{0,1\}^{|\theta|}" display="inline"><semantics id="S2.p1.2.m2.3a"><mrow id="S2.p1.2.m2.3.4" xref="S2.p1.2.m2.3.4.cmml"><mi id="S2.p1.2.m2.3.4.2" xref="S2.p1.2.m2.3.4.2.cmml">m</mi><mo id="S2.p1.2.m2.3.4.1" xref="S2.p1.2.m2.3.4.1.cmml">∈</mo><msup id="S2.p1.2.m2.3.4.3" xref="S2.p1.2.m2.3.4.3.cmml"><mrow id="S2.p1.2.m2.3.4.3.2.2" xref="S2.p1.2.m2.3.4.3.2.1.cmml"><mo stretchy="false" id="S2.p1.2.m2.3.4.3.2.2.1" xref="S2.p1.2.m2.3.4.3.2.1.cmml">{</mo><mn id="S2.p1.2.m2.2.2" xref="S2.p1.2.m2.2.2.cmml">0</mn><mo id="S2.p1.2.m2.3.4.3.2.2.2" xref="S2.p1.2.m2.3.4.3.2.1.cmml">,</mo><mn id="S2.p1.2.m2.3.3" xref="S2.p1.2.m2.3.3.cmml">1</mn><mo stretchy="false" id="S2.p1.2.m2.3.4.3.2.2.3" xref="S2.p1.2.m2.3.4.3.2.1.cmml">}</mo></mrow><mrow id="S2.p1.2.m2.1.1.1.3" xref="S2.p1.2.m2.1.1.1.2.cmml"><mo stretchy="false" id="S2.p1.2.m2.1.1.1.3.1" xref="S2.p1.2.m2.1.1.1.2.1.cmml">|</mo><mi id="S2.p1.2.m2.1.1.1.1" xref="S2.p1.2.m2.1.1.1.1.cmml">θ</mi><mo stretchy="false" id="S2.p1.2.m2.1.1.1.3.2" xref="S2.p1.2.m2.1.1.1.2.1.cmml">|</mo></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.2.m2.3b"><apply id="S2.p1.2.m2.3.4.cmml" xref="S2.p1.2.m2.3.4"><in id="S2.p1.2.m2.3.4.1.cmml" xref="S2.p1.2.m2.3.4.1"></in><ci id="S2.p1.2.m2.3.4.2.cmml" xref="S2.p1.2.m2.3.4.2">𝑚</ci><apply id="S2.p1.2.m2.3.4.3.cmml" xref="S2.p1.2.m2.3.4.3"><csymbol cd="ambiguous" id="S2.p1.2.m2.3.4.3.1.cmml" xref="S2.p1.2.m2.3.4.3">superscript</csymbol><set id="S2.p1.2.m2.3.4.3.2.1.cmml" xref="S2.p1.2.m2.3.4.3.2.2"><cn type="integer" id="S2.p1.2.m2.2.2.cmml" xref="S2.p1.2.m2.2.2">0</cn><cn type="integer" id="S2.p1.2.m2.3.3.cmml" xref="S2.p1.2.m2.3.3">1</cn></set><apply id="S2.p1.2.m2.1.1.1.2.cmml" xref="S2.p1.2.m2.1.1.1.3"><abs id="S2.p1.2.m2.1.1.1.2.1.cmml" xref="S2.p1.2.m2.1.1.1.3.1"></abs><ci id="S2.p1.2.m2.1.1.1.1.cmml" xref="S2.p1.2.m2.1.1.1.1">𝜃</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.2.m2.3c">m\in\{0,1\}^{|\theta|}</annotation></semantics></math>, such that when trained in isolation on some training data <math id="S2.p1.3.m3.1" class="ltx_Math" alttext="D_{\text{train}}" display="inline"><semantics id="S2.p1.3.m3.1a"><msub id="S2.p1.3.m3.1.1" xref="S2.p1.3.m3.1.1.cmml"><mi id="S2.p1.3.m3.1.1.2" xref="S2.p1.3.m3.1.1.2.cmml">D</mi><mtext id="S2.p1.3.m3.1.1.3" xref="S2.p1.3.m3.1.1.3a.cmml">train</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.p1.3.m3.1b"><apply id="S2.p1.3.m3.1.1.cmml" xref="S2.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.p1.3.m3.1.1.1.cmml" xref="S2.p1.3.m3.1.1">subscript</csymbol><ci id="S2.p1.3.m3.1.1.2.cmml" xref="S2.p1.3.m3.1.1.2">𝐷</ci><ci id="S2.p1.3.m3.1.1.3a.cmml" xref="S2.p1.3.m3.1.1.3"><mtext mathsize="70%" id="S2.p1.3.m3.1.1.3.cmml" xref="S2.p1.3.m3.1.1.3">train</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.3.m3.1c">D_{\text{train}}</annotation></semantics></math>, the subnetwork <math id="S2.p1.4.m4.2" class="ltx_Math" alttext="f(x;\text{train}(\theta\odot m,D_{\text{train}}))" display="inline"><semantics id="S2.p1.4.m4.2a"><mrow id="S2.p1.4.m4.2.2" xref="S2.p1.4.m4.2.2.cmml"><mi id="S2.p1.4.m4.2.2.3" xref="S2.p1.4.m4.2.2.3.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.p1.4.m4.2.2.2" xref="S2.p1.4.m4.2.2.2.cmml">​</mo><mrow id="S2.p1.4.m4.2.2.1.1" xref="S2.p1.4.m4.2.2.1.2.cmml"><mo stretchy="false" id="S2.p1.4.m4.2.2.1.1.2" xref="S2.p1.4.m4.2.2.1.2.cmml">(</mo><mi id="S2.p1.4.m4.1.1" xref="S2.p1.4.m4.1.1.cmml">x</mi><mo id="S2.p1.4.m4.2.2.1.1.3" xref="S2.p1.4.m4.2.2.1.2.cmml">;</mo><mrow id="S2.p1.4.m4.2.2.1.1.1" xref="S2.p1.4.m4.2.2.1.1.1.cmml"><mtext id="S2.p1.4.m4.2.2.1.1.1.4" xref="S2.p1.4.m4.2.2.1.1.1.4a.cmml">train</mtext><mo lspace="0em" rspace="0em" id="S2.p1.4.m4.2.2.1.1.1.3" xref="S2.p1.4.m4.2.2.1.1.1.3.cmml">​</mo><mrow id="S2.p1.4.m4.2.2.1.1.1.2.2" xref="S2.p1.4.m4.2.2.1.1.1.2.3.cmml"><mo stretchy="false" id="S2.p1.4.m4.2.2.1.1.1.2.2.3" xref="S2.p1.4.m4.2.2.1.1.1.2.3.cmml">(</mo><mrow id="S2.p1.4.m4.2.2.1.1.1.1.1.1" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.cmml"><mi id="S2.p1.4.m4.2.2.1.1.1.1.1.1.2" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.2.cmml">θ</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p1.4.m4.2.2.1.1.1.1.1.1.1" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.1.cmml">⊙</mo><mi id="S2.p1.4.m4.2.2.1.1.1.1.1.1.3" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.3.cmml">m</mi></mrow><mo id="S2.p1.4.m4.2.2.1.1.1.2.2.4" xref="S2.p1.4.m4.2.2.1.1.1.2.3.cmml">,</mo><msub id="S2.p1.4.m4.2.2.1.1.1.2.2.2" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.cmml"><mi id="S2.p1.4.m4.2.2.1.1.1.2.2.2.2" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.2.cmml">D</mi><mtext id="S2.p1.4.m4.2.2.1.1.1.2.2.2.3" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.3a.cmml">train</mtext></msub><mo stretchy="false" id="S2.p1.4.m4.2.2.1.1.1.2.2.5" xref="S2.p1.4.m4.2.2.1.1.1.2.3.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S2.p1.4.m4.2.2.1.1.4" xref="S2.p1.4.m4.2.2.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.4.m4.2b"><apply id="S2.p1.4.m4.2.2.cmml" xref="S2.p1.4.m4.2.2"><times id="S2.p1.4.m4.2.2.2.cmml" xref="S2.p1.4.m4.2.2.2"></times><ci id="S2.p1.4.m4.2.2.3.cmml" xref="S2.p1.4.m4.2.2.3">𝑓</ci><list id="S2.p1.4.m4.2.2.1.2.cmml" xref="S2.p1.4.m4.2.2.1.1"><ci id="S2.p1.4.m4.1.1.cmml" xref="S2.p1.4.m4.1.1">𝑥</ci><apply id="S2.p1.4.m4.2.2.1.1.1.cmml" xref="S2.p1.4.m4.2.2.1.1.1"><times id="S2.p1.4.m4.2.2.1.1.1.3.cmml" xref="S2.p1.4.m4.2.2.1.1.1.3"></times><ci id="S2.p1.4.m4.2.2.1.1.1.4a.cmml" xref="S2.p1.4.m4.2.2.1.1.1.4"><mtext id="S2.p1.4.m4.2.2.1.1.1.4.cmml" xref="S2.p1.4.m4.2.2.1.1.1.4">train</mtext></ci><interval closure="open" id="S2.p1.4.m4.2.2.1.1.1.2.3.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2"><apply id="S2.p1.4.m4.2.2.1.1.1.1.1.1.cmml" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.p1.4.m4.2.2.1.1.1.1.1.1.1.cmml" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.1">direct-product</csymbol><ci id="S2.p1.4.m4.2.2.1.1.1.1.1.1.2.cmml" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.2">𝜃</ci><ci id="S2.p1.4.m4.2.2.1.1.1.1.1.1.3.cmml" xref="S2.p1.4.m4.2.2.1.1.1.1.1.1.3">𝑚</ci></apply><apply id="S2.p1.4.m4.2.2.1.1.1.2.2.2.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2"><csymbol cd="ambiguous" id="S2.p1.4.m4.2.2.1.1.1.2.2.2.1.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2">subscript</csymbol><ci id="S2.p1.4.m4.2.2.1.1.1.2.2.2.2.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.2">𝐷</ci><ci id="S2.p1.4.m4.2.2.1.1.1.2.2.2.3a.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.3"><mtext mathsize="70%" id="S2.p1.4.m4.2.2.1.1.1.2.2.2.3.cmml" xref="S2.p1.4.m4.2.2.1.1.1.2.2.2.3">train</mtext></ci></apply></interval></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.4.m4.2c">f(x;\text{train}(\theta\odot m,D_{\text{train}}))</annotation></semantics></math> achieves similar performance to <math id="S2.p1.5.m5.3" class="ltx_Math" alttext="f(x;\text{train}(\theta,D_{\text{train}}))" display="inline"><semantics id="S2.p1.5.m5.3a"><mrow id="S2.p1.5.m5.3.3" xref="S2.p1.5.m5.3.3.cmml"><mi id="S2.p1.5.m5.3.3.3" xref="S2.p1.5.m5.3.3.3.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.p1.5.m5.3.3.2" xref="S2.p1.5.m5.3.3.2.cmml">​</mo><mrow id="S2.p1.5.m5.3.3.1.1" xref="S2.p1.5.m5.3.3.1.2.cmml"><mo stretchy="false" id="S2.p1.5.m5.3.3.1.1.2" xref="S2.p1.5.m5.3.3.1.2.cmml">(</mo><mi id="S2.p1.5.m5.2.2" xref="S2.p1.5.m5.2.2.cmml">x</mi><mo id="S2.p1.5.m5.3.3.1.1.3" xref="S2.p1.5.m5.3.3.1.2.cmml">;</mo><mrow id="S2.p1.5.m5.3.3.1.1.1" xref="S2.p1.5.m5.3.3.1.1.1.cmml"><mtext id="S2.p1.5.m5.3.3.1.1.1.3" xref="S2.p1.5.m5.3.3.1.1.1.3a.cmml">train</mtext><mo lspace="0em" rspace="0em" id="S2.p1.5.m5.3.3.1.1.1.2" xref="S2.p1.5.m5.3.3.1.1.1.2.cmml">​</mo><mrow id="S2.p1.5.m5.3.3.1.1.1.1.1" xref="S2.p1.5.m5.3.3.1.1.1.1.2.cmml"><mo stretchy="false" id="S2.p1.5.m5.3.3.1.1.1.1.1.2" xref="S2.p1.5.m5.3.3.1.1.1.1.2.cmml">(</mo><mi id="S2.p1.5.m5.1.1" xref="S2.p1.5.m5.1.1.cmml">θ</mi><mo id="S2.p1.5.m5.3.3.1.1.1.1.1.3" xref="S2.p1.5.m5.3.3.1.1.1.1.2.cmml">,</mo><msub id="S2.p1.5.m5.3.3.1.1.1.1.1.1" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.cmml"><mi id="S2.p1.5.m5.3.3.1.1.1.1.1.1.2" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.2.cmml">D</mi><mtext id="S2.p1.5.m5.3.3.1.1.1.1.1.1.3" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.3a.cmml">train</mtext></msub><mo stretchy="false" id="S2.p1.5.m5.3.3.1.1.1.1.1.4" xref="S2.p1.5.m5.3.3.1.1.1.1.2.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S2.p1.5.m5.3.3.1.1.4" xref="S2.p1.5.m5.3.3.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.5.m5.3b"><apply id="S2.p1.5.m5.3.3.cmml" xref="S2.p1.5.m5.3.3"><times id="S2.p1.5.m5.3.3.2.cmml" xref="S2.p1.5.m5.3.3.2"></times><ci id="S2.p1.5.m5.3.3.3.cmml" xref="S2.p1.5.m5.3.3.3">𝑓</ci><list id="S2.p1.5.m5.3.3.1.2.cmml" xref="S2.p1.5.m5.3.3.1.1"><ci id="S2.p1.5.m5.2.2.cmml" xref="S2.p1.5.m5.2.2">𝑥</ci><apply id="S2.p1.5.m5.3.3.1.1.1.cmml" xref="S2.p1.5.m5.3.3.1.1.1"><times id="S2.p1.5.m5.3.3.1.1.1.2.cmml" xref="S2.p1.5.m5.3.3.1.1.1.2"></times><ci id="S2.p1.5.m5.3.3.1.1.1.3a.cmml" xref="S2.p1.5.m5.3.3.1.1.1.3"><mtext id="S2.p1.5.m5.3.3.1.1.1.3.cmml" xref="S2.p1.5.m5.3.3.1.1.1.3">train</mtext></ci><interval closure="open" id="S2.p1.5.m5.3.3.1.1.1.1.2.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1"><ci id="S2.p1.5.m5.1.1.cmml" xref="S2.p1.5.m5.1.1">𝜃</ci><apply id="S2.p1.5.m5.3.3.1.1.1.1.1.1.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.p1.5.m5.3.3.1.1.1.1.1.1.1.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1">subscript</csymbol><ci id="S2.p1.5.m5.3.3.1.1.1.1.1.1.2.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.2">𝐷</ci><ci id="S2.p1.5.m5.3.3.1.1.1.1.1.1.3a.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.3"><mtext mathsize="70%" id="S2.p1.5.m5.3.3.1.1.1.1.1.1.3.cmml" xref="S2.p1.5.m5.3.3.1.1.1.1.1.1.3">train</mtext></ci></apply></interval></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.5.m5.3c">f(x;\text{train}(\theta,D_{\text{train}}))</annotation></semantics></math>. We denote <math id="S2.p1.6.m6.1" class="ltx_Math" alttext="\odot" display="inline"><semantics id="S2.p1.6.m6.1a"><mo id="S2.p1.6.m6.1.1" xref="S2.p1.6.m6.1.1.cmml">⊙</mo><annotation-xml encoding="MathML-Content" id="S2.p1.6.m6.1b"><csymbol cd="latexml" id="S2.p1.6.m6.1.1.cmml" xref="S2.p1.6.m6.1.1">direct-product</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.6.m6.1c">\odot</annotation></semantics></math> as elementwise multiplication and assume there exists some sufficient SGD-based train function, <math id="S2.p1.7.m7.1" class="ltx_Math" alttext="\textit{train}:\;\mathbb{R}^{|\theta|}\rightarrow\mathbb{R}^{|\theta|}" display="inline"><semantics id="S2.p1.7.m7.1a"><mrow id="S2.p1.7.m7.1.1" xref="S2.p1.7.m7.1.1.cmml"><mtext class="ltx_mathvariant_italic" id="S2.p1.7.m7.1.1.2" xref="S2.p1.7.m7.1.1.2a.cmml">train</mtext><mo lspace="0.278em" rspace="0.558em" id="S2.p1.7.m7.1.1.1" xref="S2.p1.7.m7.1.1.1.cmml">:</mo><mrow id="S2.p1.7.m7.1.1.3" xref="S2.p1.7.m7.1.1.3.cmml"><msup id="S2.p1.7.m7.1.1.3.2" xref="S2.p1.7.m7.1.1.3.2.cmml"><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.2.2" xref="S2.p1.7.m7.1.1.3.2.2.cmml">ℝ</mi><mrow id="S2.p1.7.m7.1.1.3.2.3" xref="S2.p1.7.m7.1.1.3.2.3.cmml"><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.2.3.2" xref="S2.p1.7.m7.1.1.3.2.3.2.cmml">𝕜</mi><mo lspace="0em" rspace="0em" id="S2.p1.7.m7.1.1.3.2.3.1" xref="S2.p1.7.m7.1.1.3.2.3.1.cmml">​</mo><mi id="S2.p1.7.m7.1.1.3.2.3.3" xref="S2.p1.7.m7.1.1.3.2.3.3.cmml">θ</mi><mo lspace="0em" rspace="0em" id="S2.p1.7.m7.1.1.3.2.3.1a" xref="S2.p1.7.m7.1.1.3.2.3.1.cmml">​</mo><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.2.3.4" xref="S2.p1.7.m7.1.1.3.2.3.4.cmml">𝕜</mi></mrow></msup><mo stretchy="false" id="S2.p1.7.m7.1.1.3.1" xref="S2.p1.7.m7.1.1.3.1.cmml">→</mo><msup id="S2.p1.7.m7.1.1.3.3" xref="S2.p1.7.m7.1.1.3.3.cmml"><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.3.2" xref="S2.p1.7.m7.1.1.3.3.2.cmml">ℝ</mi><mrow id="S2.p1.7.m7.1.1.3.3.3" xref="S2.p1.7.m7.1.1.3.3.3.cmml"><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.3.3.2" xref="S2.p1.7.m7.1.1.3.3.3.2.cmml">𝕜</mi><mo lspace="0em" rspace="0em" id="S2.p1.7.m7.1.1.3.3.3.1" xref="S2.p1.7.m7.1.1.3.3.3.1.cmml">​</mo><mi id="S2.p1.7.m7.1.1.3.3.3.3" xref="S2.p1.7.m7.1.1.3.3.3.3.cmml">θ</mi><mo lspace="0em" rspace="0em" id="S2.p1.7.m7.1.1.3.3.3.1a" xref="S2.p1.7.m7.1.1.3.3.3.1.cmml">​</mo><mi mathvariant="normal" id="S2.p1.7.m7.1.1.3.3.3.4" xref="S2.p1.7.m7.1.1.3.3.3.4.cmml">𝕜</mi></mrow></msup></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.7.m7.1b"><apply id="S2.p1.7.m7.1.1.cmml" xref="S2.p1.7.m7.1.1"><ci id="S2.p1.7.m7.1.1.1.cmml" xref="S2.p1.7.m7.1.1.1">:</ci><ci id="S2.p1.7.m7.1.1.2a.cmml" xref="S2.p1.7.m7.1.1.2"><mtext class="ltx_mathvariant_italic" id="S2.p1.7.m7.1.1.2.cmml" xref="S2.p1.7.m7.1.1.2">train</mtext></ci><apply id="S2.p1.7.m7.1.1.3.cmml" xref="S2.p1.7.m7.1.1.3"><ci id="S2.p1.7.m7.1.1.3.1.cmml" xref="S2.p1.7.m7.1.1.3.1">→</ci><apply id="S2.p1.7.m7.1.1.3.2.cmml" xref="S2.p1.7.m7.1.1.3.2"><csymbol cd="ambiguous" id="S2.p1.7.m7.1.1.3.2.1.cmml" xref="S2.p1.7.m7.1.1.3.2">superscript</csymbol><ci id="S2.p1.7.m7.1.1.3.2.2.cmml" xref="S2.p1.7.m7.1.1.3.2.2">ℝ</ci><apply id="S2.p1.7.m7.1.1.3.2.3.cmml" xref="S2.p1.7.m7.1.1.3.2.3"><times id="S2.p1.7.m7.1.1.3.2.3.1.cmml" xref="S2.p1.7.m7.1.1.3.2.3.1"></times><ci id="S2.p1.7.m7.1.1.3.2.3.2.cmml" xref="S2.p1.7.m7.1.1.3.2.3.2">𝕜</ci><ci id="S2.p1.7.m7.1.1.3.2.3.3.cmml" xref="S2.p1.7.m7.1.1.3.2.3.3">𝜃</ci><ci id="S2.p1.7.m7.1.1.3.2.3.4.cmml" xref="S2.p1.7.m7.1.1.3.2.3.4">𝕜</ci></apply></apply><apply id="S2.p1.7.m7.1.1.3.3.cmml" xref="S2.p1.7.m7.1.1.3.3"><csymbol cd="ambiguous" id="S2.p1.7.m7.1.1.3.3.1.cmml" xref="S2.p1.7.m7.1.1.3.3">superscript</csymbol><ci id="S2.p1.7.m7.1.1.3.3.2.cmml" xref="S2.p1.7.m7.1.1.3.3.2">ℝ</ci><apply id="S2.p1.7.m7.1.1.3.3.3.cmml" xref="S2.p1.7.m7.1.1.3.3.3"><times id="S2.p1.7.m7.1.1.3.3.3.1.cmml" xref="S2.p1.7.m7.1.1.3.3.3.1"></times><ci id="S2.p1.7.m7.1.1.3.3.3.2.cmml" xref="S2.p1.7.m7.1.1.3.3.3.2">𝕜</ci><ci id="S2.p1.7.m7.1.1.3.3.3.3.cmml" xref="S2.p1.7.m7.1.1.3.3.3.3">𝜃</ci><ci id="S2.p1.7.m7.1.1.3.3.3.4.cmml" xref="S2.p1.7.m7.1.1.3.3.3.4">𝕜</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.7.m7.1c">\textit{train}:\;\mathbb{R}^{|\theta|}\rightarrow\mathbb{R}^{|\theta|}</annotation></semantics></math>. To find such <math id="S2.p1.8.m8.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S2.p1.8.m8.1a"><mi id="S2.p1.8.m8.1.1" xref="S2.p1.8.m8.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S2.p1.8.m8.1b"><ci id="S2.p1.8.m8.1.1.cmml" xref="S2.p1.8.m8.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.8.m8.1c">m</annotation></semantics></math>, pruning researchers employ IMP as follows: 1) Train the network for <math id="S2.p1.9.m9.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.p1.9.m9.1a"><mi id="S2.p1.9.m9.1.1" xref="S2.p1.9.m9.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.p1.9.m9.1b"><ci id="S2.p1.9.m9.1.1.cmml" xref="S2.p1.9.m9.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.9.m9.1c">n</annotation></semantics></math>-epochs, 2) remove 20% of the non-pruned weights prioritizing by lowest magnitude, 3) rewind the weights back to initialization or some early point in training, 4) Iterate Steps 1-3 until desired sparsity. Here, sparsity is defined as the percentage of parameters pruned.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.4" class="ltx_p">We employ a simple augmentation to the original IMP algorithm by replacing the training data, <math id="S2.p2.1.m1.1" class="ltx_Math" alttext="D_{\text{train}}" display="inline"><semantics id="S2.p2.1.m1.1a"><msub id="S2.p2.1.m1.1.1" xref="S2.p2.1.m1.1.1.cmml"><mi id="S2.p2.1.m1.1.1.2" xref="S2.p2.1.m1.1.1.2.cmml">D</mi><mtext id="S2.p2.1.m1.1.1.3" xref="S2.p2.1.m1.1.1.3a.cmml">train</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.1b"><apply id="S2.p2.1.m1.1.1.cmml" xref="S2.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.p2.1.m1.1.1.1.cmml" xref="S2.p2.1.m1.1.1">subscript</csymbol><ci id="S2.p2.1.m1.1.1.2.cmml" xref="S2.p2.1.m1.1.1.2">𝐷</ci><ci id="S2.p2.1.m1.1.1.3a.cmml" xref="S2.p2.1.m1.1.1.3"><mtext mathsize="70%" id="S2.p2.1.m1.1.1.3.cmml" xref="S2.p2.1.m1.1.1.3">train</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.1c">D_{\text{train}}</annotation></semantics></math>, needed to find the sparsity mask with distilled data, <math id="S2.p2.2.m2.1" class="ltx_Math" alttext="D_{\text{syn}}" display="inline"><semantics id="S2.p2.2.m2.1a"><msub id="S2.p2.2.m2.1.1" xref="S2.p2.2.m2.1.1.cmml"><mi id="S2.p2.2.m2.1.1.2" xref="S2.p2.2.m2.1.1.2.cmml">D</mi><mtext id="S2.p2.2.m2.1.1.3" xref="S2.p2.2.m2.1.1.3a.cmml">syn</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.p2.2.m2.1b"><apply id="S2.p2.2.m2.1.1.cmml" xref="S2.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S2.p2.2.m2.1.1.1.cmml" xref="S2.p2.2.m2.1.1">subscript</csymbol><ci id="S2.p2.2.m2.1.1.2.cmml" xref="S2.p2.2.m2.1.1.2">𝐷</ci><ci id="S2.p2.2.m2.1.1.3a.cmml" xref="S2.p2.2.m2.1.1.3"><mtext mathsize="70%" id="S2.p2.2.m2.1.1.3.cmml" xref="S2.p2.2.m2.1.1.3">syn</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.2.m2.1c">D_{\text{syn}}</annotation></semantics></math>, as demonstrated by the Algorithm <a href="#alg1" title="Algorithm 1 ‣ 2 Method ‣ Distilled Pruning: Using Synthetic Data to Win the Lottery" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. We also train for some <math id="S2.p2.3.m3.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.p2.3.m3.1a"><mi id="S2.p2.3.m3.1.1" xref="S2.p2.3.m3.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.p2.3.m3.1b"><ci id="S2.p2.3.m3.1.1.cmml" xref="S2.p2.3.m3.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.3.m3.1c">t</annotation></semantics></math>-many epochs on the distilled data, while preserving the <math id="S2.p2.4.m4.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.p2.4.m4.1a"><mi id="S2.p2.4.m4.1.1" xref="S2.p2.4.m4.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.p2.4.m4.1b"><ci id="S2.p2.4.m4.1.1.cmml" xref="S2.p2.4.m4.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.4.m4.1c">n</annotation></semantics></math>-long training with real data at the end. The source of distilled data is largely plug-and-play, and we encourage researchers and practitioners alike to use the most applicable distillation method that fits their performance needs and computational budget. In future work, we plan to benchmark across different data distillation methods.</p>
+</div>
+<figure id="alg1" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span id="alg1.2.1.1" class="ltx_text ltx_font_bold">Algorithm 1</span> </span> Distilled Pruning</figcaption>
+<div id="alg1.3" class="ltx_listing ltx_listing">
+<div id="alg1.l1" class="ltx_listingline">
+<span id="alg1.l1.1" class="ltx_text ltx_font_bold">Inputs</span>: <math id="alg1.l1.m1.4" class="ltx_Math" alttext="\theta_{\text{init}},D_{\text{syn}},D_{\text{real}},\text{desired sparsity, amount}" display="inline"><semantics id="alg1.l1.m1.4a"><mrow id="alg1.l1.m1.4.4.3" xref="alg1.l1.m1.4.4.4.cmml"><msub id="alg1.l1.m1.2.2.1.1" xref="alg1.l1.m1.2.2.1.1.cmml"><mi id="alg1.l1.m1.2.2.1.1.2" xref="alg1.l1.m1.2.2.1.1.2.cmml">θ</mi><mtext id="alg1.l1.m1.2.2.1.1.3" xref="alg1.l1.m1.2.2.1.1.3a.cmml">init</mtext></msub><mo id="alg1.l1.m1.4.4.3.4" xref="alg1.l1.m1.4.4.4.cmml">,</mo><msub id="alg1.l1.m1.3.3.2.2" xref="alg1.l1.m1.3.3.2.2.cmml"><mi id="alg1.l1.m1.3.3.2.2.2" xref="alg1.l1.m1.3.3.2.2.2.cmml">D</mi><mtext id="alg1.l1.m1.3.3.2.2.3" xref="alg1.l1.m1.3.3.2.2.3a.cmml">syn</mtext></msub><mo id="alg1.l1.m1.4.4.3.5" xref="alg1.l1.m1.4.4.4.cmml">,</mo><msub id="alg1.l1.m1.4.4.3.3" xref="alg1.l1.m1.4.4.3.3.cmml"><mi id="alg1.l1.m1.4.4.3.3.2" xref="alg1.l1.m1.4.4.3.3.2.cmml">D</mi><mtext id="alg1.l1.m1.4.4.3.3.3" xref="alg1.l1.m1.4.4.3.3.3a.cmml">real</mtext></msub><mo id="alg1.l1.m1.4.4.3.6" xref="alg1.l1.m1.4.4.4.cmml">,</mo><mtext id="alg1.l1.m1.1.1" xref="alg1.l1.m1.1.1a.cmml">desired sparsity, amount</mtext></mrow><annotation-xml encoding="MathML-Content" id="alg1.l1.m1.4b"><list id="alg1.l1.m1.4.4.4.cmml" xref="alg1.l1.m1.4.4.3"><apply id="alg1.l1.m1.2.2.1.1.cmml" xref="alg1.l1.m1.2.2.1.1"><csymbol cd="ambiguous" id="alg1.l1.m1.2.2.1.1.1.cmml" xref="alg1.l1.m1.2.2.1.1">subscript</csymbol><ci id="alg1.l1.m1.2.2.1.1.2.cmml" xref="alg1.l1.m1.2.2.1.1.2">𝜃</ci><ci id="alg1.l1.m1.2.2.1.1.3a.cmml" xref="alg1.l1.m1.2.2.1.1.3"><mtext mathsize="70%" id="alg1.l1.m1.2.2.1.1.3.cmml" xref="alg1.l1.m1.2.2.1.1.3">init</mtext></ci></apply><apply id="alg1.l1.m1.3.3.2.2.cmml" xref="alg1.l1.m1.3.3.2.2"><csymbol cd="ambiguous" id="alg1.l1.m1.3.3.2.2.1.cmml" xref="alg1.l1.m1.3.3.2.2">subscript</csymbol><ci id="alg1.l1.m1.3.3.2.2.2.cmml" xref="alg1.l1.m1.3.3.2.2.2">𝐷</ci><ci id="alg1.l1.m1.3.3.2.2.3a.cmml" xref="alg1.l1.m1.3.3.2.2.3"><mtext mathsize="70%" id="alg1.l1.m1.3.3.2.2.3.cmml" xref="alg1.l1.m1.3.3.2.2.3">syn</mtext></ci></apply><apply id="alg1.l1.m1.4.4.3.3.cmml" xref="alg1.l1.m1.4.4.3.3"><csymbol cd="ambiguous" id="alg1.l1.m1.4.4.3.3.1.cmml" xref="alg1.l1.m1.4.4.3.3">subscript</csymbol><ci id="alg1.l1.m1.4.4.3.3.2.cmml" xref="alg1.l1.m1.4.4.3.3.2">𝐷</ci><ci id="alg1.l1.m1.4.4.3.3.3a.cmml" xref="alg1.l1.m1.4.4.3.3.3"><mtext mathsize="70%" id="alg1.l1.m1.4.4.3.3.3.cmml" xref="alg1.l1.m1.4.4.3.3.3">real</mtext></ci></apply><ci id="alg1.l1.m1.1.1a.cmml" xref="alg1.l1.m1.1.1"><mtext id="alg1.l1.m1.1.1.cmml" xref="alg1.l1.m1.1.1">desired sparsity, amount</mtext></ci></list></annotation-xml><annotation encoding="application/x-tex" id="alg1.l1.m1.4c">\theta_{\text{init}},D_{\text{syn}},D_{\text{real}},\text{desired sparsity, amount}</annotation></semantics></math>
+
+</div>
+<div id="alg1.l2" class="ltx_listingline">
+<math id="alg1.l2.m1.1" class="ltx_Math" alttext="\theta\leftarrow\theta_{\text{init}}" display="inline"><semantics id="alg1.l2.m1.1a"><mrow id="alg1.l2.m1.1.1" xref="alg1.l2.m1.1.1.cmml"><mi id="alg1.l2.m1.1.1.2" xref="alg1.l2.m1.1.1.2.cmml">θ</mi><mo stretchy="false" id="alg1.l2.m1.1.1.1" xref="alg1.l2.m1.1.1.1.cmml">←</mo><msub id="alg1.l2.m1.1.1.3" xref="alg1.l2.m1.1.1.3.cmml"><mi id="alg1.l2.m1.1.1.3.2" xref="alg1.l2.m1.1.1.3.2.cmml">θ</mi><mtext id="alg1.l2.m1.1.1.3.3" xref="alg1.l2.m1.1.1.3.3a.cmml">init</mtext></msub></mrow><annotation-xml encoding="MathML-Content" id="alg1.l2.m1.1b"><apply id="alg1.l2.m1.1.1.cmml" xref="alg1.l2.m1.1.1"><ci id="alg1.l2.m1.1.1.1.cmml" xref="alg1.l2.m1.1.1.1">←</ci><ci id="alg1.l2.m1.1.1.2.cmml" xref="alg1.l2.m1.1.1.2">𝜃</ci><apply id="alg1.l2.m1.1.1.3.cmml" xref="alg1.l2.m1.1.1.3"><csymbol cd="ambiguous" id="alg1.l2.m1.1.1.3.1.cmml" xref="alg1.l2.m1.1.1.3">subscript</csymbol><ci id="alg1.l2.m1.1.1.3.2.cmml" xref="alg1.l2.m1.1.1.3.2">𝜃</ci><ci id="alg1.l2.m1.1.1.3.3a.cmml" xref="alg1.l2.m1.1.1.3.3"><mtext mathsize="70%" id="alg1.l2.m1.1.1.3.3.cmml" xref="alg1.l2.m1.1.1.3.3">init</mtext></ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l2.m1.1c">\theta\leftarrow\theta_{\text{init}}</annotation></semantics></math>
+
+</div>
+<div id="alg1.l3" class="ltx_listingline">
+<math id="alg1.l3.m1.1" class="ltx_Math" alttext="m\leftarrow\mathbf{1}" display="inline"><semantics id="alg1.l3.m1.1a"><mrow id="alg1.l3.m1.1.1" xref="alg1.l3.m1.1.1.cmml"><mi id="alg1.l3.m1.1.1.2" xref="alg1.l3.m1.1.1.2.cmml">m</mi><mo stretchy="false" id="alg1.l3.m1.1.1.1" xref="alg1.l3.m1.1.1.1.cmml">←</mo><mn id="alg1.l3.m1.1.1.3" xref="alg1.l3.m1.1.1.3.cmml">𝟏</mn></mrow><annotation-xml encoding="MathML-Content" id="alg1.l3.m1.1b"><apply id="alg1.l3.m1.1.1.cmml" xref="alg1.l3.m1.1.1"><ci id="alg1.l3.m1.1.1.1.cmml" xref="alg1.l3.m1.1.1.1">←</ci><ci id="alg1.l3.m1.1.1.2.cmml" xref="alg1.l3.m1.1.1.2">𝑚</ci><cn type="integer" id="alg1.l3.m1.1.1.3.cmml" xref="alg1.l3.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.m1.1c">m\leftarrow\mathbf{1}</annotation></semantics></math> <span id="alg1.l3.2" class="ltx_text" style="float:right;"><math id="alg1.l3.1.m1.1" class="ltx_Math" alttext="\triangleright" display="inline"><semantics id="alg1.l3.1.m1.1a"><mo id="alg1.l3.1.m1.1.1" xref="alg1.l3.1.m1.1.1.cmml">▷</mo><annotation-xml encoding="MathML-Content" id="alg1.l3.1.m1.1b"><ci id="alg1.l3.1.m1.1.1.cmml" xref="alg1.l3.1.m1.1.1">▷</ci></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.1.m1.1c">\triangleright</annotation></semantics></math> Initialize as matrix of 1’s of size <math id="alg1.l3.2.m2.1" class="ltx_Math" alttext="|\theta|" display="inline"><semantics id="alg1.l3.2.m2.1a"><mrow id="alg1.l3.2.m2.1.2.2" xref="alg1.l3.2.m2.1.2.1.cmml"><mo stretchy="false" id="alg1.l3.2.m2.1.2.2.1" xref="alg1.l3.2.m2.1.2.1.1.cmml">|</mo><mi id="alg1.l3.2.m2.1.1" xref="alg1.l3.2.m2.1.1.cmml">θ</mi><mo stretchy="false" id="alg1.l3.2.m2.1.2.2.2" xref="alg1.l3.2.m2.1.2.1.1.cmml">|</mo></mrow><annotation-xml encoding="MathML-Content" id="alg1.l3.2.m2.1b"><apply id="alg1.l3.2.m2.1.2.1.cmml" xref="alg1.l3.2.m2.1.2.2"><abs id="alg1.l3.2.m2.1.2.1.1.cmml" xref="alg1.l3.2.m2.1.2.2.1"></abs><ci id="alg1.l3.2.m2.1.1.cmml" xref="alg1.l3.2.m2.1.1">𝜃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l3.2.m2.1c">|\theta|</annotation></semantics></math> 
+</span>
+</div>
+<div id="alg1.l4" class="ltx_listingline">
+<span id="alg1.l4.1" class="ltx_text ltx_font_bold">while</span> <math id="alg1.l4.m1.1" class="ltx_Math" alttext="sparsity(m)&lt;\text{desired sparsity}" display="inline"><semantics id="alg1.l4.m1.1a"><mrow id="alg1.l4.m1.1.2" xref="alg1.l4.m1.1.2.cmml"><mrow id="alg1.l4.m1.1.2.2" xref="alg1.l4.m1.1.2.2.cmml"><mi id="alg1.l4.m1.1.2.2.2" xref="alg1.l4.m1.1.2.2.2.cmml">s</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.3" xref="alg1.l4.m1.1.2.2.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1a" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.4" xref="alg1.l4.m1.1.2.2.4.cmml">a</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1b" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.5" xref="alg1.l4.m1.1.2.2.5.cmml">r</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1c" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.6" xref="alg1.l4.m1.1.2.2.6.cmml">s</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1d" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.7" xref="alg1.l4.m1.1.2.2.7.cmml">i</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1e" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.8" xref="alg1.l4.m1.1.2.2.8.cmml">t</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1f" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mi id="alg1.l4.m1.1.2.2.9" xref="alg1.l4.m1.1.2.2.9.cmml">y</mi><mo lspace="0em" rspace="0em" id="alg1.l4.m1.1.2.2.1g" xref="alg1.l4.m1.1.2.2.1.cmml">​</mo><mrow id="alg1.l4.m1.1.2.2.10.2" xref="alg1.l4.m1.1.2.2.cmml"><mo stretchy="false" id="alg1.l4.m1.1.2.2.10.2.1" xref="alg1.l4.m1.1.2.2.cmml">(</mo><mi id="alg1.l4.m1.1.1" xref="alg1.l4.m1.1.1.cmml">m</mi><mo stretchy="false" id="alg1.l4.m1.1.2.2.10.2.2" xref="alg1.l4.m1.1.2.2.cmml">)</mo></mrow></mrow><mo id="alg1.l4.m1.1.2.1" xref="alg1.l4.m1.1.2.1.cmml">&lt;</mo><mtext id="alg1.l4.m1.1.2.3" xref="alg1.l4.m1.1.2.3a.cmml">desired sparsity</mtext></mrow><annotation-xml encoding="MathML-Content" id="alg1.l4.m1.1b"><apply id="alg1.l4.m1.1.2.cmml" xref="alg1.l4.m1.1.2"><lt id="alg1.l4.m1.1.2.1.cmml" xref="alg1.l4.m1.1.2.1"></lt><apply id="alg1.l4.m1.1.2.2.cmml" xref="alg1.l4.m1.1.2.2"><times id="alg1.l4.m1.1.2.2.1.cmml" xref="alg1.l4.m1.1.2.2.1"></times><ci id="alg1.l4.m1.1.2.2.2.cmml" xref="alg1.l4.m1.1.2.2.2">𝑠</ci><ci id="alg1.l4.m1.1.2.2.3.cmml" xref="alg1.l4.m1.1.2.2.3">𝑝</ci><ci id="alg1.l4.m1.1.2.2.4.cmml" xref="alg1.l4.m1.1.2.2.4">𝑎</ci><ci id="alg1.l4.m1.1.2.2.5.cmml" xref="alg1.l4.m1.1.2.2.5">𝑟</ci><ci id="alg1.l4.m1.1.2.2.6.cmml" xref="alg1.l4.m1.1.2.2.6">𝑠</ci><ci id="alg1.l4.m1.1.2.2.7.cmml" xref="alg1.l4.m1.1.2.2.7">𝑖</ci><ci id="alg1.l4.m1.1.2.2.8.cmml" xref="alg1.l4.m1.1.2.2.8">𝑡</ci><ci id="alg1.l4.m1.1.2.2.9.cmml" xref="alg1.l4.m1.1.2.2.9">𝑦</ci><ci id="alg1.l4.m1.1.1.cmml" xref="alg1.l4.m1.1.1">𝑚</ci></apply><ci id="alg1.l4.m1.1.2.3a.cmml" xref="alg1.l4.m1.1.2.3"><mtext id="alg1.l4.m1.1.2.3.cmml" xref="alg1.l4.m1.1.2.3">desired sparsity</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l4.m1.1c">sparsity(m)&lt;\text{desired sparsity}</annotation></semantics></math> <span id="alg1.l4.2" class="ltx_text ltx_font_bold">do</span>
+
+</div>
+<div id="alg1.l5" class="ltx_listingline">     <math id="alg1.l5.m1.3" class="ltx_Math" alttext="\theta\leftarrow train(\theta\odot m,D_{\text{syn}},t\text{ epochs})" display="inline"><semantics id="alg1.l5.m1.3a"><mrow id="alg1.l5.m1.3.3" xref="alg1.l5.m1.3.3.cmml"><mi id="alg1.l5.m1.3.3.5" xref="alg1.l5.m1.3.3.5.cmml">θ</mi><mo stretchy="false" id="alg1.l5.m1.3.3.4" xref="alg1.l5.m1.3.3.4.cmml">←</mo><mrow id="alg1.l5.m1.3.3.3" xref="alg1.l5.m1.3.3.3.cmml"><mi id="alg1.l5.m1.3.3.3.5" xref="alg1.l5.m1.3.3.3.5.cmml">t</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.4" xref="alg1.l5.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l5.m1.3.3.3.6" xref="alg1.l5.m1.3.3.3.6.cmml">r</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.4a" xref="alg1.l5.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l5.m1.3.3.3.7" xref="alg1.l5.m1.3.3.3.7.cmml">a</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.4b" xref="alg1.l5.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l5.m1.3.3.3.8" xref="alg1.l5.m1.3.3.3.8.cmml">i</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.4c" xref="alg1.l5.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l5.m1.3.3.3.9" xref="alg1.l5.m1.3.3.3.9.cmml">n</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.4d" xref="alg1.l5.m1.3.3.3.4.cmml">​</mo><mrow id="alg1.l5.m1.3.3.3.3.3" xref="alg1.l5.m1.3.3.3.3.4.cmml"><mo stretchy="false" id="alg1.l5.m1.3.3.3.3.3.4" xref="alg1.l5.m1.3.3.3.3.4.cmml">(</mo><mrow id="alg1.l5.m1.1.1.1.1.1.1" xref="alg1.l5.m1.1.1.1.1.1.1.cmml"><mi id="alg1.l5.m1.1.1.1.1.1.1.2" xref="alg1.l5.m1.1.1.1.1.1.1.2.cmml">θ</mi><mo lspace="0.222em" rspace="0.222em" id="alg1.l5.m1.1.1.1.1.1.1.1" xref="alg1.l5.m1.1.1.1.1.1.1.1.cmml">⊙</mo><mi id="alg1.l5.m1.1.1.1.1.1.1.3" xref="alg1.l5.m1.1.1.1.1.1.1.3.cmml">m</mi></mrow><mo id="alg1.l5.m1.3.3.3.3.3.5" xref="alg1.l5.m1.3.3.3.3.4.cmml">,</mo><msub id="alg1.l5.m1.2.2.2.2.2.2" xref="alg1.l5.m1.2.2.2.2.2.2.cmml"><mi id="alg1.l5.m1.2.2.2.2.2.2.2" xref="alg1.l5.m1.2.2.2.2.2.2.2.cmml">D</mi><mtext id="alg1.l5.m1.2.2.2.2.2.2.3" xref="alg1.l5.m1.2.2.2.2.2.2.3a.cmml">syn</mtext></msub><mo id="alg1.l5.m1.3.3.3.3.3.6" xref="alg1.l5.m1.3.3.3.3.4.cmml">,</mo><mrow id="alg1.l5.m1.3.3.3.3.3.3" xref="alg1.l5.m1.3.3.3.3.3.3.cmml"><mi id="alg1.l5.m1.3.3.3.3.3.3.2" xref="alg1.l5.m1.3.3.3.3.3.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="alg1.l5.m1.3.3.3.3.3.3.1" xref="alg1.l5.m1.3.3.3.3.3.3.1.cmml">​</mo><mtext id="alg1.l5.m1.3.3.3.3.3.3.3" xref="alg1.l5.m1.3.3.3.3.3.3.3a.cmml"> epochs</mtext></mrow><mo stretchy="false" id="alg1.l5.m1.3.3.3.3.3.7" xref="alg1.l5.m1.3.3.3.3.4.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="alg1.l5.m1.3b"><apply id="alg1.l5.m1.3.3.cmml" xref="alg1.l5.m1.3.3"><ci id="alg1.l5.m1.3.3.4.cmml" xref="alg1.l5.m1.3.3.4">←</ci><ci id="alg1.l5.m1.3.3.5.cmml" xref="alg1.l5.m1.3.3.5">𝜃</ci><apply id="alg1.l5.m1.3.3.3.cmml" xref="alg1.l5.m1.3.3.3"><times id="alg1.l5.m1.3.3.3.4.cmml" xref="alg1.l5.m1.3.3.3.4"></times><ci id="alg1.l5.m1.3.3.3.5.cmml" xref="alg1.l5.m1.3.3.3.5">𝑡</ci><ci id="alg1.l5.m1.3.3.3.6.cmml" xref="alg1.l5.m1.3.3.3.6">𝑟</ci><ci id="alg1.l5.m1.3.3.3.7.cmml" xref="alg1.l5.m1.3.3.3.7">𝑎</ci><ci id="alg1.l5.m1.3.3.3.8.cmml" xref="alg1.l5.m1.3.3.3.8">𝑖</ci><ci id="alg1.l5.m1.3.3.3.9.cmml" xref="alg1.l5.m1.3.3.3.9">𝑛</ci><vector id="alg1.l5.m1.3.3.3.3.4.cmml" xref="alg1.l5.m1.3.3.3.3.3"><apply id="alg1.l5.m1.1.1.1.1.1.1.cmml" xref="alg1.l5.m1.1.1.1.1.1.1"><csymbol cd="latexml" id="alg1.l5.m1.1.1.1.1.1.1.1.cmml" xref="alg1.l5.m1.1.1.1.1.1.1.1">direct-product</csymbol><ci id="alg1.l5.m1.1.1.1.1.1.1.2.cmml" xref="alg1.l5.m1.1.1.1.1.1.1.2">𝜃</ci><ci id="alg1.l5.m1.1.1.1.1.1.1.3.cmml" xref="alg1.l5.m1.1.1.1.1.1.1.3">𝑚</ci></apply><apply id="alg1.l5.m1.2.2.2.2.2.2.cmml" xref="alg1.l5.m1.2.2.2.2.2.2"><csymbol cd="ambiguous" id="alg1.l5.m1.2.2.2.2.2.2.1.cmml" xref="alg1.l5.m1.2.2.2.2.2.2">subscript</csymbol><ci id="alg1.l5.m1.2.2.2.2.2.2.2.cmml" xref="alg1.l5.m1.2.2.2.2.2.2.2">𝐷</ci><ci id="alg1.l5.m1.2.2.2.2.2.2.3a.cmml" xref="alg1.l5.m1.2.2.2.2.2.2.3"><mtext mathsize="70%" id="alg1.l5.m1.2.2.2.2.2.2.3.cmml" xref="alg1.l5.m1.2.2.2.2.2.2.3">syn</mtext></ci></apply><apply id="alg1.l5.m1.3.3.3.3.3.3.cmml" xref="alg1.l5.m1.3.3.3.3.3.3"><times id="alg1.l5.m1.3.3.3.3.3.3.1.cmml" xref="alg1.l5.m1.3.3.3.3.3.3.1"></times><ci id="alg1.l5.m1.3.3.3.3.3.3.2.cmml" xref="alg1.l5.m1.3.3.3.3.3.3.2">𝑡</ci><ci id="alg1.l5.m1.3.3.3.3.3.3.3a.cmml" xref="alg1.l5.m1.3.3.3.3.3.3.3"><mtext id="alg1.l5.m1.3.3.3.3.3.3.3.cmml" xref="alg1.l5.m1.3.3.3.3.3.3.3"> epochs</mtext></ci></apply></vector></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l5.m1.3c">\theta\leftarrow train(\theta\odot m,D_{\text{syn}},t\text{ epochs})</annotation></semantics></math>
+
+</div>
+<div id="alg1.l6" class="ltx_listingline">     <math id="alg1.l6.m1.1" class="ltx_Math" alttext="m\leftarrow prune(\theta\odot m\text{, amount})" display="inline"><semantics id="alg1.l6.m1.1a"><mrow id="alg1.l6.m1.1.1" xref="alg1.l6.m1.1.1.cmml"><mi id="alg1.l6.m1.1.1.3" xref="alg1.l6.m1.1.1.3.cmml">m</mi><mo stretchy="false" id="alg1.l6.m1.1.1.2" xref="alg1.l6.m1.1.1.2.cmml">←</mo><mrow id="alg1.l6.m1.1.1.1" xref="alg1.l6.m1.1.1.1.cmml"><mi id="alg1.l6.m1.1.1.1.3" xref="alg1.l6.m1.1.1.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.2" xref="alg1.l6.m1.1.1.1.2.cmml">​</mo><mi id="alg1.l6.m1.1.1.1.4" xref="alg1.l6.m1.1.1.1.4.cmml">r</mi><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.2a" xref="alg1.l6.m1.1.1.1.2.cmml">​</mo><mi id="alg1.l6.m1.1.1.1.5" xref="alg1.l6.m1.1.1.1.5.cmml">u</mi><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.2b" xref="alg1.l6.m1.1.1.1.2.cmml">​</mo><mi id="alg1.l6.m1.1.1.1.6" xref="alg1.l6.m1.1.1.1.6.cmml">n</mi><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.2c" xref="alg1.l6.m1.1.1.1.2.cmml">​</mo><mi id="alg1.l6.m1.1.1.1.7" xref="alg1.l6.m1.1.1.1.7.cmml">e</mi><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.2d" xref="alg1.l6.m1.1.1.1.2.cmml">​</mo><mrow id="alg1.l6.m1.1.1.1.1.1" xref="alg1.l6.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="alg1.l6.m1.1.1.1.1.1.2" xref="alg1.l6.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="alg1.l6.m1.1.1.1.1.1.1" xref="alg1.l6.m1.1.1.1.1.1.1.cmml"><mrow id="alg1.l6.m1.1.1.1.1.1.1.2" xref="alg1.l6.m1.1.1.1.1.1.1.2.cmml"><mi id="alg1.l6.m1.1.1.1.1.1.1.2.2" xref="alg1.l6.m1.1.1.1.1.1.1.2.2.cmml">θ</mi><mo lspace="0.222em" rspace="0.222em" id="alg1.l6.m1.1.1.1.1.1.1.2.1" xref="alg1.l6.m1.1.1.1.1.1.1.2.1.cmml">⊙</mo><mi id="alg1.l6.m1.1.1.1.1.1.1.2.3" xref="alg1.l6.m1.1.1.1.1.1.1.2.3.cmml">m</mi></mrow><mo lspace="0em" rspace="0em" id="alg1.l6.m1.1.1.1.1.1.1.1" xref="alg1.l6.m1.1.1.1.1.1.1.1.cmml">​</mo><mtext id="alg1.l6.m1.1.1.1.1.1.1.3" xref="alg1.l6.m1.1.1.1.1.1.1.3a.cmml">, amount</mtext></mrow><mo stretchy="false" id="alg1.l6.m1.1.1.1.1.1.3" xref="alg1.l6.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="alg1.l6.m1.1b"><apply id="alg1.l6.m1.1.1.cmml" xref="alg1.l6.m1.1.1"><ci id="alg1.l6.m1.1.1.2.cmml" xref="alg1.l6.m1.1.1.2">←</ci><ci id="alg1.l6.m1.1.1.3.cmml" xref="alg1.l6.m1.1.1.3">𝑚</ci><apply id="alg1.l6.m1.1.1.1.cmml" xref="alg1.l6.m1.1.1.1"><times id="alg1.l6.m1.1.1.1.2.cmml" xref="alg1.l6.m1.1.1.1.2"></times><ci id="alg1.l6.m1.1.1.1.3.cmml" xref="alg1.l6.m1.1.1.1.3">𝑝</ci><ci id="alg1.l6.m1.1.1.1.4.cmml" xref="alg1.l6.m1.1.1.1.4">𝑟</ci><ci id="alg1.l6.m1.1.1.1.5.cmml" xref="alg1.l6.m1.1.1.1.5">𝑢</ci><ci id="alg1.l6.m1.1.1.1.6.cmml" xref="alg1.l6.m1.1.1.1.6">𝑛</ci><ci id="alg1.l6.m1.1.1.1.7.cmml" xref="alg1.l6.m1.1.1.1.7">𝑒</ci><apply id="alg1.l6.m1.1.1.1.1.1.1.cmml" xref="alg1.l6.m1.1.1.1.1.1"><times id="alg1.l6.m1.1.1.1.1.1.1.1.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.1"></times><apply id="alg1.l6.m1.1.1.1.1.1.1.2.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.2"><csymbol cd="latexml" id="alg1.l6.m1.1.1.1.1.1.1.2.1.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.2.1">direct-product</csymbol><ci id="alg1.l6.m1.1.1.1.1.1.1.2.2.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.2.2">𝜃</ci><ci id="alg1.l6.m1.1.1.1.1.1.1.2.3.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.2.3">𝑚</ci></apply><ci id="alg1.l6.m1.1.1.1.1.1.1.3a.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.3"><mtext id="alg1.l6.m1.1.1.1.1.1.1.3.cmml" xref="alg1.l6.m1.1.1.1.1.1.1.3">, amount</mtext></ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l6.m1.1c">m\leftarrow prune(\theta\odot m\text{, amount})</annotation></semantics></math>
+
+</div>
+<div id="alg1.l7" class="ltx_listingline">     <math id="alg1.l7.m1.1" class="ltx_Math" alttext="\theta\leftarrow\theta_{\text{init}}" display="inline"><semantics id="alg1.l7.m1.1a"><mrow id="alg1.l7.m1.1.1" xref="alg1.l7.m1.1.1.cmml"><mi id="alg1.l7.m1.1.1.2" xref="alg1.l7.m1.1.1.2.cmml">θ</mi><mo stretchy="false" id="alg1.l7.m1.1.1.1" xref="alg1.l7.m1.1.1.1.cmml">←</mo><msub id="alg1.l7.m1.1.1.3" xref="alg1.l7.m1.1.1.3.cmml"><mi id="alg1.l7.m1.1.1.3.2" xref="alg1.l7.m1.1.1.3.2.cmml">θ</mi><mtext id="alg1.l7.m1.1.1.3.3" xref="alg1.l7.m1.1.1.3.3a.cmml">init</mtext></msub></mrow><annotation-xml encoding="MathML-Content" id="alg1.l7.m1.1b"><apply id="alg1.l7.m1.1.1.cmml" xref="alg1.l7.m1.1.1"><ci id="alg1.l7.m1.1.1.1.cmml" xref="alg1.l7.m1.1.1.1">←</ci><ci id="alg1.l7.m1.1.1.2.cmml" xref="alg1.l7.m1.1.1.2">𝜃</ci><apply id="alg1.l7.m1.1.1.3.cmml" xref="alg1.l7.m1.1.1.3"><csymbol cd="ambiguous" id="alg1.l7.m1.1.1.3.1.cmml" xref="alg1.l7.m1.1.1.3">subscript</csymbol><ci id="alg1.l7.m1.1.1.3.2.cmml" xref="alg1.l7.m1.1.1.3.2">𝜃</ci><ci id="alg1.l7.m1.1.1.3.3a.cmml" xref="alg1.l7.m1.1.1.3.3"><mtext mathsize="70%" id="alg1.l7.m1.1.1.3.3.cmml" xref="alg1.l7.m1.1.1.3.3">init</mtext></ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l7.m1.1c">\theta\leftarrow\theta_{\text{init}}</annotation></semantics></math>
+
+</div>
+<div id="alg1.l8" class="ltx_listingline">
+<span id="alg1.l8.1" class="ltx_text ltx_font_bold">end</span> <span id="alg1.l8.2" class="ltx_text ltx_font_bold">while</span>
+</div>
+<div id="alg1.l9" class="ltx_listingline">
+<math id="alg1.l9.m1.3" class="ltx_Math" alttext="\theta_{\text{finetune}}\leftarrow train(\theta\odot m,D_{\text{real}},n\text{ epochs})" display="inline"><semantics id="alg1.l9.m1.3a"><mrow id="alg1.l9.m1.3.3" xref="alg1.l9.m1.3.3.cmml"><msub id="alg1.l9.m1.3.3.5" xref="alg1.l9.m1.3.3.5.cmml"><mi id="alg1.l9.m1.3.3.5.2" xref="alg1.l9.m1.3.3.5.2.cmml">θ</mi><mtext id="alg1.l9.m1.3.3.5.3" xref="alg1.l9.m1.3.3.5.3a.cmml">finetune</mtext></msub><mo stretchy="false" id="alg1.l9.m1.3.3.4" xref="alg1.l9.m1.3.3.4.cmml">←</mo><mrow id="alg1.l9.m1.3.3.3" xref="alg1.l9.m1.3.3.3.cmml"><mi id="alg1.l9.m1.3.3.3.5" xref="alg1.l9.m1.3.3.3.5.cmml">t</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.4" xref="alg1.l9.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l9.m1.3.3.3.6" xref="alg1.l9.m1.3.3.3.6.cmml">r</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.4a" xref="alg1.l9.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l9.m1.3.3.3.7" xref="alg1.l9.m1.3.3.3.7.cmml">a</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.4b" xref="alg1.l9.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l9.m1.3.3.3.8" xref="alg1.l9.m1.3.3.3.8.cmml">i</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.4c" xref="alg1.l9.m1.3.3.3.4.cmml">​</mo><mi id="alg1.l9.m1.3.3.3.9" xref="alg1.l9.m1.3.3.3.9.cmml">n</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.4d" xref="alg1.l9.m1.3.3.3.4.cmml">​</mo><mrow id="alg1.l9.m1.3.3.3.3.3" xref="alg1.l9.m1.3.3.3.3.4.cmml"><mo stretchy="false" id="alg1.l9.m1.3.3.3.3.3.4" xref="alg1.l9.m1.3.3.3.3.4.cmml">(</mo><mrow id="alg1.l9.m1.1.1.1.1.1.1" xref="alg1.l9.m1.1.1.1.1.1.1.cmml"><mi id="alg1.l9.m1.1.1.1.1.1.1.2" xref="alg1.l9.m1.1.1.1.1.1.1.2.cmml">θ</mi><mo lspace="0.222em" rspace="0.222em" id="alg1.l9.m1.1.1.1.1.1.1.1" xref="alg1.l9.m1.1.1.1.1.1.1.1.cmml">⊙</mo><mi id="alg1.l9.m1.1.1.1.1.1.1.3" xref="alg1.l9.m1.1.1.1.1.1.1.3.cmml">m</mi></mrow><mo id="alg1.l9.m1.3.3.3.3.3.5" xref="alg1.l9.m1.3.3.3.3.4.cmml">,</mo><msub id="alg1.l9.m1.2.2.2.2.2.2" xref="alg1.l9.m1.2.2.2.2.2.2.cmml"><mi id="alg1.l9.m1.2.2.2.2.2.2.2" xref="alg1.l9.m1.2.2.2.2.2.2.2.cmml">D</mi><mtext id="alg1.l9.m1.2.2.2.2.2.2.3" xref="alg1.l9.m1.2.2.2.2.2.2.3a.cmml">real</mtext></msub><mo id="alg1.l9.m1.3.3.3.3.3.6" xref="alg1.l9.m1.3.3.3.3.4.cmml">,</mo><mrow id="alg1.l9.m1.3.3.3.3.3.3" xref="alg1.l9.m1.3.3.3.3.3.3.cmml"><mi id="alg1.l9.m1.3.3.3.3.3.3.2" xref="alg1.l9.m1.3.3.3.3.3.3.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="alg1.l9.m1.3.3.3.3.3.3.1" xref="alg1.l9.m1.3.3.3.3.3.3.1.cmml">​</mo><mtext id="alg1.l9.m1.3.3.3.3.3.3.3" xref="alg1.l9.m1.3.3.3.3.3.3.3a.cmml"> epochs</mtext></mrow><mo stretchy="false" id="alg1.l9.m1.3.3.3.3.3.7" xref="alg1.l9.m1.3.3.3.3.4.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="alg1.l9.m1.3b"><apply id="alg1.l9.m1.3.3.cmml" xref="alg1.l9.m1.3.3"><ci id="alg1.l9.m1.3.3.4.cmml" xref="alg1.l9.m1.3.3.4">←</ci><apply id="alg1.l9.m1.3.3.5.cmml" xref="alg1.l9.m1.3.3.5"><csymbol cd="ambiguous" id="alg1.l9.m1.3.3.5.1.cmml" xref="alg1.l9.m1.3.3.5">subscript</csymbol><ci id="alg1.l9.m1.3.3.5.2.cmml" xref="alg1.l9.m1.3.3.5.2">𝜃</ci><ci id="alg1.l9.m1.3.3.5.3a.cmml" xref="alg1.l9.m1.3.3.5.3"><mtext mathsize="70%" id="alg1.l9.m1.3.3.5.3.cmml" xref="alg1.l9.m1.3.3.5.3">finetune</mtext></ci></apply><apply id="alg1.l9.m1.3.3.3.cmml" xref="alg1.l9.m1.3.3.3"><times id="alg1.l9.m1.3.3.3.4.cmml" xref="alg1.l9.m1.3.3.3.4"></times><ci id="alg1.l9.m1.3.3.3.5.cmml" xref="alg1.l9.m1.3.3.3.5">𝑡</ci><ci id="alg1.l9.m1.3.3.3.6.cmml" xref="alg1.l9.m1.3.3.3.6">𝑟</ci><ci id="alg1.l9.m1.3.3.3.7.cmml" xref="alg1.l9.m1.3.3.3.7">𝑎</ci><ci id="alg1.l9.m1.3.3.3.8.cmml" xref="alg1.l9.m1.3.3.3.8">𝑖</ci><ci id="alg1.l9.m1.3.3.3.9.cmml" xref="alg1.l9.m1.3.3.3.9">𝑛</ci><vector id="alg1.l9.m1.3.3.3.3.4.cmml" xref="alg1.l9.m1.3.3.3.3.3"><apply id="alg1.l9.m1.1.1.1.1.1.1.cmml" xref="alg1.l9.m1.1.1.1.1.1.1"><csymbol cd="latexml" id="alg1.l9.m1.1.1.1.1.1.1.1.cmml" xref="alg1.l9.m1.1.1.1.1.1.1.1">direct-product</csymbol><ci id="alg1.l9.m1.1.1.1.1.1.1.2.cmml" xref="alg1.l9.m1.1.1.1.1.1.1.2">𝜃</ci><ci id="alg1.l9.m1.1.1.1.1.1.1.3.cmml" xref="alg1.l9.m1.1.1.1.1.1.1.3">𝑚</ci></apply><apply id="alg1.l9.m1.2.2.2.2.2.2.cmml" xref="alg1.l9.m1.2.2.2.2.2.2"><csymbol cd="ambiguous" id="alg1.l9.m1.2.2.2.2.2.2.1.cmml" xref="alg1.l9.m1.2.2.2.2.2.2">subscript</csymbol><ci id="alg1.l9.m1.2.2.2.2.2.2.2.cmml" xref="alg1.l9.m1.2.2.2.2.2.2.2">𝐷</ci><ci id="alg1.l9.m1.2.2.2.2.2.2.3a.cmml" xref="alg1.l9.m1.2.2.2.2.2.2.3"><mtext mathsize="70%" id="alg1.l9.m1.2.2.2.2.2.2.3.cmml" xref="alg1.l9.m1.2.2.2.2.2.2.3">real</mtext></ci></apply><apply id="alg1.l9.m1.3.3.3.3.3.3.cmml" xref="alg1.l9.m1.3.3.3.3.3.3"><times id="alg1.l9.m1.3.3.3.3.3.3.1.cmml" xref="alg1.l9.m1.3.3.3.3.3.3.1"></times><ci id="alg1.l9.m1.3.3.3.3.3.3.2.cmml" xref="alg1.l9.m1.3.3.3.3.3.3.2">𝑛</ci><ci id="alg1.l9.m1.3.3.3.3.3.3.3a.cmml" xref="alg1.l9.m1.3.3.3.3.3.3.3"><mtext id="alg1.l9.m1.3.3.3.3.3.3.3.cmml" xref="alg1.l9.m1.3.3.3.3.3.3.3"> epochs</mtext></ci></apply></vector></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="alg1.l9.m1.3c">\theta_{\text{finetune}}\leftarrow train(\theta\odot m,D_{\text{real}},n\text{ epochs})</annotation></semantics></math>
+</div>
+<div id="alg1.l10" class="ltx_listingline">
+<span id="alg1.l10.1" class="ltx_text ltx_font_bold">return</span> <math id="alg1.l10.m1.2" class="ltx_Math" alttext="\theta_{\text{finetune}},m" display="inline"><semantics id="alg1.l10.m1.2a"><mrow id="alg1.l10.m1.2.2.1" xref="alg1.l10.m1.2.2.2.cmml"><msub id="alg1.l10.m1.2.2.1.1" xref="alg1.l10.m1.2.2.1.1.cmml"><mi id="alg1.l10.m1.2.2.1.1.2" xref="alg1.l10.m1.2.2.1.1.2.cmml">θ</mi><mtext id="alg1.l10.m1.2.2.1.1.3" xref="alg1.l10.m1.2.2.1.1.3a.cmml">finetune</mtext></msub><mo id="alg1.l10.m1.2.2.1.2" xref="alg1.l10.m1.2.2.2.cmml">,</mo><mi id="alg1.l10.m1.1.1" xref="alg1.l10.m1.1.1.cmml">m</mi></mrow><annotation-xml encoding="MathML-Content" id="alg1.l10.m1.2b"><list id="alg1.l10.m1.2.2.2.cmml" xref="alg1.l10.m1.2.2.1"><apply id="alg1.l10.m1.2.2.1.1.cmml" xref="alg1.l10.m1.2.2.1.1"><csymbol cd="ambiguous" id="alg1.l10.m1.2.2.1.1.1.cmml" xref="alg1.l10.m1.2.2.1.1">subscript</csymbol><ci id="alg1.l10.m1.2.2.1.1.2.cmml" xref="alg1.l10.m1.2.2.1.1.2">𝜃</ci><ci id="alg1.l10.m1.2.2.1.1.3a.cmml" xref="alg1.l10.m1.2.2.1.1.3"><mtext mathsize="70%" id="alg1.l10.m1.2.2.1.1.3.cmml" xref="alg1.l10.m1.2.2.1.1.3">finetune</mtext></ci></apply><ci id="alg1.l10.m1.1.1.cmml" xref="alg1.l10.m1.1.1">𝑚</ci></list></annotation-xml><annotation encoding="application/x-tex" id="alg1.l10.m1.2c">\theta_{\text{finetune}},m</annotation></semantics></math>
+
+</div>
+</div>
+</figure>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">Specifically for our experiments, we utilize MTT as demonstrated by <cite class="ltx_cite ltx_citemacro_cite">Cazenavette et al., (<a href="#bib.bib1" title="" class="ltx_ref">2022</a>)</cite> due to ease of reproducibility. MTT leverages the concept of expert trajectories, which are snapshots of parameters from models trained on the real dataset. The goal is to induce a similar trajectory in the student model trained on synthetic data, leading to similar test performance. We refer the reader to the original paper for implementation level details.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span id="S3.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">3  </span><span id="S3.2.2" class="ltx_text ltx_font_bold">Experiments</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">For our experiments, we chose AlexNet <cite class="ltx_cite ltx_citemacro_citep">(Krizhevsky et al.,, <a href="#bib.bib8" title="" class="ltx_ref">2017</a>)</cite> for CIFAR-10 <cite class="ltx_cite ltx_citemacro_citep">(Krizhevsky,, <a href="#bib.bib7" title="" class="ltx_ref">2009</a>)</cite> and a 128-width ConvNet for CIFAR-100 <cite class="ltx_cite ltx_citemacro_citep">(Krizhevsky,, <a href="#bib.bib7" title="" class="ltx_ref">2009</a>)</cite> to maintain consistency with experiments in previous literature by <cite class="ltx_cite ltx_citemacro_cite">Cazenavette et al., (<a href="#bib.bib1" title="" class="ltx_ref">2022</a>)</cite>. We distilled each class down to 10 or 50 images, denote as 10 ipc (images per class) or 50 ipc. The distilled CIFAR-10 has a size of 100 or 500 training images and 1,000 or 5,000 for CIFAR-100.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span id="S3.SS1.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">3.1  </span><span id="S3.SS1.2.2" class="ltx_text ltx_font_bold">Sparsity Analysis</span>
+</h3>
+
+<figure id="S3.F1" class="ltx_figure">
+<p id="S3.F1.1" class="ltx_p ltx_align_center"><span id="S3.F1.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2307.03364/assets/x1.png" id="S3.F1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="507" height="172" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Sparsity Mask performance for AlexNet on CIFAR-10 and a 128-width ConvNet on CIFAR-100 across methods. Best seed of each method is bolded. We pruned 20% of weights at each iteration up to 30 iterations for CIFAR-10 and 20 for CIFAR-100. Random mask selects weights at random each iteration. lottery tickets exist if test accuracy of sparse model achieves or surpasses the dense model accuracy as shown in black. Time-to-mask measured by time to prune and retrain the sparsity mask with real data.</figcaption>
+</figure>
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">In our setting, distilled data is appropriately finding lottery tickets at non-trivial sparsities, showing that at 50 ipc the approximated weights from distilled training are sufficient for IMP. Figure <a href="#S3.F1" title="Figure 1 ‣ 3.1 Sparsity Analysis ‣ 3 Experiments ‣ Distilled Pruning: Using Synthetic Data to Win the Lottery" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows we achieve relatively comparable performance to IMP at mid to high sparsities and even outperform at low sparsities for CIFAR-10. For CIFAR-100, we see a fall off earlier as Distilled Pruning finds lottery tickets up to only 50% sparsity. For both datasets, 10 ipc performs poorly as expected due to low performance even on data distillation objectives <cite class="ltx_cite ltx_citemacro_citep">(Cazenavette et al.,, <a href="#bib.bib1" title="" class="ltx_ref">2022</a>; Zhou et al.,, <a href="#bib.bib20" title="" class="ltx_ref">2022</a>; Loo et al.,, <a href="#bib.bib10" title="" class="ltx_ref">2023</a>; Nguyen et al.,, <a href="#bib.bib12" title="" class="ltx_ref">2021</a>)</cite>. We believe with the current state of data distillaton methods, Distilled Pruning may not scale to deeper networks or to datasets with high amounts of outliers yet. As a rapidly evolving field, we expect this to change soon as the field matures.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span id="S3.SS2.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">3.2  </span><span id="S3.SS2.2.2" class="ltx_text ltx_font_bold">Efficiency Analysis</span>
+</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">In Figure <a href="#S3.F1" title="Figure 1 ‣ 3.1 Sparsity Analysis ‣ 3 Experiments ‣ Distilled Pruning: Using Synthetic Data to Win the Lottery" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, we present compelling evidence showcasing the significant speedup achieved with distilled pruning compared to standard IMP. Measured on an Nvidia RTX A4000 GPU, we achieve an average of 55 seconds per distilled training session on CIFAR-10 distilled to 50 ipc, compared to 7.25 minutes per training on real data. Distilled Pruning found a lottery ticket of comparable accuracy at roughly 90% sparsity in CIFAR-10, resulting in a 5x speed up. While distilled pruning with ipc10 looks useful here, the performance drop off is too large for the minimal improvement in time-to-mask. It is worth noting that the major computational burden associated with distilled pruning lies in the final retraining phase using real data. Consequently, in scenarios where validation of a sparsity mask is unnecessary, distilled pruning enables us to generate masks 8 times faster than with IMP.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">One of the key advantages of distilled pruning is the ability to rapidly prototype and experiment, particularly for researchers working within a limited set of datasets or compute resources. Synthetic data is generated once per dataset, providing a means for quick and convenient experimentation. Moreover, synthetic data is pre-computed and publicly available for popular datasets, further streamlining the research process. By capitalizing on the plug-and-play nature of distillation methods, any advancements in data distillation techniques can directly translate into speed improvements for distilled pruning. Because of this, we exclude time-to-distill from our plot. For reference, MTT has one of the largest computational costs for distillation, but only takes an additional 133 minutes to distill CIFAR-10 to 50 images per class <cite class="ltx_cite ltx_citemacro_citep">(Cazenavette et al.,, <a href="#bib.bib1" title="" class="ltx_ref">2022</a>)</cite>. We emphasize that for popular datasets, these are often pre-computed and publicly available with state-of-the-art distillation methods.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span id="S3.SS3.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">3.3  </span><span id="S3.SS3.2.2" class="ltx_text ltx_font_bold">Instability Analysis</span>
+</h3>
+
+<figure id="S3.F2" class="ltx_figure"><img src="/html/2307.03364/assets/x2.png" id="S3.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="179" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>The test accuracy for interpolated weights between two models trained with different SGD noise with AlexNet and CIFAR-10. Each plot uses a fixed sparsity mask found by IMP or Distilled Pruning. A drop in accuracy implies no linear mode connectivity or instability to SGD noise. Distilled Pruning uses 50 images per class.</figcaption>
+</figure>
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">To gain deeper insights into the distinctions between winning tickets obtained through distilled pruning and those discovered using IMP, we employ an <span id="S3.SS3.p1.1.1" class="ltx_text ltx_font_italic">instability analysis</span> inspired by <cite class="ltx_cite ltx_citemacro_cite">Frankle et al., (<a href="#bib.bib4" title="" class="ltx_ref">2020</a>)</cite>.
+As described in previous literature, lottery tickets exhibit linear mode connectivity, representing stability to noise from stochastic gradient descent (SGD). In Figure <a href="#S3.F2" title="Figure 2 ‣ 3.3 Instability Analysis ‣ 3 Experiments ‣ Distilled Pruning: Using Synthetic Data to Win the Lottery" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, the selected sparsity masks were trained using two distinct permutations of real training data. Then, we performed a linear interpolation between the trained weights of the two networks. This process allowed us to observe the linear mode connectivity and assess the stability of the models. A drop in test accuracy during this interpolation means the model is unstable.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">We observed distinctions in the lottery tickets yielded through the two methods. In the case of IMP-generated subnetworks, we observed the need for rewinding to an early point in training (specifically, after one epoch, <math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="k=1" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mrow id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml"><mi id="S3.SS3.p2.1.m1.1.1.2" xref="S3.SS3.p2.1.m1.1.1.2.cmml">k</mi><mo id="S3.SS3.p2.1.m1.1.1.1" xref="S3.SS3.p2.1.m1.1.1.1.cmml">=</mo><mn id="S3.SS3.p2.1.m1.1.1.3" xref="S3.SS3.p2.1.m1.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><apply id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1"><eq id="S3.SS3.p2.1.m1.1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1.1"></eq><ci id="S3.SS3.p2.1.m1.1.1.2.cmml" xref="S3.SS3.p2.1.m1.1.1.2">𝑘</ci><cn type="integer" id="S3.SS3.p2.1.m1.1.1.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">k=1</annotation></semantics></math>) as opposed to initialization, aligning with previous work <cite class="ltx_cite ltx_citemacro_citep">(Frankle et al.,, <a href="#bib.bib4" title="" class="ltx_ref">2020</a>)</cite>. In contrast, the lottery tickets identified through distilled pruning proved to be drastically more stable against SGD noise, not requiring any rewinding. We found our tickets maintained linear mode connectivity at extreme sparsities, only falling during model collapse.</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p">These discoveries hint at the possibility of distilled pruning producing a different type of lottery ticket, where trained weights approximated by distilled data might provide unique and valuable insights into the Lottery Ticket Hypothesis. However, as <cite class="ltx_cite ltx_citemacro_cite">Vlaar and Frankle, (<a href="#bib.bib18" title="" class="ltx_ref">2022</a>)</cite> discuss, data augmentation, initializations, and optimizers all play significant roles in linear interpolation. Even then, they show stability does not always predict test accuracy. Therefore, we believe further research is necessary to fully understand why distilled data-generated tickets exhibit such stability, even when rewound to initialization.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span id="S4.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">4  </span><span id="S4.2.2" class="ltx_text ltx_font_bold">Conclusion</span>
+</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In this pilot study, we explore the effect of data distillation on neural network pruning. The implications of distilled pruning extend far beyond its direct applications. Fast prototyping becomes more accessible for researchers who leverage pruning techniques, as the distilled pruning framework enables swift iteration and experimentation with various pruning configurations. Additionally, distilled pruning serves as a valuable tool for Neural Architecture Search (NAS) validation, facilitating the assessment of architectures’ performance and characteristics. One notable advantage within pruning is the flexibility it provides in terms of pruning granularity. Researchers can substantially increase in the number of pruning iterations, allowing for pruning of smaller amounts of weights per iteration. This hyper-iterative approach grants precise control over the levels of pruning, enabling fine-grained exploration of the sparsity spectrum. Distilled pruning effectively reduces the sample complexity of mask generation, thereby opening up new avenues for stochastic approaches to IMP or even larger-scale NAS methods.</p>
+</div>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.1" class="ltx_p">While our research focuses on highlighting the speed-up achieved with distilled pruning, we acknowledge that there is a trade-off in performance compared to the standard IMP method. As data distillation as a field matures, we expect to close the performance gap and apply this method to larger models and datasets. In future work, we plan to test a wider range of novel distillation methods such as <cite class="ltx_cite ltx_citemacro_cite">Zhou et al., (<a href="#bib.bib20" title="" class="ltx_ref">2022</a>)</cite> and <cite class="ltx_cite ltx_citemacro_cite">Loo et al., (<a href="#bib.bib10" title="" class="ltx_ref">2023</a>)</cite> while exploring the scalability of distilled pruning with larger architectures.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span id="S5.1.1" class="ltx_text ltx_font_bold ltx_align_right ltx_inline-block" style="width:0.0pt;">5  </span><span id="S5.2.2" class="ltx_text ltx_font_bold">Broader Impact Statement</span>
+</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">Our proposed solution employs distilled data, which leads to significant computational savings during the pruning process. This reduction in computational requirements directly translates to diminished CO2 emissions, contributing to more sustainable AI research and development practices. Our approach would generalize well to models outside computer vision and could lead to more effective and efficient pruning solutions in areas such as natural language processing, and generative architectures. Moreover, this work can make advanced neural network design more accessible to a broader range of researchers and developers, reducing the expertise and compute infrastructure required to prune high-performing networks.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">One possible risk of our approach is the loss of detail when using distilled data. While data distillation aims to retain as much useful information as possible, there’s a risk that some important outlier data could be lost in the process, potentially leading to unexpected model performance or biased outcomes. To counter the potential risks associated with data distillation, it’s crucial to validate distilled datasets thoroughly against real-world data to ensure they adequately represent the problem space. While data distillation holds considerable promise for the future enhancement of deep learning, the drawbacks and related mitigation strategies should continue to be carefully studied.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Cazenavette et al.,  (2022)</span>
+<span class="ltx_bibblock">
+Cazenavette, G., Wang, T., Torralba, A., Efros, A. A., and Zhu, J.-Y. (2022).
+
+</span>
+<span class="ltx_bibblock">Dataset distillation by matching training trajectories.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">CVPR</span>.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al.,  (2021)</span>
+<span class="ltx_bibblock">
+Chen, X., Cheng, Y., Wang, S., Gan, Z., Liu, J., and Wang, Z. (2021).
+
+</span>
+<span class="ltx_bibblock">The elastic lottery ticket hypothesis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">NIPS</span>.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Frankle and Carbin,  (2019)</span>
+<span class="ltx_bibblock">
+Frankle, J. and Carbin, M. (2019).
+
+</span>
+<span class="ltx_bibblock">The lottery ticket hypothesis: Finding sparse, trainable neural
+networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">ICLR</span>.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Frankle et al.,  (2020)</span>
+<span class="ltx_bibblock">
+Frankle, J., Dziugaite, G. K., Roy, D. M., and Carbin, M. (2020).
+
+</span>
+<span class="ltx_bibblock">Linear mode connectivity and the lottery ticket hypothesis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">PMLR</span>.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Han et al.,  (2015)</span>
+<span class="ltx_bibblock">
+Han, S., Pool, J., Tran, J., and Dally, W. J. (2015).
+
+</span>
+<span class="ltx_bibblock">Learning both weights and connections for efficient neural networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">NIPS</span>.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">He et al.,  (2015)</span>
+<span class="ltx_bibblock">
+He, K., Zhang, X., Ren, S., and Sun, J. (2015).
+
+</span>
+<span class="ltx_bibblock">Deep residual learning for image recognition.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Krizhevsky,  (2009)</span>
+<span class="ltx_bibblock">
+Krizhevsky, A. (2009).
+
+</span>
+<span class="ltx_bibblock">Learning multiple layers of features from tiny images.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Krizhevsky et al.,  (2017)</span>
+<span class="ltx_bibblock">
+Krizhevsky, A., Sutskever, I., and Hinton, G. E. (2017).
+
+</span>
+<span class="ltx_bibblock">Imagenet classification with deep convolutional neural networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">ACM</span>, 60(6):84–90.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lecun et al.,  (1989)</span>
+<span class="ltx_bibblock">
+Lecun, Y., Denker, J., and Solla, S. (1989).
+
+</span>
+<span class="ltx_bibblock">Optimal brain damage.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">NIPS</span>, 2:598–605.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Loo et al.,  (2023)</span>
+<span class="ltx_bibblock">
+Loo, N., Hasani, R., Lechner, M., and Rus, D. (2023).
+
+</span>
+<span class="ltx_bibblock">Dataset distillation with convexified implicit gradients.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ma et al.,  (2021)</span>
+<span class="ltx_bibblock">
+Ma, X., Yuan, G., Shen, X., Chen, T., Chen, X., Chen, X., Liu, N., Qin, M.,
+Liu, S., Wang, Z., and Wang, Y. (2021).
+
+</span>
+<span class="ltx_bibblock">Sanity checks for lottery tickets: Does your winning ticket really
+win the jackpot?
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">NIPS</span>.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nguyen et al.,  (2021)</span>
+<span class="ltx_bibblock">
+Nguyen, T., Chen, Z., and Lee, J. (2021).
+
+</span>
+<span class="ltx_bibblock">Dataset meta-learning from kernel ridge-regression.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Paganini and Forde,  (2020)</span>
+<span class="ltx_bibblock">
+Paganini, M. and Forde, J. Z. (2020).
+
+</span>
+<span class="ltx_bibblock">Bespoke vs. prêt-à-porter lottery tickets: Exploiting mask
+similarity for trainable sub-network finding.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">(14)</span>
+<span class="ltx_bibblock">
+Paul, M., Chen, F., Larsen, B. W., Frankle, J., Ganguli, S., and Dziugaite,
+G. K. (2022a).
+
+</span>
+<span class="ltx_bibblock">Unmasking the lottery ticket hypothesis: What’s encoded in a winning
+ticket’s mask?
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">(15)</span>
+<span class="ltx_bibblock">
+Paul, M., Larsen, B. W., Ganguli, S., Frankle, J., and Dziugaite, G. K.
+(2022b).
+
+</span>
+<span class="ltx_bibblock">Lottery tickets on a data diet: Finding initializations with sparse
+trainable networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">NIPS</span>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sachdeva and McAuley,  (2023)</span>
+<span class="ltx_bibblock">
+Sachdeva, N. and McAuley, J. (2023).
+
+</span>
+<span class="ltx_bibblock">Data distillation: A survey.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text ltx_font_italic">TMLR</span>.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Simonyan and Zisserman,  (2015)</span>
+<span class="ltx_bibblock">
+Simonyan, K. and Zisserman, A. (2015).
+
+</span>
+<span class="ltx_bibblock">Very deep convolutional networks for large-scale image recognition.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Vlaar and Frankle,  (2022)</span>
+<span class="ltx_bibblock">
+Vlaar, T. and Frankle, J. (2022).
+
+</span>
+<span class="ltx_bibblock">What can linear interpolation of neural network loss landscapes tell
+us?
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">ICML</span>.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al.,  (2020)</span>
+<span class="ltx_bibblock">
+Wang, T., Zhu, J.-Y., Torralba, A., and Efros, A. A. (2020).
+
+</span>
+<span class="ltx_bibblock">Dataset distillation.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhou et al.,  (2022)</span>
+<span class="ltx_bibblock">
+Zhou, Y., Nezhadarya, E., and Ba, J. (2022).
+
+</span>
+<span class="ltx_bibblock">Dataset distillation using neural feature regression.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">NIPS</span>.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<section id="A1" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix A </span>Reproducibility</h2>
+
+<div id="A1.p1" class="ltx_para">
+<p id="A1.p1.1" class="ltx_p">We adapted our code from MTT and built a pruning framework on top of it. For review, our code is available: https://github.com/luke-mcdermott-mi/distilled-pruning. MTT can be found at https://github.com/GeorgeCazenavette/mtt-distillation. We used the pre-computed distilled data from the original paper. For training on distilled data we used the default hyperparameters in the MTT respository, but used a learning rate of .01 and .007 for the 50 ipc (images per class) and 10 ipc CIFAR-10 datasets respectively. We also used 1000 and 3000 epochs for these. For CIFAR-100, we used a learning rate of .01 and .09 for the 50 ipc and 10 ipc datasets respectively with 1250 epochs of training. For training on real data, we used a .0008 learning rate, 512 batch size, .0008 weight decay, and gamma of .15. Milestones were placed at epochs 50,65, and 80. We found AlexNet only needed 60 epochs on CIFAR-10 which provides a stronger baseline in terms of time-to-mask. Any additional training time found negligable performance. Furthermore, we used 120 epochs for the 128-Width ConvNet on CIFAR-100. We tuned hyperparameters using Optuna and spent roughly a half gpu-hour for distilled tuning and 2 gpu-hours for tuning on the original datasets on an Nvidia A6000. These hyperparameters can also be found in our codebase. For random seeds, we used seeds 0-4.</p>
+</div>
+</section>
+<section id="A2" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix B </span>Weight Distribution of Sparsity Masks</h2>
+
+<figure id="A2.F3" class="ltx_figure">
+<p id="A2.F3.1" class="ltx_p"><span id="A2.F3.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2307.03364/assets/x3.png" id="A2.F3.1.1.g1" class="ltx_graphics ltx_img_landscape" width="576" height="438" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Initialization values of weights for lottery tickets found on a ConvNet &amp; CIFAR-10. Going from left to right, we look at deeper layers of the ConvNet: three convolutional feature extractors and a final linear classifier. Going from top to bottom, we view sparser lottery tickets.</figcaption>
+</figure>
+<div id="A2.p1" class="ltx_para">
+<p id="A2.p1.1" class="ltx_p">Following <cite class="ltx_cite ltx_citemacro_cite">Paganini and Forde, (<a href="#bib.bib13" title="" class="ltx_ref">2020</a>)</cite>, we employ a similar analysis of our lottery tickets found across both pruning methods in figure <a href="#A2.F3" title="Figure 3 ‣ Appendix B Weight Distribution of Sparsity Masks ‣ Distilled Pruning: Using Synthetic Data to Win the Lottery" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. We showcase the distribution of the non-pruned initialized weights. Traditional lottery tickets exhibit a bimodal distribution at high sparsities which can be confirmed by our findings. Essentially, weights that are initialized near zero are likely to stay near zero after training with IMP. We find that in a small ConvNet (3 convolutional layers + 1 linear layer) on CIFAR-10, distilled pruning agrees with IMP on the distribution of layer sparsity; however, they disagree on weight distribution at later layers, especially at high sparsities. These insights point to more distinctions between lottery tickets that we could not cover in our instability analysis. For this experiment, we used IMP with rewinding back to initialization. We found in the case with AlexNet, which required rewinding to the first epoch in training, that even poorly trained weights show a drastically different distribution than initialization. This made it difficult to compare Distilled Pruning and IMPs’ weights on AlexNet as their rewind weights were different.</p>
+</div>
+<section id="A2.SS0.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_runin ltx_font_bold ltx_title_paragraph">Acknowledgements</h4>
+
+</section>
+</section><div class="ltx_rdf" about="" property="dcterms:creator" content="Luke McDermott, Daniel Cummings"></div>
+<div class="ltx_rdf" about="" property="dcterms:subject" content="Neural Network Pruning, Data Distillation, Neural Architecture Search"></div>
+<div class="ltx_rdf" about="" property="dcterms:language" content="en"></div>
+<div class="ltx_rdf" about="" property="dcterms:title" content="Distilled Pruning: Using Synthetic Data to Win the Lottery"></div>
+
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2307.03363" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2307.03364" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2307.03364">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2307.03364" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2307.03365" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Wed Feb 28 19:43:17 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

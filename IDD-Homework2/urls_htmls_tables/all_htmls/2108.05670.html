@@ -1,0 +1,685 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2108.05670] Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates</title><meta property="og:description" content="Federated Learning (FL) solves many of this decade’s concerns regarding data privacy and computation challenges. FL ensures no data leaves its source as the model is trained at where the data resides. However, FL comes…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2108.05670">
+
+<!--Generated on Tue Mar 19 10:38:41 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Srikanth Chandar<sup id="id7.2.id1" class="ltx_sup"><span id="id7.2.id1.1" class="ltx_text ltx_font_italic">1,2</span></sup>
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Pravin Chandran<sup id="id8.2.id1" class="ltx_sup">1</sup>
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Raghavendra Bhat<sup id="id9.5.id1" class="ltx_sup">1</sup>&amp;Avinash Chakravarthi<sup id="id10.6.id2" class="ltx_sup">1</sup>
+<sup id="id11.7.id3" class="ltx_sup">1</sup>Intel Corporation, Bangalore
+<br class="ltx_break"><sup id="id12.8.id4" class="ltx_sup">2</sup>PES University, Bangalore
+srikanth.chandar@gmail.com,
+{pravin.chandran, raghavendra.bhat, avinash.chakravarthi}@intel.com
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id13.id1" class="ltx_p">Federated Learning (FL) solves many of this decade’s concerns regarding data privacy and computation challenges. FL ensures no data leaves its source as the model is trained at where the data resides. However, FL comes with its own set of challenges. The communication of model weight updates in this distributed environment comes with significant network bandwidth costs. In this context, we propose a mechanism of compressing the weight updates using Autoencoders (AE), which learn the data features of the weight updates and subsequently perform compression. The encoder is set up on each of the nodes where the training is performed while the decoder is set up on the node where the weights are aggregated. This setup achieves compression through the encoder and recreates the weights at the end of every communication round using the decoder. This paper shows that the dynamic and orthogonal AE based weight compression technique could serve as an advantageous alternative (or an add-on) in a large scale FL, as it not only achieves compression ratios ranging from 500x to 1720x and beyond, but can also be modified based on the accuracy requirements, computational capacity, and other requirements of the given FL setup.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Federated Learning has been proposed as a new learning paradigm to overcome the privacy regulations and communication overheads associated with central training <cite class="ltx_cite ltx_citemacro_cite">McMahan <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib12" title="" class="ltx_ref">2017</a>)</cite>,<cite class="ltx_cite ltx_citemacro_cite">Li <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib8" title="" class="ltx_ref">2020</a>)</cite>. In this paper, for sake of clarity, we assume an FL scheme where a central server (called Aggregator) shares a global model with participating edge devices (called Collaborator), and the model is trained on the local datasets available at the edge device. The local dataset is never shared with the central server, instead, local updates to the global model are shared with the central server. The central server combines the local updates from the participating clients using an Optimization or Aggregation Algorithm (FedAvg <cite class="ltx_cite ltx_citemacro_cite">McMahan <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib12" title="" class="ltx_ref">2017</a>)</cite>, FedProx <cite class="ltx_cite ltx_citemacro_cite">Li <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib7" title="" class="ltx_ref">2018</a>)</cite>, FedMa <cite class="ltx_cite ltx_citemacro_cite">Wang <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib18" title="" class="ltx_ref">2020</a>)</cite>, FedMAX<cite class="ltx_cite ltx_citemacro_cite">Chen <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib2" title="" class="ltx_ref">2020</a>)</cite>) and creates a new version of the global model. This process is repeated for the required number of communication rounds until the desired convergence criteria are achieved. The chosen scheme does not limit the technique from being deployed in any alternative FL scheme.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">In the proposed FL setup, an AE compresses the weight updates from each collaborator at every communication round to reduce the communication bandwidth and recreates the weights after communication during the aggregation stage at the Aggregator. It is well understood that the weight updates are non-isolated events and there is some relation and interlinking between the parameters of the weight updates. A neural network such as an AE can find such patterns hidden in the data and reduce the representation to a lower-dimensional feature size (compression).</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<br class="ltx_break">
+<p id="S1.F1.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S1.F1.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/x1.png" id="S1.F1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="664" height="382" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Autoencoder (Encoder and Decoder) Model</figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">This paper investigates and shows that an AE can exploit this fact of dependence between parameters in a weight update, and thus learn the encoding of the weight update, and replicate it in a ”learnable” manner. An AE model has a funnel structure where the hidden layers have neurons lesser in number compared to the input and output layers. The idea is that the network is trained to replicate the inputs, at the output level, by having certain intermediate lower-dimensional representations in the hidden layers. This ”encoded” weight update, being smaller in size, is then communicated to the server- thus reducing the communication overheads.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Past Work</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Communication efficient FL has gained considerable attention over the past few years, and several approaches towards compressing the collaborator-to-server and server-to-collaborator model updates have been proposed. Traditional methods like sub-sampling, and quantization as implemented in <cite class="ltx_cite ltx_citemacro_cite">Reisizadeh <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib13" title="" class="ltx_ref">2020</a>)</cite> compress the model update by the process of mapping weight parameter values to a smaller set of discrete finite values. Communication overheads can further be reduced by a certain more sophisticated quantization approach by combining the universal vector quantization, following a similar fundamental principle <cite class="ltx_cite ltx_citemacro_cite">Shlezinger <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib17" title="" class="ltx_ref">2020</a>)</cite>. Sub-sampling and Quantization are simplified methods that do not capture the inherent nonlinearities in the model while performing a compression but rather performs an approximation to reduce the size of the weights being communicated. Pruning reduces the model size by modifying architecture. Not all weights in a model are considered important, and an importance metric is defined for each of the weights. This metric is decided based on how each of these parameters causes the loss function to change when faced with a gradient. Unimportant weights are assumed a weight equal to zero, implying they can be removed from the network, finally resulting in a smaller network.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.1" class="ltx_p">Federated Dropout <cite class="ltx_cite ltx_citemacro_cite">Caldas <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib1" title="" class="ltx_ref">2018</a>)</cite> proposes a compression scheme derived from dropout regularization, where a fixed number of activations are dropped at each connected layer. This ensures local updates have reduced architecture and thus reduces communication bandwidth. DGC (sparsification)<cite class="ltx_cite ltx_citemacro_cite">Lin <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib9" title="" class="ltx_ref">2017</a>)</cite> only communicates the weights above the set threshold, and the others are accumulated locally on the device till it reaches the threshold value, and is only then communicated. The reasoning being 99% of the update are redundant since they get altered during future communication rounds. CMFL <cite class="ltx_cite ltx_citemacro_cite">Luping <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib10" title="" class="ltx_ref">2019</a>)</cite> introduces an orthogonal compression method making use of the global model update tendency. The weights of the local updates that do not align with this tendency are not communicated, as they are deemed to have low importance since they would get corrected as the communication rounds proceeds. STC <cite class="ltx_cite ltx_citemacro_cite">Sattler <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib15" title="" class="ltx_ref">2019</a>)</cite> is similar to DGC, and includes compression for server-to-client communication, through the modification of the update rule to include client-side and server-side updates. FetchSGD <cite class="ltx_cite ltx_citemacro_cite">Rothchild <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib14" title="" class="ltx_ref">2020</a>)</cite> uses sketching and streaming to compress weight updates by summarizing them through a linear sketching algorithm (Count Sketch), using the accumulator and momentum variables from update equations stored on the server, instead of locally.
+Fedboost <cite class="ltx_cite ltx_citemacro_cite">Hamer <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib4" title="" class="ltx_ref">2020</a>)</cite> treats the FL weight update compression problem as an ensemble-based training optimization problem, by considering each of the collaborators as a member of the ensemble and aggregating the inferences instead of weights. The drawback is that it is applicable for density estimations only, and does not solve the weight update compression in itself. Similarly, Fedzip <cite class="ltx_cite ltx_citemacro_cite">Malekijoo <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib11" title="" class="ltx_ref">2021</a>)</cite> proposes a quantization approach using K-Means-Clustering, aided with sparsification and encoding, to compress the weight updates. Quantization through clustering provides a better reflection of tensor distribution, compared to other methods where a fixed set is selected.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">In Knowledge Distillation <cite class="ltx_cite ltx_citemacro_cite">Hinton <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib5" title="" class="ltx_ref">2015</a>)</cite> the collaborator model is translated to a smaller model that replicates the original model behavior to a satisfactory level of accuracy, and the communication of weight updates during each communication round is thus of a smaller size <cite class="ltx_cite ltx_citemacro_cite">Seo <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib16" title="" class="ltx_ref">2020</a>)</cite>. The drawback of this approach is that the smaller model may not provide the entire information encapsulated in the collaborator model. Even with stronger teacher models <cite class="ltx_cite ltx_citemacro_cite">Lan <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib6" title="" class="ltx_ref">2018</a>)</cite>, there is a hesitation in commercially adopting this approach, as there could be sub-optimal distillation if the student model is too small and is over-fitting. There is also a cap on the amount of compression that may be achieved, as the process is dependent on recreating the collaborator model.
+Deriving from the idea of compressing the collaborator model weights, this paper proposes an architecture that builds a model that recreates the weight updates at each communication round via compression through an autoencoder, instead of recreating the collaborator model itself. While the AE model may be bigger than than the student model, the compression achieved through the AE would be significantly higher as it learns the patterns between the parameters of the weight updates, rather than between the input and output of the collaborator model (which ideally necessitates a model to be as big as the collaborator model, and hinders a wide range of compression). AEs have been used in the image compression domain <cite class="ltx_cite ltx_citemacro_cite">Zebang and
+Sei-ichiro (<a href="#bib.bib19" title="" class="ltx_ref">2019</a>)</cite>. In the context of compressing another neural network using an AE, there is limited investigation. The closest research along these lines is the ALF <cite class="ltx_cite ltx_citemacro_cite">Frickenstein <span class="ltx_text ltx_font_italic">et al.</span> (<a href="#bib.bib3" title="" class="ltx_ref">2020</a>)</cite> approach, proposed for the embedded system track. Here, an AE is used to compress the weights at the end of every convolutional layer, to save memory usage while storing intermediate weights on the hardware. Whereas in the AE-based compression proposed in this paper, the compression occurs for all layer weights (convolutional or not) and is for the entire model. This provides the advantage of allowing the AE to learn the dependencies of the parameters across layers, and perform compression accordingly. This proposed method is suggested as a more dynamic approach serving as an advantageous add-on for communication efficient federated learning, by also considering the various trade-offs.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Architecture</h2>
+
+<figure id="S3.F2" class="ltx_figure">
+<br class="ltx_break">
+<p id="S3.F2.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F2.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/x2.png" id="S3.F2.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="664" height="417" alt="Refer to caption"></span></p>
+<br class="ltx_break ltx_break">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Prepass Round</figcaption>
+</figure>
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">The compression scheme proposed in this paper works in a manner where an AE neural network is trained to recreate the weight updates via an intermediate compressed state. To train the AE to compress a model, the weights data at the end of every batch/epoch of the training model (to be compressed) is required, as the AE learns the encodings from such a dataset. This implies that in the FL setup, a pre-pass round is required to generate the dataset containing weights associated with periodic learning. This is achieved as such - The server initiates the learning process on all collaborators by communicating a global model. Each collaborator trains this particular model using the local data available on the device. At this stage, the learning process happens without aggregation of weights or Federation. While the collaborators’ models are being trained locally on-device data, the intermediate weights (at the end of every batch/epoch) are stored to form the weights dataset. The weights dataset generated at every collaborator is used to train an AE at the collaborator, in such a way that the AE can reproduce the weights, and also compress them through its intermediate smaller dimensional layer. The decoder part of the AE is communicated to the server, which also concludes the pre-pass round. Beyond this stage, the FL is initiated by the server using a global model. This time each collaborator starts training on the local data, but with aggregation and federation at every communication round. The weight updates from the collaborator to the server are compressed using the encoder on the collaborator and reconstructed using the decoder on the server. The compression ratio achieved per communication round, per collaborator is around 1500x, and this factor can be modified based on the AE structure.
+The encoding network can be represented by the standard neural network function passed through an activation function, where z is the latent dimension.</p>
+<table id="S3.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.E1.m1.1" class="ltx_Math" alttext="\small z=\sigma(Wx+b)" display="block"><semantics id="S3.E1.m1.1a"><mrow id="S3.E1.m1.1.1" xref="S3.E1.m1.1.1.cmml"><mi mathsize="90%" id="S3.E1.m1.1.1.3" xref="S3.E1.m1.1.1.3.cmml">z</mi><mo mathsize="90%" id="S3.E1.m1.1.1.2" xref="S3.E1.m1.1.1.2.cmml">=</mo><mrow id="S3.E1.m1.1.1.1" xref="S3.E1.m1.1.1.1.cmml"><mi mathsize="90%" id="S3.E1.m1.1.1.1.3" xref="S3.E1.m1.1.1.1.3.cmml">σ</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.1.1.1.2" xref="S3.E1.m1.1.1.1.2.cmml">​</mo><mrow id="S3.E1.m1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.E1.m1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E1.m1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.cmml"><mrow id="S3.E1.m1.1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.2.cmml"><mi mathsize="90%" id="S3.E1.m1.1.1.1.1.1.1.2.2" xref="S3.E1.m1.1.1.1.1.1.1.2.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.1.1.1.1.1.1.2.1" xref="S3.E1.m1.1.1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S3.E1.m1.1.1.1.1.1.1.2.3" xref="S3.E1.m1.1.1.1.1.1.1.2.3.cmml">x</mi></mrow><mo mathsize="90%" id="S3.E1.m1.1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.1.cmml">+</mo><mi mathsize="90%" id="S3.E1.m1.1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.3.cmml">b</mi></mrow><mo maxsize="90%" minsize="90%" id="S3.E1.m1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.E1.m1.1b"><apply id="S3.E1.m1.1.1.cmml" xref="S3.E1.m1.1.1"><eq id="S3.E1.m1.1.1.2.cmml" xref="S3.E1.m1.1.1.2"></eq><ci id="S3.E1.m1.1.1.3.cmml" xref="S3.E1.m1.1.1.3">𝑧</ci><apply id="S3.E1.m1.1.1.1.cmml" xref="S3.E1.m1.1.1.1"><times id="S3.E1.m1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.2"></times><ci id="S3.E1.m1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.3">𝜎</ci><apply id="S3.E1.m1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1"><plus id="S3.E1.m1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1"></plus><apply id="S3.E1.m1.1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2"><times id="S3.E1.m1.1.1.1.1.1.1.2.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2.1"></times><ci id="S3.E1.m1.1.1.1.1.1.1.2.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2.2">𝑊</ci><ci id="S3.E1.m1.1.1.1.1.1.1.2.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.2.3">𝑥</ci></apply><ci id="S3.E1.m1.1.1.1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.3">𝑏</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E1.m1.1c">\small z=\sigma(Wx+b)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S3.p1.2" class="ltx_p">Similarly, the decoding network:</p>
+<table id="S3.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.E2.m1.1" class="ltx_Math" alttext="\small x^{\prime}=\sigma^{\prime}(W^{\prime}z+b^{\prime})" display="block"><semantics id="S3.E2.m1.1a"><mrow id="S3.E2.m1.1.1" xref="S3.E2.m1.1.1.cmml"><msup id="S3.E2.m1.1.1.3" xref="S3.E2.m1.1.1.3.cmml"><mi mathsize="90%" id="S3.E2.m1.1.1.3.2" xref="S3.E2.m1.1.1.3.2.cmml">x</mi><mo mathsize="90%" id="S3.E2.m1.1.1.3.3" xref="S3.E2.m1.1.1.3.3.cmml">′</mo></msup><mo mathsize="90%" id="S3.E2.m1.1.1.2" xref="S3.E2.m1.1.1.2.cmml">=</mo><mrow id="S3.E2.m1.1.1.1" xref="S3.E2.m1.1.1.1.cmml"><msup id="S3.E2.m1.1.1.1.3" xref="S3.E2.m1.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E2.m1.1.1.1.3.2" xref="S3.E2.m1.1.1.1.3.2.cmml">σ</mi><mo mathsize="90%" id="S3.E2.m1.1.1.1.3.3" xref="S3.E2.m1.1.1.1.3.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S3.E2.m1.1.1.1.2" xref="S3.E2.m1.1.1.1.2.cmml">​</mo><mrow id="S3.E2.m1.1.1.1.1.1" xref="S3.E2.m1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.E2.m1.1.1.1.1.1.2" xref="S3.E2.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E2.m1.1.1.1.1.1.1" xref="S3.E2.m1.1.1.1.1.1.1.cmml"><mrow id="S3.E2.m1.1.1.1.1.1.1.2" xref="S3.E2.m1.1.1.1.1.1.1.2.cmml"><msup id="S3.E2.m1.1.1.1.1.1.1.2.2" xref="S3.E2.m1.1.1.1.1.1.1.2.2.cmml"><mi mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.2.2.2" xref="S3.E2.m1.1.1.1.1.1.1.2.2.2.cmml">W</mi><mo mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.2.2.3" xref="S3.E2.m1.1.1.1.1.1.1.2.2.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S3.E2.m1.1.1.1.1.1.1.2.1" xref="S3.E2.m1.1.1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.2.3" xref="S3.E2.m1.1.1.1.1.1.1.2.3.cmml">z</mi></mrow><mo mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.1" xref="S3.E2.m1.1.1.1.1.1.1.1.cmml">+</mo><msup id="S3.E2.m1.1.1.1.1.1.1.3" xref="S3.E2.m1.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.3.2" xref="S3.E2.m1.1.1.1.1.1.1.3.2.cmml">b</mi><mo mathsize="90%" id="S3.E2.m1.1.1.1.1.1.1.3.3" xref="S3.E2.m1.1.1.1.1.1.1.3.3.cmml">′</mo></msup></mrow><mo maxsize="90%" minsize="90%" id="S3.E2.m1.1.1.1.1.1.3" xref="S3.E2.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.E2.m1.1b"><apply id="S3.E2.m1.1.1.cmml" xref="S3.E2.m1.1.1"><eq id="S3.E2.m1.1.1.2.cmml" xref="S3.E2.m1.1.1.2"></eq><apply id="S3.E2.m1.1.1.3.cmml" xref="S3.E2.m1.1.1.3"><csymbol cd="ambiguous" id="S3.E2.m1.1.1.3.1.cmml" xref="S3.E2.m1.1.1.3">superscript</csymbol><ci id="S3.E2.m1.1.1.3.2.cmml" xref="S3.E2.m1.1.1.3.2">𝑥</ci><ci id="S3.E2.m1.1.1.3.3.cmml" xref="S3.E2.m1.1.1.3.3">′</ci></apply><apply id="S3.E2.m1.1.1.1.cmml" xref="S3.E2.m1.1.1.1"><times id="S3.E2.m1.1.1.1.2.cmml" xref="S3.E2.m1.1.1.1.2"></times><apply id="S3.E2.m1.1.1.1.3.cmml" xref="S3.E2.m1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E2.m1.1.1.1.3.1.cmml" xref="S3.E2.m1.1.1.1.3">superscript</csymbol><ci id="S3.E2.m1.1.1.1.3.2.cmml" xref="S3.E2.m1.1.1.1.3.2">𝜎</ci><ci id="S3.E2.m1.1.1.1.3.3.cmml" xref="S3.E2.m1.1.1.1.3.3">′</ci></apply><apply id="S3.E2.m1.1.1.1.1.1.1.cmml" xref="S3.E2.m1.1.1.1.1.1"><plus id="S3.E2.m1.1.1.1.1.1.1.1.cmml" xref="S3.E2.m1.1.1.1.1.1.1.1"></plus><apply id="S3.E2.m1.1.1.1.1.1.1.2.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2"><times id="S3.E2.m1.1.1.1.1.1.1.2.1.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.1"></times><apply id="S3.E2.m1.1.1.1.1.1.1.2.2.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S3.E2.m1.1.1.1.1.1.1.2.2.1.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.2">superscript</csymbol><ci id="S3.E2.m1.1.1.1.1.1.1.2.2.2.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.2.2">𝑊</ci><ci id="S3.E2.m1.1.1.1.1.1.1.2.2.3.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.2.3">′</ci></apply><ci id="S3.E2.m1.1.1.1.1.1.1.2.3.cmml" xref="S3.E2.m1.1.1.1.1.1.1.2.3">𝑧</ci></apply><apply id="S3.E2.m1.1.1.1.1.1.1.3.cmml" xref="S3.E2.m1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E2.m1.1.1.1.1.1.1.3.1.cmml" xref="S3.E2.m1.1.1.1.1.1.1.3">superscript</csymbol><ci id="S3.E2.m1.1.1.1.1.1.1.3.2.cmml" xref="S3.E2.m1.1.1.1.1.1.1.3.2">𝑏</ci><ci id="S3.E2.m1.1.1.1.1.1.1.3.3.cmml" xref="S3.E2.m1.1.1.1.1.1.1.3.3">′</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E2.m1.1c">\small x^{\prime}=\sigma^{\prime}(W^{\prime}z+b^{\prime})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S3.p1.3" class="ltx_p">The loss function in terms of these network functions used to train the neural network through the standard backpropagation procedure is:</p>
+<table id="S3.E3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.E3.m1.4" class="ltx_Math" alttext="\small\mathcal{L}(x,x^{\prime})=\|x-x^{\prime}\|^{2}=\|x-\sigma^{\prime}(W^{\prime}\sigma(Wx+b)+b^{\prime})\|^{2}" display="block"><semantics id="S3.E3.m1.4a"><mrow id="S3.E3.m1.4.4" xref="S3.E3.m1.4.4.cmml"><mrow id="S3.E3.m1.2.2.1" xref="S3.E3.m1.2.2.1.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S3.E3.m1.2.2.1.3" xref="S3.E3.m1.2.2.1.3.cmml">ℒ</mi><mo lspace="0em" rspace="0em" id="S3.E3.m1.2.2.1.2" xref="S3.E3.m1.2.2.1.2.cmml">​</mo><mrow id="S3.E3.m1.2.2.1.1.1" xref="S3.E3.m1.2.2.1.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.E3.m1.2.2.1.1.1.2" xref="S3.E3.m1.2.2.1.1.2.cmml">(</mo><mi mathsize="90%" id="S3.E3.m1.1.1" xref="S3.E3.m1.1.1.cmml">x</mi><mo mathsize="90%" id="S3.E3.m1.2.2.1.1.1.3" xref="S3.E3.m1.2.2.1.1.2.cmml">,</mo><msup id="S3.E3.m1.2.2.1.1.1.1" xref="S3.E3.m1.2.2.1.1.1.1.cmml"><mi mathsize="90%" id="S3.E3.m1.2.2.1.1.1.1.2" xref="S3.E3.m1.2.2.1.1.1.1.2.cmml">x</mi><mo mathsize="90%" id="S3.E3.m1.2.2.1.1.1.1.3" xref="S3.E3.m1.2.2.1.1.1.1.3.cmml">′</mo></msup><mo maxsize="90%" minsize="90%" id="S3.E3.m1.2.2.1.1.1.4" xref="S3.E3.m1.2.2.1.1.2.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S3.E3.m1.4.4.5" xref="S3.E3.m1.4.4.5.cmml">=</mo><msup id="S3.E3.m1.3.3.2" xref="S3.E3.m1.3.3.2.cmml"><mrow id="S3.E3.m1.3.3.2.1.1" xref="S3.E3.m1.3.3.2.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.E3.m1.3.3.2.1.1.2" xref="S3.E3.m1.3.3.2.1.2.1.cmml">‖</mo><mrow id="S3.E3.m1.3.3.2.1.1.1" xref="S3.E3.m1.3.3.2.1.1.1.cmml"><mi mathsize="90%" id="S3.E3.m1.3.3.2.1.1.1.2" xref="S3.E3.m1.3.3.2.1.1.1.2.cmml">x</mi><mo mathsize="90%" id="S3.E3.m1.3.3.2.1.1.1.1" xref="S3.E3.m1.3.3.2.1.1.1.1.cmml">−</mo><msup id="S3.E3.m1.3.3.2.1.1.1.3" xref="S3.E3.m1.3.3.2.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E3.m1.3.3.2.1.1.1.3.2" xref="S3.E3.m1.3.3.2.1.1.1.3.2.cmml">x</mi><mo mathsize="90%" id="S3.E3.m1.3.3.2.1.1.1.3.3" xref="S3.E3.m1.3.3.2.1.1.1.3.3.cmml">′</mo></msup></mrow><mo maxsize="90%" minsize="90%" id="S3.E3.m1.3.3.2.1.1.3" xref="S3.E3.m1.3.3.2.1.2.1.cmml">‖</mo></mrow><mn mathsize="90%" id="S3.E3.m1.3.3.2.3" xref="S3.E3.m1.3.3.2.3.cmml">2</mn></msup><mo mathsize="90%" id="S3.E3.m1.4.4.6" xref="S3.E3.m1.4.4.6.cmml">=</mo><msup id="S3.E3.m1.4.4.3" xref="S3.E3.m1.4.4.3.cmml"><mrow id="S3.E3.m1.4.4.3.1.1" xref="S3.E3.m1.4.4.3.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.2" xref="S3.E3.m1.4.4.3.1.2.1.cmml">‖</mo><mrow id="S3.E3.m1.4.4.3.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.cmml"><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.3.cmml">x</mi><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.2.cmml">−</mo><mrow id="S3.E3.m1.4.4.3.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.cmml"><msup id="S3.E3.m1.4.4.3.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.3.2" xref="S3.E3.m1.4.4.3.1.1.1.1.3.2.cmml">σ</mi><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.3.3" xref="S3.E3.m1.4.4.3.1.1.1.1.3.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S3.E3.m1.4.4.3.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.2.cmml">​</mo><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.cmml"><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.cmml"><msup id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.2.cmml">W</mi><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2.cmml">​</mo><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.4" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.4.cmml">σ</mi><mo lspace="0em" rspace="0em" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2a" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.cmml"><mrow id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.cmml"><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.3.cmml">x</mi></mrow><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.1" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml">+</mo><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.3.cmml">b</mi></mrow><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.2.cmml">+</mo><msup id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.2" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.2.cmml">b</mi><mo mathsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.3.cmml">′</mo></msup></mrow><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.3" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo maxsize="90%" minsize="90%" id="S3.E3.m1.4.4.3.1.1.3" xref="S3.E3.m1.4.4.3.1.2.1.cmml">‖</mo></mrow><mn mathsize="90%" id="S3.E3.m1.4.4.3.3" xref="S3.E3.m1.4.4.3.3.cmml">2</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.E3.m1.4b"><apply id="S3.E3.m1.4.4.cmml" xref="S3.E3.m1.4.4"><and id="S3.E3.m1.4.4a.cmml" xref="S3.E3.m1.4.4"></and><apply id="S3.E3.m1.4.4b.cmml" xref="S3.E3.m1.4.4"><eq id="S3.E3.m1.4.4.5.cmml" xref="S3.E3.m1.4.4.5"></eq><apply id="S3.E3.m1.2.2.1.cmml" xref="S3.E3.m1.2.2.1"><times id="S3.E3.m1.2.2.1.2.cmml" xref="S3.E3.m1.2.2.1.2"></times><ci id="S3.E3.m1.2.2.1.3.cmml" xref="S3.E3.m1.2.2.1.3">ℒ</ci><interval closure="open" id="S3.E3.m1.2.2.1.1.2.cmml" xref="S3.E3.m1.2.2.1.1.1"><ci id="S3.E3.m1.1.1.cmml" xref="S3.E3.m1.1.1">𝑥</ci><apply id="S3.E3.m1.2.2.1.1.1.1.cmml" xref="S3.E3.m1.2.2.1.1.1.1"><csymbol cd="ambiguous" id="S3.E3.m1.2.2.1.1.1.1.1.cmml" xref="S3.E3.m1.2.2.1.1.1.1">superscript</csymbol><ci id="S3.E3.m1.2.2.1.1.1.1.2.cmml" xref="S3.E3.m1.2.2.1.1.1.1.2">𝑥</ci><ci id="S3.E3.m1.2.2.1.1.1.1.3.cmml" xref="S3.E3.m1.2.2.1.1.1.1.3">′</ci></apply></interval></apply><apply id="S3.E3.m1.3.3.2.cmml" xref="S3.E3.m1.3.3.2"><csymbol cd="ambiguous" id="S3.E3.m1.3.3.2.2.cmml" xref="S3.E3.m1.3.3.2">superscript</csymbol><apply id="S3.E3.m1.3.3.2.1.2.cmml" xref="S3.E3.m1.3.3.2.1.1"><csymbol cd="latexml" id="S3.E3.m1.3.3.2.1.2.1.cmml" xref="S3.E3.m1.3.3.2.1.1.2">norm</csymbol><apply id="S3.E3.m1.3.3.2.1.1.1.cmml" xref="S3.E3.m1.3.3.2.1.1.1"><minus id="S3.E3.m1.3.3.2.1.1.1.1.cmml" xref="S3.E3.m1.3.3.2.1.1.1.1"></minus><ci id="S3.E3.m1.3.3.2.1.1.1.2.cmml" xref="S3.E3.m1.3.3.2.1.1.1.2">𝑥</ci><apply id="S3.E3.m1.3.3.2.1.1.1.3.cmml" xref="S3.E3.m1.3.3.2.1.1.1.3"><csymbol cd="ambiguous" id="S3.E3.m1.3.3.2.1.1.1.3.1.cmml" xref="S3.E3.m1.3.3.2.1.1.1.3">superscript</csymbol><ci id="S3.E3.m1.3.3.2.1.1.1.3.2.cmml" xref="S3.E3.m1.3.3.2.1.1.1.3.2">𝑥</ci><ci id="S3.E3.m1.3.3.2.1.1.1.3.3.cmml" xref="S3.E3.m1.3.3.2.1.1.1.3.3">′</ci></apply></apply></apply><cn type="integer" id="S3.E3.m1.3.3.2.3.cmml" xref="S3.E3.m1.3.3.2.3">2</cn></apply></apply><apply id="S3.E3.m1.4.4c.cmml" xref="S3.E3.m1.4.4"><eq id="S3.E3.m1.4.4.6.cmml" xref="S3.E3.m1.4.4.6"></eq><share href="#S3.E3.m1.3.3.2.cmml" id="S3.E3.m1.4.4d.cmml" xref="S3.E3.m1.4.4"></share><apply id="S3.E3.m1.4.4.3.cmml" xref="S3.E3.m1.4.4.3"><csymbol cd="ambiguous" id="S3.E3.m1.4.4.3.2.cmml" xref="S3.E3.m1.4.4.3">superscript</csymbol><apply id="S3.E3.m1.4.4.3.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1"><csymbol cd="latexml" id="S3.E3.m1.4.4.3.1.2.1.cmml" xref="S3.E3.m1.4.4.3.1.1.2">norm</csymbol><apply id="S3.E3.m1.4.4.3.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1"><minus id="S3.E3.m1.4.4.3.1.1.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.2"></minus><ci id="S3.E3.m1.4.4.3.1.1.1.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.3">𝑥</ci><apply id="S3.E3.m1.4.4.3.1.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1"><times id="S3.E3.m1.4.4.3.1.1.1.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.2"></times><apply id="S3.E3.m1.4.4.3.1.1.1.1.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E3.m1.4.4.3.1.1.1.1.3.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.3">superscript</csymbol><ci id="S3.E3.m1.4.4.3.1.1.1.1.3.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.3.2">𝜎</ci><ci id="S3.E3.m1.4.4.3.1.1.1.1.3.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.3.3">′</ci></apply><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1"><plus id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.2"></plus><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1"><times id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.2"></times><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3">superscript</csymbol><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.2">𝑊</ci><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.3.3">′</ci></apply><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.4.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.4">𝜎</ci><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1"><plus id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.1"></plus><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2"><times id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.1"></times><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.2">𝑊</ci><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.2.3">𝑥</ci></apply><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.1.1.1.1.3">𝑏</ci></apply></apply><apply id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.1.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3">superscript</csymbol><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.2.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.2">𝑏</ci><ci id="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.3.cmml" xref="S3.E3.m1.4.4.3.1.1.1.1.1.1.1.3.3">′</ci></apply></apply></apply></apply></apply><cn type="integer" id="S3.E3.m1.4.4.3.3.cmml" xref="S3.E3.m1.4.4.3.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E3.m1.4c">\small\mathcal{L}(x,x^{\prime})=\|x-x^{\prime}\|^{2}=\|x-\sigma^{\prime}(W^{\prime}\sigma(Wx+b)+b^{\prime})\|^{2}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+</div>
+<figure id="S3.F3" class="ltx_figure">
+<br class="ltx_break">
+<p id="S3.F3.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S3.F3.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/x3.png" id="S3.F3.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="664" height="346" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>FL with AE compression</figcaption>
+</figure>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Detailed Methodology</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Experimental setup</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">To test the AE-based weight compression on the weight updates of a training, analyses are performed on image classifier model weights by compressing the weights at the end of every epoch (analogous to communication round). The collaborator model (image classifier) is allowed to completely train, and the weights at regular intervals are stored in a dataset. This dataset is used to train the AE. The Fully Connected (FC) AE construct has dense layers and the input and output layer size is equal to the total number of parameters in the classifier model (or each weight update). The layers’ size/shape of the AE is such that it follows the funnel structure represented in Fig. <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, decreasing as layers progress away from the encoder, reaching a minimum, and then subsequently increasing till the end of the decoder. This symmetric AE is then allowed to train on the classifier weights dataset generated earlier.
+
+<br class="ltx_break">First, a fully connected AE approach is considered and the methodology is explained using the MNIST classifier as the collaborator model. The classifier model is comparatively simple with 15,910 parameters, and the convergence is reached in 10 epochs. To train an AE to replicate a model’s weights, it is required to have a wide spectrum of data points in terms of weights at different instances of training, that can define the model uniquely to a good degree.
+
+<br class="ltx_break">To simulate a more complex scenario, the next stage of analysis has a more complex classifier model, to generate a better and more widespread dataset in terms of weights. The CIFAR-10 classifier model has 550,570 parameters, and the convergence is reached in around 100 epochs. The weights being stored in the dataset, cannot be directly passed as inputs to the AE, given that it’s of an unflattened structure. Since the flattening process of this dataset which has each element of size 550,570 is computationally challenging, the number of epochs is restricted to 40. This is done to put a cap on the dataset size, bearing in mind that a significant accuracy has been reached by this stage.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Dynamic AE architecture</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">The size of the AE is dependent on the size of the model whose weight updates are to be compressed. The first layer of the AE, by it having the weight updates from the collaborator model as inputs, has an input shape that matches the parameter size list (flattened single dimensional copy of the weights of the collaborator model). Unlike traditional compression algorithms, the compression methodology is dependent on the compressing item which is the collaborator model here. The complexity of the AE is also a feature that can be set according to the user needs, and infrastructure dependencies. Other than the first and last layer of the AE which has a size equal to that of the number of parameters in the collaborator model, the layer architecture can be varied to control the AE model complexity. By increasing the complexity, the AE mimics the learning of the collaborator model better. However, to reduce computational overheads, if accuracy can be compromised, then the complexity of the model can be reduced to meet the exact design requirements in terms of computation power usage vs accuracy trade-off for the given FL scenario.
+
+<br class="ltx_break">The compression ratio in AE-based compression is not pre-defined. The general observation is that as the compression ratio increases, more information loss exists during the recreation phase through the decoder end at the aggregator, and thus causes a dip in accuracy. This is because AE-based compression is inherently a lossy-compression technique that tries to encode the inputs into a smaller feature space by extracting certain relations between the parameters of the weight updates. Lossy compression is acceptable in the FL setup, because there is finally an aggregation of the weights, thus allowing for some room for difference in predictions and actual weights. Thus, this approach can be tailored to suit the needs of the particular FL scenario.
+
+<br class="ltx_break">In many cases, the server requires an approximation of the weight updates from the collaborator, to propose the next set of weights for each collaborator. This is due to the aggregation process that ensures all weights are averaged together using different techniques. In such scenarios, a less complex AE could be used to save computational overheads of training the network on collaborator devices. The compression ratio could also be higher, if the accuracy obtained post lossy compression (and information loss), is sufficient for the aggregator function to suggest an appropriate update from aggregator to collaborator, for the next communication round. Alternatively, if higher accuracy is required for a particular FL set-up, a more complex AE is used to learn the relations between parameters of the weight updates better. The compression ratio may also be reduced to ensure lesser information is lost through the lossy compression done using AE. In addition, AE-based compression is an orthogonal approach and can be applied in combination with certain other traditional compression methods mentioned under the past work section.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Fully Connected AE limitation and proposing Convolutional AE as an alternative</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">The drawback of a fully connected AE-based compression is that the AE network is a large model, with the number of parameters being a few hundred times bigger than the size of the original collaborator model in many cases. This comes with a computational overhead while training this network, and also a communication overhead while passing the decoder (half the size of the AE) at the end of the pre-pass round in FL. To achieve useful results of compression, the communication savings achieved by the AE compression ratio must be higher than the cost of communicating this decoder model at the end of the pre-pass round. This is possible if the number of collaborators and the number of communication rounds in the FL setup increase, as it would account for more communication overheads savings through AE compression. (Discussed in detail in subsequent sections.)
+
+<br class="ltx_break">An alternative approach is using a convolutional AE that will be significantly smaller in size when compared to an FC AE. The underlying logic behind the usage of convolutional AE is that weights across various layers are analogous to the pixel values in images. The dependency between parameters that the AE learns may be more evident between weights of layers that are closer to each other as compared to the dependency between weights of layers that are much further apart in the neural network. In this sense, a convolutional AE fits the context of compression better, as a convolutional network can learn the local (neighborhood) dependence better. A preliminary setup has been suggested for the same [Appendix]. The authors include this here to probe further research on convolutional AE with deeper networks or ones that implement residual networks, etc.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Results and Analyses</h2>
+
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Fully connected AE</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">To analyze the performance of AE compression, beyond just its training metrics, a validation model is built as follows: once the AE has been trained, the weights logged at the end of every epoch from the original collaborator training are used to perform the validation. The trained AE is used to compress and predict (recreate) these weights. These AE predicted weights are then set as weights to another model following the same architecture as the collaborator model, and the loss and accuracy are computed by allowing the network to train for an epoch by ensuring the weights are fixed (trainable is set to false). The idea of this validation model is to show that the loss and accuracy values generated by setting the AE predicted weights to the collaborator model, are similar to the loss and accuracy values generated during the original training of the collaborator model. This would show that the AE has successfully learned the encoding of the collaborator model weights, performs compression, and recreates a set of weights that is similar to the original weights- which is seen through the fact that the loss and accuracy plots generated are similar.</p>
+</div>
+<section id="S5.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">5.1.1 </span>AE compression on MNIST Classifier</h4>
+
+<div id="S5.SS1.SSS1.p1" class="ltx_para">
+<p id="S5.SS1.SSS1.p1.1" class="ltx_p">Fig. <a href="#S5.F4" title="Figure 4 ‣ 5.1.1 AE compression on MNIST Classifier ‣ 5.1 Fully connected AE ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows the accuracy plot of the FC AE during training and as the loss converges. The FC AE can train accurately, as is seen with a maximum value of 0.78 in the accuracy metric (validation accuracy= 0.94). These results show that an AE (with 1,034,182 parameters) can compress and recreate the weight updates for a relatively simpler model such as an MNIST classifier. The results of the validation model (as proposed in the previous section) are shown next. As seen in Fig. <a href="#S5.F5" title="Figure 5 ‣ 5.1.1 AE compression on MNIST Classifier ‣ 5.1 Fully connected AE ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, it is evident that the AE model can mimic the accuracy (and loss) plot of the original classifier training through the predicted (post-compression) weights. By the AE compression, the size of each update is reduced to a 32 feature encoding, and thus achieves about 500x compression. The reduced feature space size is a variable and can be modified to achieve varying levels of compression and accuracy.</p>
+</div>
+<figure id="S5.F4" class="ltx_figure">
+<p id="S5.F4.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F4.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/AE_model_mnist_acc.png" id="S5.F4.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="177" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>AE accuracy plot for MNIST classifier model compression</figcaption>
+</figure>
+<figure id="S5.F5" class="ltx_figure">
+<p id="S5.F5.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F5.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/originalVSpred_mnist_acc.png" id="S5.F5.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="177" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Accuracy variation when - MNIST model is set Original vs AE Predicted weights</figcaption>
+</figure>
+</section>
+<section id="S5.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">5.1.2 </span>AE compression on CIFAR Classifier</h4>
+
+<div id="S5.SS1.SSS2.p1" class="ltx_para">
+<p id="S5.SS1.SSS2.p1.1" class="ltx_p">The next analysis is on a more complex collaborator model. The CIFAR-10 classifier model is more complex and serves as the proof of concept for the AE-based compression method.
+This model also has significantly more parameters (352,915,690) and more layers. The weights in the dataset have a higher variance and suit better for AE training as is seen in Fig. <a href="#S5.F6" title="Figure 6 ‣ 5.1.2 AE compression on CIFAR Classifier ‣ 5.1 Fully connected AE ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>. The AE learns the encodings and mimics the inputs successfully as is seen through the accuracy plot. The highest accuracy reached is around 0.79 (validation accuracy= 0.83) and the loss converges after around 25 epochs. The results of the validation model also show that the loss and accuracy metrics are similar- when a CIFAR classified model has been set with the original weights, and with the AE predicted weights. This shows that while the AE compression is lossy, it doesn’t affect/change the weights recreation at the server end to an extent where the corresponding accuracy (and loss) changes drastically. This shows that the AE is replicating the learning properties of the original collaborator training Fig.<a href="#S5.F7" title="Figure 7 ‣ 5.1.2 AE compression on CIFAR Classifier ‣ 5.1 Fully connected AE ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>. The predicted accuracy is higher (even for MNIST) due to finetuning during prepass AE construction. Increasing the threshold between collected weights during prepass can reduce this.</p>
+</div>
+<figure id="S5.F6" class="ltx_figure">
+<p id="S5.F6.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F6.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/AE_cifar_acc_original_new.png" id="S5.F6.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="197" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>AE accuracy for CIFAR classifier model compression</figcaption>
+</figure>
+<figure id="S5.F7" class="ltx_figure">
+<p id="S5.F7.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F7.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/originalVSpredicted_accuracy_cifar.png" id="S5.F7.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="197" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>Accuracy variation when - CIFAR model is set Original vs AE Predicted weights</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Testing the Fully-Connected AE compression in an FL setup</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">Overfitting decreases however with an increase in AE model complexity, or with a more complex model showing a greater gradient of weights through training. Overfitting as such does not pose a threat as it does in traditional ML, as the important task here is to finally compress and recreate the weights. However, in some cases, the weight updates from the collaborator that have been based on the previous round aggregations may vary significantly causing the AE to perform poorly. Here the dynamic AE model is to be modified accordingly, to increase complexity or reduce the compression ratio, to ensure the AE model is recreating the weights accurately.
+To validate this, a two-collaborator FL setup with color imbalances has been built, and the AE compression has been implemented. One collaborator is a CIFAR-10 classifier model on color images, while the other is on grayscale images (Colour Imbalance in datasets for each collaborator). There are 40 communication rounds, and each round has a local training running for 5 epochs. At the end of every communication round, the converged weights from both the collaborators are passed through their respective AE (compressed - communicated - recreated). A simple averaging-based aggregation algorithm is used to propose the global update for the next communication round.
+The graphs below (Fig. <a href="#S5.F8" title="Figure 8 ‣ 5.2 Testing the Fully-Connected AE compression in an FL setup ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a> and <a href="#S5.F9" title="Figure 9 ‣ 5.2 Testing the Fully-Connected AE compression in an FL setup ‣ 5 Results and Analyses ‣ Communication Optimization in Large Scale Federated Learning using Autoencoder Compressed Weight Updates" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a>) validate this, as is seen in the sawtooth plot for accuracy (or loss). The dips occur at the start of every communication round due to aggregation. These results show that the AE compression works for the proposed FL setup, as both the collaborators train accurately, despite being compressed by a factor of 1720x at the end of every communication round. (AE properties similar to previous sections)</p>
+</div>
+<figure id="S5.F8" class="ltx_figure">
+<p id="S5.F8.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F8.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/FL_loss.png" id="S5.F8.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="197" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>Loss for 2 collaborators (colour and grayscale classifier) in FL</figcaption>
+</figure>
+<figure id="S5.F9" class="ltx_figure">
+<p id="S5.F9.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F9.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/FL_acc.png" id="S5.F9.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="197" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 9: </span>Accuracy for 2 collaborators (colour and grayscale classifier) in FL</figcaption>
+</figure>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>Dynamic compression- trade-off and break-even point for Fully-Connected AE</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p">AE-based compression is dynamic as it works managing variables such as computational capacity, compression ratio, accuracy requirements, and other such dependencies in the FL setup. The graphs below show the trade-off and the respective break-even points between the cost of communicating the decoder model(s) at the end of the pre-pass round and the communication savings achieved through AE compression. There are 2 conditions shown- a) When one decoder model suffices for the entire federated learning set-up, and b) where each collaborator has a decoder model. The savings achieved while assuming the single decoder condition are dependent on the number of communication rounds and the number of collaborators. Similarly, the savings achieved in the multiple decoder approach, is dependent only on the number of communication rounds, as the number of collaborators is a factor present in both the cost and the saving. Conditions (a) and (b) are extreme cases, and there may be a scenario where a particular FL setup may require few decoders (less than the number of collaborators). For each of these cases, the AE model has 352,915,690 parameters and achieves nearly 1720x compression. The Savings Ratio, in general, is calculated according to this equation:</p>
+</div>
+<div id="S5.SS3.p2" class="ltx_para">
+<table id="S5.E4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S5.E4.m1.1" class="ltx_Math" alttext="\small SR=\frac{OriginalSize\times CommRounds\times Collabs}{CompressedSize\times CommRounds\times Collabs+Cost}" display="block"><semantics id="S5.E4.m1.1a"><mrow id="S5.E4.m1.1.1" xref="S5.E4.m1.1.1.cmml"><mrow id="S5.E4.m1.1.1.2" xref="S5.E4.m1.1.1.2.cmml"><mi mathsize="90%" id="S5.E4.m1.1.1.2.2" xref="S5.E4.m1.1.1.2.2.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.2.1" xref="S5.E4.m1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.2.3" xref="S5.E4.m1.1.1.2.3.cmml">R</mi></mrow><mo mathsize="90%" id="S5.E4.m1.1.1.1" xref="S5.E4.m1.1.1.1.cmml">=</mo><mfrac id="S5.E4.m1.1.1.3" xref="S5.E4.m1.1.1.3.cmml"><mrow id="S5.E4.m1.1.1.3.2" xref="S5.E4.m1.1.1.3.2.cmml"><mrow id="S5.E4.m1.1.1.3.2.2" xref="S5.E4.m1.1.1.3.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.2.2.2" xref="S5.E4.m1.1.1.3.2.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.2.2.2.2" xref="S5.E4.m1.1.1.3.2.2.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.2.2.2.2.2" xref="S5.E4.m1.1.1.3.2.2.2.2.2.cmml"><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.2" xref="S5.E4.m1.1.1.3.2.2.2.2.2.2.cmml">O</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.3" xref="S5.E4.m1.1.1.3.2.2.2.2.2.3.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1a" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.4" xref="S5.E4.m1.1.1.3.2.2.2.2.2.4.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1b" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.5" xref="S5.E4.m1.1.1.3.2.2.2.2.2.5.cmml">g</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1c" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.6" xref="S5.E4.m1.1.1.3.2.2.2.2.2.6.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1d" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.7" xref="S5.E4.m1.1.1.3.2.2.2.2.2.7.cmml">n</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1e" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.8" xref="S5.E4.m1.1.1.3.2.2.2.2.2.8.cmml">a</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1f" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.9" xref="S5.E4.m1.1.1.3.2.2.2.2.2.9.cmml">l</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1g" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.10" xref="S5.E4.m1.1.1.3.2.2.2.2.2.10.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1h" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.11" xref="S5.E4.m1.1.1.3.2.2.2.2.2.11.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1i" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.12" xref="S5.E4.m1.1.1.3.2.2.2.2.2.12.cmml">z</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.2.2.1j" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.2.13" xref="S5.E4.m1.1.1.3.2.2.2.2.2.13.cmml">e</mi></mrow><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E4.m1.1.1.3.2.2.2.2.1" xref="S5.E4.m1.1.1.3.2.2.2.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.2.3" xref="S5.E4.m1.1.1.3.2.2.2.2.3.cmml">C</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.3" xref="S5.E4.m1.1.1.3.2.2.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1a" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.4" xref="S5.E4.m1.1.1.3.2.2.2.4.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1b" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.5" xref="S5.E4.m1.1.1.3.2.2.2.5.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1c" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.6" xref="S5.E4.m1.1.1.3.2.2.2.6.cmml">R</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1d" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.7" xref="S5.E4.m1.1.1.3.2.2.2.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1e" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.8" xref="S5.E4.m1.1.1.3.2.2.2.8.cmml">u</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1f" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.9" xref="S5.E4.m1.1.1.3.2.2.2.9.cmml">n</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1g" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.10" xref="S5.E4.m1.1.1.3.2.2.2.10.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.2.2.1h" xref="S5.E4.m1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.2.11" xref="S5.E4.m1.1.1.3.2.2.2.11.cmml">s</mi></mrow><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E4.m1.1.1.3.2.2.1" xref="S5.E4.m1.1.1.3.2.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.2.3" xref="S5.E4.m1.1.1.3.2.2.3.cmml">C</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.3" xref="S5.E4.m1.1.1.3.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1a" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.4" xref="S5.E4.m1.1.1.3.2.4.cmml">l</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1b" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.5" xref="S5.E4.m1.1.1.3.2.5.cmml">l</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1c" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.6" xref="S5.E4.m1.1.1.3.2.6.cmml">a</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1d" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.7" xref="S5.E4.m1.1.1.3.2.7.cmml">b</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.2.1e" xref="S5.E4.m1.1.1.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.2.8" xref="S5.E4.m1.1.1.3.2.8.cmml">s</mi></mrow><mrow id="S5.E4.m1.1.1.3.3" xref="S5.E4.m1.1.1.3.3.cmml"><mrow id="S5.E4.m1.1.1.3.3.2" xref="S5.E4.m1.1.1.3.3.2.cmml"><mrow id="S5.E4.m1.1.1.3.3.2.2" xref="S5.E4.m1.1.1.3.3.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.3.2.2.2" xref="S5.E4.m1.1.1.3.3.2.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.3.2.2.2.2" xref="S5.E4.m1.1.1.3.3.2.2.2.2.cmml"><mrow id="S5.E4.m1.1.1.3.3.2.2.2.2.2" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.cmml"><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.2" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.2.cmml">C</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.3" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1a" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.4" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.4.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1b" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.5" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.5.cmml">p</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1c" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.6" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.6.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1d" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.7" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.7.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1e" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.8" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.8.cmml">s</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1f" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.9" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.9.cmml">s</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1g" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.10" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.10.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1h" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.11" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.11.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1i" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.12" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.12.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1j" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.13" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.13.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1k" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.14" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.14.cmml">z</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1l" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.2.15" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.15.cmml">e</mi></mrow><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E4.m1.1.1.3.3.2.2.2.2.1" xref="S5.E4.m1.1.1.3.3.2.2.2.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.2.3" xref="S5.E4.m1.1.1.3.3.2.2.2.2.3.cmml">C</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.3" xref="S5.E4.m1.1.1.3.3.2.2.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1a" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.4" xref="S5.E4.m1.1.1.3.3.2.2.2.4.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1b" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.5" xref="S5.E4.m1.1.1.3.3.2.2.2.5.cmml">m</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1c" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.6" xref="S5.E4.m1.1.1.3.3.2.2.2.6.cmml">R</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1d" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.7" xref="S5.E4.m1.1.1.3.3.2.2.2.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1e" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.8" xref="S5.E4.m1.1.1.3.3.2.2.2.8.cmml">u</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1f" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.9" xref="S5.E4.m1.1.1.3.3.2.2.2.9.cmml">n</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1g" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.10" xref="S5.E4.m1.1.1.3.3.2.2.2.10.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.2.2.1h" xref="S5.E4.m1.1.1.3.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.2.11" xref="S5.E4.m1.1.1.3.3.2.2.2.11.cmml">s</mi></mrow><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E4.m1.1.1.3.3.2.2.1" xref="S5.E4.m1.1.1.3.3.2.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.2.3" xref="S5.E4.m1.1.1.3.3.2.2.3.cmml">C</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.3" xref="S5.E4.m1.1.1.3.3.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1a" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.4" xref="S5.E4.m1.1.1.3.3.2.4.cmml">l</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1b" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.5" xref="S5.E4.m1.1.1.3.3.2.5.cmml">l</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1c" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.6" xref="S5.E4.m1.1.1.3.3.2.6.cmml">a</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1d" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.7" xref="S5.E4.m1.1.1.3.3.2.7.cmml">b</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.2.1e" xref="S5.E4.m1.1.1.3.3.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.2.8" xref="S5.E4.m1.1.1.3.3.2.8.cmml">s</mi></mrow><mo mathsize="90%" id="S5.E4.m1.1.1.3.3.1" xref="S5.E4.m1.1.1.3.3.1.cmml">+</mo><mrow id="S5.E4.m1.1.1.3.3.3" xref="S5.E4.m1.1.1.3.3.3.cmml"><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.3.2" xref="S5.E4.m1.1.1.3.3.3.2.cmml">C</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.3.1" xref="S5.E4.m1.1.1.3.3.3.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.3.3" xref="S5.E4.m1.1.1.3.3.3.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.3.1a" xref="S5.E4.m1.1.1.3.3.3.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.3.4" xref="S5.E4.m1.1.1.3.3.3.4.cmml">s</mi><mo lspace="0em" rspace="0em" id="S5.E4.m1.1.1.3.3.3.1b" xref="S5.E4.m1.1.1.3.3.3.1.cmml">​</mo><mi mathsize="90%" id="S5.E4.m1.1.1.3.3.3.5" xref="S5.E4.m1.1.1.3.3.3.5.cmml">t</mi></mrow></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S5.E4.m1.1b"><apply id="S5.E4.m1.1.1.cmml" xref="S5.E4.m1.1.1"><eq id="S5.E4.m1.1.1.1.cmml" xref="S5.E4.m1.1.1.1"></eq><apply id="S5.E4.m1.1.1.2.cmml" xref="S5.E4.m1.1.1.2"><times id="S5.E4.m1.1.1.2.1.cmml" xref="S5.E4.m1.1.1.2.1"></times><ci id="S5.E4.m1.1.1.2.2.cmml" xref="S5.E4.m1.1.1.2.2">𝑆</ci><ci id="S5.E4.m1.1.1.2.3.cmml" xref="S5.E4.m1.1.1.2.3">𝑅</ci></apply><apply id="S5.E4.m1.1.1.3.cmml" xref="S5.E4.m1.1.1.3"><divide id="S5.E4.m1.1.1.3.1.cmml" xref="S5.E4.m1.1.1.3"></divide><apply id="S5.E4.m1.1.1.3.2.cmml" xref="S5.E4.m1.1.1.3.2"><times id="S5.E4.m1.1.1.3.2.1.cmml" xref="S5.E4.m1.1.1.3.2.1"></times><apply id="S5.E4.m1.1.1.3.2.2.cmml" xref="S5.E4.m1.1.1.3.2.2"><times id="S5.E4.m1.1.1.3.2.2.1.cmml" xref="S5.E4.m1.1.1.3.2.2.1"></times><apply id="S5.E4.m1.1.1.3.2.2.2.cmml" xref="S5.E4.m1.1.1.3.2.2.2"><times id="S5.E4.m1.1.1.3.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.2.2.2.1"></times><apply id="S5.E4.m1.1.1.3.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2"><times id="S5.E4.m1.1.1.3.2.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.1"></times><apply id="S5.E4.m1.1.1.3.2.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2"><times id="S5.E4.m1.1.1.3.2.2.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.1"></times><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.2">𝑂</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.3">𝑟</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.4.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.4">𝑖</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.5.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.5">𝑔</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.6.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.6">𝑖</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.7.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.7">𝑛</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.8.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.8">𝑎</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.9.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.9">𝑙</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.10.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.10">𝑆</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.11.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.11">𝑖</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.12.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.12">𝑧</ci><ci id="S5.E4.m1.1.1.3.2.2.2.2.2.13.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.2.13">𝑒</ci></apply><ci id="S5.E4.m1.1.1.3.2.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.2.2.2.2.3">𝐶</ci></apply><ci id="S5.E4.m1.1.1.3.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.2.2.2.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.2.2.2.4.cmml" xref="S5.E4.m1.1.1.3.2.2.2.4">𝑚</ci><ci id="S5.E4.m1.1.1.3.2.2.2.5.cmml" xref="S5.E4.m1.1.1.3.2.2.2.5">𝑚</ci><ci id="S5.E4.m1.1.1.3.2.2.2.6.cmml" xref="S5.E4.m1.1.1.3.2.2.2.6">𝑅</ci><ci id="S5.E4.m1.1.1.3.2.2.2.7.cmml" xref="S5.E4.m1.1.1.3.2.2.2.7">𝑜</ci><ci id="S5.E4.m1.1.1.3.2.2.2.8.cmml" xref="S5.E4.m1.1.1.3.2.2.2.8">𝑢</ci><ci id="S5.E4.m1.1.1.3.2.2.2.9.cmml" xref="S5.E4.m1.1.1.3.2.2.2.9">𝑛</ci><ci id="S5.E4.m1.1.1.3.2.2.2.10.cmml" xref="S5.E4.m1.1.1.3.2.2.2.10">𝑑</ci><ci id="S5.E4.m1.1.1.3.2.2.2.11.cmml" xref="S5.E4.m1.1.1.3.2.2.2.11">𝑠</ci></apply><ci id="S5.E4.m1.1.1.3.2.2.3.cmml" xref="S5.E4.m1.1.1.3.2.2.3">𝐶</ci></apply><ci id="S5.E4.m1.1.1.3.2.3.cmml" xref="S5.E4.m1.1.1.3.2.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.2.4.cmml" xref="S5.E4.m1.1.1.3.2.4">𝑙</ci><ci id="S5.E4.m1.1.1.3.2.5.cmml" xref="S5.E4.m1.1.1.3.2.5">𝑙</ci><ci id="S5.E4.m1.1.1.3.2.6.cmml" xref="S5.E4.m1.1.1.3.2.6">𝑎</ci><ci id="S5.E4.m1.1.1.3.2.7.cmml" xref="S5.E4.m1.1.1.3.2.7">𝑏</ci><ci id="S5.E4.m1.1.1.3.2.8.cmml" xref="S5.E4.m1.1.1.3.2.8">𝑠</ci></apply><apply id="S5.E4.m1.1.1.3.3.cmml" xref="S5.E4.m1.1.1.3.3"><plus id="S5.E4.m1.1.1.3.3.1.cmml" xref="S5.E4.m1.1.1.3.3.1"></plus><apply id="S5.E4.m1.1.1.3.3.2.cmml" xref="S5.E4.m1.1.1.3.3.2"><times id="S5.E4.m1.1.1.3.3.2.1.cmml" xref="S5.E4.m1.1.1.3.3.2.1"></times><apply id="S5.E4.m1.1.1.3.3.2.2.cmml" xref="S5.E4.m1.1.1.3.3.2.2"><times id="S5.E4.m1.1.1.3.3.2.2.1.cmml" xref="S5.E4.m1.1.1.3.3.2.2.1"></times><apply id="S5.E4.m1.1.1.3.3.2.2.2.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2"><times id="S5.E4.m1.1.1.3.3.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.1"></times><apply id="S5.E4.m1.1.1.3.3.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2"><times id="S5.E4.m1.1.1.3.3.2.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.1"></times><apply id="S5.E4.m1.1.1.3.3.2.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2"><times id="S5.E4.m1.1.1.3.3.2.2.2.2.2.1.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.1"></times><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.2.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.2">𝐶</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.4.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.4">𝑚</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.5.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.5">𝑝</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.6.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.6">𝑟</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.7.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.7">𝑒</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.8.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.8">𝑠</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.9.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.9">𝑠</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.10.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.10">𝑒</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.11.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.11">𝑑</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.12.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.12">𝑆</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.13.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.13">𝑖</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.14.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.14">𝑧</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.2.15.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.2.15">𝑒</ci></apply><ci id="S5.E4.m1.1.1.3.3.2.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.2.3">𝐶</ci></apply><ci id="S5.E4.m1.1.1.3.3.2.2.2.3.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.4.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.4">𝑚</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.5.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.5">𝑚</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.6.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.6">𝑅</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.7.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.7">𝑜</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.8.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.8">𝑢</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.9.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.9">𝑛</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.10.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.10">𝑑</ci><ci id="S5.E4.m1.1.1.3.3.2.2.2.11.cmml" xref="S5.E4.m1.1.1.3.3.2.2.2.11">𝑠</ci></apply><ci id="S5.E4.m1.1.1.3.3.2.2.3.cmml" xref="S5.E4.m1.1.1.3.3.2.2.3">𝐶</ci></apply><ci id="S5.E4.m1.1.1.3.3.2.3.cmml" xref="S5.E4.m1.1.1.3.3.2.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.3.2.4.cmml" xref="S5.E4.m1.1.1.3.3.2.4">𝑙</ci><ci id="S5.E4.m1.1.1.3.3.2.5.cmml" xref="S5.E4.m1.1.1.3.3.2.5">𝑙</ci><ci id="S5.E4.m1.1.1.3.3.2.6.cmml" xref="S5.E4.m1.1.1.3.3.2.6">𝑎</ci><ci id="S5.E4.m1.1.1.3.3.2.7.cmml" xref="S5.E4.m1.1.1.3.3.2.7">𝑏</ci><ci id="S5.E4.m1.1.1.3.3.2.8.cmml" xref="S5.E4.m1.1.1.3.3.2.8">𝑠</ci></apply><apply id="S5.E4.m1.1.1.3.3.3.cmml" xref="S5.E4.m1.1.1.3.3.3"><times id="S5.E4.m1.1.1.3.3.3.1.cmml" xref="S5.E4.m1.1.1.3.3.3.1"></times><ci id="S5.E4.m1.1.1.3.3.3.2.cmml" xref="S5.E4.m1.1.1.3.3.3.2">𝐶</ci><ci id="S5.E4.m1.1.1.3.3.3.3.cmml" xref="S5.E4.m1.1.1.3.3.3.3">𝑜</ci><ci id="S5.E4.m1.1.1.3.3.3.4.cmml" xref="S5.E4.m1.1.1.3.3.3.4">𝑠</ci><ci id="S5.E4.m1.1.1.3.3.3.5.cmml" xref="S5.E4.m1.1.1.3.3.3.5">𝑡</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.E4.m1.1c">\small SR=\frac{OriginalSize\times CommRounds\times Collabs}{CompressedSize\times CommRounds\times Collabs+Cost}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S5.SS3.p2.1" class="ltx_p">where- Original Size is the actual model size,
+Compressed Size is the compressed model size,
+Comm Rounds are the number of communication rounds,
+Collabs are the number of collaborators, and
+Cost is the Decoder overheads</p>
+<table id="S5.E5" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S5.E5.m1.2" class="ltx_Math" alttext="\small Cost=DecoderSize\times No.ofDecoders" display="block"><semantics id="S5.E5.m1.2a"><mrow id="S5.E5.m1.2.2.2" xref="S5.E5.m1.2.2.3.cmml"><mrow id="S5.E5.m1.1.1.1.1" xref="S5.E5.m1.1.1.1.1.cmml"><mrow id="S5.E5.m1.1.1.1.1.2" xref="S5.E5.m1.1.1.1.1.2.cmml"><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.2.2" xref="S5.E5.m1.1.1.1.1.2.2.cmml">C</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.2.1" xref="S5.E5.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.2.3" xref="S5.E5.m1.1.1.1.1.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.2.1a" xref="S5.E5.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.2.4" xref="S5.E5.m1.1.1.1.1.2.4.cmml">s</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.2.1b" xref="S5.E5.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.2.5" xref="S5.E5.m1.1.1.1.1.2.5.cmml">t</mi></mrow><mo mathsize="90%" id="S5.E5.m1.1.1.1.1.1" xref="S5.E5.m1.1.1.1.1.1.cmml">=</mo><mrow id="S5.E5.m1.1.1.1.1.3" xref="S5.E5.m1.1.1.1.1.3.cmml"><mrow id="S5.E5.m1.1.1.1.1.3.2" xref="S5.E5.m1.1.1.1.1.3.2.cmml"><mrow id="S5.E5.m1.1.1.1.1.3.2.2" xref="S5.E5.m1.1.1.1.1.3.2.2.cmml"><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.2" xref="S5.E5.m1.1.1.1.1.3.2.2.2.cmml">D</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.3" xref="S5.E5.m1.1.1.1.1.3.2.2.3.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1a" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.4" xref="S5.E5.m1.1.1.1.1.3.2.2.4.cmml">c</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1b" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.5" xref="S5.E5.m1.1.1.1.1.3.2.2.5.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1c" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.6" xref="S5.E5.m1.1.1.1.1.3.2.2.6.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1d" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.7" xref="S5.E5.m1.1.1.1.1.3.2.2.7.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1e" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.8" xref="S5.E5.m1.1.1.1.1.3.2.2.8.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1f" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.9" xref="S5.E5.m1.1.1.1.1.3.2.2.9.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1g" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.10" xref="S5.E5.m1.1.1.1.1.3.2.2.10.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1h" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.11" xref="S5.E5.m1.1.1.1.1.3.2.2.11.cmml">z</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.2.2.1i" xref="S5.E5.m1.1.1.1.1.3.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.2.12" xref="S5.E5.m1.1.1.1.1.3.2.2.12.cmml">e</mi></mrow><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E5.m1.1.1.1.1.3.2.1" xref="S5.E5.m1.1.1.1.1.3.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.2.3" xref="S5.E5.m1.1.1.1.1.3.2.3.cmml">N</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E5.m1.1.1.1.1.3.1" xref="S5.E5.m1.1.1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.1.1.1.1.3.3" xref="S5.E5.m1.1.1.1.1.3.3.cmml">o</mi></mrow></mrow><mo lspace="0em" mathsize="90%" rspace="0.167em" id="S5.E5.m1.2.2.2.3" xref="S5.E5.m1.2.2.3a.cmml">.</mo><mrow id="S5.E5.m1.2.2.2.2" xref="S5.E5.m1.2.2.2.2.cmml"><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.2" xref="S5.E5.m1.2.2.2.2.2.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.3" xref="S5.E5.m1.2.2.2.2.3.cmml">f</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1a" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.4" xref="S5.E5.m1.2.2.2.2.4.cmml">D</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1b" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.5" xref="S5.E5.m1.2.2.2.2.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1c" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.6" xref="S5.E5.m1.2.2.2.2.6.cmml">c</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1d" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.7" xref="S5.E5.m1.2.2.2.2.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1e" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.8" xref="S5.E5.m1.2.2.2.2.8.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1f" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.9" xref="S5.E5.m1.2.2.2.2.9.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1g" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.10" xref="S5.E5.m1.2.2.2.2.10.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E5.m1.2.2.2.2.1h" xref="S5.E5.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E5.m1.2.2.2.2.11" xref="S5.E5.m1.2.2.2.2.11.cmml">s</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.E5.m1.2b"><apply id="S5.E5.m1.2.2.3.cmml" xref="S5.E5.m1.2.2.2"><csymbol cd="ambiguous" id="S5.E5.m1.2.2.3a.cmml" xref="S5.E5.m1.2.2.2.3">formulae-sequence</csymbol><apply id="S5.E5.m1.1.1.1.1.cmml" xref="S5.E5.m1.1.1.1.1"><eq id="S5.E5.m1.1.1.1.1.1.cmml" xref="S5.E5.m1.1.1.1.1.1"></eq><apply id="S5.E5.m1.1.1.1.1.2.cmml" xref="S5.E5.m1.1.1.1.1.2"><times id="S5.E5.m1.1.1.1.1.2.1.cmml" xref="S5.E5.m1.1.1.1.1.2.1"></times><ci id="S5.E5.m1.1.1.1.1.2.2.cmml" xref="S5.E5.m1.1.1.1.1.2.2">𝐶</ci><ci id="S5.E5.m1.1.1.1.1.2.3.cmml" xref="S5.E5.m1.1.1.1.1.2.3">𝑜</ci><ci id="S5.E5.m1.1.1.1.1.2.4.cmml" xref="S5.E5.m1.1.1.1.1.2.4">𝑠</ci><ci id="S5.E5.m1.1.1.1.1.2.5.cmml" xref="S5.E5.m1.1.1.1.1.2.5">𝑡</ci></apply><apply id="S5.E5.m1.1.1.1.1.3.cmml" xref="S5.E5.m1.1.1.1.1.3"><times id="S5.E5.m1.1.1.1.1.3.1.cmml" xref="S5.E5.m1.1.1.1.1.3.1"></times><apply id="S5.E5.m1.1.1.1.1.3.2.cmml" xref="S5.E5.m1.1.1.1.1.3.2"><times id="S5.E5.m1.1.1.1.1.3.2.1.cmml" xref="S5.E5.m1.1.1.1.1.3.2.1"></times><apply id="S5.E5.m1.1.1.1.1.3.2.2.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2"><times id="S5.E5.m1.1.1.1.1.3.2.2.1.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.1"></times><ci id="S5.E5.m1.1.1.1.1.3.2.2.2.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.2">𝐷</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.3.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.3">𝑒</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.4.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.4">𝑐</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.5.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.5">𝑜</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.6.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.6">𝑑</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.7.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.7">𝑒</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.8.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.8">𝑟</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.9.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.9">𝑆</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.10.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.10">𝑖</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.11.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.11">𝑧</ci><ci id="S5.E5.m1.1.1.1.1.3.2.2.12.cmml" xref="S5.E5.m1.1.1.1.1.3.2.2.12">𝑒</ci></apply><ci id="S5.E5.m1.1.1.1.1.3.2.3.cmml" xref="S5.E5.m1.1.1.1.1.3.2.3">𝑁</ci></apply><ci id="S5.E5.m1.1.1.1.1.3.3.cmml" xref="S5.E5.m1.1.1.1.1.3.3">𝑜</ci></apply></apply><apply id="S5.E5.m1.2.2.2.2.cmml" xref="S5.E5.m1.2.2.2.2"><times id="S5.E5.m1.2.2.2.2.1.cmml" xref="S5.E5.m1.2.2.2.2.1"></times><ci id="S5.E5.m1.2.2.2.2.2.cmml" xref="S5.E5.m1.2.2.2.2.2">𝑜</ci><ci id="S5.E5.m1.2.2.2.2.3.cmml" xref="S5.E5.m1.2.2.2.2.3">𝑓</ci><ci id="S5.E5.m1.2.2.2.2.4.cmml" xref="S5.E5.m1.2.2.2.2.4">𝐷</ci><ci id="S5.E5.m1.2.2.2.2.5.cmml" xref="S5.E5.m1.2.2.2.2.5">𝑒</ci><ci id="S5.E5.m1.2.2.2.2.6.cmml" xref="S5.E5.m1.2.2.2.2.6">𝑐</ci><ci id="S5.E5.m1.2.2.2.2.7.cmml" xref="S5.E5.m1.2.2.2.2.7">𝑜</ci><ci id="S5.E5.m1.2.2.2.2.8.cmml" xref="S5.E5.m1.2.2.2.2.8">𝑑</ci><ci id="S5.E5.m1.2.2.2.2.9.cmml" xref="S5.E5.m1.2.2.2.2.9">𝑒</ci><ci id="S5.E5.m1.2.2.2.2.10.cmml" xref="S5.E5.m1.2.2.2.2.10">𝑟</ci><ci id="S5.E5.m1.2.2.2.2.11.cmml" xref="S5.E5.m1.2.2.2.2.11">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.E5.m1.2c">\small Cost=DecoderSize\times No.ofDecoders</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(5)</span></td>
+</tr></tbody>
+</table>
+<table id="S5.E6" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S5.E6.m1.2" class="ltx_Math" alttext="\small Cost=\frac{AutoencoderSize}{2}\times No.ofDecoders" display="block"><semantics id="S5.E6.m1.2a"><mrow id="S5.E6.m1.2.2.2" xref="S5.E6.m1.2.2.3.cmml"><mrow id="S5.E6.m1.1.1.1.1" xref="S5.E6.m1.1.1.1.1.cmml"><mrow id="S5.E6.m1.1.1.1.1.2" xref="S5.E6.m1.1.1.1.1.2.cmml"><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.2.2" xref="S5.E6.m1.1.1.1.1.2.2.cmml">C</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.2.1" xref="S5.E6.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.2.3" xref="S5.E6.m1.1.1.1.1.2.3.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.2.1a" xref="S5.E6.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.2.4" xref="S5.E6.m1.1.1.1.1.2.4.cmml">s</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.2.1b" xref="S5.E6.m1.1.1.1.1.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.2.5" xref="S5.E6.m1.1.1.1.1.2.5.cmml">t</mi></mrow><mo mathsize="90%" id="S5.E6.m1.1.1.1.1.1" xref="S5.E6.m1.1.1.1.1.1.cmml">=</mo><mrow id="S5.E6.m1.1.1.1.1.3" xref="S5.E6.m1.1.1.1.1.3.cmml"><mrow id="S5.E6.m1.1.1.1.1.3.2" xref="S5.E6.m1.1.1.1.1.3.2.cmml"><mfrac id="S5.E6.m1.1.1.1.1.3.2.2" xref="S5.E6.m1.1.1.1.1.3.2.2.cmml"><mrow id="S5.E6.m1.1.1.1.1.3.2.2.2" xref="S5.E6.m1.1.1.1.1.3.2.2.2.cmml"><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.2" xref="S5.E6.m1.1.1.1.1.3.2.2.2.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.3" xref="S5.E6.m1.1.1.1.1.3.2.2.2.3.cmml">u</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1a" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.4" xref="S5.E6.m1.1.1.1.1.3.2.2.2.4.cmml">t</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1b" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.5" xref="S5.E6.m1.1.1.1.1.3.2.2.2.5.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1c" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.6" xref="S5.E6.m1.1.1.1.1.3.2.2.2.6.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1d" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.7" xref="S5.E6.m1.1.1.1.1.3.2.2.2.7.cmml">n</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1e" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.8" xref="S5.E6.m1.1.1.1.1.3.2.2.2.8.cmml">c</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1f" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.9" xref="S5.E6.m1.1.1.1.1.3.2.2.2.9.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1g" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.10" xref="S5.E6.m1.1.1.1.1.3.2.2.2.10.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1h" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.11" xref="S5.E6.m1.1.1.1.1.3.2.2.2.11.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1i" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.12" xref="S5.E6.m1.1.1.1.1.3.2.2.2.12.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1j" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.13" xref="S5.E6.m1.1.1.1.1.3.2.2.2.13.cmml">S</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1k" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.14" xref="S5.E6.m1.1.1.1.1.3.2.2.2.14.cmml">i</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1l" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.15" xref="S5.E6.m1.1.1.1.1.3.2.2.2.15.cmml">z</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.2.2.2.1m" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.2.16" xref="S5.E6.m1.1.1.1.1.3.2.2.2.16.cmml">e</mi></mrow><mn mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.2.3" xref="S5.E6.m1.1.1.1.1.3.2.2.3.cmml">2</mn></mfrac><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S5.E6.m1.1.1.1.1.3.2.1" xref="S5.E6.m1.1.1.1.1.3.2.1.cmml">×</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.2.3" xref="S5.E6.m1.1.1.1.1.3.2.3.cmml">N</mi></mrow><mo lspace="0em" rspace="0em" id="S5.E6.m1.1.1.1.1.3.1" xref="S5.E6.m1.1.1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.1.1.1.1.3.3" xref="S5.E6.m1.1.1.1.1.3.3.cmml">o</mi></mrow></mrow><mo lspace="0em" mathsize="90%" rspace="0.167em" id="S5.E6.m1.2.2.2.3" xref="S5.E6.m1.2.2.3a.cmml">.</mo><mrow id="S5.E6.m1.2.2.2.2" xref="S5.E6.m1.2.2.2.2.cmml"><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.2" xref="S5.E6.m1.2.2.2.2.2.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.3" xref="S5.E6.m1.2.2.2.2.3.cmml">f</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1a" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.4" xref="S5.E6.m1.2.2.2.2.4.cmml">D</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1b" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.5" xref="S5.E6.m1.2.2.2.2.5.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1c" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.6" xref="S5.E6.m1.2.2.2.2.6.cmml">c</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1d" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.7" xref="S5.E6.m1.2.2.2.2.7.cmml">o</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1e" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.8" xref="S5.E6.m1.2.2.2.2.8.cmml">d</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1f" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.9" xref="S5.E6.m1.2.2.2.2.9.cmml">e</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1g" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.10" xref="S5.E6.m1.2.2.2.2.10.cmml">r</mi><mo lspace="0em" rspace="0em" id="S5.E6.m1.2.2.2.2.1h" xref="S5.E6.m1.2.2.2.2.1.cmml">​</mo><mi mathsize="90%" id="S5.E6.m1.2.2.2.2.11" xref="S5.E6.m1.2.2.2.2.11.cmml">s</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.E6.m1.2b"><apply id="S5.E6.m1.2.2.3.cmml" xref="S5.E6.m1.2.2.2"><csymbol cd="ambiguous" id="S5.E6.m1.2.2.3a.cmml" xref="S5.E6.m1.2.2.2.3">formulae-sequence</csymbol><apply id="S5.E6.m1.1.1.1.1.cmml" xref="S5.E6.m1.1.1.1.1"><eq id="S5.E6.m1.1.1.1.1.1.cmml" xref="S5.E6.m1.1.1.1.1.1"></eq><apply id="S5.E6.m1.1.1.1.1.2.cmml" xref="S5.E6.m1.1.1.1.1.2"><times id="S5.E6.m1.1.1.1.1.2.1.cmml" xref="S5.E6.m1.1.1.1.1.2.1"></times><ci id="S5.E6.m1.1.1.1.1.2.2.cmml" xref="S5.E6.m1.1.1.1.1.2.2">𝐶</ci><ci id="S5.E6.m1.1.1.1.1.2.3.cmml" xref="S5.E6.m1.1.1.1.1.2.3">𝑜</ci><ci id="S5.E6.m1.1.1.1.1.2.4.cmml" xref="S5.E6.m1.1.1.1.1.2.4">𝑠</ci><ci id="S5.E6.m1.1.1.1.1.2.5.cmml" xref="S5.E6.m1.1.1.1.1.2.5">𝑡</ci></apply><apply id="S5.E6.m1.1.1.1.1.3.cmml" xref="S5.E6.m1.1.1.1.1.3"><times id="S5.E6.m1.1.1.1.1.3.1.cmml" xref="S5.E6.m1.1.1.1.1.3.1"></times><apply id="S5.E6.m1.1.1.1.1.3.2.cmml" xref="S5.E6.m1.1.1.1.1.3.2"><times id="S5.E6.m1.1.1.1.1.3.2.1.cmml" xref="S5.E6.m1.1.1.1.1.3.2.1"></times><apply id="S5.E6.m1.1.1.1.1.3.2.2.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2"><divide id="S5.E6.m1.1.1.1.1.3.2.2.1.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2"></divide><apply id="S5.E6.m1.1.1.1.1.3.2.2.2.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2"><times id="S5.E6.m1.1.1.1.1.3.2.2.2.1.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.1"></times><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.2.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.2">𝐴</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.3.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.3">𝑢</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.4.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.4">𝑡</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.5.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.5">𝑜</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.6.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.6">𝑒</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.7.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.7">𝑛</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.8.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.8">𝑐</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.9.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.9">𝑜</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.10.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.10">𝑑</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.11.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.11">𝑒</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.12.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.12">𝑟</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.13.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.13">𝑆</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.14.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.14">𝑖</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.15.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.15">𝑧</ci><ci id="S5.E6.m1.1.1.1.1.3.2.2.2.16.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.2.16">𝑒</ci></apply><cn type="integer" id="S5.E6.m1.1.1.1.1.3.2.2.3.cmml" xref="S5.E6.m1.1.1.1.1.3.2.2.3">2</cn></apply><ci id="S5.E6.m1.1.1.1.1.3.2.3.cmml" xref="S5.E6.m1.1.1.1.1.3.2.3">𝑁</ci></apply><ci id="S5.E6.m1.1.1.1.1.3.3.cmml" xref="S5.E6.m1.1.1.1.1.3.3">𝑜</ci></apply></apply><apply id="S5.E6.m1.2.2.2.2.cmml" xref="S5.E6.m1.2.2.2.2"><times id="S5.E6.m1.2.2.2.2.1.cmml" xref="S5.E6.m1.2.2.2.2.1"></times><ci id="S5.E6.m1.2.2.2.2.2.cmml" xref="S5.E6.m1.2.2.2.2.2">𝑜</ci><ci id="S5.E6.m1.2.2.2.2.3.cmml" xref="S5.E6.m1.2.2.2.2.3">𝑓</ci><ci id="S5.E6.m1.2.2.2.2.4.cmml" xref="S5.E6.m1.2.2.2.2.4">𝐷</ci><ci id="S5.E6.m1.2.2.2.2.5.cmml" xref="S5.E6.m1.2.2.2.2.5">𝑒</ci><ci id="S5.E6.m1.2.2.2.2.6.cmml" xref="S5.E6.m1.2.2.2.2.6">𝑐</ci><ci id="S5.E6.m1.2.2.2.2.7.cmml" xref="S5.E6.m1.2.2.2.2.7">𝑜</ci><ci id="S5.E6.m1.2.2.2.2.8.cmml" xref="S5.E6.m1.2.2.2.2.8">𝑑</ci><ci id="S5.E6.m1.2.2.2.2.9.cmml" xref="S5.E6.m1.2.2.2.2.9">𝑒</ci><ci id="S5.E6.m1.2.2.2.2.10.cmml" xref="S5.E6.m1.2.2.2.2.10">𝑟</ci><ci id="S5.E6.m1.2.2.2.2.11.cmml" xref="S5.E6.m1.2.2.2.2.11">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.E6.m1.2c">\small Cost=\frac{AutoencoderSize}{2}\times No.ofDecoders</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(6)</span></td>
+</tr></tbody>
+</table>
+</div>
+<figure id="S5.F10" class="ltx_figure">
+<p id="S5.F10.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F10.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/x4.png" id="S5.F10.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="664" height="218" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 10: </span>Case (a) Savings Ratio- 120x Savings Ratio beyond 1000 collaborators, breakeven point at 40 collaborators</figcaption>
+</figure>
+<figure id="S5.F11" class="ltx_figure">
+<p id="S5.F11.1.1" class="ltx_p ltx_align_center ltx_align_center"><span id="S5.F11.1.1.1" class="ltx_text"><img src="/html/2108.05670/assets/x5.png" id="S5.F11.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="664" height="218" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 11: </span>Case(b) Breakeven point when No. of Comm rounds= 320, SR improves for large scale FL</figcaption>
+</figure>
+</section>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Conclusion</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">The dynamic and orthogonal nature that can set the exact compression ratio makes this approach one that performs the maximum compression compared to any other compression model. The caveat being that there could be a situation where the loss of information becomes high. This compression allows for the preservation of accuracy, by increasing the complexity of the AE, at the expense of computational costs. Thus, a trade-off-based analysis proves to be useful while employing an AE-based compression. This paper considers generic collaborators models while performing the AE compression and shows that compression ratios achieved can go nearly as high as 2000x, while also maintaining required levels of accuracy. It investigates the efficacy of AE compression for generic models in the FL setup and shows that collaborator models can successfully train, while the updates are being AE compressed at every communication round. Finally, trade-off analyses show that the advantages are greater as the number of collaborators and communication rounds increase.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Caldas <span id="bib.bib1.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2018]</span>
+<span class="ltx_bibblock">
+Sebastian Caldas, Jakub Konečny, H Brendan McMahan, and Ameet Talwalkar.
+
+</span>
+<span class="ltx_bibblock">Expanding the reach of federated learning by reducing client resource
+requirements.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1812.07210</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen <span id="bib.bib2.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Wei Chen, Kartikeya Bhardwaj, and Radu Marculescu.
+
+</span>
+<span class="ltx_bibblock">Fedmax: Mitigating activation divergence for accurate and
+communication-efficient federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2004.03657</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Frickenstein <span id="bib.bib3.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Alexander Frickenstein, Manoj-Rohit Vemparala, Nael Fasfous, Laura Hauenschild,
+Naveen-Shankar Nagaraja, Christian Unger, and Walter Stechele.
+
+</span>
+<span class="ltx_bibblock">Alf: autoencoder-based low-rank filter-sharing for efficient
+convolutional neural networks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib3.3.1" class="ltx_text ltx_font_italic">2020 57th ACM/IEEE Design Automation Conference (DAC)</span>, pages
+1–6. IEEE, 2020.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hamer <span id="bib.bib4.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Jenny Hamer, Mehryar Mohri, and Ananda Theertha Suresh.
+
+</span>
+<span class="ltx_bibblock">Fedboost: A communication-efficient algorithm for federated learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib4.3.1" class="ltx_text ltx_font_italic">International Conference on Machine Learning</span>, pages
+3973–3983. PMLR, 2020.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Hinton <span id="bib.bib5.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2015]</span>
+<span class="ltx_bibblock">
+Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
+
+</span>
+<span class="ltx_bibblock">Distilling the knowledge in a neural network.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1503.02531</span>, 2015.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lan <span id="bib.bib6.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2018]</span>
+<span class="ltx_bibblock">
+Xu Lan, Xiatian Zhu, and Shaogang Gong.
+
+</span>
+<span class="ltx_bibblock">Knowledge distillation by on-the-fly native ensemble.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1806.04606</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li <span id="bib.bib7.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2018]</span>
+<span class="ltx_bibblock">
+Tian Li, Anit Kumar Sahu, Manzil Zaheer, Maziar Sanjabi, Ameet Talwalkar, and
+Virginia Smith.
+
+</span>
+<span class="ltx_bibblock">Federated optimization in heterogeneous networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1812.06127</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li <span id="bib.bib8.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Tian Li, Anit Kumar Sahu, Ameet Talwalkar, and Virginia Smith.
+
+</span>
+<span class="ltx_bibblock">Federated learning: Challenges, methods, and future directions.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.3.1" class="ltx_text ltx_font_italic">IEEE Signal Processing Magazine</span>, 37(3):50–60, 2020.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lin <span id="bib.bib9.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2017]</span>
+<span class="ltx_bibblock">
+Yujun Lin, Song Han, Huizi Mao, Yu Wang, and William J Dally.
+
+</span>
+<span class="ltx_bibblock">Deep gradient compression: Reducing the communication bandwidth for
+distributed training.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1712.01887</span>, 2017.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Luping <span id="bib.bib10.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2019]</span>
+<span class="ltx_bibblock">
+WANG Luping, WANG Wei, and LI Bo.
+
+</span>
+<span class="ltx_bibblock">Cmfl: Mitigating communication overhead for federated learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib10.3.1" class="ltx_text ltx_font_italic">2019 IEEE 39th International Conference on Distributed
+Computing Systems (ICDCS)</span>, pages 954–964. IEEE, 2019.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Malekijoo <span id="bib.bib11.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2021]</span>
+<span class="ltx_bibblock">
+Amirhossein Malekijoo, Mohammad Javad Fadaeieslam, Hanieh Malekijou, Morteza
+Homayounfar, Farshid Alizadeh-Shabdiz, and Reza Rawassizadeh.
+
+</span>
+<span class="ltx_bibblock">Fedzip: A compression framework for communication-efficient federated
+learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2102.01593</span>, 2021.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">McMahan <span id="bib.bib12.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2017]</span>
+<span class="ltx_bibblock">
+Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Aguera
+y Arcas.
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of deep networks from decentralized
+data.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib12.3.1" class="ltx_text ltx_font_italic">Artificial Intelligence and Statistics</span>, pages 1273–1282.
+PMLR, 2017.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Reisizadeh <span id="bib.bib13.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Amirhossein Reisizadeh, Aryan Mokhtari, Hamed Hassani, Ali Jadbabaie, and
+Ramtin Pedarsani.
+
+</span>
+<span class="ltx_bibblock">Fedpaq: A communication-efficient federated learning method with
+periodic averaging and quantization.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib13.3.1" class="ltx_text ltx_font_italic">International Conference on Artificial Intelligence and
+Statistics</span>, pages 2021–2031. PMLR, 2020.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Rothchild <span id="bib.bib14.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Daniel Rothchild, Ashwinee Panda, Enayat Ullah, Nikita Ivkin, Ion Stoica,
+Vladimir Braverman, Joseph Gonzalez, and Raman Arora.
+
+</span>
+<span class="ltx_bibblock">Fetchsgd: Communication-efficient federated learning with sketching.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib14.3.1" class="ltx_text ltx_font_italic">International Conference on Machine Learning</span>, pages
+8253–8265. PMLR, 2020.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sattler <span id="bib.bib15.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2019]</span>
+<span class="ltx_bibblock">
+Felix Sattler, Simon Wiedemann, Klaus-Robert Müller, and Wojciech Samek.
+
+</span>
+<span class="ltx_bibblock">Robust and communication-efficient federated learning from non-iid
+data.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text ltx_font_italic">IEEE transactions on neural networks and learning systems</span>,
+31(9):3400–3413, 2019.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Seo <span id="bib.bib16.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Hyowoon Seo, Jihong Park, Seungeun Oh, Mehdi Bennis, and Seong-Lyun Kim.
+
+</span>
+<span class="ltx_bibblock">Federated knowledge distillation.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2011.02367</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shlezinger <span id="bib.bib17.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Nir Shlezinger, Mingzhe Chen, Yonina C Eldar, H Vincent Poor, and Shuguang Cui.
+
+</span>
+<span class="ltx_bibblock">Federated learning with quantization constraints.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib17.3.1" class="ltx_text ltx_font_italic">ICASSP 2020-2020 IEEE International Conference on Acoustics,
+Speech and Signal Processing (ICASSP)</span>, pages 8851–8855. IEEE, 2020.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang <span id="bib.bib18.2.2.1" class="ltx_text ltx_font_italic">et al.</span> [2020]</span>
+<span class="ltx_bibblock">
+Hongyi Wang, Mikhail Yurochkin, Yuekai Sun, Dimitris Papailiopoulos, and
+Yasaman Khazaeni.
+
+</span>
+<span class="ltx_bibblock">Federated learning with matched averaging.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2002.06440</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zebang and
+Sei-ichiro [2019]</span>
+<span class="ltx_bibblock">
+Song Zebang and Kamata Sei-ichiro.
+
+</span>
+<span class="ltx_bibblock">Densely connected autoencoders for image compression.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Proceedings of the 2nd International Conference on Image and
+Graphics Processing</span>, pages 78–83, 2019.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2108.05669" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2108.05670" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2108.05670">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2108.05670" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2108.05671" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Mar 19 10:38:41 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

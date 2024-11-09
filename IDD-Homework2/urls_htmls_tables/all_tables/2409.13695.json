@@ -1,0 +1,80 @@
+{
+    "id_table_1": {
+        "caption": "Table 1:  Evaluated dataset details.",
+        "table": "S3.T1.1",
+        "footnotes": [],
+        "references": [
+            "Given a token sequence, finding the token index of sentence boundary is non-trivial for two reasons: (1) the embedding model for sentence split task (e.g., stanza) is different from the models embedding, and (2) embedding models with huge dictionary may result in an impossible token sequence to achieve a perfect sentence split.  For example, widely known sentence-splitting algorithms (e.g., Stanza  Qi et al. ( 2020 ) ) use a different dictionary from the LLM models (e.g., Llama3-8B-Instruct).  Thus, the total token count varies across the embedding models (Table  1 ).",
+            "The EASY algorithm is a repetition of guessing the sentence boundary and making best efforts adjustments.  First, EASY estimates a candidate index as the encoded length of sentences that are already processed (Algorithm  1  line 7).  EASY decodes the token subsequence between the  most-recently confirmed boundary index  ( m m m italic_m  in Algorithm  1 ) and the  current candidate  and compares it against the target sentence (Algorithm  1  line 16).  Based on the comparison outcome ( MATCH ,  INCLUDED ,  NO-MATCH ), EASY wiggles (+1 or -1) the candidate index until the decoded subsequence matches the target or a termination condition is met (lines 17-23).  Lastly, EASY returns the list of integers, where each value is a token index corresponding to a sentence boundary.  If for some reason, the best effort fails, EASY restores the initial candidate index and appends to the boundary list.  This retains the one-to-one mapping between the target sentence and the boundary token index.",
+            "We evaluate YOURA on the single and multi-document QA (Table  1 ).",
+            "We make the following observations.  Overall the EASY algorithm can identify the sentence boundary for models with varying dictionary sizes: Llama2, Llama3, and Mistralv0.2 tokenizers with 32000, 128256, and 32000 words, respectively.  Llama2 and Mistral showed almost identical match ratios, as both models tokenizers are based on similar vocabulary.  Llama3 uses roughly   4 absent 4 \\times 4  4  more vocabulary resulting in fewer total token counts as shown in Table  1  (e.g.,  .T  into a single token).  Due to the rich vocabulary, a typo easily blurred sentence boundaries causing many imperfect matches and thus the smallest overall match quality as in the 2-1, 2-2, and 2-3 datasets.  For 1-1, 1-2, and 1-3, datasets, the rich vocabulary worked in favor.  Many atypical char sequences (e.g.,  < < < b > > > , math formula) were present in these datasets, which were properly represented with tokens using Llama3."
+        ]
+    },
+    "id_table_2": {
+        "caption": "Table 2:  Answer quality comparison for LongBenchs single-document and multi-document QA datasets. YOURA shows better quality with a higher retrieval ratio  i.e., retrieved fewer tokens. All retrieval scenarios use the maximal budget (4K, 8K, and 32K tokens depending on the model) except for without-context setup and YOURA. The retrieval ratio (second column) is the average of the total token count divided by the retrieved token count.",
+        "table": "S4.T2.1",
+        "footnotes": [],
+        "references": [
+            "We propose a fine-tuning-free, attention-based retrieval strategy, which can be applied to various off-the-shelf pre-trained LLMs to achieve improved text generation quality.  Our  key insight  is that the attention in a pre-trained model already contains information about which tokens are important for the given query.  Figure  2  illustrates the difference between the embedding-based retrieval and our proposal; (a) is a typical embedding-based retrieval where embedding vectors for both the query and context chunk list are generated through an embedding layer.  Figure  2  (b) is another simple yet effective alternative to the embedding distance-based approach, truncate-middle.  Since the introduction and conclusion of most documents contain the most important information, the truncation approach naively takes out the middle of the context so that the remaining text fits within the LLMs context window size.  Unlike embedding-based retrieval or truncation, we propose an attention-based retrieval.",
+            "Our proposed technique,  Y ou  O nly  U se  R eactive  A ttention slice (YOURA) Figure  2  (c), is a novel attention-based retrieval technique.  Anonlogically speaking, we use the attention vector generated without query as the baseline and measure how each token reacts to the query.  We refer to the reactiveness as  Reaction Vector , an absolute difference in attention scores calculated with and without the query.  The per-sentence average of the reaction vector called  reaction score , is a good ranking metric when retrieving relevant sentences, as we show in our evaluation.",
+            "To slice the reaction vector for each sentence, we apply the Embedding-Agnostic Sentence Yield (EASY) algorithm (Section  3.2 ).  Then the retriever slices the reaction vector and calculates the geometric mean of the reaction vector slice using the output of the EASY algorithm, a list of sentence boundary indices.  At this point, we have a list of sentences and their associated reaction scores, which will be used as a retrieval heuristic.",
+            "How does YOURA impact the output quality?   From Table  2 , which shows the answer quality using three different open-sourced models (Llama2, Llama3, and Mistralv0.2), we make the following observations.  (1) We observe that YOURA showed better overall answer quality than all of the retrieval approaches (BM25 and embedding-based, except for Llama2 w/ B50_70) at a higher retrieval ratio  i.e., retrieving less information from the long context.  (2) When compared to the truncate-middle approach, YOURA shows better overall quality for Llama2 and Llama3, and slightly less (-0.15) for Mistral.",
+            "Table  6 , Table  7  are the detailed version of Table  2  and Table  3 , respectively."
+        ]
+    },
+    "id_table_3": {
+        "caption": "Table 3:  vLLM Serving performance (request per second, higher the better) for LongBenchs single-document and multi-document QA datasets with respect to Truncation and YOURA. YOURA retrieved fewer tokens resulting in up to 30% higher inference throughput.",
+        "table": "S4.T3.1",
+        "footnotes": [],
+        "references": [
+            "Figure  3  illustrates the overview of our proposed design.  The left portion of the figure depicts how a reaction vector is calculated and the right portion depicts how a reaction vector is used for the retrieval and how the language model leverages the retrieved sentences to answer the query.",
+            "To slice the reaction vector for each sentence, we apply the Embedding-Agnostic Sentence Yield (EASY) algorithm (Section  3.2 ).  Then the retriever slices the reaction vector and calculates the geometric mean of the reaction vector slice using the output of the EASY algorithm, a list of sentence boundary indices.  At this point, we have a list of sentences and their associated reaction scores, which will be used as a retrieval heuristic.",
+            "with YOURA  Our proposed system as described in Section  3 .",
+            "How does YOURAs higher retrieval ratio improve inference performance?   Table  3  shows the average vllm inference throughput (requests per second) assuming offline truncation/retrieval.  We make the following observations.  First, YOURA improves the overall inference throughput, especially for models with larger context window sizes.  This is because the relative retrieval ratio is larger for models with larger context window sizes.  Second, the retrieval ratio is a good relative throughput estimator.  The relative throughput improvements (+2%, +13%, +31%) are on par with the relative retrieval ratio (+3%, +12%, +28%).  We conclude that the performance of LLM serving platforms such as vLLM is sensitive to the retrieved context size and underscores the importance of good information retrieval.",
+            "Table  6 , Table  7  are the detailed version of Table  2  and Table  3 , respectively."
+        ]
+    },
+    "id_table_4": {
+        "caption": "Table 4:  Evaluation of EASY algorithms average sentence match rate (exact match / total # of sentences) for each model and dataset (Table  1 ) pairs.",
+        "table": "S4.T4.1",
+        "footnotes": [],
+        "references": [
+            "Table  4  shows the quality of our EASY sentence splitting algorithm.  We used Stanza  Qi et al. ( 2020 ) , an open-sourced NLP toolkit, to split raw text into sentences.  Then we ran the EASY algorithm for each tokenizer model to identify the sentence boundary within a token sequence.  After decoding each token segment (delimited by the sentence boundary index), it is a match if the Stanzas sentence (namely  target sentence ) matches exactly after the cleanup (e.g., trailing whitespace).  We report the average match rate for each model and dataset pair."
+        ]
+    },
+    "id_table_5": {
+        "caption": "Table 5:  Average Levenshtein distance between the target sentence and EASY algorithms sentence split.  A smaller number indicates fewer character edits (insert, remove, replace) to transform the EASY output sentence to the target sentence, and thus a better quality split.",
+        "table": "S4.T5.1",
+        "footnotes": [],
+        "references": [
+            "To quantify the resilience despite typos and overly representative dictionaries, we measured the Levenshtein distance between the target sentence and the sentence yielded by our EASY algorithm (Table  5 ).  On average, one needs less than 3 character edits (insert, remove, replace) to the EASY output sentences to match the target sentences.",
+            "The NZ row in Table  5  is the average Levenshtein distance of unmatched sentences.  From these rows, we conclude that the EASY algorithm is resilient to incorrect split and its cascading effect."
+        ]
+    },
+    "id_table_6": {
+        "caption": "Table 6:  Detailed experiment results for LongBenchs single-document and multi-document QA datasets. YOURA shows better quality with a higher retrieval ratio  i.e., retrieved fewer tokens. All retrieval scenarios use the maximal budget (4K, 8K, and 32K tokens depending on model) except for without-context setup and YOURA. Retrieval ratio (second column) is an average of the total token count divided by the retrieved token count.",
+        "table": "A1.T6.1",
+        "footnotes": [],
+        "references": [
+            "Table  6 , Table  7  are the detailed version of Table  2  and Table  3 , respectively."
+        ]
+    },
+    "id_table_7": {
+        "caption": "Table 7:  vLLM Serving performance (request per second, higher the better) for LongBenchs single-document and multi-document QA datasets with respect to Truncation and YOURA. YOURA retrieved fewer tokens resulting in upto 30% higher inference throughput.",
+        "table": "A1.T7.1",
+        "footnotes": [],
+        "references": [
+            "Table  6 , Table  7  are the detailed version of Table  2  and Table  3 , respectively."
+        ]
+    },
+    "global_footnotes": [
+        "",
+        "Anonymous Institution, Anonymous City, Anonymous Region, Anonymous Country.  Correspondence to: Anonymous Author <anon.email@domain.com>.",
+        "Measured with Sentence-Transformer All-MiniLM-L6-V2, scipy.spatial.distance.",
+        "The code has been open-sourced and is available at",
+        ".",
+        "https://huggingface.co/sentence-transformers/paraphrase-MiniLM-L6-v2",
+        "The impact of distractful information on output quality is observed in other work",
+        "as well."
+    ]
+}

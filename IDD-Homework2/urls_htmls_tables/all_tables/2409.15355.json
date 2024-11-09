@@ -1,0 +1,64 @@
+{
+    "id_table_1": {
+        "caption": "Table 1:  Accuracy of different models on four benchmarks. Please note that the average column does not depict a simple arithmetic mean of the preceding columns, as the number of samples contained in each test set varies.",
+        "table": "S3.T1.1.1",
+        "footnotes": [],
+        "references": [
+            "In this paper, we propose the Block-Attention method, which reduces the TTFT and computation FLOPs of RAG-LLMs to a level nearly equivalent to that of non-RAG LLMs, while fully maintaining the same accuracy level. As shown in Figure  1 , the main idea of Block-Attention is to divide the entire input sequence into several blocks. Each block independently calculates its KV states through self-attention, without any attention to other blocks. Only the final block is able to attend other blocks,  i.e.,  the user query is able to attend all the retrieved documents in the previous blocks. When utilizing Block-Attention in RAG scenarios, we may achieve substantial benefits by defining each passage as a single block and caching its KV states in the memory for further reuse.",
+            "The primary principle of block division is to segment semantically independent parts of the prompt into separate blocks. In RAG scenarios, since the retrieved passages are originally mutually independent, it is natural to divide them into different blocks. Therefore, lets go back to the left part of Figure  1 , where we allocate each passage to a single block and designate the users query as the final block. This principle extends to other scenarios as well. For example, in the context of code generation tasks, a function may be treated as one block; in multi-turn dialogues, each turn could be segmented into an individual block. In this paper, our primary focus is on the application of Block-Attention in RAG, with the exploration of other scenarios reserved for future research.",
+            "Due to the LLMs reliance on full self-attention during the training phase, a direct switch to Block-Attention during inference might result in a significant discrepancy between the training and inference states. Our preliminary findings indicate that introducing Block-Attention without subsequent fine-tuning could precipitate a substantial decrease in performance, with the average accuracy dropping significantly from 67.9% to 48.0%. Adapting the LLM to Block-Attention through fine-tuning, which we refer to as  block fine-tune , is quite straightforward. The only difference from the standard SFT process is the modification of the traditional lower-triangular attention mask matrix to the attention mask matrix depicted in the right part of Figure  1 . With this masking matrix, tokens in all blocks except the last are restricted to attending only to information within their own block, thereby ensuring consistency between training and inference.",
+            "From the results in Table  1 , we can draw three important conclusions:",
+            "The first conclusion is easy to understand: The model has never seen an input sequence in the Block-Attention manner during the training process. Therefore, the sharp drop makes sense. Next, we will focus on the second conclusion. From Table  1 , we can easily find that the models trained with two attention methods, namely  Llama3-vanilla-sft  and  Llama3-block-ft , not only have comparable effects on in-domain test sets but also have little difference on out-domain test sets. This indicates that in the RAG scenario, it is completely feasible to replace self-attention with Block-Attention, and there will be almost no performance loss."
+        ]
+    },
+    "id_table_2": {
+        "caption": "Table 2:  The Time and FLOPs consumed by the first token of a user input with a length of 50 tokens under different total length of the retrieved passages",
+        "table": "S3.T1.1.1.1.1.6.1",
+        "footnotes": [],
+        "references": [
+            "These issues will be addressed in detail in Sections  2.2 ,  2.3 , and  2.4 , respectively.",
+            "In inference, the Block-Attention model retrieves the KV states of blocks from the KV cache and concatenates them into the complete input KV states. The detailed process of the inference stage is depicted in Figure  2 . Initially, we query and extract the KV states of the first   k  1 k 1 k-1 italic_k - 1  blocks from the cache. Then, based on the position of each block within the input sequence, we calculate their positional encoding using Equation  3 . Finally, using the KV states of the first  k  1 k 1 k-1 italic_k - 1  blocks, we compute the KV states of the last block as well as the model output. In the RAG scenarios, the last block is the user query.",
+            "w/o-pos:   Llama3-block-ft-w/o-pos  and  Mistral-block-ft-w/o-pos  are baselines that also fine-tuned to adapt the Block-Attention mechanism, while no additional position re-encoding operations described in Section  2.3  are conducted. This group of models will be used to evaluate the effectiveness of the proposed position re-encoding process.",
+            "To quantify the effects of the Block-Attention mechanism on the efficiency, we show in Table  2  the respective TTFTs and FLOPs-TFT of the  Llama3-block-ft  and  Llama3-vanilla-sft  when the KV states of all retrieved passages have been pre-computed and cached in memory. Obviously, the acceleration effect is gratifying: Once the length of the input sequence is 512 and the length of user input is 50, using Block-Attention can reduce TTFT by 48% and reduce FLOPs-TFT by 90.1%. As the total length increases, the TTFT and FLOPs-TTF of the Block-Attention model maintain an essentially unchanged trend. When the length reaches 32K, the acceleration effect reaches an astonishing 98.7%, and the consumption of FLOPs-TFT is even reduced by 99.8%. We may simply conclude the results as:  with greater text comes greater necessity for Block-Attention ."
+        ]
+    },
+    "id_table_3": {
+        "caption": "",
+        "table": "S3.T1.1.1.1.1.7.1",
+        "footnotes": [],
+        "references": [
+            "These issues will be addressed in detail in Sections  2.2 ,  2.3 , and  2.4 , respectively.",
+            "For the remaining tokens within block  b b b italic_b , namely  s i + 1 , ... , s j subscript s i 1 ... subscript s j s_{i+1},\\ldots,s_{j} italic_s start_POSTSUBSCRIPT italic_i + 1 end_POSTSUBSCRIPT , ... , italic_s start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , we can re-encode their positional information in a similar manner. Although the formulas presented above may seem complex, the principle is quite straightforward:  first set the positional encoding to zero, and then rotate it to the updated position . One might wonder why we do not simply rotate by  ( i   i )   subscript i  i  (i_{\\Delta}-i)\\theta ( italic_i start_POSTSUBSCRIPT roman_ end_POSTSUBSCRIPT - italic_i ) italic_  degrees directly? The reason is to mitigate the potential for errors in updating positional encodings within practical applications: in the KV cache, the positional encoding of the initial token of each block is standardized to zero, and with only the updated positional index  i  subscript i  i_{\\Delta} italic_i start_POSTSUBSCRIPT roman_ end_POSTSUBSCRIPT , we can readily determine their new positional encoding vectors as per Equation  3 .",
+            "In inference, the Block-Attention model retrieves the KV states of blocks from the KV cache and concatenates them into the complete input KV states. The detailed process of the inference stage is depicted in Figure  2 . Initially, we query and extract the KV states of the first   k  1 k 1 k-1 italic_k - 1  blocks from the cache. Then, based on the position of each block within the input sequence, we calculate their positional encoding using Equation  3 . Finally, using the KV states of the first  k  1 k 1 k-1 italic_k - 1  blocks, we compute the KV states of the last block as well as the model output. In the RAG scenarios, the last block is the user query.",
+            "After the above analysis, there exists two concerns about the Block-Attention method: 1) Can the Block-Attention model achieve the same accuracy as self-attention in RAG scenarios? 2) How much can the Block-Attention mechanism improve the efficiency? The following experimental results will reveal the answers to these two questions. In Sections  3.5 , we analyze the accuracy of Block-Attention models. Meanwhile, in Section  3.6 , we demonstrate the efficiency of Block-Attention.",
+            "The format of input prompt for all datasets follows   Liu et al. ( 2024 ) . For retrieved passages, we concatenate them in ascending order of retrieval score. An example is shown in Figure  3 .",
+            "w/o-pos:   Llama3-block-ft-w/o-pos  and  Mistral-block-ft-w/o-pos  are baselines that also fine-tuned to adapt the Block-Attention mechanism, while no additional position re-encoding operations described in Section  2.3  are conducted. This group of models will be used to evaluate the effectiveness of the proposed position re-encoding process."
+        ]
+    },
+    "id_table_4": {
+        "caption": "",
+        "table": "S3.T1.1.1.1.1.8.1",
+        "footnotes": [],
+        "references": [
+            "These issues will be addressed in detail in Sections  2.2 ,  2.3 , and  2.4 , respectively.",
+            "Finally, one may still be interested in knowing exactly how many training steps are needed for the model to adapt to the Block-Attention mechanism. Therefore, we counted the accuracy of the Llama3-8B model on the four test sets at different fine-tuning steps and plotted it in Figure  4 . It can be observed that at the beginning stage of fine-tuning, there is a huge performance difference between the two models. It makes sense because the model needs more training steps to adapt to the Block-Attention manner. After about 400 training steps, the model completely adapts to the new attention mechanism, and the two models show comparable accuracy."
+        ]
+    },
+    "id_table_5": {
+        "caption": "",
+        "table": "S3.T2.1",
+        "footnotes": [],
+        "references": [
+            "After the above analysis, there exists two concerns about the Block-Attention method: 1) Can the Block-Attention model achieve the same accuracy as self-attention in RAG scenarios? 2) How much can the Block-Attention mechanism improve the efficiency? The following experimental results will reveal the answers to these two questions. In Sections  3.5 , we analyze the accuracy of Block-Attention models. Meanwhile, in Section  3.6 , we demonstrate the efficiency of Block-Attention."
+        ]
+    },
+    "global_footnotes": [
+        "Codes are available at:",
+        "Given that the KV cache is already a mature and low-cost technology",
+        ", in this paper we do not take the cost of KV cache into account.",
+        "https://github.com/facebookresearch/contriever",
+        "https://huggingface.co/meta-llama/Meta-Llama-3-8B",
+        "https://huggingface.co/mistralai/Mistral-7B-v0.3",
+        "Please note that in addition to accuracy, Prompt Cache also has serious efficiency issues when applied in the RAG field: once the rank of a passage in the input sequence changes, its KV cache cannot be reused."
+    ]
+}

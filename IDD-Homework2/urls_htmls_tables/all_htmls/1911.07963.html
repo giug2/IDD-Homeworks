@@ -1,0 +1,954 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1911.07963] Can You Really Backdoor Federated Learning?</title><meta property="og:description" content="The decentralized nature of federated learning makes detecting and defending against adversarial attacks a challenging task. This paper focuses on backdoor attacks in the federated learning setting, where the goal of t…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Can You Really Backdoor Federated Learning?">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Can You Really Backdoor Federated Learning?">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1911.07963">
+
+<!--Generated on Thu Mar  7 09:36:05 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Can You Really Backdoor Federated Learning?</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Ziteng Sun
+<br class="ltx_break">Cornell University 
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">zs335@cornell.edu</span> 
+<br class="ltx_break">&amp;Peter Kairouz 
+<br class="ltx_break">Google
+<br class="ltx_break"><span id="id2.2.id2" class="ltx_text ltx_font_typewriter">kairouz@google.com</span> 
+<br class="ltx_break">&amp;Ananda Theertha Suresh
+<br class="ltx_break">Google
+<br class="ltx_break"><span id="id3.3.id3" class="ltx_text ltx_font_typewriter">theertha@google.com</span> 
+<br class="ltx_break">&amp;H. Brendan McMahan
+<br class="ltx_break">Google
+<br class="ltx_break"><span id="id4.4.id4" class="ltx_text ltx_font_typewriter">mcmahan@google.com
+<br class="ltx_break"></span>
+</span><span class="ltx_author_notes">Work done while ZS was an intern at Google.</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id5.id1" class="ltx_p">The decentralized nature of federated learning makes detecting and defending against adversarial attacks a challenging task. This paper focuses on backdoor attacks in the federated learning setting, where the goal of the adversary is to reduce the performance of the model on targeted tasks while maintaining a good performance on the main task. Unlike existing works, we allow non-malicious clients to have correctly labeled samples from the targeted tasks. We conduct a comprehensive study of backdoor attacks and defenses for the EMNIST dataset, a real-life, user-partitioned, and non-iid dataset. We observe that in the absence of defenses, the performance of the attack largely depends on the fraction of adversaries present and the “complexity” of the targeted task. Moreover, we show that norm clipping and “weak” differential privacy mitigate the attacks without hurting the overall performance. We have implemented the attacks and defenses in TensorFlow Federated (TFF), a TensorFlow framework for federated learning. In open sourcing our code, our goal is to encourage researchers to contribute new attacks and defenses and evaluate them on standard federated datasets.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Modern machine learning systems can be vulnerable to various kinds of failures, such as bugs in preprocessing pipelines and noisy training labels, as well as attacks that target each step of the system’s training and deployment pipelines. Examples of attacks include data and model update poisoning <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib5" title="" class="ltx_ref">5</a>; <a href="#bib.bib21" title="" class="ltx_ref">21</a>)</cite>, model evasion <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib29" title="" class="ltx_ref">29</a>; <a href="#bib.bib5" title="" class="ltx_ref">5</a>; <a href="#bib.bib16" title="" class="ltx_ref">16</a>)</cite>, model stealing <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib30" title="" class="ltx_ref">30</a>)</cite>, and data inference attacks on users’ private training data <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib27" title="" class="ltx_ref">27</a>)</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">The distributed nature of federated learning <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib23" title="" class="ltx_ref">23</a>)</cite>, particularly when augmented with secure aggregation protocols <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib7" title="" class="ltx_ref">7</a>)</cite>, makes detecting and correcting for these failures and attacks a particularly challenging task. Adversarial attacks can be broadly classified into two types based on the goal of the attack, untargeted or targeted attacks. Under untargeted attacks <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib6" title="" class="ltx_ref">6</a>; <a href="#bib.bib15" title="" class="ltx_ref">15</a>; <a href="#bib.bib12" title="" class="ltx_ref">12</a>)</cite>, the goal of the adversary is to corrupt the model in such a way that it does not achieve a near-optimal performance on the main task at hand (e.g., classification) often referred to as the primary task. Under targeted attacks (often referred to as backdoor attacks) <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib10" title="" class="ltx_ref">10</a>; <a href="#bib.bib19" title="" class="ltx_ref">19</a>; <a href="#bib.bib17" title="" class="ltx_ref">17</a>)</cite>, the goal of the adversary is to ensure that the learned model behaves differently on certain targeted sub-tasks while maintaining good overall performance on the primary task. For example, in image classification, the attacker may want the model to misclassify some “green cars” as birds while ensuring that other cars are correctly classified.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">For both targeted and untargeted attacks, the attacks can be further classified into two types based on the capability of the attacker, <em id="S1.p3.1.1" class="ltx_emph ltx_font_italic">model update poisoning</em> or <em id="S1.p3.1.2" class="ltx_emph ltx_font_italic">data poisoning</em>. In data poisoning attacks <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib5" title="" class="ltx_ref">5</a>; <a href="#bib.bib28" title="" class="ltx_ref">28</a>; <a href="#bib.bib33" title="" class="ltx_ref">33</a>; <a href="#bib.bib25" title="" class="ltx_ref">25</a>; <a href="#bib.bib18" title="" class="ltx_ref">18</a>)</cite>, the attacker can change a subset of all the training samples which is unknown to the learner. In federated learning systems, since the training process is done on local devices, fully compromised clients can change the model update completely, which is called a model poisoning attack <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib3" title="" class="ltx_ref">3</a>; <a href="#bib.bib4" title="" class="ltx_ref">4</a>)</cite>. Model update poisoning attacks are even harder to counter when secure aggregation (SecAgg) <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib7" title="" class="ltx_ref">7</a>)</cite>, which ensures that the server cannot inspect each user’s update, is deployed in the aggregation of local updates.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">Since untargeted attacks reduce the overall performance of the primary task, they are easier to detect. On the other hand, backdoor targeted attacks are harder to detect as the goal of the adversary is often unknown a priori. Hence, following <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib3" title="" class="ltx_ref">3</a>; <a href="#bib.bib4" title="" class="ltx_ref">4</a>)</cite>, we consider targeted model update poisoning attacks and refer to them as backdoor attacks. Existing approaches against backdoor attacks <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib28" title="" class="ltx_ref">28</a>; <a href="#bib.bib20" title="" class="ltx_ref">20</a>; <a href="#bib.bib31" title="" class="ltx_ref">31</a>; <a href="#bib.bib13" title="" class="ltx_ref">13</a>; <a href="#bib.bib32" title="" class="ltx_ref">32</a>; <a href="#bib.bib26" title="" class="ltx_ref">26</a>)</cite> either require a careful examination of the training data or full control of the training process at the server, which may not apply in the federated learning case. We evaluate various attacks proposed in recent papers and defenses on a medium scale federated learning task with more realistic parameters using TensorFlow Federated <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib1" title="" class="ltx_ref">1</a>)</cite>. Our goal, in open sourcing our code, is to encourage researchers to evaluate new attacks and defenses on standard tasks.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Backdoor Attack Scenario</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.11" class="ltx_p">We consider the notations and definitions of federated learning as defined in <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib23" title="" class="ltx_ref">23</a>)</cite>.<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>While <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib23" title="" class="ltx_ref">23</a>)</cite> considers relatively small problems, in more realistic scenarios for mobile devices we might have <math id="footnote1.m1.1" class="ltx_Math" alttext="K=10^{7}" display="inline"><semantics id="footnote1.m1.1b"><mrow id="footnote1.m1.1.1" xref="footnote1.m1.1.1.cmml"><mi id="footnote1.m1.1.1.2" xref="footnote1.m1.1.1.2.cmml">K</mi><mo id="footnote1.m1.1.1.1" xref="footnote1.m1.1.1.1.cmml">=</mo><msup id="footnote1.m1.1.1.3" xref="footnote1.m1.1.1.3.cmml"><mn id="footnote1.m1.1.1.3.2" xref="footnote1.m1.1.1.3.2.cmml">10</mn><mn id="footnote1.m1.1.1.3.3" xref="footnote1.m1.1.1.3.3.cmml">7</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="footnote1.m1.1c"><apply id="footnote1.m1.1.1.cmml" xref="footnote1.m1.1.1"><eq id="footnote1.m1.1.1.1.cmml" xref="footnote1.m1.1.1.1"></eq><ci id="footnote1.m1.1.1.2.cmml" xref="footnote1.m1.1.1.2">𝐾</ci><apply id="footnote1.m1.1.1.3.cmml" xref="footnote1.m1.1.1.3"><csymbol cd="ambiguous" id="footnote1.m1.1.1.3.1.cmml" xref="footnote1.m1.1.1.3">superscript</csymbol><cn type="integer" id="footnote1.m1.1.1.3.2.cmml" xref="footnote1.m1.1.1.3.2">10</cn><cn type="integer" id="footnote1.m1.1.1.3.3.cmml" xref="footnote1.m1.1.1.3.3">7</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="footnote1.m1.1d">K=10^{7}</annotation></semantics></math> or higher, with the number of clients selected <math id="footnote1.m2.1" class="ltx_Math" alttext="C\cdot K" display="inline"><semantics id="footnote1.m2.1b"><mrow id="footnote1.m2.1.1" xref="footnote1.m2.1.1.cmml"><mi id="footnote1.m2.1.1.2" xref="footnote1.m2.1.1.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="footnote1.m2.1.1.1" xref="footnote1.m2.1.1.1.cmml">⋅</mo><mi id="footnote1.m2.1.1.3" xref="footnote1.m2.1.1.3.cmml">K</mi></mrow><annotation-xml encoding="MathML-Content" id="footnote1.m2.1c"><apply id="footnote1.m2.1.1.cmml" xref="footnote1.m2.1.1"><ci id="footnote1.m2.1.1.1.cmml" xref="footnote1.m2.1.1.1">⋅</ci><ci id="footnote1.m2.1.1.2.cmml" xref="footnote1.m2.1.1.2">𝐶</ci><ci id="footnote1.m2.1.1.3.cmml" xref="footnote1.m2.1.1.3">𝐾</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="footnote1.m2.1d">C\cdot K</annotation></semantics></math> typically constant, say 100 to 1000 per round.</span></span></span> In particular, let <math id="S2.p1.1.m1.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S2.p1.1.m1.1a"><mi id="S2.p1.1.m1.1.1" xref="S2.p1.1.m1.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S2.p1.1.m1.1b"><ci id="S2.p1.1.m1.1.1.cmml" xref="S2.p1.1.m1.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.1.m1.1c">K</annotation></semantics></math> be the total number of users. At each round <math id="S2.p1.2.m2.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.p1.2.m2.1a"><mi id="S2.p1.2.m2.1.1" xref="S2.p1.2.m2.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.p1.2.m2.1b"><ci id="S2.p1.2.m2.1.1.cmml" xref="S2.p1.2.m2.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.2.m2.1c">t</annotation></semantics></math>, the server randomly selects <math id="S2.p1.3.m3.1" class="ltx_Math" alttext="C\cdot K" display="inline"><semantics id="S2.p1.3.m3.1a"><mrow id="S2.p1.3.m3.1.1" xref="S2.p1.3.m3.1.1.cmml"><mi id="S2.p1.3.m3.1.1.2" xref="S2.p1.3.m3.1.1.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p1.3.m3.1.1.1" xref="S2.p1.3.m3.1.1.1.cmml">⋅</mo><mi id="S2.p1.3.m3.1.1.3" xref="S2.p1.3.m3.1.1.3.cmml">K</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.3.m3.1b"><apply id="S2.p1.3.m3.1.1.cmml" xref="S2.p1.3.m3.1.1"><ci id="S2.p1.3.m3.1.1.1.cmml" xref="S2.p1.3.m3.1.1.1">⋅</ci><ci id="S2.p1.3.m3.1.1.2.cmml" xref="S2.p1.3.m3.1.1.2">𝐶</ci><ci id="S2.p1.3.m3.1.1.3.cmml" xref="S2.p1.3.m3.1.1.3">𝐾</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.3.m3.1c">C\cdot K</annotation></semantics></math> clients for some <math id="S2.p1.4.m4.1" class="ltx_Math" alttext="C&lt;1" display="inline"><semantics id="S2.p1.4.m4.1a"><mrow id="S2.p1.4.m4.1.1" xref="S2.p1.4.m4.1.1.cmml"><mi id="S2.p1.4.m4.1.1.2" xref="S2.p1.4.m4.1.1.2.cmml">C</mi><mo id="S2.p1.4.m4.1.1.1" xref="S2.p1.4.m4.1.1.1.cmml">&lt;</mo><mn id="S2.p1.4.m4.1.1.3" xref="S2.p1.4.m4.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.4.m4.1b"><apply id="S2.p1.4.m4.1.1.cmml" xref="S2.p1.4.m4.1.1"><lt id="S2.p1.4.m4.1.1.1.cmml" xref="S2.p1.4.m4.1.1.1"></lt><ci id="S2.p1.4.m4.1.1.2.cmml" xref="S2.p1.4.m4.1.1.2">𝐶</ci><cn type="integer" id="S2.p1.4.m4.1.1.3.cmml" xref="S2.p1.4.m4.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.4.m4.1c">C&lt;1</annotation></semantics></math>. Let <math id="S2.p1.5.m5.1" class="ltx_Math" alttext="S_{t}" display="inline"><semantics id="S2.p1.5.m5.1a"><msub id="S2.p1.5.m5.1.1" xref="S2.p1.5.m5.1.1.cmml"><mi id="S2.p1.5.m5.1.1.2" xref="S2.p1.5.m5.1.1.2.cmml">S</mi><mi id="S2.p1.5.m5.1.1.3" xref="S2.p1.5.m5.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p1.5.m5.1b"><apply id="S2.p1.5.m5.1.1.cmml" xref="S2.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S2.p1.5.m5.1.1.1.cmml" xref="S2.p1.5.m5.1.1">subscript</csymbol><ci id="S2.p1.5.m5.1.1.2.cmml" xref="S2.p1.5.m5.1.1.2">𝑆</ci><ci id="S2.p1.5.m5.1.1.3.cmml" xref="S2.p1.5.m5.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.5.m5.1c">S_{t}</annotation></semantics></math> be this set and <math id="S2.p1.6.m6.1" class="ltx_Math" alttext="n_{k}" display="inline"><semantics id="S2.p1.6.m6.1a"><msub id="S2.p1.6.m6.1.1" xref="S2.p1.6.m6.1.1.cmml"><mi id="S2.p1.6.m6.1.1.2" xref="S2.p1.6.m6.1.1.2.cmml">n</mi><mi id="S2.p1.6.m6.1.1.3" xref="S2.p1.6.m6.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p1.6.m6.1b"><apply id="S2.p1.6.m6.1.1.cmml" xref="S2.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S2.p1.6.m6.1.1.1.cmml" xref="S2.p1.6.m6.1.1">subscript</csymbol><ci id="S2.p1.6.m6.1.1.2.cmml" xref="S2.p1.6.m6.1.1.2">𝑛</ci><ci id="S2.p1.6.m6.1.1.3.cmml" xref="S2.p1.6.m6.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.6.m6.1c">n_{k}</annotation></semantics></math> be the number of samples at client <math id="S2.p1.7.m7.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S2.p1.7.m7.1a"><mi id="S2.p1.7.m7.1.1" xref="S2.p1.7.m7.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S2.p1.7.m7.1b"><ci id="S2.p1.7.m7.1.1.cmml" xref="S2.p1.7.m7.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.7.m7.1c">k</annotation></semantics></math>. Denote the model parameters at round <math id="S2.p1.8.m8.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S2.p1.8.m8.1a"><mi id="S2.p1.8.m8.1.1" xref="S2.p1.8.m8.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S2.p1.8.m8.1b"><ci id="S2.p1.8.m8.1.1.cmml" xref="S2.p1.8.m8.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.8.m8.1c">t</annotation></semantics></math> by <math id="S2.p1.9.m9.1" class="ltx_Math" alttext="w_{t}" display="inline"><semantics id="S2.p1.9.m9.1a"><msub id="S2.p1.9.m9.1.1" xref="S2.p1.9.m9.1.1.cmml"><mi id="S2.p1.9.m9.1.1.2" xref="S2.p1.9.m9.1.1.2.cmml">w</mi><mi id="S2.p1.9.m9.1.1.3" xref="S2.p1.9.m9.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S2.p1.9.m9.1b"><apply id="S2.p1.9.m9.1.1.cmml" xref="S2.p1.9.m9.1.1"><csymbol cd="ambiguous" id="S2.p1.9.m9.1.1.1.cmml" xref="S2.p1.9.m9.1.1">subscript</csymbol><ci id="S2.p1.9.m9.1.1.2.cmml" xref="S2.p1.9.m9.1.1.2">𝑤</ci><ci id="S2.p1.9.m9.1.1.3.cmml" xref="S2.p1.9.m9.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.9.m9.1c">w_{t}</annotation></semantics></math>.
+Each selected user computes a model update, denoted by <math id="S2.p1.10.m10.1" class="ltx_Math" alttext="\Delta w^{k}_{t}" display="inline"><semantics id="S2.p1.10.m10.1a"><mrow id="S2.p1.10.m10.1.1" xref="S2.p1.10.m10.1.1.cmml"><mi mathvariant="normal" id="S2.p1.10.m10.1.1.2" xref="S2.p1.10.m10.1.1.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S2.p1.10.m10.1.1.1" xref="S2.p1.10.m10.1.1.1.cmml">​</mo><msubsup id="S2.p1.10.m10.1.1.3" xref="S2.p1.10.m10.1.1.3.cmml"><mi id="S2.p1.10.m10.1.1.3.2.2" xref="S2.p1.10.m10.1.1.3.2.2.cmml">w</mi><mi id="S2.p1.10.m10.1.1.3.3" xref="S2.p1.10.m10.1.1.3.3.cmml">t</mi><mi id="S2.p1.10.m10.1.1.3.2.3" xref="S2.p1.10.m10.1.1.3.2.3.cmml">k</mi></msubsup></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.10.m10.1b"><apply id="S2.p1.10.m10.1.1.cmml" xref="S2.p1.10.m10.1.1"><times id="S2.p1.10.m10.1.1.1.cmml" xref="S2.p1.10.m10.1.1.1"></times><ci id="S2.p1.10.m10.1.1.2.cmml" xref="S2.p1.10.m10.1.1.2">Δ</ci><apply id="S2.p1.10.m10.1.1.3.cmml" xref="S2.p1.10.m10.1.1.3"><csymbol cd="ambiguous" id="S2.p1.10.m10.1.1.3.1.cmml" xref="S2.p1.10.m10.1.1.3">subscript</csymbol><apply id="S2.p1.10.m10.1.1.3.2.cmml" xref="S2.p1.10.m10.1.1.3"><csymbol cd="ambiguous" id="S2.p1.10.m10.1.1.3.2.1.cmml" xref="S2.p1.10.m10.1.1.3">superscript</csymbol><ci id="S2.p1.10.m10.1.1.3.2.2.cmml" xref="S2.p1.10.m10.1.1.3.2.2">𝑤</ci><ci id="S2.p1.10.m10.1.1.3.2.3.cmml" xref="S2.p1.10.m10.1.1.3.2.3">𝑘</ci></apply><ci id="S2.p1.10.m10.1.1.3.3.cmml" xref="S2.p1.10.m10.1.1.3.3">𝑡</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.10.m10.1c">\Delta w^{k}_{t}</annotation></semantics></math>, based on their local data.
+The server updates its model by aggregating the <math id="S2.p1.11.m11.1" class="ltx_Math" alttext="\Delta w^{k}_{t}" display="inline"><semantics id="S2.p1.11.m11.1a"><mrow id="S2.p1.11.m11.1.1" xref="S2.p1.11.m11.1.1.cmml"><mi mathvariant="normal" id="S2.p1.11.m11.1.1.2" xref="S2.p1.11.m11.1.1.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S2.p1.11.m11.1.1.1" xref="S2.p1.11.m11.1.1.1.cmml">​</mo><msubsup id="S2.p1.11.m11.1.1.3" xref="S2.p1.11.m11.1.1.3.cmml"><mi id="S2.p1.11.m11.1.1.3.2.2" xref="S2.p1.11.m11.1.1.3.2.2.cmml">w</mi><mi id="S2.p1.11.m11.1.1.3.3" xref="S2.p1.11.m11.1.1.3.3.cmml">t</mi><mi id="S2.p1.11.m11.1.1.3.2.3" xref="S2.p1.11.m11.1.1.3.2.3.cmml">k</mi></msubsup></mrow><annotation-xml encoding="MathML-Content" id="S2.p1.11.m11.1b"><apply id="S2.p1.11.m11.1.1.cmml" xref="S2.p1.11.m11.1.1"><times id="S2.p1.11.m11.1.1.1.cmml" xref="S2.p1.11.m11.1.1.1"></times><ci id="S2.p1.11.m11.1.1.2.cmml" xref="S2.p1.11.m11.1.1.2">Δ</ci><apply id="S2.p1.11.m11.1.1.3.cmml" xref="S2.p1.11.m11.1.1.3"><csymbol cd="ambiguous" id="S2.p1.11.m11.1.1.3.1.cmml" xref="S2.p1.11.m11.1.1.3">subscript</csymbol><apply id="S2.p1.11.m11.1.1.3.2.cmml" xref="S2.p1.11.m11.1.1.3"><csymbol cd="ambiguous" id="S2.p1.11.m11.1.1.3.2.1.cmml" xref="S2.p1.11.m11.1.1.3">superscript</csymbol><ci id="S2.p1.11.m11.1.1.3.2.2.cmml" xref="S2.p1.11.m11.1.1.3.2.2">𝑤</ci><ci id="S2.p1.11.m11.1.1.3.2.3.cmml" xref="S2.p1.11.m11.1.1.3.2.3">𝑘</ci></apply><ci id="S2.p1.11.m11.1.1.3.3.cmml" xref="S2.p1.11.m11.1.1.3.3">𝑡</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.11.m11.1c">\Delta w^{k}_{t}</annotation></semantics></math>’s, i.e.,</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.1" class="ltx_Math" alttext="w_{t+1}=w_{t}+\eta\frac{\sum_{k\in S_{t}}n_{k}\Delta w^{k}_{t}}{\sum_{k\in S_{t}}n_{k}}." display="block"><semantics id="S2.Ex1.m1.1a"><mrow id="S2.Ex1.m1.1.1.1" xref="S2.Ex1.m1.1.1.1.1.cmml"><mrow id="S2.Ex1.m1.1.1.1.1" xref="S2.Ex1.m1.1.1.1.1.cmml"><msub id="S2.Ex1.m1.1.1.1.1.2" xref="S2.Ex1.m1.1.1.1.1.2.cmml"><mi id="S2.Ex1.m1.1.1.1.1.2.2" xref="S2.Ex1.m1.1.1.1.1.2.2.cmml">w</mi><mrow id="S2.Ex1.m1.1.1.1.1.2.3" xref="S2.Ex1.m1.1.1.1.1.2.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.2.3.2" xref="S2.Ex1.m1.1.1.1.1.2.3.2.cmml">t</mi><mo id="S2.Ex1.m1.1.1.1.1.2.3.1" xref="S2.Ex1.m1.1.1.1.1.2.3.1.cmml">+</mo><mn id="S2.Ex1.m1.1.1.1.1.2.3.3" xref="S2.Ex1.m1.1.1.1.1.2.3.3.cmml">1</mn></mrow></msub><mo id="S2.Ex1.m1.1.1.1.1.1" xref="S2.Ex1.m1.1.1.1.1.1.cmml">=</mo><mrow id="S2.Ex1.m1.1.1.1.1.3" xref="S2.Ex1.m1.1.1.1.1.3.cmml"><msub id="S2.Ex1.m1.1.1.1.1.3.2" xref="S2.Ex1.m1.1.1.1.1.3.2.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.2.2" xref="S2.Ex1.m1.1.1.1.1.3.2.2.cmml">w</mi><mi id="S2.Ex1.m1.1.1.1.1.3.2.3" xref="S2.Ex1.m1.1.1.1.1.3.2.3.cmml">t</mi></msub><mo id="S2.Ex1.m1.1.1.1.1.3.1" xref="S2.Ex1.m1.1.1.1.1.3.1.cmml">+</mo><mrow id="S2.Ex1.m1.1.1.1.1.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.2.cmml">η</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.1.1.3.3.1" xref="S2.Ex1.m1.1.1.1.1.3.3.1.cmml">​</mo><mfrac id="S2.Ex1.m1.1.1.1.1.3.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.cmml"><mrow id="S2.Ex1.m1.1.1.1.1.3.3.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.cmml"><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.cmml"><mo id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.2.cmml">∑</mo><mrow id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.2.cmml">k</mi><mo id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.1" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.1.cmml">∈</mo><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.2.cmml">S</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.3.cmml">t</mi></msub></mrow></msub><mrow id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.cmml"><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.2.cmml">n</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1.cmml">​</mo><mi mathvariant="normal" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.3.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1a" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1.cmml">​</mo><msubsup id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.2.cmml">w</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.3.cmml">t</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.3.cmml">k</mi></msubsup></mrow></mrow><mrow id="S2.Ex1.m1.1.1.1.1.3.3.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.cmml"><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.cmml"><mo id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.2.cmml">∑</mo><mrow id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.2.cmml">k</mi><mo id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.1" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.1.cmml">∈</mo><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.2.cmml">S</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.3.cmml">t</mi></msub></mrow></msub><msub id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.cmml"><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.2" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.2.cmml">n</mi><mi id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.3" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.3.cmml">k</mi></msub></mrow></mfrac></mrow></mrow></mrow><mo lspace="0em" id="S2.Ex1.m1.1.1.1.2" xref="S2.Ex1.m1.1.1.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.1b"><apply id="S2.Ex1.m1.1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1"><eq id="S2.Ex1.m1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1.1.1"></eq><apply id="S2.Ex1.m1.1.1.1.1.2.cmml" xref="S2.Ex1.m1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.2.2">𝑤</ci><apply id="S2.Ex1.m1.1.1.1.1.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.2.3"><plus id="S2.Ex1.m1.1.1.1.1.2.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.2.3.1"></plus><ci id="S2.Ex1.m1.1.1.1.1.2.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.2.3.2">𝑡</ci><cn type="integer" id="S2.Ex1.m1.1.1.1.1.2.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.2.3.3">1</cn></apply></apply><apply id="S2.Ex1.m1.1.1.1.1.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3"><plus id="S2.Ex1.m1.1.1.1.1.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.1"></plus><apply id="S2.Ex1.m1.1.1.1.1.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.2.2">𝑤</ci><ci id="S2.Ex1.m1.1.1.1.1.3.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.2.3">𝑡</ci></apply><apply id="S2.Ex1.m1.1.1.1.1.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3"><times id="S2.Ex1.m1.1.1.1.1.3.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.1"></times><ci id="S2.Ex1.m1.1.1.1.1.3.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.2">𝜂</ci><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3"><divide id="S2.Ex1.m1.1.1.1.1.3.3.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3"></divide><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2"><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1">subscript</csymbol><sum id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.2"></sum><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3"><in id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.1"></in><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.2">𝑘</ci><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.2">𝑆</ci><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.1.3.3.3">𝑡</ci></apply></apply></apply><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2"><times id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.1"></times><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.2">𝑛</ci><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.2.3">𝑘</ci></apply><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.3">Δ</ci><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4">subscript</csymbol><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4">superscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.2">𝑤</ci><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.2.3">𝑘</ci></apply><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.2.2.4.3">𝑡</ci></apply></apply></apply><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3"><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1">subscript</csymbol><sum id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.2"></sum><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3"><in id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.1"></in><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.2">𝑘</ci><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.2">𝑆</ci><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.1.3.3.3">𝑡</ci></apply></apply></apply><apply id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.1.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.2.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.2">𝑛</ci><ci id="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.3.cmml" xref="S2.Ex1.m1.1.1.1.1.3.3.3.3.2.3">𝑘</ci></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.1c">w_{t+1}=w_{t}+\eta\frac{\sum_{k\in S_{t}}n_{k}\Delta w^{k}_{t}}{\sum_{k\in S_{t}}n_{k}}.</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.p1.12" class="ltx_p">where <math id="S2.p1.12.m1.1" class="ltx_Math" alttext="\eta" display="inline"><semantics id="S2.p1.12.m1.1a"><mi id="S2.p1.12.m1.1.1" xref="S2.p1.12.m1.1.1.cmml">η</mi><annotation-xml encoding="MathML-Content" id="S2.p1.12.m1.1b"><ci id="S2.p1.12.m1.1.1.cmml" xref="S2.p1.12.m1.1.1">𝜂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p1.12.m1.1c">\eta</annotation></semantics></math> is the server learning rate.
+We model the parameters of backdoor attacks as follows.</p>
+</div>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.5" class="ltx_p"><span id="S2.p2.5.1" class="ltx_text ltx_font_bold">Sampling of adversaries.</span> If <math id="S2.p2.1.m1.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S2.p2.1.m1.1a"><mi id="S2.p2.1.m1.1.1" xref="S2.p2.1.m1.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.1b"><ci id="S2.p2.1.m1.1.1.cmml" xref="S2.p2.1.m1.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.1c">\epsilon</annotation></semantics></math> fraction of the clients are completely compromised, then each round may contain anywhere between <math id="S2.p2.2.m2.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S2.p2.2.m2.1a"><mn id="S2.p2.2.m2.1.1" xref="S2.p2.2.m2.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S2.p2.2.m2.1b"><cn type="integer" id="S2.p2.2.m2.1.1.cmml" xref="S2.p2.2.m2.1.1">0</cn></annotation-xml></semantics></math> and <math id="S2.p2.3.m3.3" class="ltx_Math" alttext="\min(\epsilon\cdot K,C\cdot K)" display="inline"><semantics id="S2.p2.3.m3.3a"><mrow id="S2.p2.3.m3.3.3.2" xref="S2.p2.3.m3.3.3.3.cmml"><mi id="S2.p2.3.m3.1.1" xref="S2.p2.3.m3.1.1.cmml">min</mi><mo id="S2.p2.3.m3.3.3.2a" xref="S2.p2.3.m3.3.3.3.cmml">⁡</mo><mrow id="S2.p2.3.m3.3.3.2.2" xref="S2.p2.3.m3.3.3.3.cmml"><mo stretchy="false" id="S2.p2.3.m3.3.3.2.2.3" xref="S2.p2.3.m3.3.3.3.cmml">(</mo><mrow id="S2.p2.3.m3.2.2.1.1.1" xref="S2.p2.3.m3.2.2.1.1.1.cmml"><mi id="S2.p2.3.m3.2.2.1.1.1.2" xref="S2.p2.3.m3.2.2.1.1.1.2.cmml">ϵ</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p2.3.m3.2.2.1.1.1.1" xref="S2.p2.3.m3.2.2.1.1.1.1.cmml">⋅</mo><mi id="S2.p2.3.m3.2.2.1.1.1.3" xref="S2.p2.3.m3.2.2.1.1.1.3.cmml">K</mi></mrow><mo id="S2.p2.3.m3.3.3.2.2.4" xref="S2.p2.3.m3.3.3.3.cmml">,</mo><mrow id="S2.p2.3.m3.3.3.2.2.2" xref="S2.p2.3.m3.3.3.2.2.2.cmml"><mi id="S2.p2.3.m3.3.3.2.2.2.2" xref="S2.p2.3.m3.3.3.2.2.2.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p2.3.m3.3.3.2.2.2.1" xref="S2.p2.3.m3.3.3.2.2.2.1.cmml">⋅</mo><mi id="S2.p2.3.m3.3.3.2.2.2.3" xref="S2.p2.3.m3.3.3.2.2.2.3.cmml">K</mi></mrow><mo stretchy="false" id="S2.p2.3.m3.3.3.2.2.5" xref="S2.p2.3.m3.3.3.3.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.3.m3.3b"><apply id="S2.p2.3.m3.3.3.3.cmml" xref="S2.p2.3.m3.3.3.2"><min id="S2.p2.3.m3.1.1.cmml" xref="S2.p2.3.m3.1.1"></min><apply id="S2.p2.3.m3.2.2.1.1.1.cmml" xref="S2.p2.3.m3.2.2.1.1.1"><ci id="S2.p2.3.m3.2.2.1.1.1.1.cmml" xref="S2.p2.3.m3.2.2.1.1.1.1">⋅</ci><ci id="S2.p2.3.m3.2.2.1.1.1.2.cmml" xref="S2.p2.3.m3.2.2.1.1.1.2">italic-ϵ</ci><ci id="S2.p2.3.m3.2.2.1.1.1.3.cmml" xref="S2.p2.3.m3.2.2.1.1.1.3">𝐾</ci></apply><apply id="S2.p2.3.m3.3.3.2.2.2.cmml" xref="S2.p2.3.m3.3.3.2.2.2"><ci id="S2.p2.3.m3.3.3.2.2.2.1.cmml" xref="S2.p2.3.m3.3.3.2.2.2.1">⋅</ci><ci id="S2.p2.3.m3.3.3.2.2.2.2.cmml" xref="S2.p2.3.m3.3.3.2.2.2.2">𝐶</ci><ci id="S2.p2.3.m3.3.3.2.2.2.3.cmml" xref="S2.p2.3.m3.3.3.2.2.2.3">𝐾</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.3.m3.3c">\min(\epsilon\cdot K,C\cdot K)</annotation></semantics></math> adversaries. Under random sampling of clients, the number of adversaries in each round follows a hypergeometric distribution. We refer to this attack model as the <em id="S2.p2.5.2" class="ltx_emph ltx_font_italic">random sampling</em> attack. Another model we consider in this work is the <em id="S2.p2.5.3" class="ltx_emph ltx_font_italic">fixed frequency</em> attack, where a single adversary appears in every <math id="S2.p2.4.m4.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S2.p2.4.m4.1a"><mi id="S2.p2.4.m4.1.1" xref="S2.p2.4.m4.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S2.p2.4.m4.1b"><ci id="S2.p2.4.m4.1.1.cmml" xref="S2.p2.4.m4.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.4.m4.1c">f</annotation></semantics></math> rounds <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib3" title="" class="ltx_ref">3</a>; <a href="#bib.bib4" title="" class="ltx_ref">4</a>)</cite>. For a fair comparison between the two attack models, we set the frequency to be inversely proportional to the number of total number of attackers (i.e., <math id="S2.p2.5.m5.1" class="ltx_Math" alttext="f=1/(\epsilon\cdot C\cdot K)" display="inline"><semantics id="S2.p2.5.m5.1a"><mrow id="S2.p2.5.m5.1.1" xref="S2.p2.5.m5.1.1.cmml"><mi id="S2.p2.5.m5.1.1.3" xref="S2.p2.5.m5.1.1.3.cmml">f</mi><mo id="S2.p2.5.m5.1.1.2" xref="S2.p2.5.m5.1.1.2.cmml">=</mo><mrow id="S2.p2.5.m5.1.1.1" xref="S2.p2.5.m5.1.1.1.cmml"><mn id="S2.p2.5.m5.1.1.1.3" xref="S2.p2.5.m5.1.1.1.3.cmml">1</mn><mo id="S2.p2.5.m5.1.1.1.2" xref="S2.p2.5.m5.1.1.1.2.cmml">/</mo><mrow id="S2.p2.5.m5.1.1.1.1.1" xref="S2.p2.5.m5.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.p2.5.m5.1.1.1.1.1.2" xref="S2.p2.5.m5.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.p2.5.m5.1.1.1.1.1.1" xref="S2.p2.5.m5.1.1.1.1.1.1.cmml"><mi id="S2.p2.5.m5.1.1.1.1.1.1.2" xref="S2.p2.5.m5.1.1.1.1.1.1.2.cmml">ϵ</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p2.5.m5.1.1.1.1.1.1.1" xref="S2.p2.5.m5.1.1.1.1.1.1.1.cmml">⋅</mo><mi id="S2.p2.5.m5.1.1.1.1.1.1.3" xref="S2.p2.5.m5.1.1.1.1.1.1.3.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S2.p2.5.m5.1.1.1.1.1.1.1a" xref="S2.p2.5.m5.1.1.1.1.1.1.1.cmml">⋅</mo><mi id="S2.p2.5.m5.1.1.1.1.1.1.4" xref="S2.p2.5.m5.1.1.1.1.1.1.4.cmml">K</mi></mrow><mo stretchy="false" id="S2.p2.5.m5.1.1.1.1.1.3" xref="S2.p2.5.m5.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.5.m5.1b"><apply id="S2.p2.5.m5.1.1.cmml" xref="S2.p2.5.m5.1.1"><eq id="S2.p2.5.m5.1.1.2.cmml" xref="S2.p2.5.m5.1.1.2"></eq><ci id="S2.p2.5.m5.1.1.3.cmml" xref="S2.p2.5.m5.1.1.3">𝑓</ci><apply id="S2.p2.5.m5.1.1.1.cmml" xref="S2.p2.5.m5.1.1.1"><divide id="S2.p2.5.m5.1.1.1.2.cmml" xref="S2.p2.5.m5.1.1.1.2"></divide><cn type="integer" id="S2.p2.5.m5.1.1.1.3.cmml" xref="S2.p2.5.m5.1.1.1.3">1</cn><apply id="S2.p2.5.m5.1.1.1.1.1.1.cmml" xref="S2.p2.5.m5.1.1.1.1.1"><ci id="S2.p2.5.m5.1.1.1.1.1.1.1.cmml" xref="S2.p2.5.m5.1.1.1.1.1.1.1">⋅</ci><ci id="S2.p2.5.m5.1.1.1.1.1.1.2.cmml" xref="S2.p2.5.m5.1.1.1.1.1.1.2">italic-ϵ</ci><ci id="S2.p2.5.m5.1.1.1.1.1.1.3.cmml" xref="S2.p2.5.m5.1.1.1.1.1.1.3">𝐶</ci><ci id="S2.p2.5.m5.1.1.1.1.1.1.4.cmml" xref="S2.p2.5.m5.1.1.1.1.1.1.4">𝐾</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.5.m5.1c">f=1/(\epsilon\cdot C\cdot K)</annotation></semantics></math>).</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p"><span id="S2.p3.1.1" class="ltx_text ltx_font_bold">Backdoor tasks.</span> Recall that in backdoor attacks, the goal of the adversary is to ensure that the model fails on some targeted tasks. For example, in text classification the backdoor task might be to suggest a particular restaurant’s name after observing the phrase <span id="S2.p3.1.2" class="ltx_text ltx_font_italic">“my favorite restaurant is”</span>.
+Unlike <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib3" title="" class="ltx_ref">3</a>; <a href="#bib.bib4" title="" class="ltx_ref">4</a>)</cite>, we allow non-malicious clients to have correctly labeled samples from the targeted backdoor tasks. For instance, if the adversary wants the model to misclassify some green cars as birds, we allow non-malicious clients to have samples from these targeted green cars correctly labeled as cars.</p>
+</div>
+<div id="S2.p4" class="ltx_para">
+<p id="S2.p4.1" class="ltx_p">Further, we form the backdoor task by grouping examples from multiple selected “target clients”. Since examples from different target clients follow different distributions, we refer to the number of target clients as the “number of backdoor tasks” and explore its effect on the attack’s success rate. Intuitively, the more backdoor tasks we have, the richer the feature space the attacker is trying to break, and therefore the harder it is for the attacker to successfully backdoor the model without breaking its performance on the main task.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Model Update Poisoning Attacks</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.2" class="ltx_p">We focus on model update poisoning attacks based on the model replacement paradigm proposed by <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib3" title="" class="ltx_ref">3</a>; <a href="#bib.bib4" title="" class="ltx_ref">4</a>)</cite>. When only one attacker is selected in round <math id="S3.p1.1.m1.1" class="ltx_Math" alttext="t" display="inline"><semantics id="S3.p1.1.m1.1a"><mi id="S3.p1.1.m1.1.1" xref="S3.p1.1.m1.1.1.cmml">t</mi><annotation-xml encoding="MathML-Content" id="S3.p1.1.m1.1b"><ci id="S3.p1.1.m1.1.1.cmml" xref="S3.p1.1.m1.1.1">𝑡</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.1.m1.1c">t</annotation></semantics></math> (WLOG assume it is client 1), the attacker attempts to replace the whole model by a backdoored model <math id="S3.p1.2.m2.1" class="ltx_Math" alttext="w^{*}" display="inline"><semantics id="S3.p1.2.m2.1a"><msup id="S3.p1.2.m2.1.1" xref="S3.p1.2.m2.1.1.cmml"><mi id="S3.p1.2.m2.1.1.2" xref="S3.p1.2.m2.1.1.2.cmml">w</mi><mo id="S3.p1.2.m2.1.1.3" xref="S3.p1.2.m2.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S3.p1.2.m2.1b"><apply id="S3.p1.2.m2.1.1.cmml" xref="S3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S3.p1.2.m2.1.1.1.cmml" xref="S3.p1.2.m2.1.1">superscript</csymbol><ci id="S3.p1.2.m2.1.1.2.cmml" xref="S3.p1.2.m2.1.1.2">𝑤</ci><times id="S3.p1.2.m2.1.1.3.cmml" xref="S3.p1.2.m2.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.2.m2.1c">w^{*}</annotation></semantics></math> by sending</p>
+<table id="A1.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S3.E1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S3.E1.m1.1" class="ltx_Math" alttext="\displaystyle\Delta w^{1}_{t}=\beta(w^{*}-w_{t})." display="inline"><semantics id="S3.E1.m1.1a"><mrow id="S3.E1.m1.1.1.1" xref="S3.E1.m1.1.1.1.1.cmml"><mrow id="S3.E1.m1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.cmml"><mrow id="S3.E1.m1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.3.cmml"><mi mathvariant="normal" id="S3.E1.m1.1.1.1.1.3.2" xref="S3.E1.m1.1.1.1.1.3.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.1.1.1.1.3.1" xref="S3.E1.m1.1.1.1.1.3.1.cmml">​</mo><msubsup id="S3.E1.m1.1.1.1.1.3.3" xref="S3.E1.m1.1.1.1.1.3.3.cmml"><mi id="S3.E1.m1.1.1.1.1.3.3.2.2" xref="S3.E1.m1.1.1.1.1.3.3.2.2.cmml">w</mi><mi id="S3.E1.m1.1.1.1.1.3.3.3" xref="S3.E1.m1.1.1.1.1.3.3.3.cmml">t</mi><mn id="S3.E1.m1.1.1.1.1.3.3.2.3" xref="S3.E1.m1.1.1.1.1.3.3.2.3.cmml">1</mn></msubsup></mrow><mo id="S3.E1.m1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.2.cmml">=</mo><mrow id="S3.E1.m1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.cmml"><mi id="S3.E1.m1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.3.cmml">β</mi><mo lspace="0em" rspace="0em" id="S3.E1.m1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.2.cmml">​</mo><mrow id="S3.E1.m1.1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S3.E1.m1.1.1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.E1.m1.1.1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.1.1.cmml"><msup id="S3.E1.m1.1.1.1.1.1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2.cmml"><mi id="S3.E1.m1.1.1.1.1.1.1.1.1.2.2" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2.2.cmml">w</mi><mo id="S3.E1.m1.1.1.1.1.1.1.1.1.2.3" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2.3.cmml">∗</mo></msup><mo id="S3.E1.m1.1.1.1.1.1.1.1.1.1" xref="S3.E1.m1.1.1.1.1.1.1.1.1.1.cmml">−</mo><msub id="S3.E1.m1.1.1.1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3.cmml"><mi id="S3.E1.m1.1.1.1.1.1.1.1.1.3.2" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3.2.cmml">w</mi><mi id="S3.E1.m1.1.1.1.1.1.1.1.1.3.3" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3.3.cmml">t</mi></msub></mrow><mo stretchy="false" id="S3.E1.m1.1.1.1.1.1.1.1.3" xref="S3.E1.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo lspace="0em" id="S3.E1.m1.1.1.1.2" xref="S3.E1.m1.1.1.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.E1.m1.1b"><apply id="S3.E1.m1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1"><eq id="S3.E1.m1.1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.1.2"></eq><apply id="S3.E1.m1.1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.1.3"><times id="S3.E1.m1.1.1.1.1.3.1.cmml" xref="S3.E1.m1.1.1.1.1.3.1"></times><ci id="S3.E1.m1.1.1.1.1.3.2.cmml" xref="S3.E1.m1.1.1.1.1.3.2">Δ</ci><apply id="S3.E1.m1.1.1.1.1.3.3.cmml" xref="S3.E1.m1.1.1.1.1.3.3"><csymbol cd="ambiguous" id="S3.E1.m1.1.1.1.1.3.3.1.cmml" xref="S3.E1.m1.1.1.1.1.3.3">subscript</csymbol><apply id="S3.E1.m1.1.1.1.1.3.3.2.cmml" xref="S3.E1.m1.1.1.1.1.3.3"><csymbol cd="ambiguous" id="S3.E1.m1.1.1.1.1.3.3.2.1.cmml" xref="S3.E1.m1.1.1.1.1.3.3">superscript</csymbol><ci id="S3.E1.m1.1.1.1.1.3.3.2.2.cmml" xref="S3.E1.m1.1.1.1.1.3.3.2.2">𝑤</ci><cn type="integer" id="S3.E1.m1.1.1.1.1.3.3.2.3.cmml" xref="S3.E1.m1.1.1.1.1.3.3.2.3">1</cn></apply><ci id="S3.E1.m1.1.1.1.1.3.3.3.cmml" xref="S3.E1.m1.1.1.1.1.3.3.3">𝑡</ci></apply></apply><apply id="S3.E1.m1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1"><times id="S3.E1.m1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.1.1.2"></times><ci id="S3.E1.m1.1.1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.1.1.3">𝛽</ci><apply id="S3.E1.m1.1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1"><minus id="S3.E1.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.1"></minus><apply id="S3.E1.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S3.E1.m1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2">superscript</csymbol><ci id="S3.E1.m1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2.2">𝑤</ci><times id="S3.E1.m1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.2.3"></times></apply><apply id="S3.E1.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.E1.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S3.E1.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3.2">𝑤</ci><ci id="S3.E1.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S3.E1.m1.1.1.1.1.1.1.1.1.3.3">𝑡</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.E1.m1.1c">\displaystyle\Delta w^{1}_{t}=\beta(w^{*}-w_{t}).</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S3.p1.3" class="ltx_p">where <math id="S3.p1.3.m1.1" class="ltx_Math" alttext="\beta=\frac{\sum_{k\in S_{t}}n_{k}}{\eta n_{k}}" display="inline"><semantics id="S3.p1.3.m1.1a"><mrow id="S3.p1.3.m1.1.1" xref="S3.p1.3.m1.1.1.cmml"><mi id="S3.p1.3.m1.1.1.2" xref="S3.p1.3.m1.1.1.2.cmml">β</mi><mo id="S3.p1.3.m1.1.1.1" xref="S3.p1.3.m1.1.1.1.cmml">=</mo><mfrac id="S3.p1.3.m1.1.1.3" xref="S3.p1.3.m1.1.1.3.cmml"><mrow id="S3.p1.3.m1.1.1.3.2" xref="S3.p1.3.m1.1.1.3.2.cmml"><mstyle displaystyle="false" id="S3.p1.3.m1.1.1.3.2.1" xref="S3.p1.3.m1.1.1.3.2.1.cmml"><msub id="S3.p1.3.m1.1.1.3.2.1a" xref="S3.p1.3.m1.1.1.3.2.1.cmml"><mo id="S3.p1.3.m1.1.1.3.2.1.2" xref="S3.p1.3.m1.1.1.3.2.1.2.cmml">∑</mo><mrow id="S3.p1.3.m1.1.1.3.2.1.3" xref="S3.p1.3.m1.1.1.3.2.1.3.cmml"><mi id="S3.p1.3.m1.1.1.3.2.1.3.2" xref="S3.p1.3.m1.1.1.3.2.1.3.2.cmml">k</mi><mo id="S3.p1.3.m1.1.1.3.2.1.3.1" xref="S3.p1.3.m1.1.1.3.2.1.3.1.cmml">∈</mo><msub id="S3.p1.3.m1.1.1.3.2.1.3.3" xref="S3.p1.3.m1.1.1.3.2.1.3.3.cmml"><mi id="S3.p1.3.m1.1.1.3.2.1.3.3.2" xref="S3.p1.3.m1.1.1.3.2.1.3.3.2.cmml">S</mi><mi id="S3.p1.3.m1.1.1.3.2.1.3.3.3" xref="S3.p1.3.m1.1.1.3.2.1.3.3.3.cmml">t</mi></msub></mrow></msub></mstyle><msub id="S3.p1.3.m1.1.1.3.2.2" xref="S3.p1.3.m1.1.1.3.2.2.cmml"><mi id="S3.p1.3.m1.1.1.3.2.2.2" xref="S3.p1.3.m1.1.1.3.2.2.2.cmml">n</mi><mi id="S3.p1.3.m1.1.1.3.2.2.3" xref="S3.p1.3.m1.1.1.3.2.2.3.cmml">k</mi></msub></mrow><mrow id="S3.p1.3.m1.1.1.3.3" xref="S3.p1.3.m1.1.1.3.3.cmml"><mi id="S3.p1.3.m1.1.1.3.3.2" xref="S3.p1.3.m1.1.1.3.3.2.cmml">η</mi><mo lspace="0em" rspace="0em" id="S3.p1.3.m1.1.1.3.3.1" xref="S3.p1.3.m1.1.1.3.3.1.cmml">​</mo><msub id="S3.p1.3.m1.1.1.3.3.3" xref="S3.p1.3.m1.1.1.3.3.3.cmml"><mi id="S3.p1.3.m1.1.1.3.3.3.2" xref="S3.p1.3.m1.1.1.3.3.3.2.cmml">n</mi><mi id="S3.p1.3.m1.1.1.3.3.3.3" xref="S3.p1.3.m1.1.1.3.3.3.3.cmml">k</mi></msub></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S3.p1.3.m1.1b"><apply id="S3.p1.3.m1.1.1.cmml" xref="S3.p1.3.m1.1.1"><eq id="S3.p1.3.m1.1.1.1.cmml" xref="S3.p1.3.m1.1.1.1"></eq><ci id="S3.p1.3.m1.1.1.2.cmml" xref="S3.p1.3.m1.1.1.2">𝛽</ci><apply id="S3.p1.3.m1.1.1.3.cmml" xref="S3.p1.3.m1.1.1.3"><divide id="S3.p1.3.m1.1.1.3.1.cmml" xref="S3.p1.3.m1.1.1.3"></divide><apply id="S3.p1.3.m1.1.1.3.2.cmml" xref="S3.p1.3.m1.1.1.3.2"><apply id="S3.p1.3.m1.1.1.3.2.1.cmml" xref="S3.p1.3.m1.1.1.3.2.1"><csymbol cd="ambiguous" id="S3.p1.3.m1.1.1.3.2.1.1.cmml" xref="S3.p1.3.m1.1.1.3.2.1">subscript</csymbol><sum id="S3.p1.3.m1.1.1.3.2.1.2.cmml" xref="S3.p1.3.m1.1.1.3.2.1.2"></sum><apply id="S3.p1.3.m1.1.1.3.2.1.3.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3"><in id="S3.p1.3.m1.1.1.3.2.1.3.1.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.1"></in><ci id="S3.p1.3.m1.1.1.3.2.1.3.2.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.2">𝑘</ci><apply id="S3.p1.3.m1.1.1.3.2.1.3.3.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.3"><csymbol cd="ambiguous" id="S3.p1.3.m1.1.1.3.2.1.3.3.1.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.3">subscript</csymbol><ci id="S3.p1.3.m1.1.1.3.2.1.3.3.2.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.3.2">𝑆</ci><ci id="S3.p1.3.m1.1.1.3.2.1.3.3.3.cmml" xref="S3.p1.3.m1.1.1.3.2.1.3.3.3">𝑡</ci></apply></apply></apply><apply id="S3.p1.3.m1.1.1.3.2.2.cmml" xref="S3.p1.3.m1.1.1.3.2.2"><csymbol cd="ambiguous" id="S3.p1.3.m1.1.1.3.2.2.1.cmml" xref="S3.p1.3.m1.1.1.3.2.2">subscript</csymbol><ci id="S3.p1.3.m1.1.1.3.2.2.2.cmml" xref="S3.p1.3.m1.1.1.3.2.2.2">𝑛</ci><ci id="S3.p1.3.m1.1.1.3.2.2.3.cmml" xref="S3.p1.3.m1.1.1.3.2.2.3">𝑘</ci></apply></apply><apply id="S3.p1.3.m1.1.1.3.3.cmml" xref="S3.p1.3.m1.1.1.3.3"><times id="S3.p1.3.m1.1.1.3.3.1.cmml" xref="S3.p1.3.m1.1.1.3.3.1"></times><ci id="S3.p1.3.m1.1.1.3.3.2.cmml" xref="S3.p1.3.m1.1.1.3.3.2">𝜂</ci><apply id="S3.p1.3.m1.1.1.3.3.3.cmml" xref="S3.p1.3.m1.1.1.3.3.3"><csymbol cd="ambiguous" id="S3.p1.3.m1.1.1.3.3.3.1.cmml" xref="S3.p1.3.m1.1.1.3.3.3">subscript</csymbol><ci id="S3.p1.3.m1.1.1.3.3.3.2.cmml" xref="S3.p1.3.m1.1.1.3.3.3.2">𝑛</ci><ci id="S3.p1.3.m1.1.1.3.3.3.3.cmml" xref="S3.p1.3.m1.1.1.3.3.3.3">𝑘</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.3.m1.1c">\beta=\frac{\sum_{k\in S_{t}}n_{k}}{\eta n_{k}}</annotation></semantics></math> is a boost factor. Then we have</p>
+<table id="S3.Ex2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.Ex2.m1.3" class="ltx_Math" alttext="\Delta w_{t+1}=w^{*}+\eta\frac{\sum_{k\in S_{t},k\neq 1}n_{k}\Delta w^{k}_{t}}{\sum_{k\in S_{t}}n_{k}}," display="block"><semantics id="S3.Ex2.m1.3a"><mrow id="S3.Ex2.m1.3.3.1" xref="S3.Ex2.m1.3.3.1.1.cmml"><mrow id="S3.Ex2.m1.3.3.1.1" xref="S3.Ex2.m1.3.3.1.1.cmml"><mrow id="S3.Ex2.m1.3.3.1.1.2" xref="S3.Ex2.m1.3.3.1.1.2.cmml"><mi mathvariant="normal" id="S3.Ex2.m1.3.3.1.1.2.2" xref="S3.Ex2.m1.3.3.1.1.2.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S3.Ex2.m1.3.3.1.1.2.1" xref="S3.Ex2.m1.3.3.1.1.2.1.cmml">​</mo><msub id="S3.Ex2.m1.3.3.1.1.2.3" xref="S3.Ex2.m1.3.3.1.1.2.3.cmml"><mi id="S3.Ex2.m1.3.3.1.1.2.3.2" xref="S3.Ex2.m1.3.3.1.1.2.3.2.cmml">w</mi><mrow id="S3.Ex2.m1.3.3.1.1.2.3.3" xref="S3.Ex2.m1.3.3.1.1.2.3.3.cmml"><mi id="S3.Ex2.m1.3.3.1.1.2.3.3.2" xref="S3.Ex2.m1.3.3.1.1.2.3.3.2.cmml">t</mi><mo id="S3.Ex2.m1.3.3.1.1.2.3.3.1" xref="S3.Ex2.m1.3.3.1.1.2.3.3.1.cmml">+</mo><mn id="S3.Ex2.m1.3.3.1.1.2.3.3.3" xref="S3.Ex2.m1.3.3.1.1.2.3.3.3.cmml">1</mn></mrow></msub></mrow><mo id="S3.Ex2.m1.3.3.1.1.1" xref="S3.Ex2.m1.3.3.1.1.1.cmml">=</mo><mrow id="S3.Ex2.m1.3.3.1.1.3" xref="S3.Ex2.m1.3.3.1.1.3.cmml"><msup id="S3.Ex2.m1.3.3.1.1.3.2" xref="S3.Ex2.m1.3.3.1.1.3.2.cmml"><mi id="S3.Ex2.m1.3.3.1.1.3.2.2" xref="S3.Ex2.m1.3.3.1.1.3.2.2.cmml">w</mi><mo id="S3.Ex2.m1.3.3.1.1.3.2.3" xref="S3.Ex2.m1.3.3.1.1.3.2.3.cmml">∗</mo></msup><mo id="S3.Ex2.m1.3.3.1.1.3.1" xref="S3.Ex2.m1.3.3.1.1.3.1.cmml">+</mo><mrow id="S3.Ex2.m1.3.3.1.1.3.3" xref="S3.Ex2.m1.3.3.1.1.3.3.cmml"><mi id="S3.Ex2.m1.3.3.1.1.3.3.2" xref="S3.Ex2.m1.3.3.1.1.3.3.2.cmml">η</mi><mo lspace="0em" rspace="0em" id="S3.Ex2.m1.3.3.1.1.3.3.1" xref="S3.Ex2.m1.3.3.1.1.3.3.1.cmml">​</mo><mfrac id="S3.Ex2.m1.2.2" xref="S3.Ex2.m1.2.2.cmml"><mrow id="S3.Ex2.m1.2.2.2" xref="S3.Ex2.m1.2.2.2.cmml"><msub id="S3.Ex2.m1.2.2.2.3" xref="S3.Ex2.m1.2.2.2.3.cmml"><mo id="S3.Ex2.m1.2.2.2.3.2" xref="S3.Ex2.m1.2.2.2.3.2.cmml">∑</mo><mrow id="S3.Ex2.m1.2.2.2.2.2.2" xref="S3.Ex2.m1.2.2.2.2.2.3.cmml"><mrow id="S3.Ex2.m1.1.1.1.1.1.1.1" xref="S3.Ex2.m1.1.1.1.1.1.1.1.cmml"><mi id="S3.Ex2.m1.1.1.1.1.1.1.1.2" xref="S3.Ex2.m1.1.1.1.1.1.1.1.2.cmml">k</mi><mo id="S3.Ex2.m1.1.1.1.1.1.1.1.1" xref="S3.Ex2.m1.1.1.1.1.1.1.1.1.cmml">∈</mo><msub id="S3.Ex2.m1.1.1.1.1.1.1.1.3" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3.cmml"><mi id="S3.Ex2.m1.1.1.1.1.1.1.1.3.2" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3.2.cmml">S</mi><mi id="S3.Ex2.m1.1.1.1.1.1.1.1.3.3" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3.3.cmml">t</mi></msub></mrow><mo id="S3.Ex2.m1.2.2.2.2.2.2.3" xref="S3.Ex2.m1.2.2.2.2.2.3a.cmml">,</mo><mrow id="S3.Ex2.m1.2.2.2.2.2.2.2" xref="S3.Ex2.m1.2.2.2.2.2.2.2.cmml"><mi id="S3.Ex2.m1.2.2.2.2.2.2.2.2" xref="S3.Ex2.m1.2.2.2.2.2.2.2.2.cmml">k</mi><mo id="S3.Ex2.m1.2.2.2.2.2.2.2.1" xref="S3.Ex2.m1.2.2.2.2.2.2.2.1.cmml">≠</mo><mn id="S3.Ex2.m1.2.2.2.2.2.2.2.3" xref="S3.Ex2.m1.2.2.2.2.2.2.2.3.cmml">1</mn></mrow></mrow></msub><mrow id="S3.Ex2.m1.2.2.2.4" xref="S3.Ex2.m1.2.2.2.4.cmml"><msub id="S3.Ex2.m1.2.2.2.4.2" xref="S3.Ex2.m1.2.2.2.4.2.cmml"><mi id="S3.Ex2.m1.2.2.2.4.2.2" xref="S3.Ex2.m1.2.2.2.4.2.2.cmml">n</mi><mi id="S3.Ex2.m1.2.2.2.4.2.3" xref="S3.Ex2.m1.2.2.2.4.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S3.Ex2.m1.2.2.2.4.1" xref="S3.Ex2.m1.2.2.2.4.1.cmml">​</mo><mi mathvariant="normal" id="S3.Ex2.m1.2.2.2.4.3" xref="S3.Ex2.m1.2.2.2.4.3.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S3.Ex2.m1.2.2.2.4.1a" xref="S3.Ex2.m1.2.2.2.4.1.cmml">​</mo><msubsup id="S3.Ex2.m1.2.2.2.4.4" xref="S3.Ex2.m1.2.2.2.4.4.cmml"><mi id="S3.Ex2.m1.2.2.2.4.4.2.2" xref="S3.Ex2.m1.2.2.2.4.4.2.2.cmml">w</mi><mi id="S3.Ex2.m1.2.2.2.4.4.3" xref="S3.Ex2.m1.2.2.2.4.4.3.cmml">t</mi><mi id="S3.Ex2.m1.2.2.2.4.4.2.3" xref="S3.Ex2.m1.2.2.2.4.4.2.3.cmml">k</mi></msubsup></mrow></mrow><mrow id="S3.Ex2.m1.2.2.4" xref="S3.Ex2.m1.2.2.4.cmml"><msub id="S3.Ex2.m1.2.2.4.1" xref="S3.Ex2.m1.2.2.4.1.cmml"><mo id="S3.Ex2.m1.2.2.4.1.2" xref="S3.Ex2.m1.2.2.4.1.2.cmml">∑</mo><mrow id="S3.Ex2.m1.2.2.4.1.3" xref="S3.Ex2.m1.2.2.4.1.3.cmml"><mi id="S3.Ex2.m1.2.2.4.1.3.2" xref="S3.Ex2.m1.2.2.4.1.3.2.cmml">k</mi><mo id="S3.Ex2.m1.2.2.4.1.3.1" xref="S3.Ex2.m1.2.2.4.1.3.1.cmml">∈</mo><msub id="S3.Ex2.m1.2.2.4.1.3.3" xref="S3.Ex2.m1.2.2.4.1.3.3.cmml"><mi id="S3.Ex2.m1.2.2.4.1.3.3.2" xref="S3.Ex2.m1.2.2.4.1.3.3.2.cmml">S</mi><mi id="S3.Ex2.m1.2.2.4.1.3.3.3" xref="S3.Ex2.m1.2.2.4.1.3.3.3.cmml">t</mi></msub></mrow></msub><msub id="S3.Ex2.m1.2.2.4.2" xref="S3.Ex2.m1.2.2.4.2.cmml"><mi id="S3.Ex2.m1.2.2.4.2.2" xref="S3.Ex2.m1.2.2.4.2.2.cmml">n</mi><mi id="S3.Ex2.m1.2.2.4.2.3" xref="S3.Ex2.m1.2.2.4.2.3.cmml">k</mi></msub></mrow></mfrac></mrow></mrow></mrow><mo id="S3.Ex2.m1.3.3.1.2" xref="S3.Ex2.m1.3.3.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.Ex2.m1.3b"><apply id="S3.Ex2.m1.3.3.1.1.cmml" xref="S3.Ex2.m1.3.3.1"><eq id="S3.Ex2.m1.3.3.1.1.1.cmml" xref="S3.Ex2.m1.3.3.1.1.1"></eq><apply id="S3.Ex2.m1.3.3.1.1.2.cmml" xref="S3.Ex2.m1.3.3.1.1.2"><times id="S3.Ex2.m1.3.3.1.1.2.1.cmml" xref="S3.Ex2.m1.3.3.1.1.2.1"></times><ci id="S3.Ex2.m1.3.3.1.1.2.2.cmml" xref="S3.Ex2.m1.3.3.1.1.2.2">Δ</ci><apply id="S3.Ex2.m1.3.3.1.1.2.3.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3"><csymbol cd="ambiguous" id="S3.Ex2.m1.3.3.1.1.2.3.1.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3">subscript</csymbol><ci id="S3.Ex2.m1.3.3.1.1.2.3.2.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3.2">𝑤</ci><apply id="S3.Ex2.m1.3.3.1.1.2.3.3.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3.3"><plus id="S3.Ex2.m1.3.3.1.1.2.3.3.1.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3.3.1"></plus><ci id="S3.Ex2.m1.3.3.1.1.2.3.3.2.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3.3.2">𝑡</ci><cn type="integer" id="S3.Ex2.m1.3.3.1.1.2.3.3.3.cmml" xref="S3.Ex2.m1.3.3.1.1.2.3.3.3">1</cn></apply></apply></apply><apply id="S3.Ex2.m1.3.3.1.1.3.cmml" xref="S3.Ex2.m1.3.3.1.1.3"><plus id="S3.Ex2.m1.3.3.1.1.3.1.cmml" xref="S3.Ex2.m1.3.3.1.1.3.1"></plus><apply id="S3.Ex2.m1.3.3.1.1.3.2.cmml" xref="S3.Ex2.m1.3.3.1.1.3.2"><csymbol cd="ambiguous" id="S3.Ex2.m1.3.3.1.1.3.2.1.cmml" xref="S3.Ex2.m1.3.3.1.1.3.2">superscript</csymbol><ci id="S3.Ex2.m1.3.3.1.1.3.2.2.cmml" xref="S3.Ex2.m1.3.3.1.1.3.2.2">𝑤</ci><times id="S3.Ex2.m1.3.3.1.1.3.2.3.cmml" xref="S3.Ex2.m1.3.3.1.1.3.2.3"></times></apply><apply id="S3.Ex2.m1.3.3.1.1.3.3.cmml" xref="S3.Ex2.m1.3.3.1.1.3.3"><times id="S3.Ex2.m1.3.3.1.1.3.3.1.cmml" xref="S3.Ex2.m1.3.3.1.1.3.3.1"></times><ci id="S3.Ex2.m1.3.3.1.1.3.3.2.cmml" xref="S3.Ex2.m1.3.3.1.1.3.3.2">𝜂</ci><apply id="S3.Ex2.m1.2.2.cmml" xref="S3.Ex2.m1.2.2"><divide id="S3.Ex2.m1.2.2.3.cmml" xref="S3.Ex2.m1.2.2"></divide><apply id="S3.Ex2.m1.2.2.2.cmml" xref="S3.Ex2.m1.2.2.2"><apply id="S3.Ex2.m1.2.2.2.3.cmml" xref="S3.Ex2.m1.2.2.2.3"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.2.3.1.cmml" xref="S3.Ex2.m1.2.2.2.3">subscript</csymbol><sum id="S3.Ex2.m1.2.2.2.3.2.cmml" xref="S3.Ex2.m1.2.2.2.3.2"></sum><apply id="S3.Ex2.m1.2.2.2.2.2.3.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.2.2.2.3a.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2.3">formulae-sequence</csymbol><apply id="S3.Ex2.m1.1.1.1.1.1.1.1.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1"><in id="S3.Ex2.m1.1.1.1.1.1.1.1.1.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.1"></in><ci id="S3.Ex2.m1.1.1.1.1.1.1.1.2.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.2">𝑘</ci><apply id="S3.Ex2.m1.1.1.1.1.1.1.1.3.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S3.Ex2.m1.1.1.1.1.1.1.1.3.1.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S3.Ex2.m1.1.1.1.1.1.1.1.3.2.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3.2">𝑆</ci><ci id="S3.Ex2.m1.1.1.1.1.1.1.1.3.3.cmml" xref="S3.Ex2.m1.1.1.1.1.1.1.1.3.3">𝑡</ci></apply></apply><apply id="S3.Ex2.m1.2.2.2.2.2.2.2.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2.2"><neq id="S3.Ex2.m1.2.2.2.2.2.2.2.1.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2.2.1"></neq><ci id="S3.Ex2.m1.2.2.2.2.2.2.2.2.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2.2.2">𝑘</ci><cn type="integer" id="S3.Ex2.m1.2.2.2.2.2.2.2.3.cmml" xref="S3.Ex2.m1.2.2.2.2.2.2.2.3">1</cn></apply></apply></apply><apply id="S3.Ex2.m1.2.2.2.4.cmml" xref="S3.Ex2.m1.2.2.2.4"><times id="S3.Ex2.m1.2.2.2.4.1.cmml" xref="S3.Ex2.m1.2.2.2.4.1"></times><apply id="S3.Ex2.m1.2.2.2.4.2.cmml" xref="S3.Ex2.m1.2.2.2.4.2"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.2.4.2.1.cmml" xref="S3.Ex2.m1.2.2.2.4.2">subscript</csymbol><ci id="S3.Ex2.m1.2.2.2.4.2.2.cmml" xref="S3.Ex2.m1.2.2.2.4.2.2">𝑛</ci><ci id="S3.Ex2.m1.2.2.2.4.2.3.cmml" xref="S3.Ex2.m1.2.2.2.4.2.3">𝑘</ci></apply><ci id="S3.Ex2.m1.2.2.2.4.3.cmml" xref="S3.Ex2.m1.2.2.2.4.3">Δ</ci><apply id="S3.Ex2.m1.2.2.2.4.4.cmml" xref="S3.Ex2.m1.2.2.2.4.4"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.2.4.4.1.cmml" xref="S3.Ex2.m1.2.2.2.4.4">subscript</csymbol><apply id="S3.Ex2.m1.2.2.2.4.4.2.cmml" xref="S3.Ex2.m1.2.2.2.4.4"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.2.4.4.2.1.cmml" xref="S3.Ex2.m1.2.2.2.4.4">superscript</csymbol><ci id="S3.Ex2.m1.2.2.2.4.4.2.2.cmml" xref="S3.Ex2.m1.2.2.2.4.4.2.2">𝑤</ci><ci id="S3.Ex2.m1.2.2.2.4.4.2.3.cmml" xref="S3.Ex2.m1.2.2.2.4.4.2.3">𝑘</ci></apply><ci id="S3.Ex2.m1.2.2.2.4.4.3.cmml" xref="S3.Ex2.m1.2.2.2.4.4.3">𝑡</ci></apply></apply></apply><apply id="S3.Ex2.m1.2.2.4.cmml" xref="S3.Ex2.m1.2.2.4"><apply id="S3.Ex2.m1.2.2.4.1.cmml" xref="S3.Ex2.m1.2.2.4.1"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.4.1.1.cmml" xref="S3.Ex2.m1.2.2.4.1">subscript</csymbol><sum id="S3.Ex2.m1.2.2.4.1.2.cmml" xref="S3.Ex2.m1.2.2.4.1.2"></sum><apply id="S3.Ex2.m1.2.2.4.1.3.cmml" xref="S3.Ex2.m1.2.2.4.1.3"><in id="S3.Ex2.m1.2.2.4.1.3.1.cmml" xref="S3.Ex2.m1.2.2.4.1.3.1"></in><ci id="S3.Ex2.m1.2.2.4.1.3.2.cmml" xref="S3.Ex2.m1.2.2.4.1.3.2">𝑘</ci><apply id="S3.Ex2.m1.2.2.4.1.3.3.cmml" xref="S3.Ex2.m1.2.2.4.1.3.3"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.4.1.3.3.1.cmml" xref="S3.Ex2.m1.2.2.4.1.3.3">subscript</csymbol><ci id="S3.Ex2.m1.2.2.4.1.3.3.2.cmml" xref="S3.Ex2.m1.2.2.4.1.3.3.2">𝑆</ci><ci id="S3.Ex2.m1.2.2.4.1.3.3.3.cmml" xref="S3.Ex2.m1.2.2.4.1.3.3.3">𝑡</ci></apply></apply></apply><apply id="S3.Ex2.m1.2.2.4.2.cmml" xref="S3.Ex2.m1.2.2.4.2"><csymbol cd="ambiguous" id="S3.Ex2.m1.2.2.4.2.1.cmml" xref="S3.Ex2.m1.2.2.4.2">subscript</csymbol><ci id="S3.Ex2.m1.2.2.4.2.2.cmml" xref="S3.Ex2.m1.2.2.4.2.2">𝑛</ci><ci id="S3.Ex2.m1.2.2.4.2.3.cmml" xref="S3.Ex2.m1.2.2.4.2.3">𝑘</ci></apply></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.Ex2.m1.3c">\Delta w_{t+1}=w^{*}+\eta\frac{\sum_{k\in S_{t},k\neq 1}n_{k}\Delta w^{k}_{t}}{\sum_{k\in S_{t}}n_{k}},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S3.p1.6" class="ltx_p">which will be in a small neighbourhood of <math id="S3.p1.4.m1.1" class="ltx_Math" alttext="w^{*}" display="inline"><semantics id="S3.p1.4.m1.1a"><msup id="S3.p1.4.m1.1.1" xref="S3.p1.4.m1.1.1.cmml"><mi id="S3.p1.4.m1.1.1.2" xref="S3.p1.4.m1.1.1.2.cmml">w</mi><mo id="S3.p1.4.m1.1.1.3" xref="S3.p1.4.m1.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S3.p1.4.m1.1b"><apply id="S3.p1.4.m1.1.1.cmml" xref="S3.p1.4.m1.1.1"><csymbol cd="ambiguous" id="S3.p1.4.m1.1.1.1.cmml" xref="S3.p1.4.m1.1.1">superscript</csymbol><ci id="S3.p1.4.m1.1.1.2.cmml" xref="S3.p1.4.m1.1.1.2">𝑤</ci><times id="S3.p1.4.m1.1.1.3.cmml" xref="S3.p1.4.m1.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.4.m1.1c">w^{*}</annotation></semantics></math> if we assume the model has sufficiently converged and hence the other updates <math id="S3.p1.5.m2.1" class="ltx_Math" alttext="\Delta w^{k}_{t}" display="inline"><semantics id="S3.p1.5.m2.1a"><mrow id="S3.p1.5.m2.1.1" xref="S3.p1.5.m2.1.1.cmml"><mi mathvariant="normal" id="S3.p1.5.m2.1.1.2" xref="S3.p1.5.m2.1.1.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S3.p1.5.m2.1.1.1" xref="S3.p1.5.m2.1.1.1.cmml">​</mo><msubsup id="S3.p1.5.m2.1.1.3" xref="S3.p1.5.m2.1.1.3.cmml"><mi id="S3.p1.5.m2.1.1.3.2.2" xref="S3.p1.5.m2.1.1.3.2.2.cmml">w</mi><mi id="S3.p1.5.m2.1.1.3.3" xref="S3.p1.5.m2.1.1.3.3.cmml">t</mi><mi id="S3.p1.5.m2.1.1.3.2.3" xref="S3.p1.5.m2.1.1.3.2.3.cmml">k</mi></msubsup></mrow><annotation-xml encoding="MathML-Content" id="S3.p1.5.m2.1b"><apply id="S3.p1.5.m2.1.1.cmml" xref="S3.p1.5.m2.1.1"><times id="S3.p1.5.m2.1.1.1.cmml" xref="S3.p1.5.m2.1.1.1"></times><ci id="S3.p1.5.m2.1.1.2.cmml" xref="S3.p1.5.m2.1.1.2">Δ</ci><apply id="S3.p1.5.m2.1.1.3.cmml" xref="S3.p1.5.m2.1.1.3"><csymbol cd="ambiguous" id="S3.p1.5.m2.1.1.3.1.cmml" xref="S3.p1.5.m2.1.1.3">subscript</csymbol><apply id="S3.p1.5.m2.1.1.3.2.cmml" xref="S3.p1.5.m2.1.1.3"><csymbol cd="ambiguous" id="S3.p1.5.m2.1.1.3.2.1.cmml" xref="S3.p1.5.m2.1.1.3">superscript</csymbol><ci id="S3.p1.5.m2.1.1.3.2.2.cmml" xref="S3.p1.5.m2.1.1.3.2.2">𝑤</ci><ci id="S3.p1.5.m2.1.1.3.2.3.cmml" xref="S3.p1.5.m2.1.1.3.2.3">𝑘</ci></apply><ci id="S3.p1.5.m2.1.1.3.3.cmml" xref="S3.p1.5.m2.1.1.3.3">𝑡</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.5.m2.1c">\Delta w^{k}_{t}</annotation></semantics></math> for <math id="S3.p1.6.m3.1" class="ltx_Math" alttext="k&gt;1" display="inline"><semantics id="S3.p1.6.m3.1a"><mrow id="S3.p1.6.m3.1.1" xref="S3.p1.6.m3.1.1.cmml"><mi id="S3.p1.6.m3.1.1.2" xref="S3.p1.6.m3.1.1.2.cmml">k</mi><mo id="S3.p1.6.m3.1.1.1" xref="S3.p1.6.m3.1.1.1.cmml">&gt;</mo><mn id="S3.p1.6.m3.1.1.3" xref="S3.p1.6.m3.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.p1.6.m3.1b"><apply id="S3.p1.6.m3.1.1.cmml" xref="S3.p1.6.m3.1.1"><gt id="S3.p1.6.m3.1.1.1.cmml" xref="S3.p1.6.m3.1.1.1"></gt><ci id="S3.p1.6.m3.1.1.2.cmml" xref="S3.p1.6.m3.1.1.2">𝑘</ci><cn type="integer" id="S3.p1.6.m3.1.1.3.cmml" xref="S3.p1.6.m3.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.6.m3.1c">k&gt;1</annotation></semantics></math> are small. If multiple attackers appear in the same round, we assume that they can coordinate with each other and divide this update evenly.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.3" class="ltx_p"><span id="S3.p2.3.1" class="ltx_text ltx_font_bold">Obtaining a backdoored model.</span> To obtain a backdoored model <math id="S3.p2.1.m1.1" class="ltx_Math" alttext="w^{*}" display="inline"><semantics id="S3.p2.1.m1.1a"><msup id="S3.p2.1.m1.1.1" xref="S3.p2.1.m1.1.1.cmml"><mi id="S3.p2.1.m1.1.1.2" xref="S3.p2.1.m1.1.1.2.cmml">w</mi><mo id="S3.p2.1.m1.1.1.3" xref="S3.p2.1.m1.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S3.p2.1.m1.1b"><apply id="S3.p2.1.m1.1.1.cmml" xref="S3.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p2.1.m1.1.1.1.cmml" xref="S3.p2.1.m1.1.1">superscript</csymbol><ci id="S3.p2.1.m1.1.1.2.cmml" xref="S3.p2.1.m1.1.1.2">𝑤</ci><times id="S3.p2.1.m1.1.1.3.cmml" xref="S3.p2.1.m1.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.1.m1.1c">w^{*}</annotation></semantics></math>, we assume that the attacker has a set <math id="S3.p2.2.m2.1" class="ltx_Math" alttext="D_{\text{mal}}" display="inline"><semantics id="S3.p2.2.m2.1a"><msub id="S3.p2.2.m2.1.1" xref="S3.p2.2.m2.1.1.cmml"><mi id="S3.p2.2.m2.1.1.2" xref="S3.p2.2.m2.1.1.2.cmml">D</mi><mtext id="S3.p2.2.m2.1.1.3" xref="S3.p2.2.m2.1.1.3a.cmml">mal</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.p2.2.m2.1b"><apply id="S3.p2.2.m2.1.1.cmml" xref="S3.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S3.p2.2.m2.1.1.1.cmml" xref="S3.p2.2.m2.1.1">subscript</csymbol><ci id="S3.p2.2.m2.1.1.2.cmml" xref="S3.p2.2.m2.1.1.2">𝐷</ci><ci id="S3.p2.2.m2.1.1.3a.cmml" xref="S3.p2.2.m2.1.1.3"><mtext mathsize="70%" id="S3.p2.2.m2.1.1.3.cmml" xref="S3.p2.2.m2.1.1.3">mal</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.2.m2.1c">D_{\text{mal}}</annotation></semantics></math> which describes the backdoor task – for example, different kinds of green cars labeled as birds. We also assume the attacker has a set of training samples generated from the true distribution <math id="S3.p2.3.m3.1" class="ltx_Math" alttext="D_{\text{trn}}" display="inline"><semantics id="S3.p2.3.m3.1a"><msub id="S3.p2.3.m3.1.1" xref="S3.p2.3.m3.1.1.cmml"><mi id="S3.p2.3.m3.1.1.2" xref="S3.p2.3.m3.1.1.2.cmml">D</mi><mtext id="S3.p2.3.m3.1.1.3" xref="S3.p2.3.m3.1.1.3a.cmml">trn</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.p2.3.m3.1b"><apply id="S3.p2.3.m3.1.1.cmml" xref="S3.p2.3.m3.1.1"><csymbol cd="ambiguous" id="S3.p2.3.m3.1.1.1.cmml" xref="S3.p2.3.m3.1.1">subscript</csymbol><ci id="S3.p2.3.m3.1.1.2.cmml" xref="S3.p2.3.m3.1.1.2">𝐷</ci><ci id="S3.p2.3.m3.1.1.3a.cmml" xref="S3.p2.3.m3.1.1.3"><mtext mathsize="70%" id="S3.p2.3.m3.1.1.3.cmml" xref="S3.p2.3.m3.1.1.3">trn</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p2.3.m3.1c">D_{\text{trn}}</annotation></semantics></math>. Note that for practical applications, such data may be harder for the attacker to obtain.</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.5" class="ltx_p"><span id="S3.p3.5.1" class="ltx_text ltx_font_bold">Unconstrained boosted backdoor attack. </span> In this case, the adversary trains a model <math id="S3.p3.1.m1.1" class="ltx_Math" alttext="w^{*}" display="inline"><semantics id="S3.p3.1.m1.1a"><msup id="S3.p3.1.m1.1.1" xref="S3.p3.1.m1.1.1.cmml"><mi id="S3.p3.1.m1.1.1.2" xref="S3.p3.1.m1.1.1.2.cmml">w</mi><mo id="S3.p3.1.m1.1.1.3" xref="S3.p3.1.m1.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S3.p3.1.m1.1b"><apply id="S3.p3.1.m1.1.1.cmml" xref="S3.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S3.p3.1.m1.1.1.1.cmml" xref="S3.p3.1.m1.1.1">superscript</csymbol><ci id="S3.p3.1.m1.1.1.2.cmml" xref="S3.p3.1.m1.1.1.2">𝑤</ci><times id="S3.p3.1.m1.1.1.3.cmml" xref="S3.p3.1.m1.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.1.m1.1c">w^{*}</annotation></semantics></math> based on <math id="S3.p3.2.m2.2" class="ltx_Math" alttext="w_{t},D_{\text{mal}}" display="inline"><semantics id="S3.p3.2.m2.2a"><mrow id="S3.p3.2.m2.2.2.2" xref="S3.p3.2.m2.2.2.3.cmml"><msub id="S3.p3.2.m2.1.1.1.1" xref="S3.p3.2.m2.1.1.1.1.cmml"><mi id="S3.p3.2.m2.1.1.1.1.2" xref="S3.p3.2.m2.1.1.1.1.2.cmml">w</mi><mi id="S3.p3.2.m2.1.1.1.1.3" xref="S3.p3.2.m2.1.1.1.1.3.cmml">t</mi></msub><mo id="S3.p3.2.m2.2.2.2.3" xref="S3.p3.2.m2.2.2.3.cmml">,</mo><msub id="S3.p3.2.m2.2.2.2.2" xref="S3.p3.2.m2.2.2.2.2.cmml"><mi id="S3.p3.2.m2.2.2.2.2.2" xref="S3.p3.2.m2.2.2.2.2.2.cmml">D</mi><mtext id="S3.p3.2.m2.2.2.2.2.3" xref="S3.p3.2.m2.2.2.2.2.3a.cmml">mal</mtext></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.p3.2.m2.2b"><list id="S3.p3.2.m2.2.2.3.cmml" xref="S3.p3.2.m2.2.2.2"><apply id="S3.p3.2.m2.1.1.1.1.cmml" xref="S3.p3.2.m2.1.1.1.1"><csymbol cd="ambiguous" id="S3.p3.2.m2.1.1.1.1.1.cmml" xref="S3.p3.2.m2.1.1.1.1">subscript</csymbol><ci id="S3.p3.2.m2.1.1.1.1.2.cmml" xref="S3.p3.2.m2.1.1.1.1.2">𝑤</ci><ci id="S3.p3.2.m2.1.1.1.1.3.cmml" xref="S3.p3.2.m2.1.1.1.1.3">𝑡</ci></apply><apply id="S3.p3.2.m2.2.2.2.2.cmml" xref="S3.p3.2.m2.2.2.2.2"><csymbol cd="ambiguous" id="S3.p3.2.m2.2.2.2.2.1.cmml" xref="S3.p3.2.m2.2.2.2.2">subscript</csymbol><ci id="S3.p3.2.m2.2.2.2.2.2.cmml" xref="S3.p3.2.m2.2.2.2.2.2">𝐷</ci><ci id="S3.p3.2.m2.2.2.2.2.3a.cmml" xref="S3.p3.2.m2.2.2.2.2.3"><mtext mathsize="70%" id="S3.p3.2.m2.2.2.2.2.3.cmml" xref="S3.p3.2.m2.2.2.2.2.3">mal</mtext></ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.2.m2.2c">w_{t},D_{\text{mal}}</annotation></semantics></math> and <math id="S3.p3.3.m3.1" class="ltx_Math" alttext="D_{\text{trn}}" display="inline"><semantics id="S3.p3.3.m3.1a"><msub id="S3.p3.3.m3.1.1" xref="S3.p3.3.m3.1.1.cmml"><mi id="S3.p3.3.m3.1.1.2" xref="S3.p3.3.m3.1.1.2.cmml">D</mi><mtext id="S3.p3.3.m3.1.1.3" xref="S3.p3.3.m3.1.1.3a.cmml">trn</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.p3.3.m3.1b"><apply id="S3.p3.3.m3.1.1.cmml" xref="S3.p3.3.m3.1.1"><csymbol cd="ambiguous" id="S3.p3.3.m3.1.1.1.cmml" xref="S3.p3.3.m3.1.1">subscript</csymbol><ci id="S3.p3.3.m3.1.1.2.cmml" xref="S3.p3.3.m3.1.1.2">𝐷</ci><ci id="S3.p3.3.m3.1.1.3a.cmml" xref="S3.p3.3.m3.1.1.3"><mtext mathsize="70%" id="S3.p3.3.m3.1.1.3.cmml" xref="S3.p3.3.m3.1.1.3">trn</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.3.m3.1c">D_{\text{trn}}</annotation></semantics></math> without any constraints and sends the update based on (<a href="#S3.E1" title="In 3 Model Update Poisoning Attacks ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) back to the service provider. One popular training strategy is to initialize with <math id="S3.p3.4.m4.1" class="ltx_Math" alttext="w_{t}" display="inline"><semantics id="S3.p3.4.m4.1a"><msub id="S3.p3.4.m4.1.1" xref="S3.p3.4.m4.1.1.cmml"><mi id="S3.p3.4.m4.1.1.2" xref="S3.p3.4.m4.1.1.2.cmml">w</mi><mi id="S3.p3.4.m4.1.1.3" xref="S3.p3.4.m4.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p3.4.m4.1b"><apply id="S3.p3.4.m4.1.1.cmml" xref="S3.p3.4.m4.1.1"><csymbol cd="ambiguous" id="S3.p3.4.m4.1.1.1.cmml" xref="S3.p3.4.m4.1.1">subscript</csymbol><ci id="S3.p3.4.m4.1.1.2.cmml" xref="S3.p3.4.m4.1.1.2">𝑤</ci><ci id="S3.p3.4.m4.1.1.3.cmml" xref="S3.p3.4.m4.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.4.m4.1c">w_{t}</annotation></semantics></math> and train the model with <math id="S3.p3.5.m5.1" class="ltx_Math" alttext="D_{\text{trn}}\cup D_{\text{mal}}" display="inline"><semantics id="S3.p3.5.m5.1a"><mrow id="S3.p3.5.m5.1.1" xref="S3.p3.5.m5.1.1.cmml"><msub id="S3.p3.5.m5.1.1.2" xref="S3.p3.5.m5.1.1.2.cmml"><mi id="S3.p3.5.m5.1.1.2.2" xref="S3.p3.5.m5.1.1.2.2.cmml">D</mi><mtext id="S3.p3.5.m5.1.1.2.3" xref="S3.p3.5.m5.1.1.2.3a.cmml">trn</mtext></msub><mo id="S3.p3.5.m5.1.1.1" xref="S3.p3.5.m5.1.1.1.cmml">∪</mo><msub id="S3.p3.5.m5.1.1.3" xref="S3.p3.5.m5.1.1.3.cmml"><mi id="S3.p3.5.m5.1.1.3.2" xref="S3.p3.5.m5.1.1.3.2.cmml">D</mi><mtext id="S3.p3.5.m5.1.1.3.3" xref="S3.p3.5.m5.1.1.3.3a.cmml">mal</mtext></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.p3.5.m5.1b"><apply id="S3.p3.5.m5.1.1.cmml" xref="S3.p3.5.m5.1.1"><union id="S3.p3.5.m5.1.1.1.cmml" xref="S3.p3.5.m5.1.1.1"></union><apply id="S3.p3.5.m5.1.1.2.cmml" xref="S3.p3.5.m5.1.1.2"><csymbol cd="ambiguous" id="S3.p3.5.m5.1.1.2.1.cmml" xref="S3.p3.5.m5.1.1.2">subscript</csymbol><ci id="S3.p3.5.m5.1.1.2.2.cmml" xref="S3.p3.5.m5.1.1.2.2">𝐷</ci><ci id="S3.p3.5.m5.1.1.2.3a.cmml" xref="S3.p3.5.m5.1.1.2.3"><mtext mathsize="70%" id="S3.p3.5.m5.1.1.2.3.cmml" xref="S3.p3.5.m5.1.1.2.3">trn</mtext></ci></apply><apply id="S3.p3.5.m5.1.1.3.cmml" xref="S3.p3.5.m5.1.1.3"><csymbol cd="ambiguous" id="S3.p3.5.m5.1.1.3.1.cmml" xref="S3.p3.5.m5.1.1.3">subscript</csymbol><ci id="S3.p3.5.m5.1.1.3.2.cmml" xref="S3.p3.5.m5.1.1.3.2">𝐷</ci><ci id="S3.p3.5.m5.1.1.3.3a.cmml" xref="S3.p3.5.m5.1.1.3.3"><mtext mathsize="70%" id="S3.p3.5.m5.1.1.3.3.cmml" xref="S3.p3.5.m5.1.1.3.3">mal</mtext></ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p3.5.m5.1c">D_{\text{trn}}\cup D_{\text{mal}}</annotation></semantics></math> for a few epoches. This attack generally results in a large update norm and can serve as a baseline.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.6" class="ltx_p"><span id="S3.p4.6.1" class="ltx_text ltx_font_bold">Norm bounded backdoor attack.</span> Unconstrained backdoor attacks can be defended by norm clipping as discussed below. To overcome this, we consider the norm bounded backdoor attack. Here at each round, the model trains on the backdoor task subject to the constraint that the model update is smaller than <math id="S3.p4.1.m1.1" class="ltx_Math" alttext="M/\beta" display="inline"><semantics id="S3.p4.1.m1.1a"><mrow id="S3.p4.1.m1.1.1" xref="S3.p4.1.m1.1.1.cmml"><mi id="S3.p4.1.m1.1.1.2" xref="S3.p4.1.m1.1.1.2.cmml">M</mi><mo id="S3.p4.1.m1.1.1.1" xref="S3.p4.1.m1.1.1.1.cmml">/</mo><mi id="S3.p4.1.m1.1.1.3" xref="S3.p4.1.m1.1.1.3.cmml">β</mi></mrow><annotation-xml encoding="MathML-Content" id="S3.p4.1.m1.1b"><apply id="S3.p4.1.m1.1.1.cmml" xref="S3.p4.1.m1.1.1"><divide id="S3.p4.1.m1.1.1.1.cmml" xref="S3.p4.1.m1.1.1.1"></divide><ci id="S3.p4.1.m1.1.1.2.cmml" xref="S3.p4.1.m1.1.1.2">𝑀</ci><ci id="S3.p4.1.m1.1.1.3.cmml" xref="S3.p4.1.m1.1.1.3">𝛽</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.1.m1.1c">M/\beta</annotation></semantics></math>. Thus, model update has norm bounded by <math id="S3.p4.2.m2.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.p4.2.m2.1a"><mi id="S3.p4.2.m2.1.1" xref="S3.p4.2.m2.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.p4.2.m2.1b"><ci id="S3.p4.2.m2.1.1.cmml" xref="S3.p4.2.m2.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.2.m2.1c">M</annotation></semantics></math> after boosted by a factor of <math id="S3.p4.3.m3.1" class="ltx_Math" alttext="\beta" display="inline"><semantics id="S3.p4.3.m3.1a"><mi id="S3.p4.3.m3.1.1" xref="S3.p4.3.m3.1.1.cmml">β</mi><annotation-xml encoding="MathML-Content" id="S3.p4.3.m3.1b"><ci id="S3.p4.3.m3.1.1.cmml" xref="S3.p4.3.m3.1.1">𝛽</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.3.m3.1c">\beta</annotation></semantics></math>. This can be done by training the model using multiple rounds of projected gradient descent, where in each round we train the model using the unconstrainted training strategy and project it back to the <math id="S3.p4.4.m4.1" class="ltx_Math" alttext="\ell_{2}" display="inline"><semantics id="S3.p4.4.m4.1a"><msub id="S3.p4.4.m4.1.1" xref="S3.p4.4.m4.1.1.cmml"><mi mathvariant="normal" id="S3.p4.4.m4.1.1.2" xref="S3.p4.4.m4.1.1.2.cmml">ℓ</mi><mn id="S3.p4.4.m4.1.1.3" xref="S3.p4.4.m4.1.1.3.cmml">2</mn></msub><annotation-xml encoding="MathML-Content" id="S3.p4.4.m4.1b"><apply id="S3.p4.4.m4.1.1.cmml" xref="S3.p4.4.m4.1.1"><csymbol cd="ambiguous" id="S3.p4.4.m4.1.1.1.cmml" xref="S3.p4.4.m4.1.1">subscript</csymbol><ci id="S3.p4.4.m4.1.1.2.cmml" xref="S3.p4.4.m4.1.1.2">ℓ</ci><cn type="integer" id="S3.p4.4.m4.1.1.3.cmml" xref="S3.p4.4.m4.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.4.m4.1c">\ell_{2}</annotation></semantics></math> ball of size <math id="S3.p4.5.m5.1" class="ltx_Math" alttext="M/\beta" display="inline"><semantics id="S3.p4.5.m5.1a"><mrow id="S3.p4.5.m5.1.1" xref="S3.p4.5.m5.1.1.cmml"><mi id="S3.p4.5.m5.1.1.2" xref="S3.p4.5.m5.1.1.2.cmml">M</mi><mo id="S3.p4.5.m5.1.1.1" xref="S3.p4.5.m5.1.1.1.cmml">/</mo><mi id="S3.p4.5.m5.1.1.3" xref="S3.p4.5.m5.1.1.3.cmml">β</mi></mrow><annotation-xml encoding="MathML-Content" id="S3.p4.5.m5.1b"><apply id="S3.p4.5.m5.1.1.cmml" xref="S3.p4.5.m5.1.1"><divide id="S3.p4.5.m5.1.1.1.cmml" xref="S3.p4.5.m5.1.1.1"></divide><ci id="S3.p4.5.m5.1.1.2.cmml" xref="S3.p4.5.m5.1.1.2">𝑀</ci><ci id="S3.p4.5.m5.1.1.3.cmml" xref="S3.p4.5.m5.1.1.3">𝛽</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.5.m5.1c">M/\beta</annotation></semantics></math> around <math id="S3.p4.6.m6.1" class="ltx_Math" alttext="w_{t}" display="inline"><semantics id="S3.p4.6.m6.1a"><msub id="S3.p4.6.m6.1.1" xref="S3.p4.6.m6.1.1.cmml"><mi id="S3.p4.6.m6.1.1.2" xref="S3.p4.6.m6.1.1.2.cmml">w</mi><mi id="S3.p4.6.m6.1.1.3" xref="S3.p4.6.m6.1.1.3.cmml">t</mi></msub><annotation-xml encoding="MathML-Content" id="S3.p4.6.m6.1b"><apply id="S3.p4.6.m6.1.1.cmml" xref="S3.p4.6.m6.1.1"><csymbol cd="ambiguous" id="S3.p4.6.m6.1.1.1.cmml" xref="S3.p4.6.m6.1.1">subscript</csymbol><ci id="S3.p4.6.m6.1.1.2.cmml" xref="S3.p4.6.m6.1.1.2">𝑤</ci><ci id="S3.p4.6.m6.1.1.3.cmml" xref="S3.p4.6.m6.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.6.m6.1c">w_{t}</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Defenses</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">We consider the following defenses for backdoor attacks.</p>
+</div>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.3" class="ltx_p"><span id="S4.p2.3.1" class="ltx_text ltx_font_bold">Norm thresholding of updates</span>. Since boosted attacks are likely to produce updates with large norms, a reasonable defense is for the server to simply ignore updates whose norm is above some threshold <math id="S4.p2.1.m1.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S4.p2.1.m1.1a"><mi id="S4.p2.1.m1.1.1" xref="S4.p2.1.m1.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S4.p2.1.m1.1b"><ci id="S4.p2.1.m1.1.1.cmml" xref="S4.p2.1.m1.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.1.m1.1c">M</annotation></semantics></math>; in more complex schemes <math id="S4.p2.2.m2.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S4.p2.2.m2.1a"><mi id="S4.p2.2.m2.1.1" xref="S4.p2.2.m2.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S4.p2.2.m2.1b"><ci id="S4.p2.2.m2.1.1.cmml" xref="S4.p2.2.m2.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.2.m2.1c">M</annotation></semantics></math> could even be chosen in randomized fashion. However, in the spirit of investigating what a strong adversary might accomplish, we assume the adversary knows the threshold <math id="S4.p2.3.m3.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S4.p2.3.m3.1a"><mi id="S4.p2.3.m3.1.1" xref="S4.p2.3.m3.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S4.p2.3.m3.1b"><ci id="S4.p2.3.m3.1.1.cmml" xref="S4.p2.3.m3.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.3.m3.1c">M</annotation></semantics></math>, and can hence always return malicious updates within this magnitude. Giving this strong advantage to the adversary makes the norm-bounding defense equivalent to the following norm-clipping approach:</p>
+<table id="S4.Ex3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex3.m1.4" class="ltx_Math" alttext="\Delta w_{t+1}=\sum_{k\in S_{t}}\frac{\Delta w^{k}_{t+1}}{\max(1,||\Delta w^{k}_{t+1}||_{2}/M)}." display="block"><semantics id="S4.Ex3.m1.4a"><mrow id="S4.Ex3.m1.4.4.1" xref="S4.Ex3.m1.4.4.1.1.cmml"><mrow id="S4.Ex3.m1.4.4.1.1" xref="S4.Ex3.m1.4.4.1.1.cmml"><mrow id="S4.Ex3.m1.4.4.1.1.2" xref="S4.Ex3.m1.4.4.1.1.2.cmml"><mi mathvariant="normal" id="S4.Ex3.m1.4.4.1.1.2.2" xref="S4.Ex3.m1.4.4.1.1.2.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S4.Ex3.m1.4.4.1.1.2.1" xref="S4.Ex3.m1.4.4.1.1.2.1.cmml">​</mo><msub id="S4.Ex3.m1.4.4.1.1.2.3" xref="S4.Ex3.m1.4.4.1.1.2.3.cmml"><mi id="S4.Ex3.m1.4.4.1.1.2.3.2" xref="S4.Ex3.m1.4.4.1.1.2.3.2.cmml">w</mi><mrow id="S4.Ex3.m1.4.4.1.1.2.3.3" xref="S4.Ex3.m1.4.4.1.1.2.3.3.cmml"><mi id="S4.Ex3.m1.4.4.1.1.2.3.3.2" xref="S4.Ex3.m1.4.4.1.1.2.3.3.2.cmml">t</mi><mo id="S4.Ex3.m1.4.4.1.1.2.3.3.1" xref="S4.Ex3.m1.4.4.1.1.2.3.3.1.cmml">+</mo><mn id="S4.Ex3.m1.4.4.1.1.2.3.3.3" xref="S4.Ex3.m1.4.4.1.1.2.3.3.3.cmml">1</mn></mrow></msub></mrow><mo rspace="0.111em" id="S4.Ex3.m1.4.4.1.1.1" xref="S4.Ex3.m1.4.4.1.1.1.cmml">=</mo><mrow id="S4.Ex3.m1.4.4.1.1.3" xref="S4.Ex3.m1.4.4.1.1.3.cmml"><munder id="S4.Ex3.m1.4.4.1.1.3.1" xref="S4.Ex3.m1.4.4.1.1.3.1.cmml"><mo movablelimits="false" id="S4.Ex3.m1.4.4.1.1.3.1.2" xref="S4.Ex3.m1.4.4.1.1.3.1.2.cmml">∑</mo><mrow id="S4.Ex3.m1.4.4.1.1.3.1.3" xref="S4.Ex3.m1.4.4.1.1.3.1.3.cmml"><mi id="S4.Ex3.m1.4.4.1.1.3.1.3.2" xref="S4.Ex3.m1.4.4.1.1.3.1.3.2.cmml">k</mi><mo id="S4.Ex3.m1.4.4.1.1.3.1.3.1" xref="S4.Ex3.m1.4.4.1.1.3.1.3.1.cmml">∈</mo><msub id="S4.Ex3.m1.4.4.1.1.3.1.3.3" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3.cmml"><mi id="S4.Ex3.m1.4.4.1.1.3.1.3.3.2" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3.2.cmml">S</mi><mi id="S4.Ex3.m1.4.4.1.1.3.1.3.3.3" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3.3.cmml">t</mi></msub></mrow></munder><mfrac id="S4.Ex3.m1.3.3" xref="S4.Ex3.m1.3.3.cmml"><mrow id="S4.Ex3.m1.3.3.5" xref="S4.Ex3.m1.3.3.5.cmml"><mi mathvariant="normal" id="S4.Ex3.m1.3.3.5.2" xref="S4.Ex3.m1.3.3.5.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S4.Ex3.m1.3.3.5.1" xref="S4.Ex3.m1.3.3.5.1.cmml">​</mo><msubsup id="S4.Ex3.m1.3.3.5.3" xref="S4.Ex3.m1.3.3.5.3.cmml"><mi id="S4.Ex3.m1.3.3.5.3.2.2" xref="S4.Ex3.m1.3.3.5.3.2.2.cmml">w</mi><mrow id="S4.Ex3.m1.3.3.5.3.3" xref="S4.Ex3.m1.3.3.5.3.3.cmml"><mi id="S4.Ex3.m1.3.3.5.3.3.2" xref="S4.Ex3.m1.3.3.5.3.3.2.cmml">t</mi><mo id="S4.Ex3.m1.3.3.5.3.3.1" xref="S4.Ex3.m1.3.3.5.3.3.1.cmml">+</mo><mn id="S4.Ex3.m1.3.3.5.3.3.3" xref="S4.Ex3.m1.3.3.5.3.3.3.cmml">1</mn></mrow><mi id="S4.Ex3.m1.3.3.5.3.2.3" xref="S4.Ex3.m1.3.3.5.3.2.3.cmml">k</mi></msubsup></mrow><mrow id="S4.Ex3.m1.3.3.3.3" xref="S4.Ex3.m1.3.3.3.4.cmml"><mi id="S4.Ex3.m1.1.1.1.1" xref="S4.Ex3.m1.1.1.1.1.cmml">max</mi><mo id="S4.Ex3.m1.3.3.3.3a" xref="S4.Ex3.m1.3.3.3.4.cmml">⁡</mo><mrow id="S4.Ex3.m1.3.3.3.3.1" xref="S4.Ex3.m1.3.3.3.4.cmml"><mo stretchy="false" id="S4.Ex3.m1.3.3.3.3.1.2" xref="S4.Ex3.m1.3.3.3.4.cmml">(</mo><mn id="S4.Ex3.m1.2.2.2.2" xref="S4.Ex3.m1.2.2.2.2.cmml">1</mn><mo id="S4.Ex3.m1.3.3.3.3.1.3" xref="S4.Ex3.m1.3.3.3.4.cmml">,</mo><mrow id="S4.Ex3.m1.3.3.3.3.1.1" xref="S4.Ex3.m1.3.3.3.3.1.1.cmml"><msub id="S4.Ex3.m1.3.3.3.3.1.1.1" xref="S4.Ex3.m1.3.3.3.3.1.1.1.cmml"><mrow id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.2.cmml"><mo stretchy="false" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.2" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.2.1.cmml">‖</mo><mrow id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.cmml"><mi mathvariant="normal" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.2" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.1" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.1.cmml">​</mo><msubsup id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.cmml"><mi id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.2" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.2.cmml">w</mi><mrow id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.cmml"><mi id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.2" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.2.cmml">t</mi><mo id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.1" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.1.cmml">+</mo><mn id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.3.cmml">1</mn></mrow><mi id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.3.cmml">k</mi></msubsup></mrow><mo stretchy="false" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.2.1.cmml">‖</mo></mrow><mn id="S4.Ex3.m1.3.3.3.3.1.1.1.3" xref="S4.Ex3.m1.3.3.3.3.1.1.1.3.cmml">2</mn></msub><mo id="S4.Ex3.m1.3.3.3.3.1.1.2" xref="S4.Ex3.m1.3.3.3.3.1.1.2.cmml">/</mo><mi id="S4.Ex3.m1.3.3.3.3.1.1.3" xref="S4.Ex3.m1.3.3.3.3.1.1.3.cmml">M</mi></mrow><mo stretchy="false" id="S4.Ex3.m1.3.3.3.3.1.4" xref="S4.Ex3.m1.3.3.3.4.cmml">)</mo></mrow></mrow></mfrac></mrow></mrow><mo lspace="0em" id="S4.Ex3.m1.4.4.1.2" xref="S4.Ex3.m1.4.4.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex3.m1.4b"><apply id="S4.Ex3.m1.4.4.1.1.cmml" xref="S4.Ex3.m1.4.4.1"><eq id="S4.Ex3.m1.4.4.1.1.1.cmml" xref="S4.Ex3.m1.4.4.1.1.1"></eq><apply id="S4.Ex3.m1.4.4.1.1.2.cmml" xref="S4.Ex3.m1.4.4.1.1.2"><times id="S4.Ex3.m1.4.4.1.1.2.1.cmml" xref="S4.Ex3.m1.4.4.1.1.2.1"></times><ci id="S4.Ex3.m1.4.4.1.1.2.2.cmml" xref="S4.Ex3.m1.4.4.1.1.2.2">Δ</ci><apply id="S4.Ex3.m1.4.4.1.1.2.3.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.4.4.1.1.2.3.1.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3">subscript</csymbol><ci id="S4.Ex3.m1.4.4.1.1.2.3.2.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3.2">𝑤</ci><apply id="S4.Ex3.m1.4.4.1.1.2.3.3.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3.3"><plus id="S4.Ex3.m1.4.4.1.1.2.3.3.1.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3.3.1"></plus><ci id="S4.Ex3.m1.4.4.1.1.2.3.3.2.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3.3.2">𝑡</ci><cn type="integer" id="S4.Ex3.m1.4.4.1.1.2.3.3.3.cmml" xref="S4.Ex3.m1.4.4.1.1.2.3.3.3">1</cn></apply></apply></apply><apply id="S4.Ex3.m1.4.4.1.1.3.cmml" xref="S4.Ex3.m1.4.4.1.1.3"><apply id="S4.Ex3.m1.4.4.1.1.3.1.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1"><csymbol cd="ambiguous" id="S4.Ex3.m1.4.4.1.1.3.1.1.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1">subscript</csymbol><sum id="S4.Ex3.m1.4.4.1.1.3.1.2.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.2"></sum><apply id="S4.Ex3.m1.4.4.1.1.3.1.3.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3"><in id="S4.Ex3.m1.4.4.1.1.3.1.3.1.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.1"></in><ci id="S4.Ex3.m1.4.4.1.1.3.1.3.2.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.2">𝑘</ci><apply id="S4.Ex3.m1.4.4.1.1.3.1.3.3.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.4.4.1.1.3.1.3.3.1.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3">subscript</csymbol><ci id="S4.Ex3.m1.4.4.1.1.3.1.3.3.2.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3.2">𝑆</ci><ci id="S4.Ex3.m1.4.4.1.1.3.1.3.3.3.cmml" xref="S4.Ex3.m1.4.4.1.1.3.1.3.3.3">𝑡</ci></apply></apply></apply><apply id="S4.Ex3.m1.3.3.cmml" xref="S4.Ex3.m1.3.3"><divide id="S4.Ex3.m1.3.3.4.cmml" xref="S4.Ex3.m1.3.3"></divide><apply id="S4.Ex3.m1.3.3.5.cmml" xref="S4.Ex3.m1.3.3.5"><times id="S4.Ex3.m1.3.3.5.1.cmml" xref="S4.Ex3.m1.3.3.5.1"></times><ci id="S4.Ex3.m1.3.3.5.2.cmml" xref="S4.Ex3.m1.3.3.5.2">Δ</ci><apply id="S4.Ex3.m1.3.3.5.3.cmml" xref="S4.Ex3.m1.3.3.5.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.3.3.5.3.1.cmml" xref="S4.Ex3.m1.3.3.5.3">subscript</csymbol><apply id="S4.Ex3.m1.3.3.5.3.2.cmml" xref="S4.Ex3.m1.3.3.5.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.3.3.5.3.2.1.cmml" xref="S4.Ex3.m1.3.3.5.3">superscript</csymbol><ci id="S4.Ex3.m1.3.3.5.3.2.2.cmml" xref="S4.Ex3.m1.3.3.5.3.2.2">𝑤</ci><ci id="S4.Ex3.m1.3.3.5.3.2.3.cmml" xref="S4.Ex3.m1.3.3.5.3.2.3">𝑘</ci></apply><apply id="S4.Ex3.m1.3.3.5.3.3.cmml" xref="S4.Ex3.m1.3.3.5.3.3"><plus id="S4.Ex3.m1.3.3.5.3.3.1.cmml" xref="S4.Ex3.m1.3.3.5.3.3.1"></plus><ci id="S4.Ex3.m1.3.3.5.3.3.2.cmml" xref="S4.Ex3.m1.3.3.5.3.3.2">𝑡</ci><cn type="integer" id="S4.Ex3.m1.3.3.5.3.3.3.cmml" xref="S4.Ex3.m1.3.3.5.3.3.3">1</cn></apply></apply></apply><apply id="S4.Ex3.m1.3.3.3.4.cmml" xref="S4.Ex3.m1.3.3.3.3"><max id="S4.Ex3.m1.1.1.1.1.cmml" xref="S4.Ex3.m1.1.1.1.1"></max><cn type="integer" id="S4.Ex3.m1.2.2.2.2.cmml" xref="S4.Ex3.m1.2.2.2.2">1</cn><apply id="S4.Ex3.m1.3.3.3.3.1.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1"><divide id="S4.Ex3.m1.3.3.3.3.1.1.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.2"></divide><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1"><csymbol cd="ambiguous" id="S4.Ex3.m1.3.3.3.3.1.1.1.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1">subscript</csymbol><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.1.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1"><csymbol cd="latexml" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.2.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.2">norm</csymbol><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1"><times id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.1"></times><ci id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.2">Δ</ci><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3">subscript</csymbol><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3">superscript</csymbol><ci id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.2">𝑤</ci><ci id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.2.3">𝑘</ci></apply><apply id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3"><plus id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.1.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.1"></plus><ci id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.2.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply></apply><cn type="integer" id="S4.Ex3.m1.3.3.3.3.1.1.1.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.1.3">2</cn></apply><ci id="S4.Ex3.m1.3.3.3.3.1.1.3.cmml" xref="S4.Ex3.m1.3.3.3.3.1.1.3">𝑀</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex3.m1.4c">\Delta w_{t+1}=\sum_{k\in S_{t}}\frac{\Delta w^{k}_{t+1}}{\max(1,||\Delta w^{k}_{t+1}||_{2}/M)}.</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S4.p2.4" class="ltx_p">This model update ensures that the norm of each model update is small and hence less susceptible to the server.</p>
+</div>
+<div id="S4.p3" class="ltx_para">
+<p id="S4.p3.1" class="ltx_p"><span id="S4.p3.1.1" class="ltx_text ltx_font_bold">(Weak) differential privacy</span>. A mathematically rigorous way for defending against backdoor tasks is to train models with differential privacy  <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib22" title="" class="ltx_ref">22</a>; <a href="#bib.bib14" title="" class="ltx_ref">14</a>; <a href="#bib.bib2" title="" class="ltx_ref">2</a>)</cite>. These approaches were extended to the federated setting by <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib24" title="" class="ltx_ref">24</a>)</cite>, by first clipping updates (as above) and then adding Gaussian noise. We explore the effect of this method. However, traditionally the amount of noise added to obtain reasonable differential privacy is relatively large. Since our goal is not privacy, but instead preventing attacks, we add a small amount of noise that is empirically sufficient to limit the success of attacks.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Experiments</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.4" class="ltx_p">In the above backdoor attack framework, we conduct experiments on the EMNIST dataset <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib11" title="" class="ltx_ref">11</a>; <a href="#bib.bib9" title="" class="ltx_ref">9</a>)</cite><span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>Code available at <a target="_blank" href="https://github.com/tensorflow/federated/tree/master/tensorflow_federated/python/research/targeted_attack" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/tensorflow/federated/tree/master/tensorflow_federated/python/research/targeted_attack</a>.</span></span></span>. This dataset is a writer-annotated handwritten digit classification dataset collected from <math id="S5.p1.1.m1.1" class="ltx_Math" alttext="3383" display="inline"><semantics id="S5.p1.1.m1.1a"><mn id="S5.p1.1.m1.1.1" xref="S5.p1.1.m1.1.1.cmml">3383</mn><annotation-xml encoding="MathML-Content" id="S5.p1.1.m1.1b"><cn type="integer" id="S5.p1.1.m1.1.1.cmml" xref="S5.p1.1.m1.1.1">3383</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.1.m1.1c">3383</annotation></semantics></math> users with roughly <math id="S5.p1.2.m2.1" class="ltx_Math" alttext="100" display="inline"><semantics id="S5.p1.2.m2.1a"><mn id="S5.p1.2.m2.1.1" xref="S5.p1.2.m2.1.1.cmml">100</mn><annotation-xml encoding="MathML-Content" id="S5.p1.2.m2.1b"><cn type="integer" id="S5.p1.2.m2.1.1.cmml" xref="S5.p1.2.m2.1.1">100</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.2.m2.1c">100</annotation></semantics></math> images of digits
+per user. Each of them has their unique writing style. We train a five-layer convolution neural network with two convolution layers, one max-pooling layer and two dense layers using federated learning in the TensorFlow Federated framework <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib1" title="" class="ltx_ref">1</a>)</cite>. At each round of training, we select <math id="S5.p1.3.m3.1" class="ltx_Math" alttext="C\cdot K=30" display="inline"><semantics id="S5.p1.3.m3.1a"><mrow id="S5.p1.3.m3.1.1" xref="S5.p1.3.m3.1.1.cmml"><mrow id="S5.p1.3.m3.1.1.2" xref="S5.p1.3.m3.1.1.2.cmml"><mi id="S5.p1.3.m3.1.1.2.2" xref="S5.p1.3.m3.1.1.2.2.cmml">C</mi><mo lspace="0.222em" rspace="0.222em" id="S5.p1.3.m3.1.1.2.1" xref="S5.p1.3.m3.1.1.2.1.cmml">⋅</mo><mi id="S5.p1.3.m3.1.1.2.3" xref="S5.p1.3.m3.1.1.2.3.cmml">K</mi></mrow><mo id="S5.p1.3.m3.1.1.1" xref="S5.p1.3.m3.1.1.1.cmml">=</mo><mn id="S5.p1.3.m3.1.1.3" xref="S5.p1.3.m3.1.1.3.cmml">30</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p1.3.m3.1b"><apply id="S5.p1.3.m3.1.1.cmml" xref="S5.p1.3.m3.1.1"><eq id="S5.p1.3.m3.1.1.1.cmml" xref="S5.p1.3.m3.1.1.1"></eq><apply id="S5.p1.3.m3.1.1.2.cmml" xref="S5.p1.3.m3.1.1.2"><ci id="S5.p1.3.m3.1.1.2.1.cmml" xref="S5.p1.3.m3.1.1.2.1">⋅</ci><ci id="S5.p1.3.m3.1.1.2.2.cmml" xref="S5.p1.3.m3.1.1.2.2">𝐶</ci><ci id="S5.p1.3.m3.1.1.2.3.cmml" xref="S5.p1.3.m3.1.1.2.3">𝐾</ci></apply><cn type="integer" id="S5.p1.3.m3.1.1.3.cmml" xref="S5.p1.3.m3.1.1.3">30</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.3.m3.1c">C\cdot K=30</annotation></semantics></math> clients. Each client trains the model with their own local data for 5 epochs with batch size 20 and client learning rate 0.1. We use a server learning rate of <math id="S5.p1.4.m4.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S5.p1.4.m4.1a"><mn id="S5.p1.4.m4.1.1" xref="S5.p1.4.m4.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S5.p1.4.m4.1b"><cn type="integer" id="S5.p1.4.m4.1.1.cmml" xref="S5.p1.4.m4.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p1.4.m4.1c">1</annotation></semantics></math>.</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">In the experiment, we consider the backdoor task as classifying 7s from multiple selected “target clients” as 1s. Note that our attack approach does not
+require 7s from other clients to be classified as 1s.
+Since 7s coming from different target clients follow different distributions (because they have different writing styles), we refer to the number of target clients as the “number of backdoor tasks”.</p>
+</div>
+<div id="S5.p3" class="ltx_para">
+<p id="S5.p3.1" class="ltx_p"><span id="S5.p3.1.1" class="ltx_text ltx_font_bold">Random sampling vs. fixed frequency attacks</span>.
+To begin with, we conduct experiments for the two attack models discussed in Section <a href="#S2" title="2 Backdoor Attack Scenario ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> under different fractions of adversaries. The results are shown in Figure <a href="#S5.F1" title="Figure 1 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> (for unconstrained attack) and Figure <a href="#S5.F2" title="Figure 2 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (for norm bounded attack). Additional plots are shown in Figure <a href="#A1.F5" title="Figure 5 ‣ Appendix A Additional figures for experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> and Figure <a href="#A1.F6" title="Figure 6 ‣ Appendix A Additional figures for experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> in the appendix. The figures show that both attack models have similar behaviors, despite fixed frequency attacks being slightly more effective than random sampling attacks. Furthermore, in the fixed frequency attack, it is easier to see if the attack happened in a particular round or not. Hence, to provide additional advantage for the attacker and for ease of interpretability, we focus our analysis on fixed-frequency attacks in the rest of this section.</p>
+</div>
+<div id="S5.p4" class="ltx_para">
+<p id="S5.p4.4" class="ltx_p"><span id="S5.p4.4.1" class="ltx_text ltx_font_bold">Fraction of corrupted users</span>. In Figure <a href="#S5.F1" title="Figure 1 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> and Figure <a href="#S5.F2" title="Figure 2 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (also Figure <a href="#A1.F5" title="Figure 5 ‣ Appendix A Additional figures for experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> and Figure <a href="#A1.F6" title="Figure 6 ‣ Appendix A Additional figures for experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> in the appendix), we consider a malicious task with 30 backdoor tasks (around 300 images). We perform unconstrained attacks and norm-bounded attacks with <math id="S5.p4.1.m1.2" class="ltx_Math" alttext="\epsilon=3.3\%,0.33\%" display="inline"><semantics id="S5.p4.1.m1.2a"><mrow id="S5.p4.1.m1.2.2" xref="S5.p4.1.m1.2.2.cmml"><mi id="S5.p4.1.m1.2.2.4" xref="S5.p4.1.m1.2.2.4.cmml">ϵ</mi><mo id="S5.p4.1.m1.2.2.3" xref="S5.p4.1.m1.2.2.3.cmml">=</mo><mrow id="S5.p4.1.m1.2.2.2.2" xref="S5.p4.1.m1.2.2.2.3.cmml"><mrow id="S5.p4.1.m1.1.1.1.1.1" xref="S5.p4.1.m1.1.1.1.1.1.cmml"><mn id="S5.p4.1.m1.1.1.1.1.1.2" xref="S5.p4.1.m1.1.1.1.1.1.2.cmml">3.3</mn><mo id="S5.p4.1.m1.1.1.1.1.1.1" xref="S5.p4.1.m1.1.1.1.1.1.1.cmml">%</mo></mrow><mo id="S5.p4.1.m1.2.2.2.2.3" xref="S5.p4.1.m1.2.2.2.3.cmml">,</mo><mrow id="S5.p4.1.m1.2.2.2.2.2" xref="S5.p4.1.m1.2.2.2.2.2.cmml"><mn id="S5.p4.1.m1.2.2.2.2.2.2" xref="S5.p4.1.m1.2.2.2.2.2.2.cmml">0.33</mn><mo id="S5.p4.1.m1.2.2.2.2.2.1" xref="S5.p4.1.m1.2.2.2.2.2.1.cmml">%</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.1.m1.2b"><apply id="S5.p4.1.m1.2.2.cmml" xref="S5.p4.1.m1.2.2"><eq id="S5.p4.1.m1.2.2.3.cmml" xref="S5.p4.1.m1.2.2.3"></eq><ci id="S5.p4.1.m1.2.2.4.cmml" xref="S5.p4.1.m1.2.2.4">italic-ϵ</ci><list id="S5.p4.1.m1.2.2.2.3.cmml" xref="S5.p4.1.m1.2.2.2.2"><apply id="S5.p4.1.m1.1.1.1.1.1.cmml" xref="S5.p4.1.m1.1.1.1.1.1"><csymbol cd="latexml" id="S5.p4.1.m1.1.1.1.1.1.1.cmml" xref="S5.p4.1.m1.1.1.1.1.1.1">percent</csymbol><cn type="float" id="S5.p4.1.m1.1.1.1.1.1.2.cmml" xref="S5.p4.1.m1.1.1.1.1.1.2">3.3</cn></apply><apply id="S5.p4.1.m1.2.2.2.2.2.cmml" xref="S5.p4.1.m1.2.2.2.2.2"><csymbol cd="latexml" id="S5.p4.1.m1.2.2.2.2.2.1.cmml" xref="S5.p4.1.m1.2.2.2.2.2.1">percent</csymbol><cn type="float" id="S5.p4.1.m1.2.2.2.2.2.2.cmml" xref="S5.p4.1.m1.2.2.2.2.2.2">0.33</cn></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.1.m1.2c">\epsilon=3.3\%,0.33\%</annotation></semantics></math>
+fraction of users being malicious. Both fixed-frequency attack (left column) and random sampling (right column) attacks are considered. For fixed-frequency attack, this corresponds to attacking frequency of <math id="S5.p4.2.m2.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S5.p4.2.m2.1a"><mn id="S5.p4.2.m2.1.1" xref="S5.p4.2.m2.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S5.p4.2.m2.1b"><cn type="integer" id="S5.p4.2.m2.1.1.cmml" xref="S5.p4.2.m2.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.2.m2.1c">1</annotation></semantics></math> (attacking every round),
+and <math id="S5.p4.3.m3.1" class="ltx_Math" alttext="1/10" display="inline"><semantics id="S5.p4.3.m3.1a"><mrow id="S5.p4.3.m3.1.1" xref="S5.p4.3.m3.1.1.cmml"><mn id="S5.p4.3.m3.1.1.2" xref="S5.p4.3.m3.1.1.2.cmml">1</mn><mo id="S5.p4.3.m3.1.1.1" xref="S5.p4.3.m3.1.1.1.cmml">/</mo><mn id="S5.p4.3.m3.1.1.3" xref="S5.p4.3.m3.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.3.m3.1b"><apply id="S5.p4.3.m3.1.1.cmml" xref="S5.p4.3.m3.1.1"><divide id="S5.p4.3.m3.1.1.1.cmml" xref="S5.p4.3.m3.1.1.1"></divide><cn type="integer" id="S5.p4.3.m3.1.1.2.cmml" xref="S5.p4.3.m3.1.1.2">1</cn><cn type="integer" id="S5.p4.3.m3.1.1.3.cmml" xref="S5.p4.3.m3.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.3.m3.1c">1/10</annotation></semantics></math> (once every ten rounds).
+From the above experiment, we can infer that the backdoor attack success largely depends on the fraction of adversaries and the performance of backdoor attack degrades as the fraction of fully compromised users falls below <math id="S5.p4.4.m4.1" class="ltx_Math" alttext="1\%" display="inline"><semantics id="S5.p4.4.m4.1a"><mrow id="S5.p4.4.m4.1.1" xref="S5.p4.4.m4.1.1.cmml"><mn id="S5.p4.4.m4.1.1.2" xref="S5.p4.4.m4.1.1.2.cmml">1</mn><mo id="S5.p4.4.m4.1.1.1" xref="S5.p4.4.m4.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S5.p4.4.m4.1b"><apply id="S5.p4.4.m4.1.1.cmml" xref="S5.p4.4.m4.1.1"><csymbol cd="latexml" id="S5.p4.4.m4.1.1.1.cmml" xref="S5.p4.4.m4.1.1.1">percent</csymbol><cn type="integer" id="S5.p4.4.m4.1.1.2.cmml" xref="S5.p4.4.m4.1.1.2">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p4.4.m4.1c">1\%</annotation></semantics></math>.</p>
+</div>
+<figure id="S5.F1" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F1.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x1.png" id="S5.F1.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F1.sf1.4.2.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="S5.F1.sf1.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1 (<math id="S5.F1.sf1.2.1.m1.1" class="ltx_Math" alttext="\epsilon=3.3\%" display="inline"><semantics id="S5.F1.sf1.2.1.m1.1b"><mrow id="S5.F1.sf1.2.1.m1.1.1" xref="S5.F1.sf1.2.1.m1.1.1.cmml"><mi id="S5.F1.sf1.2.1.m1.1.1.2" xref="S5.F1.sf1.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F1.sf1.2.1.m1.1.1.1" xref="S5.F1.sf1.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F1.sf1.2.1.m1.1.1.3" xref="S5.F1.sf1.2.1.m1.1.1.3.cmml"><mn id="S5.F1.sf1.2.1.m1.1.1.3.2" xref="S5.F1.sf1.2.1.m1.1.1.3.2.cmml">3.3</mn><mo id="S5.F1.sf1.2.1.m1.1.1.3.1" xref="S5.F1.sf1.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F1.sf1.2.1.m1.1c"><apply id="S5.F1.sf1.2.1.m1.1.1.cmml" xref="S5.F1.sf1.2.1.m1.1.1"><eq id="S5.F1.sf1.2.1.m1.1.1.1.cmml" xref="S5.F1.sf1.2.1.m1.1.1.1"></eq><ci id="S5.F1.sf1.2.1.m1.1.1.2.cmml" xref="S5.F1.sf1.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F1.sf1.2.1.m1.1.1.3.cmml" xref="S5.F1.sf1.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F1.sf1.2.1.m1.1.1.3.1.cmml" xref="S5.F1.sf1.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F1.sf1.2.1.m1.1.1.3.2.cmml" xref="S5.F1.sf1.2.1.m1.1.1.3.2">3.3</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F1.sf1.2.1.m1.1d">\epsilon=3.3\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F1.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x2.png" id="S5.F1.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F1.sf2.4.2.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="S5.F1.sf2.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 113 (<math id="S5.F1.sf2.2.1.m1.1" class="ltx_Math" alttext="\epsilon=3.3\%" display="inline"><semantics id="S5.F1.sf2.2.1.m1.1b"><mrow id="S5.F1.sf2.2.1.m1.1.1" xref="S5.F1.sf2.2.1.m1.1.1.cmml"><mi id="S5.F1.sf2.2.1.m1.1.1.2" xref="S5.F1.sf2.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F1.sf2.2.1.m1.1.1.1" xref="S5.F1.sf2.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F1.sf2.2.1.m1.1.1.3" xref="S5.F1.sf2.2.1.m1.1.1.3.cmml"><mn id="S5.F1.sf2.2.1.m1.1.1.3.2" xref="S5.F1.sf2.2.1.m1.1.1.3.2.cmml">3.3</mn><mo id="S5.F1.sf2.2.1.m1.1.1.3.1" xref="S5.F1.sf2.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F1.sf2.2.1.m1.1c"><apply id="S5.F1.sf2.2.1.m1.1.1.cmml" xref="S5.F1.sf2.2.1.m1.1.1"><eq id="S5.F1.sf2.2.1.m1.1.1.1.cmml" xref="S5.F1.sf2.2.1.m1.1.1.1"></eq><ci id="S5.F1.sf2.2.1.m1.1.1.2.cmml" xref="S5.F1.sf2.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F1.sf2.2.1.m1.1.1.3.cmml" xref="S5.F1.sf2.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F1.sf2.2.1.m1.1.1.3.1.cmml" xref="S5.F1.sf2.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F1.sf2.2.1.m1.1.1.3.2.cmml" xref="S5.F1.sf2.2.1.m1.1.1.3.2">3.3</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F1.sf2.2.1.m1.1d">\epsilon=3.3\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F1.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x3.png" id="S5.F1.sf3.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F1.sf3.4.2.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="S5.F1.sf3.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/10 (<math id="S5.F1.sf3.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.33\%" display="inline"><semantics id="S5.F1.sf3.2.1.m1.1b"><mrow id="S5.F1.sf3.2.1.m1.1.1" xref="S5.F1.sf3.2.1.m1.1.1.cmml"><mi id="S5.F1.sf3.2.1.m1.1.1.2" xref="S5.F1.sf3.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F1.sf3.2.1.m1.1.1.1" xref="S5.F1.sf3.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F1.sf3.2.1.m1.1.1.3" xref="S5.F1.sf3.2.1.m1.1.1.3.cmml"><mn id="S5.F1.sf3.2.1.m1.1.1.3.2" xref="S5.F1.sf3.2.1.m1.1.1.3.2.cmml">0.33</mn><mo id="S5.F1.sf3.2.1.m1.1.1.3.1" xref="S5.F1.sf3.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F1.sf3.2.1.m1.1c"><apply id="S5.F1.sf3.2.1.m1.1.1.cmml" xref="S5.F1.sf3.2.1.m1.1.1"><eq id="S5.F1.sf3.2.1.m1.1.1.1.cmml" xref="S5.F1.sf3.2.1.m1.1.1.1"></eq><ci id="S5.F1.sf3.2.1.m1.1.1.2.cmml" xref="S5.F1.sf3.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F1.sf3.2.1.m1.1.1.3.cmml" xref="S5.F1.sf3.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F1.sf3.2.1.m1.1.1.3.1.cmml" xref="S5.F1.sf3.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F1.sf3.2.1.m1.1.1.3.2.cmml" xref="S5.F1.sf3.2.1.m1.1.1.3.2">0.33</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F1.sf3.2.1.m1.1d">\epsilon=0.33\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F1.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x4.png" id="S5.F1.sf4.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F1.sf4.4.2.1" class="ltx_text" style="font-size:80%;">(d)</span> </span><span id="S5.F1.sf4.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 11 (<math id="S5.F1.sf4.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.33\%" display="inline"><semantics id="S5.F1.sf4.2.1.m1.1b"><mrow id="S5.F1.sf4.2.1.m1.1.1" xref="S5.F1.sf4.2.1.m1.1.1.cmml"><mi id="S5.F1.sf4.2.1.m1.1.1.2" xref="S5.F1.sf4.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F1.sf4.2.1.m1.1.1.1" xref="S5.F1.sf4.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F1.sf4.2.1.m1.1.1.3" xref="S5.F1.sf4.2.1.m1.1.1.3.cmml"><mn id="S5.F1.sf4.2.1.m1.1.1.3.2" xref="S5.F1.sf4.2.1.m1.1.1.3.2.cmml">0.33</mn><mo id="S5.F1.sf4.2.1.m1.1.1.3.1" xref="S5.F1.sf4.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F1.sf4.2.1.m1.1c"><apply id="S5.F1.sf4.2.1.m1.1.1.cmml" xref="S5.F1.sf4.2.1.m1.1.1"><eq id="S5.F1.sf4.2.1.m1.1.1.1.cmml" xref="S5.F1.sf4.2.1.m1.1.1.1"></eq><ci id="S5.F1.sf4.2.1.m1.1.1.2.cmml" xref="S5.F1.sf4.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F1.sf4.2.1.m1.1.1.3.cmml" xref="S5.F1.sf4.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F1.sf4.2.1.m1.1.1.3.1.cmml" xref="S5.F1.sf4.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F1.sf4.2.1.m1.1.1.3.2.cmml" xref="S5.F1.sf4.2.1.m1.1.1.3.2">0.33</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F1.sf4.2.1.m1.1d">\epsilon=0.33\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Unconstrained attack for fixed-frequency attacks (left column) and random sampling attack (right column) with different fractions of attackers. Green line is the cumulative mean for the backdoor accuracy.</figcaption>
+</figure>
+<figure id="S5.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x5.png" id="S5.F2.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F2.sf1.4.2.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="S5.F2.sf1.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1 (<math id="S5.F2.sf1.2.1.m1.1" class="ltx_Math" alttext="\epsilon=3.3\%" display="inline"><semantics id="S5.F2.sf1.2.1.m1.1b"><mrow id="S5.F2.sf1.2.1.m1.1.1" xref="S5.F2.sf1.2.1.m1.1.1.cmml"><mi id="S5.F2.sf1.2.1.m1.1.1.2" xref="S5.F2.sf1.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F2.sf1.2.1.m1.1.1.1" xref="S5.F2.sf1.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F2.sf1.2.1.m1.1.1.3" xref="S5.F2.sf1.2.1.m1.1.1.3.cmml"><mn id="S5.F2.sf1.2.1.m1.1.1.3.2" xref="S5.F2.sf1.2.1.m1.1.1.3.2.cmml">3.3</mn><mo id="S5.F2.sf1.2.1.m1.1.1.3.1" xref="S5.F2.sf1.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F2.sf1.2.1.m1.1c"><apply id="S5.F2.sf1.2.1.m1.1.1.cmml" xref="S5.F2.sf1.2.1.m1.1.1"><eq id="S5.F2.sf1.2.1.m1.1.1.1.cmml" xref="S5.F2.sf1.2.1.m1.1.1.1"></eq><ci id="S5.F2.sf1.2.1.m1.1.1.2.cmml" xref="S5.F2.sf1.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F2.sf1.2.1.m1.1.1.3.cmml" xref="S5.F2.sf1.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F2.sf1.2.1.m1.1.1.3.1.cmml" xref="S5.F2.sf1.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F2.sf1.2.1.m1.1.1.3.2.cmml" xref="S5.F2.sf1.2.1.m1.1.1.3.2">3.3</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F2.sf1.2.1.m1.1d">\epsilon=3.3\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x6.png" id="S5.F2.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F2.sf2.4.2.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="S5.F2.sf2.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 113 (<math id="S5.F2.sf2.2.1.m1.1" class="ltx_Math" alttext="\epsilon=3.3\%" display="inline"><semantics id="S5.F2.sf2.2.1.m1.1b"><mrow id="S5.F2.sf2.2.1.m1.1.1" xref="S5.F2.sf2.2.1.m1.1.1.cmml"><mi id="S5.F2.sf2.2.1.m1.1.1.2" xref="S5.F2.sf2.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F2.sf2.2.1.m1.1.1.1" xref="S5.F2.sf2.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F2.sf2.2.1.m1.1.1.3" xref="S5.F2.sf2.2.1.m1.1.1.3.cmml"><mn id="S5.F2.sf2.2.1.m1.1.1.3.2" xref="S5.F2.sf2.2.1.m1.1.1.3.2.cmml">3.3</mn><mo id="S5.F2.sf2.2.1.m1.1.1.3.1" xref="S5.F2.sf2.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F2.sf2.2.1.m1.1c"><apply id="S5.F2.sf2.2.1.m1.1.1.cmml" xref="S5.F2.sf2.2.1.m1.1.1"><eq id="S5.F2.sf2.2.1.m1.1.1.1.cmml" xref="S5.F2.sf2.2.1.m1.1.1.1"></eq><ci id="S5.F2.sf2.2.1.m1.1.1.2.cmml" xref="S5.F2.sf2.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F2.sf2.2.1.m1.1.1.3.cmml" xref="S5.F2.sf2.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F2.sf2.2.1.m1.1.1.3.1.cmml" xref="S5.F2.sf2.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F2.sf2.2.1.m1.1.1.3.2.cmml" xref="S5.F2.sf2.2.1.m1.1.1.3.2">3.3</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F2.sf2.2.1.m1.1d">\epsilon=3.3\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x7.png" id="S5.F2.sf3.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F2.sf3.4.2.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="S5.F2.sf3.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/10 (<math id="S5.F2.sf3.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.33\%" display="inline"><semantics id="S5.F2.sf3.2.1.m1.1b"><mrow id="S5.F2.sf3.2.1.m1.1.1" xref="S5.F2.sf3.2.1.m1.1.1.cmml"><mi id="S5.F2.sf3.2.1.m1.1.1.2" xref="S5.F2.sf3.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F2.sf3.2.1.m1.1.1.1" xref="S5.F2.sf3.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F2.sf3.2.1.m1.1.1.3" xref="S5.F2.sf3.2.1.m1.1.1.3.cmml"><mn id="S5.F2.sf3.2.1.m1.1.1.3.2" xref="S5.F2.sf3.2.1.m1.1.1.3.2.cmml">0.33</mn><mo id="S5.F2.sf3.2.1.m1.1.1.3.1" xref="S5.F2.sf3.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F2.sf3.2.1.m1.1c"><apply id="S5.F2.sf3.2.1.m1.1.1.cmml" xref="S5.F2.sf3.2.1.m1.1.1"><eq id="S5.F2.sf3.2.1.m1.1.1.1.cmml" xref="S5.F2.sf3.2.1.m1.1.1.1"></eq><ci id="S5.F2.sf3.2.1.m1.1.1.2.cmml" xref="S5.F2.sf3.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F2.sf3.2.1.m1.1.1.3.cmml" xref="S5.F2.sf3.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F2.sf3.2.1.m1.1.1.3.1.cmml" xref="S5.F2.sf3.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F2.sf3.2.1.m1.1.1.3.2.cmml" xref="S5.F2.sf3.2.1.m1.1.1.3.2">0.33</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F2.sf3.2.1.m1.1d">\epsilon=0.33\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x8.png" id="S5.F2.sf4.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F2.sf4.4.2.1" class="ltx_text" style="font-size:80%;">(d)</span> </span><span id="S5.F2.sf4.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 11 (<math id="S5.F2.sf4.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.33\%" display="inline"><semantics id="S5.F2.sf4.2.1.m1.1b"><mrow id="S5.F2.sf4.2.1.m1.1.1" xref="S5.F2.sf4.2.1.m1.1.1.cmml"><mi id="S5.F2.sf4.2.1.m1.1.1.2" xref="S5.F2.sf4.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.F2.sf4.2.1.m1.1.1.1" xref="S5.F2.sf4.2.1.m1.1.1.1.cmml">=</mo><mrow id="S5.F2.sf4.2.1.m1.1.1.3" xref="S5.F2.sf4.2.1.m1.1.1.3.cmml"><mn id="S5.F2.sf4.2.1.m1.1.1.3.2" xref="S5.F2.sf4.2.1.m1.1.1.3.2.cmml">0.33</mn><mo id="S5.F2.sf4.2.1.m1.1.1.3.1" xref="S5.F2.sf4.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.F2.sf4.2.1.m1.1c"><apply id="S5.F2.sf4.2.1.m1.1.1.cmml" xref="S5.F2.sf4.2.1.m1.1.1"><eq id="S5.F2.sf4.2.1.m1.1.1.1.cmml" xref="S5.F2.sf4.2.1.m1.1.1.1"></eq><ci id="S5.F2.sf4.2.1.m1.1.1.2.cmml" xref="S5.F2.sf4.2.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.F2.sf4.2.1.m1.1.1.3.cmml" xref="S5.F2.sf4.2.1.m1.1.1.3"><csymbol cd="latexml" id="S5.F2.sf4.2.1.m1.1.1.3.1.cmml" xref="S5.F2.sf4.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.F2.sf4.2.1.m1.1.1.3.2.cmml" xref="S5.F2.sf4.2.1.m1.1.1.3.2">0.33</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F2.sf4.2.1.m1.1d">\epsilon=0.33\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Constrained attack with norm bound 10 for fixed-frequency attacks (left column) and random sampling attack (right column) with different fractions of attackers. Green line is the cumulative mean for the backdoor accuracy.</figcaption>
+</figure>
+<div id="S5.p5" class="ltx_para">
+<p id="S5.p5.1" class="ltx_p"><span id="S5.p5.1.1" class="ltx_text ltx_font_bold">Number of backdoor tasks</span>. The number of backdoor tasks affects the performance in two ways. First, the more backdoor tasks we have, the harder it is to backdoor a fixed-capacity model while maintaining its performance on the main task. Second, since we assume benign users have correct samples from the backdoor task, they can correct the attacked model with these samples. In Figure <a href="#S5.F3" title="Figure 3 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, we consider norm bounded attack with norm bound 10 and 10, 20, 30, 50 backdoor tasks. We can see from the plot that the more backdoor tasks we have, the harder it is to fit a malicious model.</p>
+</div>
+<figure id="S5.F3" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F3.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x9.png" id="S5.F3.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.sf1.2.1.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="S5.F3.sf1.3.2" class="ltx_text" style="font-size:80%;">Backdoor Size = 10</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F3.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x10.png" id="S5.F3.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.sf2.2.1.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="S5.F3.sf2.3.2" class="ltx_text" style="font-size:80%;">Backdoor Size = 20</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F3.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x11.png" id="S5.F3.sf3.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.sf3.2.1.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="S5.F3.sf3.3.2" class="ltx_text" style="font-size:80%;">Backdoor Size = 30</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F3.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x12.png" id="S5.F3.sf4.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F3.sf4.2.1.1" class="ltx_text" style="font-size:80%;">(d)</span> </span><span id="S5.F3.sf4.3.2" class="ltx_text" style="font-size:80%;">Backdoor Size = 50</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The Effect of Backdoor Size for Constrained Attack with Norm Bound 10.</figcaption>
+</figure>
+<div id="S5.p6" class="ltx_para">
+<p id="S5.p6.2" class="ltx_p"><span id="S5.p6.2.1" class="ltx_text ltx_font_bold">Norm bound for the update</span>. In Figure <a href="#S5.F4.sf1" title="In Figure 4 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4(a)</span></a>, we consider norm bounded update from each user. We assume one attacker appears in every round, which corresponds to <math id="S5.p6.1.m1.1" class="ltx_Math" alttext="\epsilon=3.3\%" display="inline"><semantics id="S5.p6.1.m1.1a"><mrow id="S5.p6.1.m1.1.1" xref="S5.p6.1.m1.1.1.cmml"><mi id="S5.p6.1.m1.1.1.2" xref="S5.p6.1.m1.1.1.2.cmml">ϵ</mi><mo id="S5.p6.1.m1.1.1.1" xref="S5.p6.1.m1.1.1.1.cmml">=</mo><mrow id="S5.p6.1.m1.1.1.3" xref="S5.p6.1.m1.1.1.3.cmml"><mn id="S5.p6.1.m1.1.1.3.2" xref="S5.p6.1.m1.1.1.3.2.cmml">3.3</mn><mo id="S5.p6.1.m1.1.1.3.1" xref="S5.p6.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.p6.1.m1.1b"><apply id="S5.p6.1.m1.1.1.cmml" xref="S5.p6.1.m1.1.1"><eq id="S5.p6.1.m1.1.1.1.cmml" xref="S5.p6.1.m1.1.1.1"></eq><ci id="S5.p6.1.m1.1.1.2.cmml" xref="S5.p6.1.m1.1.1.2">italic-ϵ</ci><apply id="S5.p6.1.m1.1.1.3.cmml" xref="S5.p6.1.m1.1.1.3"><csymbol cd="latexml" id="S5.p6.1.m1.1.1.3.1.cmml" xref="S5.p6.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="S5.p6.1.m1.1.1.3.2.cmml" xref="S5.p6.1.m1.1.1.3.2">3.3</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.p6.1.m1.1c">\epsilon=3.3\%</annotation></semantics></math> corrupted users, and we consider norm bounds of 3, 5, and 10 (the 90 percentile of benign users’ updates are below 2 for most of the rounds), which translates to <math id="S5.p6.2.m2.3" class="ltx_Math" alttext="0.1,0.17,0.33" display="inline"><semantics id="S5.p6.2.m2.3a"><mrow id="S5.p6.2.m2.3.4.2" xref="S5.p6.2.m2.3.4.1.cmml"><mn id="S5.p6.2.m2.1.1" xref="S5.p6.2.m2.1.1.cmml">0.1</mn><mo id="S5.p6.2.m2.3.4.2.1" xref="S5.p6.2.m2.3.4.1.cmml">,</mo><mn id="S5.p6.2.m2.2.2" xref="S5.p6.2.m2.2.2.cmml">0.17</mn><mo id="S5.p6.2.m2.3.4.2.2" xref="S5.p6.2.m2.3.4.1.cmml">,</mo><mn id="S5.p6.2.m2.3.3" xref="S5.p6.2.m2.3.3.cmml">0.33</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.p6.2.m2.3b"><list id="S5.p6.2.m2.3.4.1.cmml" xref="S5.p6.2.m2.3.4.2"><cn type="float" id="S5.p6.2.m2.1.1.cmml" xref="S5.p6.2.m2.1.1">0.1</cn><cn type="float" id="S5.p6.2.m2.2.2.cmml" xref="S5.p6.2.m2.2.2">0.17</cn><cn type="float" id="S5.p6.2.m2.3.3.cmml" xref="S5.p6.2.m2.3.3">0.33</cn></list></annotation-xml><annotation encoding="application/x-tex" id="S5.p6.2.m2.3c">0.1,0.17,0.33</annotation></semantics></math> norm bound for the update before boosting. We can see from the plot that selecting 3 as the norm bound will successfully mitigate the attack with almost no effect on the performance of the main task. Hence we can see that norm bounding may be a valid defense for current backdoor attacks.</p>
+</div>
+<figure id="S5.F4" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F4.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x13.png" id="S5.F4.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F4.sf1.2.1.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="S5.F4.sf1.3.2" class="ltx_text" style="font-size:80%;">Norm clipping bound: Blue - unattacked baseline, Green: 3, Red: 5, Black: 10</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F4.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x14.png" id="S5.F4.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S5.F4.sf2.6.3.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="S5.F4.sf2.4.2" class="ltx_text" style="font-size:80%;">Gaussian noise (norm bound = 5). Red: <math id="S5.F4.sf2.3.1.m1.1" class="ltx_Math" alttext="\sigma=0" display="inline"><semantics id="S5.F4.sf2.3.1.m1.1b"><mrow id="S5.F4.sf2.3.1.m1.1.1" xref="S5.F4.sf2.3.1.m1.1.1.cmml"><mi id="S5.F4.sf2.3.1.m1.1.1.2" xref="S5.F4.sf2.3.1.m1.1.1.2.cmml">σ</mi><mo id="S5.F4.sf2.3.1.m1.1.1.1" xref="S5.F4.sf2.3.1.m1.1.1.1.cmml">=</mo><mn id="S5.F4.sf2.3.1.m1.1.1.3" xref="S5.F4.sf2.3.1.m1.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.F4.sf2.3.1.m1.1c"><apply id="S5.F4.sf2.3.1.m1.1.1.cmml" xref="S5.F4.sf2.3.1.m1.1.1"><eq id="S5.F4.sf2.3.1.m1.1.1.1.cmml" xref="S5.F4.sf2.3.1.m1.1.1.1"></eq><ci id="S5.F4.sf2.3.1.m1.1.1.2.cmml" xref="S5.F4.sf2.3.1.m1.1.1.2">𝜎</ci><cn type="integer" id="S5.F4.sf2.3.1.m1.1.1.3.cmml" xref="S5.F4.sf2.3.1.m1.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F4.sf2.3.1.m1.1d">\sigma=0</annotation></semantics></math>, green: <math id="S5.F4.sf2.4.2.m2.1" class="ltx_Math" alttext="\sigma=0.025" display="inline"><semantics id="S5.F4.sf2.4.2.m2.1b"><mrow id="S5.F4.sf2.4.2.m2.1.1" xref="S5.F4.sf2.4.2.m2.1.1.cmml"><mi id="S5.F4.sf2.4.2.m2.1.1.2" xref="S5.F4.sf2.4.2.m2.1.1.2.cmml">σ</mi><mo id="S5.F4.sf2.4.2.m2.1.1.1" xref="S5.F4.sf2.4.2.m2.1.1.1.cmml">=</mo><mn id="S5.F4.sf2.4.2.m2.1.1.3" xref="S5.F4.sf2.4.2.m2.1.1.3.cmml">0.025</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.F4.sf2.4.2.m2.1c"><apply id="S5.F4.sf2.4.2.m2.1.1.cmml" xref="S5.F4.sf2.4.2.m2.1.1"><eq id="S5.F4.sf2.4.2.m2.1.1.1.cmml" xref="S5.F4.sf2.4.2.m2.1.1.1"></eq><ci id="S5.F4.sf2.4.2.m2.1.1.2.cmml" xref="S5.F4.sf2.4.2.m2.1.1.2">𝜎</ci><cn type="float" id="S5.F4.sf2.4.2.m2.1.1.3.cmml" xref="S5.F4.sf2.4.2.m2.1.1.3">0.025</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.F4.sf2.4.2.m2.1d">\sigma=0.025</annotation></semantics></math>, blue: unattacked baseline</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Effect of norm bounding and Gaussian noise. Dotted: main task. Solid: backdoor task.</figcaption>
+</figure>
+<div id="S5.p7" class="ltx_para">
+<p id="S5.p7.1" class="ltx_p"><span id="S5.p7.1.1" class="ltx_text ltx_font_bold">Weak differential privacy</span> In Figure <a href="#S5.F4.sf2" title="In Figure 4 ‣ 5 Experiments ‣ Can You Really Backdoor Federated Learning?" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4(b)</span></a>, we consider norm bounding plus adding Gaussian noise. We use norm bound of 5, which itself would not mitigate the attack, and add independent Gaussian noise with variance 0.025 to each coordinate. From the plots, we can see that adding Gaussian noise can also help mitigate the attack beyond norm clipping without hurting the overall performance much. We note that similar to previous works on differential privacy <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib2" title="" class="ltx_ref">2</a>)</cite>, we do not provide a recipe for selecting the norm bound and variance of the Gaussian noise. Rather, we show that some reasonable values motivated by differential privacy literature perform well. Discovering algorithms to learn these bounds and noise values remains an interesting open research direction.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Discussion</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">We studied backdoor attacks and defenses for federated learning under the more realistic EMNIST dataset. In the absence of any defense, we showed that the performance of the adversary largely depends on the fraction of adversaries present. Hence, for reasonable success, there needs to be a large number of adversaries. Perhaps surprisingly norm clipping limits the success of known backdoor attacks considerably. Furthermore, adding a small amount of Gaussian noise, in addition to norm clipping, can help further mitigate the effect of adversaries. This gives rise to several interesting questions.</p>
+</div>
+<div id="S6.p2" class="ltx_para">
+<p id="S6.p2.1" class="ltx_p"><span id="S6.p2.1.1" class="ltx_text ltx_font_bold">Better attacks and defenses. </span> In the norm bounded case, multiple iterations of “pre-boosted” projected gradient descent may not be the best possible attack in a single round. In fact,the adversary may attempt to directly craft the “worst-case” model update that satisfies the norm bound (without any boosting). Moreover, if the attacker knows they can attack in multiple rounds, there might be better strategies for doing so under a norm bound. Similarly, more advanced defenses should be investigated.</p>
+</div>
+<div id="S6.p3" class="ltx_para">
+<p id="S6.p3.1" class="ltx_p"><span id="S6.p3.1.1" class="ltx_text ltx_font_bold">Effect of model capacity.</span> Another factor that may affect the performance of backdoor attacks is the model capacity, especially that it is conjectured that backdoor attacks use the spare capacity of the deep network <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib20" title="" class="ltx_ref">20</a>)</cite>. How model capacity interacts with backdoor attacks is an interesting question to consider both from the theoretical and practical sides.</p>
+</div>
+<div id="S6.p4" class="ltx_para">
+<p id="S6.p4.1" class="ltx_p"><span id="S6.p4.1.1" class="ltx_text ltx_font_bold">Interaction of defenses with SecAgg.</span> Existing approaches on range proofs (e.g. BulletProof <cite class="ltx_cite ltx_citemacro_cite">(<a href="#bib.bib8" title="" class="ltx_ref">8</a>)</cite>) can guarantee this when using secure multiparty computation but how to implement them in a computationally and communication efficient way is still an active research direction.
+This can also be made compatible with SecAgg if we have an efficient implementation of multi-party range proof.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Tensorflow federated.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://www.tensorflow.org/federated" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://www.tensorflow.org/federated</a>.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Martin Abadi, Andy Chu, Ian Goodfellow, H Brendan McMahan, Ilya Mironov, Kunal
+Talwar, and Li Zhang.
+
+</span>
+<span class="ltx_bibblock">Deep learning with differential privacy.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">Proceedings of the 2016 ACM SIGSAC Conference on Computer and
+Communications Security</span>, pages 308–318. ACM, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Eugene Bagdasaryan, Andreas Veit, Yiqing Hua, Deborah Estrin, and Vitaly
+Shmatikov.
+
+</span>
+<span class="ltx_bibblock">How to backdoor federated learning, 2018.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Arjun Nitin Bhagoji, Supriyo Chakraborty, Prateek Mittal, and Seraphin Calo.
+
+</span>
+<span class="ltx_bibblock">Analyzing federated learning through an adversarial lens.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, <span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">Proceedings of the 36th International Conference on Machine Learning</span>,
+volume 97 of <span id="bib.bib4.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 634–643,
+Long Beach, California, USA, 09–15 Jun 2019. PMLR.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Battista Biggio, Blaine Nelson, and Pavel Laskov.
+
+</span>
+<span class="ltx_bibblock">Poisoning attacks against support vector machines.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Proceedings of the 29th International Coference on
+International Conference on Machine Learning</span>, ICML’12, pages 1467–1474,
+USA, 2012. Omnipress.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Peva Blanchard, El Mahdi El Mhamdi, Rachid Guerraoui, and Julien Stainer.
+
+</span>
+<span class="ltx_bibblock">Machine learning with adversaries: Byzantine tolerant gradient
+descent.
+
+</span>
+<span class="ltx_bibblock">In I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus,
+S. Vishwanathan, and R. Garnett, editors, <span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information
+Processing Systems 30</span>, pages 119–129. Curran Associates, Inc., 2017.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Keith Bonawitz, Vladimir Ivanov, Ben Kreuter, Antonio Marcedone, H Brendan
+McMahan, Sarvar Patel, Daniel Ramage, Aaron Segal, and Karn Seth.
+
+</span>
+<span class="ltx_bibblock">Practical secure aggregation for privacy-preserving machine learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">Proceedings of the 2017 ACM SIGSAC Conference on Computer and
+Communications Security</span>, pages 1175–1191. ACM, 2017.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Benedikt Bünz, Jonathan Bootle, Dan Boneh, Andrew Poelstra, Pieter Wuille,
+and Greg Maxwell.
+
+</span>
+<span class="ltx_bibblock">Bulletproofs: Short proofs for confidential transactions and more.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">2018 IEEE Symposium on Security and Privacy (SP)</span>, pages
+315–334. IEEE, 2018.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Sebastian Caldas, Peter Wu, Tian Li, Jakub Konečnỳ, H Brendan
+McMahan, Virginia Smith, and Ameet Talwalkar.
+
+</span>
+<span class="ltx_bibblock">Leaf: A benchmark for federated settings.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1812.01097</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Xinyun Chen, Chang Liu, Bo Li, Kimberly Lu, and Dawn Song.
+
+</span>
+<span class="ltx_bibblock">Targeted backdoor attacks on deep learning systems using data
+poisoning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1712.05526</span>, 2017.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Gregory Cohen, Saeed Afshar, Jonathan Tapson, and André van Schaik.
+
+</span>
+<span class="ltx_bibblock">Emnist: Extending mnist to handwritten letters.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">2017 International Joint Conference on Neural Networks
+(IJCNN)</span>, pages 2921–2926. IEEE, 2017.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Georgios Damaskinos, El Mahdi El Mhamdi, Rachid Guerraoui, Rhicheek Patra, and
+Mahsa Taziki.
+
+</span>
+<span class="ltx_bibblock">Asynchronous byzantine machine learning (the case of sgd).
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1802.07928</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Ilias Diakonikolas, Gautam Kamath, Daniel Kane, Jerry Li, Jacob Steinhardt, and
+Alistair Stewart.
+
+</span>
+<span class="ltx_bibblock">Sever: A robust meta-algorithm for stochastic optimization.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, <span id="bib.bib13.1.1" class="ltx_text ltx_font_italic">Proceedings of the 36th International Conference on Machine Learning</span>,
+volume 97 of <span id="bib.bib13.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages
+1596–1606, Long Beach, California, USA, 09–15 Jun 2019. PMLR.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Cynthia Dwork, Frank Mcsherry, Kobbi Nissim, and Adam Smith.
+
+</span>
+<span class="ltx_bibblock">Calibrating noise to sensitivity in private data analysis.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">In Proceedings of the 3rd Theory of Cryptography Conference</span>,
+2006.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+El Mahdi El Mhamdi, Rachid Guerraoui, and Sébastien Rouault.
+
+</span>
+<span class="ltx_bibblock">The hidden vulnerability of distributed learning in Byzantium.
+
+</span>
+<span class="ltx_bibblock">In Jennifer Dy and Andreas Krause, editors, <span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">Proceedings of the
+35th International Conference on Machine Learning</span>, volume 80 of <span id="bib.bib15.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages 3521–3530,
+Stockholmsmässan, Stockholm Sweden, 10–15 Jul 2018. PMLR.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Ian J. Goodfellow, Jonathon Shlens, and Christian Szegedy.
+
+</span>
+<span class="ltx_bibblock">Explaining and harnessing adversarial examples.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib16.1.1" class="ltx_text ltx_font_italic">3rd International Conference on Learning Representations,
+ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track
+Proceedings</span>, 2015.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Tianyu Gu, Kang Liu, Brendan Dolan-Gavitt, and Siddharth Garg.
+
+</span>
+<span class="ltx_bibblock">Badnets: Evaluating backdooring attacks on deep neural networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">IEEE Access</span>, 7:47230–47244, 2019.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Peter J Huber.
+
+</span>
+<span class="ltx_bibblock">Robustness: Where are we now?
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Lecture Notes-Monograph Series</span>, pages 487–498, 1997.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Cong Liao, Haoti Zhong, Anna Squicciarini, Sencun Zhu, and David Miller.
+
+</span>
+<span class="ltx_bibblock">Backdoor embedding in convolutional neural network models via
+invisible perturbation.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1808.10307</span>, 2018.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Kang Liu, Brendan Dolan-Gavitt, and Siddharth Garg.
+
+</span>
+<span class="ltx_bibblock">Fine-pruning: Defending against backdooring attacks on deep neural
+networks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">International Symposium on Research in Attacks, Intrusions,
+and Defenses</span>, pages 273–294. Springer, 2018.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Yingqi Liu, Shiqing Ma, Yousra Aafer, Wen-Chuan Lee, Juan Zhai, Weihang Wang,
+and Xiangyu Zhang.
+
+</span>
+<span class="ltx_bibblock">Trojaning attack on neural networks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">25th Annual Network and Distributed System Security
+Symposium, NDSS 2018, San Diego, California, USA, February 18-21, 2018</span>,
+2018.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Yuzhe Ma, Xiaojin Zhu, and Justin Hsu.
+
+</span>
+<span class="ltx_bibblock">Data poisoning against differentially-private learners: Attacks and
+defenses.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1903.09860</span>, 2019.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+H Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Aguera
+y Arcas.
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of deep networks from decentralized
+data.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib23.1.1" class="ltx_text ltx_font_italic">Proceedings of the 20th International Conference on
+Artificial Intelligence and Statistics</span>, pages 1273–1282, 2017.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+H Brendan McMahan, Daniel Ramage, Kunal Talwar, and Li Zhang.
+
+</span>
+<span class="ltx_bibblock">Learning differentially private recurrent language models.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib24.1.1" class="ltx_text ltx_font_italic">International Conference on Learning Representations (ICLR)</span>,
+2018.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Shike Mei and Xiaojin Zhu.
+
+</span>
+<span class="ltx_bibblock">Using machine teaching to identify optimal training-set attacks on
+machine learners.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib25.1.1" class="ltx_text ltx_font_italic">Proceedings of the Twenty-Ninth AAAI Conference on Artificial
+Intelligence</span>, AAAI’15, pages 2871–2877. AAAI Press, 2015.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+Yanyao Shen and Sujay Sanghavi.
+
+</span>
+<span class="ltx_bibblock">Learning with bad training data via iterative trimmed loss
+minimization.
+
+</span>
+<span class="ltx_bibblock">In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, <span id="bib.bib26.1.1" class="ltx_text ltx_font_italic">Proceedings of the 36th International Conference on Machine Learning</span>,
+volume 97 of <span id="bib.bib26.2.2" class="ltx_text ltx_font_italic">Proceedings of Machine Learning Research</span>, pages
+5739–5748, Long Beach, California, USA, 09–15 Jun 2019. PMLR.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Reza Shokri, Marco Stronati, Congzheng Song, and Vitaly Shmatikov.
+
+</span>
+<span class="ltx_bibblock">Membership inference attacks against machine learning models.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib27.1.1" class="ltx_text ltx_font_italic">2017 IEEE Symposium on Security and Privacy, SP 2017, San
+Jose, CA, USA, May 22-26, 2017</span>, pages 3–18, 2017.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+Jacob Steinhardt, Pang Wei W Koh, and Percy S Liang.
+
+</span>
+<span class="ltx_bibblock">Certified defenses for data poisoning attacks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib28.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, pages
+3517–3529, 2017.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+Christian Szegedy, Wojciech Zaremba, Ilya Sutskever, Joan Bruna, Dumitru Erhan,
+Ian J. Goodfellow, and Rob Fergus.
+
+</span>
+<span class="ltx_bibblock">Intriguing properties of neural networks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib29.1.1" class="ltx_text ltx_font_italic">2nd International Conference on Learning Representations,
+ICLR 2014, Banff, AB, Canada, April 14-16, 2014, Conference Track
+Proceedings</span>, 2014.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+Florian Tramèr, Fan Zhang, Ari Juels, Michael K. Reiter, and Thomas
+Ristenpart.
+
+</span>
+<span class="ltx_bibblock">Stealing machine learning models via prediction apis.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib30.1.1" class="ltx_text ltx_font_italic">25th USENIX Security Symposium, USENIX Security 16,
+Austin, TX, USA, August 10-12, 2016.</span>, pages 601–618, 2016.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+Brandon Tran, Jerry Li, and Aleksander Madry.
+
+</span>
+<span class="ltx_bibblock">Spectral signatures in backdoor attacks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib31.1.1" class="ltx_text ltx_font_italic">Advances in Neural Information Processing Systems</span>, pages
+8000–8010, 2018.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+Bolun Wang, Yuanshun Yao, Shawn Shan, Huiying Li, Bimal Viswanath, Haitao
+Zheng, and Ben Y Zhao.
+
+</span>
+<span class="ltx_bibblock">Neural cleanse: Identifying and mitigating backdoor attacks in neural
+networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib32.1.1" class="ltx_text ltx_font_italic">Neural Cleanse: Identifying and Mitigating Backdoor Attacks in
+Neural Networks</span>, page 0, 2019.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+Huang Xiao, Battista Biggio, Blaine Nelson, Han Xiao, Claudia Eckert, and Fabio
+Roli.
+
+</span>
+<span class="ltx_bibblock">Support vector machines under adversarial label contamination.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib33.1.1" class="ltx_text ltx_font_italic">Neurocomput.</span>, 160(C):53–62, July 2015.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<section id="A1" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix A </span>Additional figures for experiments</h2>
+
+<figure id="A1.F5" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F5.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x15.png" id="A1.F5.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F5.sf1.4.2.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="A1.F5.sf1.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/3 (<math id="A1.F5.sf1.2.1.m1.1" class="ltx_Math" alttext="\epsilon=1.1\%" display="inline"><semantics id="A1.F5.sf1.2.1.m1.1b"><mrow id="A1.F5.sf1.2.1.m1.1.1" xref="A1.F5.sf1.2.1.m1.1.1.cmml"><mi id="A1.F5.sf1.2.1.m1.1.1.2" xref="A1.F5.sf1.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F5.sf1.2.1.m1.1.1.1" xref="A1.F5.sf1.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F5.sf1.2.1.m1.1.1.3" xref="A1.F5.sf1.2.1.m1.1.1.3.cmml"><mn id="A1.F5.sf1.2.1.m1.1.1.3.2" xref="A1.F5.sf1.2.1.m1.1.1.3.2.cmml">1.1</mn><mo id="A1.F5.sf1.2.1.m1.1.1.3.1" xref="A1.F5.sf1.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F5.sf1.2.1.m1.1c"><apply id="A1.F5.sf1.2.1.m1.1.1.cmml" xref="A1.F5.sf1.2.1.m1.1.1"><eq id="A1.F5.sf1.2.1.m1.1.1.1.cmml" xref="A1.F5.sf1.2.1.m1.1.1.1"></eq><ci id="A1.F5.sf1.2.1.m1.1.1.2.cmml" xref="A1.F5.sf1.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F5.sf1.2.1.m1.1.1.3.cmml" xref="A1.F5.sf1.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F5.sf1.2.1.m1.1.1.3.1.cmml" xref="A1.F5.sf1.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F5.sf1.2.1.m1.1.1.3.2.cmml" xref="A1.F5.sf1.2.1.m1.1.1.3.2">1.1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F5.sf1.2.1.m1.1d">\epsilon=1.1\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F5.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x16.png" id="A1.F5.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F5.sf2.4.2.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="A1.F5.sf2.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 38 (<math id="A1.F5.sf2.2.1.m1.1" class="ltx_Math" alttext="\epsilon=1.1\%" display="inline"><semantics id="A1.F5.sf2.2.1.m1.1b"><mrow id="A1.F5.sf2.2.1.m1.1.1" xref="A1.F5.sf2.2.1.m1.1.1.cmml"><mi id="A1.F5.sf2.2.1.m1.1.1.2" xref="A1.F5.sf2.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F5.sf2.2.1.m1.1.1.1" xref="A1.F5.sf2.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F5.sf2.2.1.m1.1.1.3" xref="A1.F5.sf2.2.1.m1.1.1.3.cmml"><mn id="A1.F5.sf2.2.1.m1.1.1.3.2" xref="A1.F5.sf2.2.1.m1.1.1.3.2.cmml">1.1</mn><mo id="A1.F5.sf2.2.1.m1.1.1.3.1" xref="A1.F5.sf2.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F5.sf2.2.1.m1.1c"><apply id="A1.F5.sf2.2.1.m1.1.1.cmml" xref="A1.F5.sf2.2.1.m1.1.1"><eq id="A1.F5.sf2.2.1.m1.1.1.1.cmml" xref="A1.F5.sf2.2.1.m1.1.1.1"></eq><ci id="A1.F5.sf2.2.1.m1.1.1.2.cmml" xref="A1.F5.sf2.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F5.sf2.2.1.m1.1.1.3.cmml" xref="A1.F5.sf2.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F5.sf2.2.1.m1.1.1.3.1.cmml" xref="A1.F5.sf2.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F5.sf2.2.1.m1.1.1.3.2.cmml" xref="A1.F5.sf2.2.1.m1.1.1.3.2">1.1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F5.sf2.2.1.m1.1d">\epsilon=1.1\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F5.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x17.png" id="A1.F5.sf3.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F5.sf3.4.2.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="A1.F5.sf3.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/5 (<math id="A1.F5.sf3.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.67\%" display="inline"><semantics id="A1.F5.sf3.2.1.m1.1b"><mrow id="A1.F5.sf3.2.1.m1.1.1" xref="A1.F5.sf3.2.1.m1.1.1.cmml"><mi id="A1.F5.sf3.2.1.m1.1.1.2" xref="A1.F5.sf3.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F5.sf3.2.1.m1.1.1.1" xref="A1.F5.sf3.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F5.sf3.2.1.m1.1.1.3" xref="A1.F5.sf3.2.1.m1.1.1.3.cmml"><mn id="A1.F5.sf3.2.1.m1.1.1.3.2" xref="A1.F5.sf3.2.1.m1.1.1.3.2.cmml">0.67</mn><mo id="A1.F5.sf3.2.1.m1.1.1.3.1" xref="A1.F5.sf3.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F5.sf3.2.1.m1.1c"><apply id="A1.F5.sf3.2.1.m1.1.1.cmml" xref="A1.F5.sf3.2.1.m1.1.1"><eq id="A1.F5.sf3.2.1.m1.1.1.1.cmml" xref="A1.F5.sf3.2.1.m1.1.1.1"></eq><ci id="A1.F5.sf3.2.1.m1.1.1.2.cmml" xref="A1.F5.sf3.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F5.sf3.2.1.m1.1.1.3.cmml" xref="A1.F5.sf3.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F5.sf3.2.1.m1.1.1.3.1.cmml" xref="A1.F5.sf3.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F5.sf3.2.1.m1.1.1.3.2.cmml" xref="A1.F5.sf3.2.1.m1.1.1.3.2">0.67</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F5.sf3.2.1.m1.1d">\epsilon=0.67\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F5.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x18.png" id="A1.F5.sf4.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F5.sf4.4.2.1" class="ltx_text" style="font-size:80%;">(d)</span> </span><span id="A1.F5.sf4.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 23 (<math id="A1.F5.sf4.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.67\%" display="inline"><semantics id="A1.F5.sf4.2.1.m1.1b"><mrow id="A1.F5.sf4.2.1.m1.1.1" xref="A1.F5.sf4.2.1.m1.1.1.cmml"><mi id="A1.F5.sf4.2.1.m1.1.1.2" xref="A1.F5.sf4.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F5.sf4.2.1.m1.1.1.1" xref="A1.F5.sf4.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F5.sf4.2.1.m1.1.1.3" xref="A1.F5.sf4.2.1.m1.1.1.3.cmml"><mn id="A1.F5.sf4.2.1.m1.1.1.3.2" xref="A1.F5.sf4.2.1.m1.1.1.3.2.cmml">0.67</mn><mo id="A1.F5.sf4.2.1.m1.1.1.3.1" xref="A1.F5.sf4.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F5.sf4.2.1.m1.1c"><apply id="A1.F5.sf4.2.1.m1.1.1.cmml" xref="A1.F5.sf4.2.1.m1.1.1"><eq id="A1.F5.sf4.2.1.m1.1.1.1.cmml" xref="A1.F5.sf4.2.1.m1.1.1.1"></eq><ci id="A1.F5.sf4.2.1.m1.1.1.2.cmml" xref="A1.F5.sf4.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F5.sf4.2.1.m1.1.1.3.cmml" xref="A1.F5.sf4.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F5.sf4.2.1.m1.1.1.3.1.cmml" xref="A1.F5.sf4.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F5.sf4.2.1.m1.1.1.3.2.cmml" xref="A1.F5.sf4.2.1.m1.1.1.3.2">0.67</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F5.sf4.2.1.m1.1d">\epsilon=0.67\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Unconstrained attack for fixed-frequency attacks (left column) and random sampling attack (right column) with different fractions of attackers. Green line is the cumulative mean for the backdoor accuracy.</figcaption>
+</figure>
+<figure id="A1.F6" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F6.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x19.png" id="A1.F6.sf1.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F6.sf1.4.2.1" class="ltx_text" style="font-size:80%;">(a)</span> </span><span id="A1.F6.sf1.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/3 (<math id="A1.F6.sf1.2.1.m1.1" class="ltx_Math" alttext="\epsilon=1.1\%" display="inline"><semantics id="A1.F6.sf1.2.1.m1.1b"><mrow id="A1.F6.sf1.2.1.m1.1.1" xref="A1.F6.sf1.2.1.m1.1.1.cmml"><mi id="A1.F6.sf1.2.1.m1.1.1.2" xref="A1.F6.sf1.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F6.sf1.2.1.m1.1.1.1" xref="A1.F6.sf1.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F6.sf1.2.1.m1.1.1.3" xref="A1.F6.sf1.2.1.m1.1.1.3.cmml"><mn id="A1.F6.sf1.2.1.m1.1.1.3.2" xref="A1.F6.sf1.2.1.m1.1.1.3.2.cmml">1.1</mn><mo id="A1.F6.sf1.2.1.m1.1.1.3.1" xref="A1.F6.sf1.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F6.sf1.2.1.m1.1c"><apply id="A1.F6.sf1.2.1.m1.1.1.cmml" xref="A1.F6.sf1.2.1.m1.1.1"><eq id="A1.F6.sf1.2.1.m1.1.1.1.cmml" xref="A1.F6.sf1.2.1.m1.1.1.1"></eq><ci id="A1.F6.sf1.2.1.m1.1.1.2.cmml" xref="A1.F6.sf1.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F6.sf1.2.1.m1.1.1.3.cmml" xref="A1.F6.sf1.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F6.sf1.2.1.m1.1.1.3.1.cmml" xref="A1.F6.sf1.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F6.sf1.2.1.m1.1.1.3.2.cmml" xref="A1.F6.sf1.2.1.m1.1.1.3.2">1.1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F6.sf1.2.1.m1.1d">\epsilon=1.1\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F6.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x20.png" id="A1.F6.sf2.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F6.sf2.4.2.1" class="ltx_text" style="font-size:80%;">(b)</span> </span><span id="A1.F6.sf2.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 38 (<math id="A1.F6.sf2.2.1.m1.1" class="ltx_Math" alttext="\epsilon=1.1\%" display="inline"><semantics id="A1.F6.sf2.2.1.m1.1b"><mrow id="A1.F6.sf2.2.1.m1.1.1" xref="A1.F6.sf2.2.1.m1.1.1.cmml"><mi id="A1.F6.sf2.2.1.m1.1.1.2" xref="A1.F6.sf2.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F6.sf2.2.1.m1.1.1.1" xref="A1.F6.sf2.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F6.sf2.2.1.m1.1.1.3" xref="A1.F6.sf2.2.1.m1.1.1.3.cmml"><mn id="A1.F6.sf2.2.1.m1.1.1.3.2" xref="A1.F6.sf2.2.1.m1.1.1.3.2.cmml">1.1</mn><mo id="A1.F6.sf2.2.1.m1.1.1.3.1" xref="A1.F6.sf2.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F6.sf2.2.1.m1.1c"><apply id="A1.F6.sf2.2.1.m1.1.1.cmml" xref="A1.F6.sf2.2.1.m1.1.1"><eq id="A1.F6.sf2.2.1.m1.1.1.1.cmml" xref="A1.F6.sf2.2.1.m1.1.1.1"></eq><ci id="A1.F6.sf2.2.1.m1.1.1.2.cmml" xref="A1.F6.sf2.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F6.sf2.2.1.m1.1.1.3.cmml" xref="A1.F6.sf2.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F6.sf2.2.1.m1.1.1.3.1.cmml" xref="A1.F6.sf2.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F6.sf2.2.1.m1.1.1.3.2.cmml" xref="A1.F6.sf2.2.1.m1.1.1.3.2">1.1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F6.sf2.2.1.m1.1d">\epsilon=1.1\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F6.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x21.png" id="A1.F6.sf3.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F6.sf3.4.2.1" class="ltx_text" style="font-size:80%;">(c)</span> </span><span id="A1.F6.sf3.2.1" class="ltx_text" style="font-size:80%;">Attack frequency = 1/5 (<math id="A1.F6.sf3.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.67\%" display="inline"><semantics id="A1.F6.sf3.2.1.m1.1b"><mrow id="A1.F6.sf3.2.1.m1.1.1" xref="A1.F6.sf3.2.1.m1.1.1.cmml"><mi id="A1.F6.sf3.2.1.m1.1.1.2" xref="A1.F6.sf3.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F6.sf3.2.1.m1.1.1.1" xref="A1.F6.sf3.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F6.sf3.2.1.m1.1.1.3" xref="A1.F6.sf3.2.1.m1.1.1.3.cmml"><mn id="A1.F6.sf3.2.1.m1.1.1.3.2" xref="A1.F6.sf3.2.1.m1.1.1.3.2.cmml">0.67</mn><mo id="A1.F6.sf3.2.1.m1.1.1.3.1" xref="A1.F6.sf3.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F6.sf3.2.1.m1.1c"><apply id="A1.F6.sf3.2.1.m1.1.1.cmml" xref="A1.F6.sf3.2.1.m1.1.1"><eq id="A1.F6.sf3.2.1.m1.1.1.1.cmml" xref="A1.F6.sf3.2.1.m1.1.1.1"></eq><ci id="A1.F6.sf3.2.1.m1.1.1.2.cmml" xref="A1.F6.sf3.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F6.sf3.2.1.m1.1.1.3.cmml" xref="A1.F6.sf3.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F6.sf3.2.1.m1.1.1.3.1.cmml" xref="A1.F6.sf3.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F6.sf3.2.1.m1.1.1.3.2.cmml" xref="A1.F6.sf3.2.1.m1.1.1.3.2">0.67</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F6.sf3.2.1.m1.1d">\epsilon=0.67\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="A1.F6.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/1911.07963/assets/x22.png" id="A1.F6.sf4.g1" class="ltx_graphics ltx_img_landscape" width="226" height="135" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="A1.F6.sf4.4.2.1" class="ltx_text" style="font-size:80%;">(d)</span> </span><span id="A1.F6.sf4.2.1" class="ltx_text" style="font-size:80%;">Number of attackers = 23 (<math id="A1.F6.sf4.2.1.m1.1" class="ltx_Math" alttext="\epsilon=0.67\%" display="inline"><semantics id="A1.F6.sf4.2.1.m1.1b"><mrow id="A1.F6.sf4.2.1.m1.1.1" xref="A1.F6.sf4.2.1.m1.1.1.cmml"><mi id="A1.F6.sf4.2.1.m1.1.1.2" xref="A1.F6.sf4.2.1.m1.1.1.2.cmml">ϵ</mi><mo id="A1.F6.sf4.2.1.m1.1.1.1" xref="A1.F6.sf4.2.1.m1.1.1.1.cmml">=</mo><mrow id="A1.F6.sf4.2.1.m1.1.1.3" xref="A1.F6.sf4.2.1.m1.1.1.3.cmml"><mn id="A1.F6.sf4.2.1.m1.1.1.3.2" xref="A1.F6.sf4.2.1.m1.1.1.3.2.cmml">0.67</mn><mo id="A1.F6.sf4.2.1.m1.1.1.3.1" xref="A1.F6.sf4.2.1.m1.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="A1.F6.sf4.2.1.m1.1c"><apply id="A1.F6.sf4.2.1.m1.1.1.cmml" xref="A1.F6.sf4.2.1.m1.1.1"><eq id="A1.F6.sf4.2.1.m1.1.1.1.cmml" xref="A1.F6.sf4.2.1.m1.1.1.1"></eq><ci id="A1.F6.sf4.2.1.m1.1.1.2.cmml" xref="A1.F6.sf4.2.1.m1.1.1.2">italic-ϵ</ci><apply id="A1.F6.sf4.2.1.m1.1.1.3.cmml" xref="A1.F6.sf4.2.1.m1.1.1.3"><csymbol cd="latexml" id="A1.F6.sf4.2.1.m1.1.1.3.1.cmml" xref="A1.F6.sf4.2.1.m1.1.1.3.1">percent</csymbol><cn type="float" id="A1.F6.sf4.2.1.m1.1.1.3.2.cmml" xref="A1.F6.sf4.2.1.m1.1.1.3.2">0.67</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="A1.F6.sf4.2.1.m1.1d">\epsilon=0.67\%</annotation></semantics></math>)</span></figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>Constrained attack with norm bound 10 for fixed-frequency attacks (left column) and random sampling attack (right column) with different fractions of attackers. Green line is the cumulative mean for the backdoor accuracy.</figcaption>
+</figure>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1911.07962" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1911.07963" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1911.07963">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1911.07963" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1911.07964" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Mar  7 09:36:05 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

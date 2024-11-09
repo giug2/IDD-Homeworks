@@ -1,0 +1,785 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2408.11258] IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS</title><meta property="og:description" content="Modeling the errors of a speech recognizer can help simulate errorful recognized speech data from plain text, which has proven useful for tasks like discriminative language modeling, improving robustness of NLP systems…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2408.11258">
+
+<!--Generated on Thu Sep  5 12:55:38 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">IMPROVING SPEECH RECOGNITION ERROR PREDICTION 
+<br class="ltx_break">FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Modeling the errors of a speech recognizer can help simulate errorful recognized speech data from plain text, which has proven useful for tasks like discriminative language modeling, improving robustness of NLP systems, where limited or even no audio data is available at train time. Previous work typically considered replicating behavior of GMM-HMM based systems, but the behavior of more modern posterior-based neural network acoustic models is not the same and requires adjustments to the error prediction model. In this work, we extend a prior phonetic confusion based model for predicting speech recognition errors in two ways: first, we introduce a sampling-based paradigm that better simulates the behavior of a posterior-based acoustic model. Second, we investigate replacing the confusion matrix with a sequence-to-sequence model in order to introduce context dependency into the prediction. We evaluate the error predictors in two ways: first by predicting the errors made by a Switchboard ASR system on unseen data (Fisher), and then using that same predictor to estimate the behavior of an unrelated cloud-based ASR system on a novel task. Sampling greatly improves predictive accuracy within a 100-guess paradigm, while the sequence model performs similarly to the confusion matrix.</p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— </span></span>
+Speech Recognition, Error Prediction, Low Resource, Sequence to Sequence Neural Networks, Simulated ASR Errors</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Automatic Speech Recognition (ASR) is proliferating quickly, with a variety of applications having speech as an input modality. Yet, application specific audio data is often a scarce resource, and models trained on text data are widely being paired with cloud based speech recognition services. The nature of speech recognized text can be different from typed text data, notably in the nature of errors i.e. typos vs. speech recognition errors. Prior work has shown that given text data it is possible to simulate the recognition errors that might occur if the text were to be spoken, and the benefit of such simulated data especially in the absence of in application specific ASR data.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Fosler-Lussier et al. described a Weighted Finite State Transducer (WFST) framework that models word errors in speech recognition by measuring kinds of phonetic errors to build a phonetic confusion matrix <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Anguita et al. looked inside the HMM-GMM acoustic model of the speech recognizer to directly determine phone distances and model errors <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. Jyothi and Fosler-Lussier combined the two aforementioned ideas and extended it to predict complete utterances of speech recognized text <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>. Several works have used simulated ASR error data to do discriminative training and improve ASR performance <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>. Simulating ASR errors can also help with downstream tasks: Tsvetkov et al. incorporated knowledge of simulated ASR errors at train time, to improve the performance of a Machine Translation system in the face of real speech recognized data at test time <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">There is not prior published work, to the best of our knowledge, that predicts errors for an ASR system using a neural network acoustic model, or for commercial off-the-shelf recognizers. With modern speech recognizers we can no longer determine phone distances by peeking into the acoustic model, so some of the enhanced confusion transducer based models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> are no longer applicable. Also, off-the-shelf speech recognizers do not afford much access to internals or information about them.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">However, there is a key flaw in the Fosler-Lussier et al. WFST model that implies a significant mismatch to posterior based models: the confusion matrix is used <span id="S1.p4.1.1" class="ltx_text ltx_font_italic">directly</span> for prediction, and does not exhibit the peaky behavior of frame-level (or CTC-level) posterior estimates. This mismatch creates a poor model when generating errors for neural net based systems. The key insight in this paper is that we use the confusion matrix over all examples to sample <span id="S1.p4.1.2" class="ltx_text ltx_font_italic">which</span> phones should appear in the output distribution, but provide a distribution that is much more peaky and ignores the smoother tails of the confusion matrix. When sampling from the confusion matrix instead of composing with its FST form, we find that it better models the stochasticity of errors and confidence of neural network acoustic models.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">The standard confusion matrix in the WFST framework is context-independent, which does not reflect well the context-dependence of errors (for example, a canonical vowel next to /r/ will more likely be misidentified as an r-colored vowel than other vowels). However, context-dependent confusion networks require substantial amounts of data to train and will be relatively sparse. In order to model context dependence, we trained a neural Sequence to Sequence model, predicting errorful phone sequences from canonical sequences. We can then either directly use the predictions, or decode using the WFST framework above.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">In the next section, we describe the two models used in this experiment. Section <a href="#S3" title="3 Experimental Setup ‣ IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> details the experimental setup, followed in Section <a href="#S4" title="4 Evaluation and Results ‣ IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> by evaluation both on a same-setting task (train on Switchboard, test on Fisher with the same recognizer) and a cross-setting task (train on Switchboard, test on a dialogue system using a different recognizer).</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<div id="S1.F1.1" class="ltx_block ltx_minipage ltx_align_bottom" style="width:433.6pt;">
+<p id="S1.F1.1.1" class="ltx_p ltx_align_center"><span id="S1.F1.1.1.1" class="ltx_text"><img src="/html/2408.11258/assets/fig1.png" id="S1.F1.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="334" height="194" alt="Refer to caption"></span></p>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure"><span id="S1.F1.3.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>General pipeline for generating simulated errorful sequences: text transcripts are converted to phone sequences, which are converted to confusable phone lattices through the error prediction model. These are then decoded by a WSFT model incorporating a lexicon and language model.</figcaption>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Model Descriptions</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Our general pipeline for going from regular text to text with simulated ASR errors is shown in Figure<a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.
+We convert the input word sequence to a phone sequence, simulate phonetic errors, and then decode back to a word sequence. We focus our attention on simulating the errors at the phonetic level.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Confusion Matrix Based Models</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.2" class="ltx_p">The WFST error prediction approach <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> estimates an N-best list of word confusions <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="W_{\it conf}" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><msub id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml"><mi id="S2.SS1.p1.1.m1.1.1.2" xref="S2.SS1.p1.1.m1.1.1.2.cmml">W</mi><mi id="S2.SS1.p1.1.m1.1.1.3" xref="S2.SS1.p1.1.m1.1.1.3.cmml">𝑐𝑜𝑛𝑓</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><apply id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.2">𝑊</ci><ci id="S2.SS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3">𝑐𝑜𝑛𝑓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">W_{\it conf}</annotation></semantics></math> from an input word sequence <math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="W" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><mi id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">W</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">𝑊</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">W</annotation></semantics></math> through the following equation:</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.1" class="ltx_Math" alttext="W_{\it conf}=W\&gt;o\&gt;P^{-1}\&gt;o\&gt;C\&gt;o\&gt;P\&gt;o\&gt;L" display="block"><semantics id="S2.Ex1.m1.1a"><mrow id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml"><msub id="S2.Ex1.m1.1.1.2" xref="S2.Ex1.m1.1.1.2.cmml"><mi id="S2.Ex1.m1.1.1.2.2" xref="S2.Ex1.m1.1.1.2.2.cmml">W</mi><mi id="S2.Ex1.m1.1.1.2.3" xref="S2.Ex1.m1.1.1.2.3.cmml">𝑐𝑜𝑛𝑓</mi></msub><mo id="S2.Ex1.m1.1.1.1" xref="S2.Ex1.m1.1.1.1.cmml">=</mo><mrow id="S2.Ex1.m1.1.1.3" xref="S2.Ex1.m1.1.1.3.cmml"><mi id="S2.Ex1.m1.1.1.3.2" xref="S2.Ex1.m1.1.1.3.2.cmml">W</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.3" xref="S2.Ex1.m1.1.1.3.3.cmml">o</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1a" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><msup id="S2.Ex1.m1.1.1.3.4" xref="S2.Ex1.m1.1.1.3.4.cmml"><mi id="S2.Ex1.m1.1.1.3.4.2" xref="S2.Ex1.m1.1.1.3.4.2.cmml">P</mi><mrow id="S2.Ex1.m1.1.1.3.4.3" xref="S2.Ex1.m1.1.1.3.4.3.cmml"><mo id="S2.Ex1.m1.1.1.3.4.3a" xref="S2.Ex1.m1.1.1.3.4.3.cmml">−</mo><mn id="S2.Ex1.m1.1.1.3.4.3.2" xref="S2.Ex1.m1.1.1.3.4.3.2.cmml">1</mn></mrow></msup><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.3.1b" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.5" xref="S2.Ex1.m1.1.1.3.5.cmml">o</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1c" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.6" xref="S2.Ex1.m1.1.1.3.6.cmml">C</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1d" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.7" xref="S2.Ex1.m1.1.1.3.7.cmml">o</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1e" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.8" xref="S2.Ex1.m1.1.1.3.8.cmml">P</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1f" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.9" xref="S2.Ex1.m1.1.1.3.9.cmml">o</mi><mo lspace="0.220em" rspace="0em" id="S2.Ex1.m1.1.1.3.1g" xref="S2.Ex1.m1.1.1.3.1.cmml">​</mo><mi id="S2.Ex1.m1.1.1.3.10" xref="S2.Ex1.m1.1.1.3.10.cmml">L</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.1b"><apply id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1"><eq id="S2.Ex1.m1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1"></eq><apply id="S2.Ex1.m1.1.1.2.cmml" xref="S2.Ex1.m1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.2.1.cmml" xref="S2.Ex1.m1.1.1.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.2.2.cmml" xref="S2.Ex1.m1.1.1.2.2">𝑊</ci><ci id="S2.Ex1.m1.1.1.2.3.cmml" xref="S2.Ex1.m1.1.1.2.3">𝑐𝑜𝑛𝑓</ci></apply><apply id="S2.Ex1.m1.1.1.3.cmml" xref="S2.Ex1.m1.1.1.3"><times id="S2.Ex1.m1.1.1.3.1.cmml" xref="S2.Ex1.m1.1.1.3.1"></times><ci id="S2.Ex1.m1.1.1.3.2.cmml" xref="S2.Ex1.m1.1.1.3.2">𝑊</ci><ci id="S2.Ex1.m1.1.1.3.3.cmml" xref="S2.Ex1.m1.1.1.3.3">𝑜</ci><apply id="S2.Ex1.m1.1.1.3.4.cmml" xref="S2.Ex1.m1.1.1.3.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.3.4.1.cmml" xref="S2.Ex1.m1.1.1.3.4">superscript</csymbol><ci id="S2.Ex1.m1.1.1.3.4.2.cmml" xref="S2.Ex1.m1.1.1.3.4.2">𝑃</ci><apply id="S2.Ex1.m1.1.1.3.4.3.cmml" xref="S2.Ex1.m1.1.1.3.4.3"><minus id="S2.Ex1.m1.1.1.3.4.3.1.cmml" xref="S2.Ex1.m1.1.1.3.4.3"></minus><cn type="integer" id="S2.Ex1.m1.1.1.3.4.3.2.cmml" xref="S2.Ex1.m1.1.1.3.4.3.2">1</cn></apply></apply><ci id="S2.Ex1.m1.1.1.3.5.cmml" xref="S2.Ex1.m1.1.1.3.5">𝑜</ci><ci id="S2.Ex1.m1.1.1.3.6.cmml" xref="S2.Ex1.m1.1.1.3.6">𝐶</ci><ci id="S2.Ex1.m1.1.1.3.7.cmml" xref="S2.Ex1.m1.1.1.3.7">𝑜</ci><ci id="S2.Ex1.m1.1.1.3.8.cmml" xref="S2.Ex1.m1.1.1.3.8">𝑃</ci><ci id="S2.Ex1.m1.1.1.3.9.cmml" xref="S2.Ex1.m1.1.1.3.9">𝑜</ci><ci id="S2.Ex1.m1.1.1.3.10.cmml" xref="S2.Ex1.m1.1.1.3.10">𝐿</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.1c">W_{\it conf}=W\&gt;o\&gt;P^{-1}\&gt;o\&gt;C\&gt;o\&gt;P\&gt;o\&gt;L</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p1.7" class="ltx_p">The words in the original text sequence are converted to phones using pronunciations from an inverted lexicon <math id="S2.SS1.p1.3.m1.1" class="ltx_Math" alttext="P^{-1}" display="inline"><semantics id="S2.SS1.p1.3.m1.1a"><msup id="S2.SS1.p1.3.m1.1.1" xref="S2.SS1.p1.3.m1.1.1.cmml"><mi id="S2.SS1.p1.3.m1.1.1.2" xref="S2.SS1.p1.3.m1.1.1.2.cmml">P</mi><mrow id="S2.SS1.p1.3.m1.1.1.3" xref="S2.SS1.p1.3.m1.1.1.3.cmml"><mo id="S2.SS1.p1.3.m1.1.1.3a" xref="S2.SS1.p1.3.m1.1.1.3.cmml">−</mo><mn id="S2.SS1.p1.3.m1.1.1.3.2" xref="S2.SS1.p1.3.m1.1.1.3.2.cmml">1</mn></mrow></msup><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m1.1b"><apply id="S2.SS1.p1.3.m1.1.1.cmml" xref="S2.SS1.p1.3.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m1.1.1.1.cmml" xref="S2.SS1.p1.3.m1.1.1">superscript</csymbol><ci id="S2.SS1.p1.3.m1.1.1.2.cmml" xref="S2.SS1.p1.3.m1.1.1.2">𝑃</ci><apply id="S2.SS1.p1.3.m1.1.1.3.cmml" xref="S2.SS1.p1.3.m1.1.1.3"><minus id="S2.SS1.p1.3.m1.1.1.3.1.cmml" xref="S2.SS1.p1.3.m1.1.1.3"></minus><cn type="integer" id="S2.SS1.p1.3.m1.1.1.3.2.cmml" xref="S2.SS1.p1.3.m1.1.1.3.2">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m1.1c">P^{-1}</annotation></semantics></math>, composed with a confusion matrix WFST <math id="S2.SS1.p1.4.m2.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S2.SS1.p1.4.m2.1a"><mi id="S2.SS1.p1.4.m2.1.1" xref="S2.SS1.p1.4.m2.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m2.1b"><ci id="S2.SS1.p1.4.m2.1.1.cmml" xref="S2.SS1.p1.4.m2.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m2.1c">C</annotation></semantics></math>, and is then decoded back into a simulated ASR transcript i.e. word sequence by composing a lexicon <math id="S2.SS1.p1.5.m3.1" class="ltx_Math" alttext="P" display="inline"><semantics id="S2.SS1.p1.5.m3.1a"><mi id="S2.SS1.p1.5.m3.1.1" xref="S2.SS1.p1.5.m3.1.1.cmml">P</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m3.1b"><ci id="S2.SS1.p1.5.m3.1.1.cmml" xref="S2.SS1.p1.5.m3.1.1">𝑃</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m3.1c">P</annotation></semantics></math> and language model <math id="S2.SS1.p1.6.m4.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS1.p1.6.m4.1a"><mi id="S2.SS1.p1.6.m4.1.1" xref="S2.SS1.p1.6.m4.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m4.1b"><ci id="S2.SS1.p1.6.m4.1.1.cmml" xref="S2.SS1.p1.6.m4.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m4.1c">L</annotation></semantics></math>, which are also FSTs. The confusion matrix (ConfMat) transduces every phone at the input to a sequence of phones from length 0 (deletion) to 1 (no error/mutation) or more than 1 (insertion), and can be pre composed with the lexicon and language model for efficiency. For each original text sequence, once we have the final composed <math id="S2.SS1.p1.7.m5.1" class="ltx_Math" alttext="W_{\it conf}" display="inline"><semantics id="S2.SS1.p1.7.m5.1a"><msub id="S2.SS1.p1.7.m5.1.1" xref="S2.SS1.p1.7.m5.1.1.cmml"><mi id="S2.SS1.p1.7.m5.1.1.2" xref="S2.SS1.p1.7.m5.1.1.2.cmml">W</mi><mi id="S2.SS1.p1.7.m5.1.1.3" xref="S2.SS1.p1.7.m5.1.1.3.cmml">𝑐𝑜𝑛𝑓</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m5.1b"><apply id="S2.SS1.p1.7.m5.1.1.cmml" xref="S2.SS1.p1.7.m5.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.7.m5.1.1.1.cmml" xref="S2.SS1.p1.7.m5.1.1">subscript</csymbol><ci id="S2.SS1.p1.7.m5.1.1.2.cmml" xref="S2.SS1.p1.7.m5.1.1.2">𝑊</ci><ci id="S2.SS1.p1.7.m5.1.1.3.cmml" xref="S2.SS1.p1.7.m5.1.1.3">𝑐𝑜𝑛𝑓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m5.1c">W_{\it conf}</annotation></semantics></math> graph we calculate the N-best unique strings <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite> to obtain N alternative word sequences to the input. We vary the lexicon and grammar in the WFST predictor for each dataset.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">Instead of directly using the confusion matrix for prediction, we can also sample the matrix to determine output sequence. We convert the words in the original text sequence to phones, but then instead of composing with the confusion matrix WFST, for each phone in the input we sample without replacement, two options or alternatives for it from the ConfMat based on the probabilities with which they were observed to be confusible with the input phone. The most likely option for each input phone is typically the same phone itself, but the hope here is that over several iterations of sampling, the simulated recognizer will pick errors of various kinds over the input phone. We construct an FST by chaining these sampled alternatives, and weight the first sampled option with the weight of the most likely option, and weight the second sampled option with the weight of the second most likely option in the ConfMat, and then normalize. Finally, we compose with a decoding graph composed from a lexicon and language model as above and calculate the 1-best string for each sampled WFST per input sequence, and combine the various output word sequences obtained, ranking them by frequency of occurrence.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Neural Sequence to Sequence Based Models</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">We also experimented with context-dependent prediction of the errors using a sequence-to-sequence model.
+To model phonetic confusions with information about the context, we use a 2-layer 128-unit recurrent neural Sequence to Sequence Model (Seq2Seq) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite> with attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. We feed the model with the phonetic transcript of the true word sequence at the input, and at each time step of the input we provide an additional one hot vector containing one of five cues representing different kinds of errors (no error, mutation, deletion, insertion of one additional phone, insertion of more than one additional phones). At train time, we align the input and output phone sequence using the same technique as the confusion matrix based system, to determine what kind of error is being made (or not made) for each time step of the input. At test time, we randomly sample to select one of the five aforementioned cues for each timestep of the input, from a collapsed version of the confusion matrix that holds information about the frequencies of these five kinds of errors for each input phone. At test time, the probability distributions at the output of the Seq2Seq model are then converted into WFSTs, by selecting three phones at each time step, and a softmax function with a temperature <math id="S2.SS2.p1.1.m1.1" class="ltx_Math" alttext="\tau=10" display="inline"><semantics id="S2.SS2.p1.1.m1.1a"><mrow id="S2.SS2.p1.1.m1.1.1" xref="S2.SS2.p1.1.m1.1.1.cmml"><mi id="S2.SS2.p1.1.m1.1.1.2" xref="S2.SS2.p1.1.m1.1.1.2.cmml">τ</mi><mo id="S2.SS2.p1.1.m1.1.1.1" xref="S2.SS2.p1.1.m1.1.1.1.cmml">=</mo><mn id="S2.SS2.p1.1.m1.1.1.3" xref="S2.SS2.p1.1.m1.1.1.3.cmml">10</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.1.m1.1b"><apply id="S2.SS2.p1.1.m1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1"><eq id="S2.SS2.p1.1.m1.1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1.1"></eq><ci id="S2.SS2.p1.1.m1.1.1.2.cmml" xref="S2.SS2.p1.1.m1.1.1.2">𝜏</ci><cn type="integer" id="S2.SS2.p1.1.m1.1.1.3.cmml" xref="S2.SS2.p1.1.m1.1.1.3">10</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.1.m1.1c">\tau=10</annotation></semantics></math> is applied as shown below.</p>
+<table id="S2.Ex2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex2.m1.7" class="ltx_Math" alttext="P_{t}(a)=\frac{\exp(q_{t}(a)/\tau)}{\sum_{i=1}^{n}\exp(q_{t}(i)/\tau)}" display="block"><semantics id="S2.Ex2.m1.7a"><mrow id="S2.Ex2.m1.7.8" xref="S2.Ex2.m1.7.8.cmml"><mrow id="S2.Ex2.m1.7.8.2" xref="S2.Ex2.m1.7.8.2.cmml"><msub id="S2.Ex2.m1.7.8.2.2" xref="S2.Ex2.m1.7.8.2.2.cmml"><mi id="S2.Ex2.m1.7.8.2.2.2" xref="S2.Ex2.m1.7.8.2.2.2.cmml">P</mi><mi id="S2.Ex2.m1.7.8.2.2.3" xref="S2.Ex2.m1.7.8.2.2.3.cmml">t</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.7.8.2.1" xref="S2.Ex2.m1.7.8.2.1.cmml">​</mo><mrow id="S2.Ex2.m1.7.8.2.3.2" xref="S2.Ex2.m1.7.8.2.cmml"><mo stretchy="false" id="S2.Ex2.m1.7.8.2.3.2.1" xref="S2.Ex2.m1.7.8.2.cmml">(</mo><mi id="S2.Ex2.m1.7.7" xref="S2.Ex2.m1.7.7.cmml">a</mi><mo stretchy="false" id="S2.Ex2.m1.7.8.2.3.2.2" xref="S2.Ex2.m1.7.8.2.cmml">)</mo></mrow></mrow><mo id="S2.Ex2.m1.7.8.1" xref="S2.Ex2.m1.7.8.1.cmml">=</mo><mfrac id="S2.Ex2.m1.6.6" xref="S2.Ex2.m1.6.6.cmml"><mrow id="S2.Ex2.m1.3.3.3.3" xref="S2.Ex2.m1.3.3.3.4.cmml"><mi id="S2.Ex2.m1.2.2.2.2" xref="S2.Ex2.m1.2.2.2.2.cmml">exp</mi><mo id="S2.Ex2.m1.3.3.3.3a" xref="S2.Ex2.m1.3.3.3.4.cmml">⁡</mo><mrow id="S2.Ex2.m1.3.3.3.3.1" xref="S2.Ex2.m1.3.3.3.4.cmml"><mo stretchy="false" id="S2.Ex2.m1.3.3.3.3.1.2" xref="S2.Ex2.m1.3.3.3.4.cmml">(</mo><mrow id="S2.Ex2.m1.3.3.3.3.1.1" xref="S2.Ex2.m1.3.3.3.3.1.1.cmml"><mrow id="S2.Ex2.m1.3.3.3.3.1.1.2" xref="S2.Ex2.m1.3.3.3.3.1.1.2.cmml"><msub id="S2.Ex2.m1.3.3.3.3.1.1.2.2" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2.cmml"><mi id="S2.Ex2.m1.3.3.3.3.1.1.2.2.2" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2.2.cmml">q</mi><mi id="S2.Ex2.m1.3.3.3.3.1.1.2.2.3" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2.3.cmml">t</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.3.3.3.3.1.1.2.1" xref="S2.Ex2.m1.3.3.3.3.1.1.2.1.cmml">​</mo><mrow id="S2.Ex2.m1.3.3.3.3.1.1.2.3.2" xref="S2.Ex2.m1.3.3.3.3.1.1.2.cmml"><mo stretchy="false" id="S2.Ex2.m1.3.3.3.3.1.1.2.3.2.1" xref="S2.Ex2.m1.3.3.3.3.1.1.2.cmml">(</mo><mi id="S2.Ex2.m1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.cmml">a</mi><mo stretchy="false" id="S2.Ex2.m1.3.3.3.3.1.1.2.3.2.2" xref="S2.Ex2.m1.3.3.3.3.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.Ex2.m1.3.3.3.3.1.1.1" xref="S2.Ex2.m1.3.3.3.3.1.1.1.cmml">/</mo><mi id="S2.Ex2.m1.3.3.3.3.1.1.3" xref="S2.Ex2.m1.3.3.3.3.1.1.3.cmml">τ</mi></mrow><mo stretchy="false" id="S2.Ex2.m1.3.3.3.3.1.3" xref="S2.Ex2.m1.3.3.3.4.cmml">)</mo></mrow></mrow><mrow id="S2.Ex2.m1.6.6.6" xref="S2.Ex2.m1.6.6.6.cmml"><msubsup id="S2.Ex2.m1.6.6.6.4" xref="S2.Ex2.m1.6.6.6.4.cmml"><mo id="S2.Ex2.m1.6.6.6.4.2.2" xref="S2.Ex2.m1.6.6.6.4.2.2.cmml">∑</mo><mrow id="S2.Ex2.m1.6.6.6.4.2.3" xref="S2.Ex2.m1.6.6.6.4.2.3.cmml"><mi id="S2.Ex2.m1.6.6.6.4.2.3.2" xref="S2.Ex2.m1.6.6.6.4.2.3.2.cmml">i</mi><mo id="S2.Ex2.m1.6.6.6.4.2.3.1" xref="S2.Ex2.m1.6.6.6.4.2.3.1.cmml">=</mo><mn id="S2.Ex2.m1.6.6.6.4.2.3.3" xref="S2.Ex2.m1.6.6.6.4.2.3.3.cmml">1</mn></mrow><mi id="S2.Ex2.m1.6.6.6.4.3" xref="S2.Ex2.m1.6.6.6.4.3.cmml">n</mi></msubsup><mrow id="S2.Ex2.m1.6.6.6.3.1" xref="S2.Ex2.m1.6.6.6.3.2.cmml"><mi id="S2.Ex2.m1.5.5.5.2" xref="S2.Ex2.m1.5.5.5.2.cmml">exp</mi><mo id="S2.Ex2.m1.6.6.6.3.1a" xref="S2.Ex2.m1.6.6.6.3.2.cmml">⁡</mo><mrow id="S2.Ex2.m1.6.6.6.3.1.1" xref="S2.Ex2.m1.6.6.6.3.2.cmml"><mo stretchy="false" id="S2.Ex2.m1.6.6.6.3.1.1.2" xref="S2.Ex2.m1.6.6.6.3.2.cmml">(</mo><mrow id="S2.Ex2.m1.6.6.6.3.1.1.1" xref="S2.Ex2.m1.6.6.6.3.1.1.1.cmml"><mrow id="S2.Ex2.m1.6.6.6.3.1.1.1.2" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.cmml"><msub id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.cmml"><mi id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.2" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.2.cmml">q</mi><mi id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.3" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.3.cmml">t</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.6.6.6.3.1.1.1.2.1" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.1.cmml">​</mo><mrow id="S2.Ex2.m1.6.6.6.3.1.1.1.2.3.2" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.cmml"><mo stretchy="false" id="S2.Ex2.m1.6.6.6.3.1.1.1.2.3.2.1" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.cmml">(</mo><mi id="S2.Ex2.m1.4.4.4.1" xref="S2.Ex2.m1.4.4.4.1.cmml">i</mi><mo stretchy="false" id="S2.Ex2.m1.6.6.6.3.1.1.1.2.3.2.2" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.Ex2.m1.6.6.6.3.1.1.1.1" xref="S2.Ex2.m1.6.6.6.3.1.1.1.1.cmml">/</mo><mi id="S2.Ex2.m1.6.6.6.3.1.1.1.3" xref="S2.Ex2.m1.6.6.6.3.1.1.1.3.cmml">τ</mi></mrow><mo stretchy="false" id="S2.Ex2.m1.6.6.6.3.1.1.3" xref="S2.Ex2.m1.6.6.6.3.2.cmml">)</mo></mrow></mrow></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex2.m1.7b"><apply id="S2.Ex2.m1.7.8.cmml" xref="S2.Ex2.m1.7.8"><eq id="S2.Ex2.m1.7.8.1.cmml" xref="S2.Ex2.m1.7.8.1"></eq><apply id="S2.Ex2.m1.7.8.2.cmml" xref="S2.Ex2.m1.7.8.2"><times id="S2.Ex2.m1.7.8.2.1.cmml" xref="S2.Ex2.m1.7.8.2.1"></times><apply id="S2.Ex2.m1.7.8.2.2.cmml" xref="S2.Ex2.m1.7.8.2.2"><csymbol cd="ambiguous" id="S2.Ex2.m1.7.8.2.2.1.cmml" xref="S2.Ex2.m1.7.8.2.2">subscript</csymbol><ci id="S2.Ex2.m1.7.8.2.2.2.cmml" xref="S2.Ex2.m1.7.8.2.2.2">𝑃</ci><ci id="S2.Ex2.m1.7.8.2.2.3.cmml" xref="S2.Ex2.m1.7.8.2.2.3">𝑡</ci></apply><ci id="S2.Ex2.m1.7.7.cmml" xref="S2.Ex2.m1.7.7">𝑎</ci></apply><apply id="S2.Ex2.m1.6.6.cmml" xref="S2.Ex2.m1.6.6"><divide id="S2.Ex2.m1.6.6.7.cmml" xref="S2.Ex2.m1.6.6"></divide><apply id="S2.Ex2.m1.3.3.3.4.cmml" xref="S2.Ex2.m1.3.3.3.3"><exp id="S2.Ex2.m1.2.2.2.2.cmml" xref="S2.Ex2.m1.2.2.2.2"></exp><apply id="S2.Ex2.m1.3.3.3.3.1.1.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1"><divide id="S2.Ex2.m1.3.3.3.3.1.1.1.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.1"></divide><apply id="S2.Ex2.m1.3.3.3.3.1.1.2.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2"><times id="S2.Ex2.m1.3.3.3.3.1.1.2.1.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2.1"></times><apply id="S2.Ex2.m1.3.3.3.3.1.1.2.2.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2"><csymbol cd="ambiguous" id="S2.Ex2.m1.3.3.3.3.1.1.2.2.1.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2">subscript</csymbol><ci id="S2.Ex2.m1.3.3.3.3.1.1.2.2.2.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2.2">𝑞</ci><ci id="S2.Ex2.m1.3.3.3.3.1.1.2.2.3.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.2.2.3">𝑡</ci></apply><ci id="S2.Ex2.m1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1.1">𝑎</ci></apply><ci id="S2.Ex2.m1.3.3.3.3.1.1.3.cmml" xref="S2.Ex2.m1.3.3.3.3.1.1.3">𝜏</ci></apply></apply><apply id="S2.Ex2.m1.6.6.6.cmml" xref="S2.Ex2.m1.6.6.6"><apply id="S2.Ex2.m1.6.6.6.4.cmml" xref="S2.Ex2.m1.6.6.6.4"><csymbol cd="ambiguous" id="S2.Ex2.m1.6.6.6.4.1.cmml" xref="S2.Ex2.m1.6.6.6.4">superscript</csymbol><apply id="S2.Ex2.m1.6.6.6.4.2.cmml" xref="S2.Ex2.m1.6.6.6.4"><csymbol cd="ambiguous" id="S2.Ex2.m1.6.6.6.4.2.1.cmml" xref="S2.Ex2.m1.6.6.6.4">subscript</csymbol><sum id="S2.Ex2.m1.6.6.6.4.2.2.cmml" xref="S2.Ex2.m1.6.6.6.4.2.2"></sum><apply id="S2.Ex2.m1.6.6.6.4.2.3.cmml" xref="S2.Ex2.m1.6.6.6.4.2.3"><eq id="S2.Ex2.m1.6.6.6.4.2.3.1.cmml" xref="S2.Ex2.m1.6.6.6.4.2.3.1"></eq><ci id="S2.Ex2.m1.6.6.6.4.2.3.2.cmml" xref="S2.Ex2.m1.6.6.6.4.2.3.2">𝑖</ci><cn type="integer" id="S2.Ex2.m1.6.6.6.4.2.3.3.cmml" xref="S2.Ex2.m1.6.6.6.4.2.3.3">1</cn></apply></apply><ci id="S2.Ex2.m1.6.6.6.4.3.cmml" xref="S2.Ex2.m1.6.6.6.4.3">𝑛</ci></apply><apply id="S2.Ex2.m1.6.6.6.3.2.cmml" xref="S2.Ex2.m1.6.6.6.3.1"><exp id="S2.Ex2.m1.5.5.5.2.cmml" xref="S2.Ex2.m1.5.5.5.2"></exp><apply id="S2.Ex2.m1.6.6.6.3.1.1.1.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1"><divide id="S2.Ex2.m1.6.6.6.3.1.1.1.1.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.1"></divide><apply id="S2.Ex2.m1.6.6.6.3.1.1.1.2.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2"><times id="S2.Ex2.m1.6.6.6.3.1.1.1.2.1.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.1"></times><apply id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.1.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2">subscript</csymbol><ci id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.2.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.2">𝑞</ci><ci id="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.3.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.2.2.3">𝑡</ci></apply><ci id="S2.Ex2.m1.4.4.4.1.cmml" xref="S2.Ex2.m1.4.4.4.1">𝑖</ci></apply><ci id="S2.Ex2.m1.6.6.6.3.1.1.1.3.cmml" xref="S2.Ex2.m1.6.6.6.3.1.1.1.3">𝜏</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex2.m1.7c">P_{t}(a)=\frac{\exp(q_{t}(a)/\tau)}{\sum_{i=1}^{n}\exp(q_{t}(i)/\tau)}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">Once we have the WFSTs, we compose them with a decoding graph as in the case of the confusion matrix model, except the decoding graph is augmented to absorb (with a small cost) any number of “EOS” (End of Sequence) symbols at the end of phone sequences being translated into word sequences. Finally, 5-best word sequences are calculated for each input sample, and combined to produce K alternatives per input text sequence.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">Besides sampling for cues at the input of the Seq2Seq model, we also explore the effect of additional sampling from the output probability distribution produced by the Seq2Seq model. Similar to the sampling from the distributions of confusion matrix, instead of directly producing WFSTs from the output of the Neural network, we generate multiple sampled WFSTs. Owing to existence of the additional “EOS” symbol, we pick three rather than two alternatives at each time step, and then decode the WFSTs thus sampled with the same EOS augmented decoding graph as above.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Setup</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Data</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">We use the Kaldi Switchboard recipe to train a Deep Neural Network acoustic model on the Switchboard corpus. A sMBR criterion is used during training and decoding proceeds with a trigram grammar <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>.
+We use this recognizer to transcribe speech data from the Fisher corpus <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>, containing about 1.8 million utterances with a word error rate of roughly 30%. We use the speech recognized text from Fisher paired with gold text as the training set for all our Models, holding out a validation set of 100 utterances for the tuning of hyperparameters.
+We tested our models on two kinds of data. Firstly, we predicted errorful transcripts for held out data from the Fisher corpus, which was recognized by the aforementioned speech recognizer that we trained. This was a set of 500 utterances containing 504 error chunks across all recognized speech. The WFST prediction module uses the standard Switchboard lexicon and grammar used in the recognizer.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">Secondly, we predicted errorful transcripts for data from the Virtual Patient project <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, where volunteers read out text data from doctor trainees querying a patient avatar. The recorded speech was recognized using a cloud based ASR service treated as a black box <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>. This was a set of 756 utterances containing 258 error chunks across all recognized speech, and the word error rate was slightly over 10%. As there is a vocabulary mismatch between Switchboard and the Virtual Patient, but we did not want to inform the error prediction system of the Virtual Patient vocabulary, we extended the WFST lexicon and language model by leveraging models from the EESEN Offline Transcriber <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>, which uses a pruned 3-gram language model provided by Cantab Research <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> trained on TED-LIUM data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Training Details</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">To train the confusion matrix models, we first convert the gold and speech recognized transcripts to phone sequences, and align them using a phonetic distance based dynamic programming algorithm <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. The alignment is done in such a way that each input phone (e.g. /s/) is paired with a sequence of phones of length 0 (deletion, /s/:<math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="\epsilon" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><mi id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml">ϵ</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><ci id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1">italic-ϵ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">\epsilon</annotation></semantics></math>), 1 (no error or mutation, /s/:/s/ or /s/:/z/) or more (insertion, /s/:/st/).
+For each possible input phone, we count frequencies of various such “alternative” phone sequences, and normalize them into probabilities. This gives us our confusion matrix for composing or sampling.
+</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S3.SS2.p2.7" class="ltx_p">For the training the Sequence to Sequence (Seq2Seq) based phonetic confusion model, we start with unaligned pairs of gold and errorful phone sequences, and train it to minimize the cross entropy between the model predictions and the ground truth (i.e., the errorful phone sequence). In our experiments, we found that when we directly used the ground truth sequence, which is a one hot distribution at each time step, the model predictions would be very peaky and not provide much diversity for decoding. To allow the model to learn to produce more diversity at the output, we smoothed the ground truth sequence with alternatives from the confusion matrix at train time:</p>
+<table id="S3.Ex3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S3.Ex3.m1.2" class="ltx_Math" alttext="Y_{\it smooth}=\beta*Y_{\it original}+(1-\beta)*C_{11}[y]" display="block"><semantics id="S3.Ex3.m1.2a"><mrow id="S3.Ex3.m1.2.2" xref="S3.Ex3.m1.2.2.cmml"><msub id="S3.Ex3.m1.2.2.3" xref="S3.Ex3.m1.2.2.3.cmml"><mi id="S3.Ex3.m1.2.2.3.2" xref="S3.Ex3.m1.2.2.3.2.cmml">Y</mi><mi id="S3.Ex3.m1.2.2.3.3" xref="S3.Ex3.m1.2.2.3.3.cmml">𝑠𝑚𝑜𝑜𝑡ℎ</mi></msub><mo id="S3.Ex3.m1.2.2.2" xref="S3.Ex3.m1.2.2.2.cmml">=</mo><mrow id="S3.Ex3.m1.2.2.1" xref="S3.Ex3.m1.2.2.1.cmml"><mrow id="S3.Ex3.m1.2.2.1.3" xref="S3.Ex3.m1.2.2.1.3.cmml"><mi id="S3.Ex3.m1.2.2.1.3.2" xref="S3.Ex3.m1.2.2.1.3.2.cmml">β</mi><mo lspace="0.222em" rspace="0.222em" id="S3.Ex3.m1.2.2.1.3.1" xref="S3.Ex3.m1.2.2.1.3.1.cmml">∗</mo><msub id="S3.Ex3.m1.2.2.1.3.3" xref="S3.Ex3.m1.2.2.1.3.3.cmml"><mi id="S3.Ex3.m1.2.2.1.3.3.2" xref="S3.Ex3.m1.2.2.1.3.3.2.cmml">Y</mi><mi id="S3.Ex3.m1.2.2.1.3.3.3" xref="S3.Ex3.m1.2.2.1.3.3.3.cmml">𝑜𝑟𝑖𝑔𝑖𝑛𝑎𝑙</mi></msub></mrow><mo id="S3.Ex3.m1.2.2.1.2" xref="S3.Ex3.m1.2.2.1.2.cmml">+</mo><mrow id="S3.Ex3.m1.2.2.1.1" xref="S3.Ex3.m1.2.2.1.1.cmml"><mrow id="S3.Ex3.m1.2.2.1.1.1" xref="S3.Ex3.m1.2.2.1.1.1.cmml"><mrow id="S3.Ex3.m1.2.2.1.1.1.1.1" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S3.Ex3.m1.2.2.1.1.1.1.1.2" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.cmml">(</mo><mrow id="S3.Ex3.m1.2.2.1.1.1.1.1.1" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.cmml"><mn id="S3.Ex3.m1.2.2.1.1.1.1.1.1.2" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.2.cmml">1</mn><mo id="S3.Ex3.m1.2.2.1.1.1.1.1.1.1" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.1.cmml">−</mo><mi id="S3.Ex3.m1.2.2.1.1.1.1.1.1.3" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.3.cmml">β</mi></mrow><mo rspace="0.055em" stretchy="false" id="S3.Ex3.m1.2.2.1.1.1.1.1.3" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.cmml">)</mo></mrow><mo rspace="0.222em" id="S3.Ex3.m1.2.2.1.1.1.2" xref="S3.Ex3.m1.2.2.1.1.1.2.cmml">∗</mo><msub id="S3.Ex3.m1.2.2.1.1.1.3" xref="S3.Ex3.m1.2.2.1.1.1.3.cmml"><mi id="S3.Ex3.m1.2.2.1.1.1.3.2" xref="S3.Ex3.m1.2.2.1.1.1.3.2.cmml">C</mi><mn id="S3.Ex3.m1.2.2.1.1.1.3.3" xref="S3.Ex3.m1.2.2.1.1.1.3.3.cmml">11</mn></msub></mrow><mo lspace="0em" rspace="0em" id="S3.Ex3.m1.2.2.1.1.2" xref="S3.Ex3.m1.2.2.1.1.2.cmml">​</mo><mrow id="S3.Ex3.m1.2.2.1.1.3.2" xref="S3.Ex3.m1.2.2.1.1.3.1.cmml"><mo stretchy="false" id="S3.Ex3.m1.2.2.1.1.3.2.1" xref="S3.Ex3.m1.2.2.1.1.3.1.1.cmml">[</mo><mi id="S3.Ex3.m1.1.1" xref="S3.Ex3.m1.1.1.cmml">y</mi><mo stretchy="false" id="S3.Ex3.m1.2.2.1.1.3.2.2" xref="S3.Ex3.m1.2.2.1.1.3.1.1.cmml">]</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.Ex3.m1.2b"><apply id="S3.Ex3.m1.2.2.cmml" xref="S3.Ex3.m1.2.2"><eq id="S3.Ex3.m1.2.2.2.cmml" xref="S3.Ex3.m1.2.2.2"></eq><apply id="S3.Ex3.m1.2.2.3.cmml" xref="S3.Ex3.m1.2.2.3"><csymbol cd="ambiguous" id="S3.Ex3.m1.2.2.3.1.cmml" xref="S3.Ex3.m1.2.2.3">subscript</csymbol><ci id="S3.Ex3.m1.2.2.3.2.cmml" xref="S3.Ex3.m1.2.2.3.2">𝑌</ci><ci id="S3.Ex3.m1.2.2.3.3.cmml" xref="S3.Ex3.m1.2.2.3.3">𝑠𝑚𝑜𝑜𝑡ℎ</ci></apply><apply id="S3.Ex3.m1.2.2.1.cmml" xref="S3.Ex3.m1.2.2.1"><plus id="S3.Ex3.m1.2.2.1.2.cmml" xref="S3.Ex3.m1.2.2.1.2"></plus><apply id="S3.Ex3.m1.2.2.1.3.cmml" xref="S3.Ex3.m1.2.2.1.3"><times id="S3.Ex3.m1.2.2.1.3.1.cmml" xref="S3.Ex3.m1.2.2.1.3.1"></times><ci id="S3.Ex3.m1.2.2.1.3.2.cmml" xref="S3.Ex3.m1.2.2.1.3.2">𝛽</ci><apply id="S3.Ex3.m1.2.2.1.3.3.cmml" xref="S3.Ex3.m1.2.2.1.3.3"><csymbol cd="ambiguous" id="S3.Ex3.m1.2.2.1.3.3.1.cmml" xref="S3.Ex3.m1.2.2.1.3.3">subscript</csymbol><ci id="S3.Ex3.m1.2.2.1.3.3.2.cmml" xref="S3.Ex3.m1.2.2.1.3.3.2">𝑌</ci><ci id="S3.Ex3.m1.2.2.1.3.3.3.cmml" xref="S3.Ex3.m1.2.2.1.3.3.3">𝑜𝑟𝑖𝑔𝑖𝑛𝑎𝑙</ci></apply></apply><apply id="S3.Ex3.m1.2.2.1.1.cmml" xref="S3.Ex3.m1.2.2.1.1"><times id="S3.Ex3.m1.2.2.1.1.2.cmml" xref="S3.Ex3.m1.2.2.1.1.2"></times><apply id="S3.Ex3.m1.2.2.1.1.1.cmml" xref="S3.Ex3.m1.2.2.1.1.1"><times id="S3.Ex3.m1.2.2.1.1.1.2.cmml" xref="S3.Ex3.m1.2.2.1.1.1.2"></times><apply id="S3.Ex3.m1.2.2.1.1.1.1.1.1.cmml" xref="S3.Ex3.m1.2.2.1.1.1.1.1"><minus id="S3.Ex3.m1.2.2.1.1.1.1.1.1.1.cmml" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.1"></minus><cn type="integer" id="S3.Ex3.m1.2.2.1.1.1.1.1.1.2.cmml" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.2">1</cn><ci id="S3.Ex3.m1.2.2.1.1.1.1.1.1.3.cmml" xref="S3.Ex3.m1.2.2.1.1.1.1.1.1.3">𝛽</ci></apply><apply id="S3.Ex3.m1.2.2.1.1.1.3.cmml" xref="S3.Ex3.m1.2.2.1.1.1.3"><csymbol cd="ambiguous" id="S3.Ex3.m1.2.2.1.1.1.3.1.cmml" xref="S3.Ex3.m1.2.2.1.1.1.3">subscript</csymbol><ci id="S3.Ex3.m1.2.2.1.1.1.3.2.cmml" xref="S3.Ex3.m1.2.2.1.1.1.3.2">𝐶</ci><cn type="integer" id="S3.Ex3.m1.2.2.1.1.1.3.3.cmml" xref="S3.Ex3.m1.2.2.1.1.1.3.3">11</cn></apply></apply><apply id="S3.Ex3.m1.2.2.1.1.3.1.cmml" xref="S3.Ex3.m1.2.2.1.1.3.2"><csymbol cd="latexml" id="S3.Ex3.m1.2.2.1.1.3.1.1.cmml" xref="S3.Ex3.m1.2.2.1.1.3.2.1">delimited-[]</csymbol><ci id="S3.Ex3.m1.1.1.cmml" xref="S3.Ex3.m1.1.1">𝑦</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.Ex3.m1.2c">Y_{\it smooth}=\beta*Y_{\it original}+(1-\beta)*C_{11}[y]</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S3.SS2.p2.6" class="ltx_p">where <math id="S3.SS2.p2.1.m1.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S3.SS2.p2.1.m1.1a"><mi id="S3.SS2.p2.1.m1.1.1" xref="S3.SS2.p2.1.m1.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.1.m1.1b"><ci id="S3.SS2.p2.1.m1.1.1.cmml" xref="S3.SS2.p2.1.m1.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.1.m1.1c">y</annotation></semantics></math> is the original phone label and <math id="S3.SS2.p2.2.m2.1" class="ltx_Math" alttext="Y_{\it original}" display="inline"><semantics id="S3.SS2.p2.2.m2.1a"><msub id="S3.SS2.p2.2.m2.1.1" xref="S3.SS2.p2.2.m2.1.1.cmml"><mi id="S3.SS2.p2.2.m2.1.1.2" xref="S3.SS2.p2.2.m2.1.1.2.cmml">Y</mi><mi id="S3.SS2.p2.2.m2.1.1.3" xref="S3.SS2.p2.2.m2.1.1.3.cmml">𝑜𝑟𝑖𝑔𝑖𝑛𝑎𝑙</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.2.m2.1b"><apply id="S3.SS2.p2.2.m2.1.1.cmml" xref="S3.SS2.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S3.SS2.p2.2.m2.1.1.1.cmml" xref="S3.SS2.p2.2.m2.1.1">subscript</csymbol><ci id="S3.SS2.p2.2.m2.1.1.2.cmml" xref="S3.SS2.p2.2.m2.1.1.2">𝑌</ci><ci id="S3.SS2.p2.2.m2.1.1.3.cmml" xref="S3.SS2.p2.2.m2.1.1.3">𝑜𝑟𝑖𝑔𝑖𝑛𝑎𝑙</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.2.m2.1c">Y_{\it original}</annotation></semantics></math> is the one hot probability distribution corresponding to it, and <math id="S3.SS2.p2.3.m3.1" class="ltx_Math" alttext="Y_{\it smooth}" display="inline"><semantics id="S3.SS2.p2.3.m3.1a"><msub id="S3.SS2.p2.3.m3.1.1" xref="S3.SS2.p2.3.m3.1.1.cmml"><mi id="S3.SS2.p2.3.m3.1.1.2" xref="S3.SS2.p2.3.m3.1.1.2.cmml">Y</mi><mi id="S3.SS2.p2.3.m3.1.1.3" xref="S3.SS2.p2.3.m3.1.1.3.cmml">𝑠𝑚𝑜𝑜𝑡ℎ</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.3.m3.1b"><apply id="S3.SS2.p2.3.m3.1.1.cmml" xref="S3.SS2.p2.3.m3.1.1"><csymbol cd="ambiguous" id="S3.SS2.p2.3.m3.1.1.1.cmml" xref="S3.SS2.p2.3.m3.1.1">subscript</csymbol><ci id="S3.SS2.p2.3.m3.1.1.2.cmml" xref="S3.SS2.p2.3.m3.1.1.2">𝑌</ci><ci id="S3.SS2.p2.3.m3.1.1.3.cmml" xref="S3.SS2.p2.3.m3.1.1.3">𝑠𝑚𝑜𝑜𝑡ℎ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.3.m3.1c">Y_{\it smooth}</annotation></semantics></math> is the smoothed probability distribution. <math id="S3.SS2.p2.4.m4.1" class="ltx_Math" alttext="C_{11}" display="inline"><semantics id="S3.SS2.p2.4.m4.1a"><msub id="S3.SS2.p2.4.m4.1.1" xref="S3.SS2.p2.4.m4.1.1.cmml"><mi id="S3.SS2.p2.4.m4.1.1.2" xref="S3.SS2.p2.4.m4.1.1.2.cmml">C</mi><mn id="S3.SS2.p2.4.m4.1.1.3" xref="S3.SS2.p2.4.m4.1.1.3.cmml">11</mn></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.4.m4.1b"><apply id="S3.SS2.p2.4.m4.1.1.cmml" xref="S3.SS2.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS2.p2.4.m4.1.1.1.cmml" xref="S3.SS2.p2.4.m4.1.1">subscript</csymbol><ci id="S3.SS2.p2.4.m4.1.1.2.cmml" xref="S3.SS2.p2.4.m4.1.1.2">𝐶</ci><cn type="integer" id="S3.SS2.p2.4.m4.1.1.3.cmml" xref="S3.SS2.p2.4.m4.1.1.3">11</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.4.m4.1c">C_{11}</annotation></semantics></math> is a reduced version of the confusion matrix that only has the alternatives of length 1 (mutation or no error), and <math id="S3.SS2.p2.5.m5.1" class="ltx_Math" alttext="\beta" display="inline"><semantics id="S3.SS2.p2.5.m5.1a"><mi id="S3.SS2.p2.5.m5.1.1" xref="S3.SS2.p2.5.m5.1.1.cmml">β</mi><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.5.m5.1b"><ci id="S3.SS2.p2.5.m5.1.1.cmml" xref="S3.SS2.p2.5.m5.1.1">𝛽</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.5.m5.1c">\beta</annotation></semantics></math> is the smoothing factor (we use value 0.8). Although <math id="S3.SS2.p2.6.m6.1" class="ltx_Math" alttext="C_{11}" display="inline"><semantics id="S3.SS2.p2.6.m6.1a"><msub id="S3.SS2.p2.6.m6.1.1" xref="S3.SS2.p2.6.m6.1.1.cmml"><mi id="S3.SS2.p2.6.m6.1.1.2" xref="S3.SS2.p2.6.m6.1.1.2.cmml">C</mi><mn id="S3.SS2.p2.6.m6.1.1.3" xref="S3.SS2.p2.6.m6.1.1.3.cmml">11</mn></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p2.6.m6.1b"><apply id="S3.SS2.p2.6.m6.1.1.cmml" xref="S3.SS2.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S3.SS2.p2.6.m6.1.1.1.cmml" xref="S3.SS2.p2.6.m6.1.1">subscript</csymbol><ci id="S3.SS2.p2.6.m6.1.1.2.cmml" xref="S3.SS2.p2.6.m6.1.1.2">𝐶</ci><cn type="integer" id="S3.SS2.p2.6.m6.1.1.3.cmml" xref="S3.SS2.p2.6.m6.1.1.3">11</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p2.6.m6.1c">C_{11}</annotation></semantics></math> only captures mutation errors, we observed that on smoothing, the neural network was automatically learning to give meaningful weight to output phones at their adjacent timesteps as well. Finally, we use an Adam optimizer to minimize the cross entropy of the model predictions with the smoothed ground truth across minibatches of 64 examples at every training step.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Evaluation and Results</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.2" class="ltx_p">Following prior work, we use two metrics to evaluate the effectiveness of our models in simulating ASR errors. The first metric measures the percentage of real test set Error Chunks recalled in a set of “K best” simulated speech recognized utterances for each gold word sequence. The error chunks are again determined by aligning the gold word sequence with the errorful word sequence and removing the longest common subsequence. For example, if the gold sequence is “do you take any other medications except for the tylenol for pain” and the errorful sequence is “you take any other medicine cations except for the tylenol for pain,” the error chunks would be the pairs <math id="S4.p1.1.m1.2" class="ltx_Math" alttext="\{medications:medicine\&gt;cations\}" display="inline"><semantics id="S4.p1.1.m1.2a"><mrow id="S4.p1.1.m1.2.2.2" xref="S4.p1.1.m1.2.2.3.cmml"><mo stretchy="false" id="S4.p1.1.m1.2.2.2.3" xref="S4.p1.1.m1.2.2.3.1.cmml">{</mo><mrow id="S4.p1.1.m1.1.1.1.1" xref="S4.p1.1.m1.1.1.1.1.cmml"><mi id="S4.p1.1.m1.1.1.1.1.2" xref="S4.p1.1.m1.1.1.1.1.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.3" xref="S4.p1.1.m1.1.1.1.1.3.cmml">e</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1a" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.4" xref="S4.p1.1.m1.1.1.1.1.4.cmml">d</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1b" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.5" xref="S4.p1.1.m1.1.1.1.1.5.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1c" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.6" xref="S4.p1.1.m1.1.1.1.1.6.cmml">c</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1d" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.7" xref="S4.p1.1.m1.1.1.1.1.7.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1e" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.8" xref="S4.p1.1.m1.1.1.1.1.8.cmml">t</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1f" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.9" xref="S4.p1.1.m1.1.1.1.1.9.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1g" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.10" xref="S4.p1.1.m1.1.1.1.1.10.cmml">o</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1h" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.11" xref="S4.p1.1.m1.1.1.1.1.11.cmml">n</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.1.1.1.1.1i" xref="S4.p1.1.m1.1.1.1.1.1.cmml">​</mo><mi id="S4.p1.1.m1.1.1.1.1.12" xref="S4.p1.1.m1.1.1.1.1.12.cmml">s</mi></mrow><mo lspace="0.278em" rspace="0.278em" id="S4.p1.1.m1.2.2.2.4" xref="S4.p1.1.m1.2.2.3.1.cmml">:</mo><mrow id="S4.p1.1.m1.2.2.2.2" xref="S4.p1.1.m1.2.2.2.2.cmml"><mi id="S4.p1.1.m1.2.2.2.2.2" xref="S4.p1.1.m1.2.2.2.2.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.3" xref="S4.p1.1.m1.2.2.2.2.3.cmml">e</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1a" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.4" xref="S4.p1.1.m1.2.2.2.2.4.cmml">d</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1b" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.5" xref="S4.p1.1.m1.2.2.2.2.5.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1c" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.6" xref="S4.p1.1.m1.2.2.2.2.6.cmml">c</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1d" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.7" xref="S4.p1.1.m1.2.2.2.2.7.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1e" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.8" xref="S4.p1.1.m1.2.2.2.2.8.cmml">n</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1f" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.9" xref="S4.p1.1.m1.2.2.2.2.9.cmml">e</mi><mo lspace="0.220em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1g" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.10" xref="S4.p1.1.m1.2.2.2.2.10.cmml">c</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1h" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.11" xref="S4.p1.1.m1.2.2.2.2.11.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1i" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.12" xref="S4.p1.1.m1.2.2.2.2.12.cmml">t</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1j" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.13" xref="S4.p1.1.m1.2.2.2.2.13.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1k" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.14" xref="S4.p1.1.m1.2.2.2.2.14.cmml">o</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1l" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.15" xref="S4.p1.1.m1.2.2.2.2.15.cmml">n</mi><mo lspace="0em" rspace="0em" id="S4.p1.1.m1.2.2.2.2.1m" xref="S4.p1.1.m1.2.2.2.2.1.cmml">​</mo><mi id="S4.p1.1.m1.2.2.2.2.16" xref="S4.p1.1.m1.2.2.2.2.16.cmml">s</mi></mrow><mo stretchy="false" id="S4.p1.1.m1.2.2.2.5" xref="S4.p1.1.m1.2.2.3.1.cmml">}</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.p1.1.m1.2b"><apply id="S4.p1.1.m1.2.2.3.cmml" xref="S4.p1.1.m1.2.2.2"><csymbol cd="latexml" id="S4.p1.1.m1.2.2.3.1.cmml" xref="S4.p1.1.m1.2.2.2.3">conditional-set</csymbol><apply id="S4.p1.1.m1.1.1.1.1.cmml" xref="S4.p1.1.m1.1.1.1.1"><times id="S4.p1.1.m1.1.1.1.1.1.cmml" xref="S4.p1.1.m1.1.1.1.1.1"></times><ci id="S4.p1.1.m1.1.1.1.1.2.cmml" xref="S4.p1.1.m1.1.1.1.1.2">𝑚</ci><ci id="S4.p1.1.m1.1.1.1.1.3.cmml" xref="S4.p1.1.m1.1.1.1.1.3">𝑒</ci><ci id="S4.p1.1.m1.1.1.1.1.4.cmml" xref="S4.p1.1.m1.1.1.1.1.4">𝑑</ci><ci id="S4.p1.1.m1.1.1.1.1.5.cmml" xref="S4.p1.1.m1.1.1.1.1.5">𝑖</ci><ci id="S4.p1.1.m1.1.1.1.1.6.cmml" xref="S4.p1.1.m1.1.1.1.1.6">𝑐</ci><ci id="S4.p1.1.m1.1.1.1.1.7.cmml" xref="S4.p1.1.m1.1.1.1.1.7">𝑎</ci><ci id="S4.p1.1.m1.1.1.1.1.8.cmml" xref="S4.p1.1.m1.1.1.1.1.8">𝑡</ci><ci id="S4.p1.1.m1.1.1.1.1.9.cmml" xref="S4.p1.1.m1.1.1.1.1.9">𝑖</ci><ci id="S4.p1.1.m1.1.1.1.1.10.cmml" xref="S4.p1.1.m1.1.1.1.1.10">𝑜</ci><ci id="S4.p1.1.m1.1.1.1.1.11.cmml" xref="S4.p1.1.m1.1.1.1.1.11">𝑛</ci><ci id="S4.p1.1.m1.1.1.1.1.12.cmml" xref="S4.p1.1.m1.1.1.1.1.12">𝑠</ci></apply><apply id="S4.p1.1.m1.2.2.2.2.cmml" xref="S4.p1.1.m1.2.2.2.2"><times id="S4.p1.1.m1.2.2.2.2.1.cmml" xref="S4.p1.1.m1.2.2.2.2.1"></times><ci id="S4.p1.1.m1.2.2.2.2.2.cmml" xref="S4.p1.1.m1.2.2.2.2.2">𝑚</ci><ci id="S4.p1.1.m1.2.2.2.2.3.cmml" xref="S4.p1.1.m1.2.2.2.2.3">𝑒</ci><ci id="S4.p1.1.m1.2.2.2.2.4.cmml" xref="S4.p1.1.m1.2.2.2.2.4">𝑑</ci><ci id="S4.p1.1.m1.2.2.2.2.5.cmml" xref="S4.p1.1.m1.2.2.2.2.5">𝑖</ci><ci id="S4.p1.1.m1.2.2.2.2.6.cmml" xref="S4.p1.1.m1.2.2.2.2.6">𝑐</ci><ci id="S4.p1.1.m1.2.2.2.2.7.cmml" xref="S4.p1.1.m1.2.2.2.2.7">𝑖</ci><ci id="S4.p1.1.m1.2.2.2.2.8.cmml" xref="S4.p1.1.m1.2.2.2.2.8">𝑛</ci><ci id="S4.p1.1.m1.2.2.2.2.9.cmml" xref="S4.p1.1.m1.2.2.2.2.9">𝑒</ci><ci id="S4.p1.1.m1.2.2.2.2.10.cmml" xref="S4.p1.1.m1.2.2.2.2.10">𝑐</ci><ci id="S4.p1.1.m1.2.2.2.2.11.cmml" xref="S4.p1.1.m1.2.2.2.2.11">𝑎</ci><ci id="S4.p1.1.m1.2.2.2.2.12.cmml" xref="S4.p1.1.m1.2.2.2.2.12">𝑡</ci><ci id="S4.p1.1.m1.2.2.2.2.13.cmml" xref="S4.p1.1.m1.2.2.2.2.13">𝑖</ci><ci id="S4.p1.1.m1.2.2.2.2.14.cmml" xref="S4.p1.1.m1.2.2.2.2.14">𝑜</ci><ci id="S4.p1.1.m1.2.2.2.2.15.cmml" xref="S4.p1.1.m1.2.2.2.2.15">𝑛</ci><ci id="S4.p1.1.m1.2.2.2.2.16.cmml" xref="S4.p1.1.m1.2.2.2.2.16">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.1.m1.2c">\{medications:medicine\&gt;cations\}</annotation></semantics></math> and <math id="S4.p1.2.m2.1" class="ltx_math_unparsed" alttext="\{do:\&gt;\&gt;\}" display="inline"><semantics id="S4.p1.2.m2.1a"><mrow id="S4.p1.2.m2.1b"><mo stretchy="false" id="S4.p1.2.m2.1.1">{</mo><mi id="S4.p1.2.m2.1.2">d</mi><mi id="S4.p1.2.m2.1.3">o</mi><mo lspace="0.278em" rspace="0.440em" id="S4.p1.2.m2.1.4">:</mo><mo stretchy="false" id="S4.p1.2.m2.1.5">}</mo></mrow><annotation encoding="application/x-tex" id="S4.p1.2.m2.1c">\{do:\&gt;\&gt;\}</annotation></semantics></math>. Our detection of error chunks is strict — for an error chunk to qualify as predicted, the words adjacent to the predicted error chunk should be error-free.</p>
+</div>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.1" class="ltx_p">The second metric measures the percentage of times the complete test set utterance is recalled in a set of “K best” simulated utterances for each gold text sequence (including error-free test sequences). We aimed to produce 100 unique simulated speech recognized utterances for each gold word sequence, so for both of these metrics, we evaluate the performance at K=100.</p>
+</div>
+<div id="S4.p3" class="ltx_para">
+<p id="S4.p3.1" class="ltx_p">Note that these are both hard metrics since the possibilities of various kinds of errors is quite endless, and no matter the plausibility of the output, the metrics only give credit when the utterance/error chunk exactly matches what was produced.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<table id="S4.T1.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.2.1.1" class="ltx_tr">
+<th id="S4.T1.2.1.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.1.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.1.1.1.1.1" class="ltx_p" style="width:208.1pt;">Model</span>
+</span>
+</th>
+<th id="S4.T1.2.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span id="S4.T1.2.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.1.1.2.1.1" class="ltx_p" style="width:69.4pt;">Error Chunks Predicted</span>
+</span>
+</th>
+<th id="S4.T1.2.1.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span id="S4.T1.2.1.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.1.1.3.1.1" class="ltx_p" style="width:78.0pt;">Complete Utterances Predicted</span>
+</span>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.2.2.1" class="ltx_tr">
+<td id="S4.T1.2.2.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.2.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.2.1.1.1.1" class="ltx_p" style="width:208.1pt;">ConfMat Direct decoding</span>
+</span>
+</td>
+<td id="S4.T1.2.2.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.2.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.2.1.2.1.1" class="ltx_p" style="width:69.4pt;">14.9%</span>
+</span>
+</td>
+<td id="S4.T1.2.2.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.2.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.2.1.3.1.1" class="ltx_p" style="width:78.0pt;">39.2%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T1.2.3.2" class="ltx_tr">
+<td id="S4.T1.2.3.2.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.3.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.3.2.1.1.1" class="ltx_p" style="width:208.1pt;">ConfMat Sampled decoding</span>
+</span>
+</td>
+<td id="S4.T1.2.3.2.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.3.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.3.2.2.1.1" class="ltx_p" style="width:69.4pt;"><span id="S4.T1.2.3.2.2.1.1.1" class="ltx_text ltx_font_bold">25.6</span>%</span>
+</span>
+</td>
+<td id="S4.T1.2.3.2.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.3.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.3.2.3.1.1" class="ltx_p" style="width:78.0pt;">38.8%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T1.2.4.3" class="ltx_tr">
+<td id="S4.T1.2.4.3.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.4.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.4.3.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Direct decoding</span>
+</span>
+</td>
+<td id="S4.T1.2.4.3.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.4.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.4.3.2.1.1" class="ltx_p" style="width:69.4pt;">23.8%</span>
+</span>
+</td>
+<td id="S4.T1.2.4.3.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.4.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.4.3.3.1.1" class="ltx_p" style="width:78.0pt;">38.2%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T1.2.5.4" class="ltx_tr">
+<td id="S4.T1.2.5.4.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.5.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.5.4.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Sampled decoding</span>
+</span>
+</td>
+<td id="S4.T1.2.5.4.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.5.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.5.4.2.1.1" class="ltx_p" style="width:69.4pt;">23.0%</span>
+</span>
+</td>
+<td id="S4.T1.2.5.4.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T1.2.5.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.5.4.3.1.1" class="ltx_p" style="width:78.0pt;">37.8%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T1.2.6.5" class="ltx_tr">
+<td id="S4.T1.2.6.5.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T1.2.6.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.6.5.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Direct (K=50) + ConfMat Sampled (K=50)</span>
+</span>
+</td>
+<td id="S4.T1.2.6.5.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="S4.T1.2.6.5.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.6.5.2.1.1" class="ltx_p" style="width:69.4pt;">23.8%</span>
+</span>
+</td>
+<td id="S4.T1.2.6.5.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="S4.T1.2.6.5.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T1.2.6.5.3.1.1" class="ltx_p" style="width:78.0pt;"><span id="S4.T1.2.6.5.3.1.1.1" class="ltx_text ltx_font_bold">43.4</span>%</span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table"><span id="S4.T1.3.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Evaluation on unseen Fisher corpus recognition data from the same recognizer</figcaption>
+</figure>
+<div id="S4.p4" class="ltx_para">
+<p id="S4.p4.1" class="ltx_p">Table <a href="#S4.T1" title="Table 1 ‣ 4 Evaluation and Results ‣ IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the results on the held out set from the Fisher corpus for all of the models tried. The sampled decoding on the confusion matrix greatly improves over the direct baseline model from <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> in terms of real error chunks predicted, maintaining comparable performance on the complete utterance prediction metric. The neural Seq2Seq models also provide a significant improvement over the baseline in terms of error chunks predicted, although the sampling on the confusion matrix still performed better on that metric. Since the neural Seq2Seq model has the capacity to model errors in a context dependent manner, we wanted to see if it was learning something different from the confusion matrix models. We combined half the number of utterances from the best ConfMat approach and the best Seq2Seq approach each, and looked at the metrics for that. The number of complete utterances recalled was significantly higher than either of the approaches being combined, suggesting that the Seq2Seq model might be learning things that the ConfMat model is not able to capture.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.2" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.2.1.1" class="ltx_tr">
+<th id="S4.T2.2.1.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.1.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.1.1.1.1.1" class="ltx_p" style="width:208.1pt;">Model</span>
+</span>
+</th>
+<th id="S4.T2.2.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span id="S4.T2.2.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.1.1.2.1.1" class="ltx_p" style="width:69.4pt;">Error Chunks Predicted</span>
+</span>
+</th>
+<th id="S4.T2.2.1.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span id="S4.T2.2.1.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.1.1.3.1.1" class="ltx_p" style="width:78.0pt;">Complete Utterances Predicted</span>
+</span>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.2.2.1" class="ltx_tr">
+<td id="S4.T2.2.2.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.2.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.2.1.1.1.1" class="ltx_p" style="width:208.1pt;">ConfMat Direct Decoding</span>
+</span>
+</td>
+<td id="S4.T2.2.2.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.2.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.2.1.2.1.1" class="ltx_p" style="width:69.4pt;">8.5%</span>
+</span>
+</td>
+<td id="S4.T2.2.2.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.2.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.2.1.3.1.1" class="ltx_p" style="width:78.0pt;">66.9%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.2.3.2" class="ltx_tr">
+<td id="S4.T2.2.3.2.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.3.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.3.2.1.1.1" class="ltx_p" style="width:208.1pt;">ConfMat Sampled Decoding</span>
+</span>
+</td>
+<td id="S4.T2.2.3.2.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.3.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.3.2.2.1.1" class="ltx_p" style="width:69.4pt;">36.4%</span>
+</span>
+</td>
+<td id="S4.T2.2.3.2.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.3.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.3.2.3.1.1" class="ltx_p" style="width:78.0pt;">72.4%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.2.4.3" class="ltx_tr">
+<td id="S4.T2.2.4.3.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.4.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.4.3.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Direct Decoding</span>
+</span>
+</td>
+<td id="S4.T2.2.4.3.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.4.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.4.3.2.1.1" class="ltx_p" style="width:69.4pt;">20.2%</span>
+</span>
+</td>
+<td id="S4.T2.2.4.3.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.4.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.4.3.3.1.1" class="ltx_p" style="width:78.0pt;">68.3%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.2.5.4" class="ltx_tr">
+<td id="S4.T2.2.5.4.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.5.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.5.4.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Sampled Decoding</span>
+</span>
+</td>
+<td id="S4.T2.2.5.4.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.5.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.5.4.2.1.1" class="ltx_p" style="width:69.4pt;">16.7%</span>
+</span>
+</td>
+<td id="S4.T2.2.5.4.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="S4.T2.2.5.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.5.4.3.1.1" class="ltx_p" style="width:78.0pt;">67.7%</span>
+</span>
+</td>
+</tr>
+<tr id="S4.T2.2.6.5" class="ltx_tr">
+<td id="S4.T2.2.6.5.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_l ltx_border_r ltx_border_t">
+<span id="S4.T2.2.6.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.6.5.1.1.1" class="ltx_p" style="width:208.1pt;">Seq2Seq Direct (K=50) + ConfMat Sampled (K=50)</span>
+</span>
+</td>
+<td id="S4.T2.2.6.5.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="S4.T2.2.6.5.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.6.5.2.1.1" class="ltx_p" style="width:69.4pt;">34.9%</span>
+</span>
+</td>
+<td id="S4.T2.2.6.5.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="S4.T2.2.6.5.3.1" class="ltx_inline-block ltx_align_top">
+<span id="S4.T2.2.6.5.3.1.1" class="ltx_p" style="width:78.0pt;">71.8%</span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table"><span id="S4.T2.3.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span>Evaluation on Virtual Patient data from a cloud-based ASR service</figcaption>
+</figure>
+<div id="S4.p5" class="ltx_para">
+<p id="S4.p5.1" class="ltx_p">Table <a href="#S4.T2" title="Table 2 ‣ 4 Evaluation and Results ‣ IMPROVING SPEECH RECOGNITION ERROR PREDICTION FOR MODERN AND OFF-THE-SHELF SPEECH RECOGNIZERS" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows the results on predicting recognition errors made by the cloud based ASR service. We see that the baseline ConfMat with direct decoding fares even more poorly here. Our proposed sampling approach yields major gains in terms of both metrics, notably recalling almost four times the number of error chunks as the the baseline. The Seq2Seq model does better than the baseline, but does not do as well as the confusion matrix based system with sampled decoding on either metric.</p>
+</div>
+<div id="S4.p6" class="ltx_para">
+<p id="S4.p6.1" class="ltx_p">The confusion matrix based system with sampled decoding has also proven to help with a downstream task: Stiff et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> adapted a chatbot answer prediction system to work better with speech input. The
+error predictor was used to simulate speech errors which were sampled by the classification system during training. The addition of the sampled errorful data to the training regime improved the spoken interpretation accuracy modestly but consistently across several training conditions (e.g. from 67.6% to 68.3% accuracy in the best performing system).</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusions and Future Work</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We show that the sampling based paradigm greatly improves the error prediction performance of the confusion matrix system. We observe that while the Seq2Seq confusion model might be learning to predict errors in a context dependent manner, the method does not generalize well across corpora, and needs further work. We think the Seq2Seq model may benefit from enhancements such as a more robust generator for the error types, multi-head attention, scheduled sampling, and beam search decoding.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Acknowledgements</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">This material is based upon work supported by the National Science Foundation under Grant No. 1618336. We thank Adam Stiff for sharing the paired text and speech recognized data from the Virtual Patient project for our experiments.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Eric Fosler-Lussier, Ingunn Amdal, and Hong-Kwang Jeff Kuo,
+
+</span>
+<span class="ltx_bibblock">“A framework for predicting speech recognition errors,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text ltx_font_italic">Speech Communication</span>, vol. 46, no. 2, pp. 153–170, 2005.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Jan Anguita, Javier Hernando, Stéphane Peillon, and Alexandre
+Bramoullé,
+
+</span>
+<span class="ltx_bibblock">“Detection of confusable words in automatic speech recognition,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">IEEE Signal Processing Letters</span>, vol. 12, no. 8, pp. 585–588,
+2005.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Preethi Jyothi and Eric Fosler-Lussier,
+
+</span>
+<span class="ltx_bibblock">“A comparison of audio-free speech recognition error prediction
+methods,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">Tenth Annual Conference of the International Speech
+Communication Association</span>, 2009.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Kenji Sagae, Maider Lehr, E Prud’hommeaux, Puyang Xu, Nathan Glenn, Damianos
+Karakos, Sanjeev Khudanpur, Brian Roark, Murat Saraclar, Izhak Shafran,
+et al.,
+
+</span>
+<span class="ltx_bibblock">“Hallucinated n-best lists for discriminative language modeling,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">Acoustics, Speech and Signal Processing (ICASSP), 2012 IEEE
+International Conference on</span>. IEEE, 2012, pp. 5001–5004.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Preethi Jyothi and Eric Fosler-Lussier,
+
+</span>
+<span class="ltx_bibblock">“Discriminative language modeling using simulated asr errors,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Eleventh Annual Conference of the International Speech
+Communication Association</span>, 2010.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Gakuto Kurata, Nobuyasu Itoh, and Masafumi Nishimura,
+
+</span>
+<span class="ltx_bibblock">“Training of error-corrective model for asr without using audio
+data,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Acoustics, Speech and Signal Processing (ICASSP), 2011 IEEE
+International Conference on</span>. IEEE, 2011, pp. 5576–5579.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Yulia Tsvetkov, Florian Metze, and Chris Dyer,
+
+</span>
+<span class="ltx_bibblock">“Augmenting translation models with simulated acoustic confusions
+for improved spoken language translation,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">Proceedings of the 14th Conference of the European Chapter of
+the Association for Computational Linguistics</span>, 2014, pp. 616–625.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Mehryar Mohri and Michael Riley,
+
+</span>
+<span class="ltx_bibblock">“An efficient algorithm for the n-best-strings problem,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">Seventh International Conference on Spoken Language
+Processing</span>, 2002.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le,
+
+</span>
+<span class="ltx_bibblock">“Sequence to sequence learning with neural networks,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span>, 2014, pp.
+3104–3112.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio,
+
+</span>
+<span class="ltx_bibblock">“Neural machine translation by jointly learning to align and
+translate,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1409.0473</span>, 2014.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Karel Veselỳ, Arnab Ghoshal, Lukás Burget, and Daniel Povey,
+
+</span>
+<span class="ltx_bibblock">“Sequence-discriminative training of deep neural networks.,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">Interspeech</span>, 2013, pp. 2345–2349.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Christopher Cieri, David Miller, and Kevin Walker,
+
+</span>
+<span class="ltx_bibblock">“The fisher corpus: a resource for the next generations of
+speech-to-text.,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">LREC</span>, 2004, vol. 4, pp. 69–71.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Lifeng Jin, Michael White, Evan Jaffe, Laura Zimmerman, and Douglas Danforth,
+
+</span>
+<span class="ltx_bibblock">“Combining cnns and pattern matching for question interpretation in
+a virtual patient dialogue system,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib13.1.1" class="ltx_text ltx_font_italic">Proceedings of the 12th Workshop on Innovative Use of NLP for
+Building Educational Applications</span>, 2017, pp. 11–21.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Adam Stiff, Prashant Serai, and Eric Fosler-Lussier,
+
+</span>
+<span class="ltx_bibblock">“Improving human-computer interaction in low-resource settings with
+text-to-phonetic data augmentation,”
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">Submitted to 2019 IEEE International Conference on Acoustics,
+Speech and Signal Processing (ICASSP)</span>.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Yajie Miao, Mohammad Gowayyed, and Florian Metze,
+
+</span>
+<span class="ltx_bibblock">“Eesen: End-to-end speech recognition using deep rnn models and
+wfst-based decoding,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">Automatic Speech Recognition and Understanding (ASRU), 2015
+IEEE Workshop on</span>. IEEE, 2015, pp. 167–174.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Cantab Research,
+
+</span>
+<span class="ltx_bibblock">“Cantab-tedlium language model and lexicon release 1.1,”
+http://cantabResearch.com/cantab-TEDLIUM.tar.bz2, 2015,
+
+</span>
+<span class="ltx_bibblock">[Online; accessed 28-Oct-2018].
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Anthony Rousseau, Paul Deléglise, and Yannick Esteve,
+
+</span>
+<span class="ltx_bibblock">“Enhancing the ted-lium corpus with selected data for language
+modeling and more ted talks.,”
+
+</span>
+<span class="ltx_bibblock">in <span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">LREC</span>, 2014, pp. 3935–3939.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2408.11257" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2408.11258" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2408.11258">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2408.11258" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2408.11259" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Sep  5 12:55:38 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

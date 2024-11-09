@@ -1,0 +1,1505 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2201.01654] TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets</title><meta property="og:description" content="Tables have been an ever-existing structure to store data. There exist now different approaches to store tabular data physically. PDFs, images, spreadsheets, and CSVs are leading examples. Being able to parse table str…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2201.01654">
+
+<!--Generated on Wed Mar  6 10:36:48 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Susie Xi Rao<sup id="id1.1.id1" class="ltx_sup">1</sup><sup id="id2.2.id2" class="ltx_sup">2</sup><sup id="id3.3.id3" class="ltx_sup">*</sup>, Johannes Rausch<sup id="id4.4.id4" class="ltx_sup">1</sup><sup id="id5.5.id5" class="ltx_sup">*</sup>, Peter Egger<sup id="id6.6.id6" class="ltx_sup">2</sup>, Ce Zhang<sup id="id7.7.id7" class="ltx_sup">1</sup>
+<br class="ltx_break"><sup id="id8.8.id8" class="ltx_sup">1</sup> Department of Computer Science, ETH Zurich
+
+<br class="ltx_break"><sup id="id9.9.id9" class="ltx_sup">2</sup> Department of Management, Technology, and Economics, ETH Zurich
+<br class="ltx_break"><sup id="id10.10.id10" class="ltx_sup">*</sup> These authors contributed equally to this work. 
+<br class="ltx_break">{srao,jrausch,pegger,cezhan}@ethz.ch
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<blockquote id="id11.id1" class="ltx_quote">
+<p id="id11.id1.1" class="ltx_p">Tables have been an ever-existing structure to store data. There exist now different approaches to store tabular data physically. PDFs, images, spreadsheets, and CSVs are leading examples. Being able to parse table structures and extract content bounded by these structures is of high importance in many applications. In this paper, we devise TableParser, a system capable of parsing tables in both native PDFs and scanned images with high precision. We have conducted extensive experiments to show the efficacy of domain adaptation in developing such a tool. Moreover, we create TableAnnotator and ExcelAnnotator, which constitute a spreadsheet-based weak supervision mechanism and a pipeline to enable table parsing. We share these resources with the research community to facilitate further research in this interesting direction.</p>
+</blockquote>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Automated processing of electronic documents is a common task in industry and research.
+However, the lack of structures in formats such as native PDF files or scanned documents remains a major obstacle, even for state-of-the-art OCR systems. In practice, extensive engineering and ad-hoc code are required to recover the document structures, e.g., for headings, tables, or nested figures. Sometimes this is required even for text, e.g., in case of PDFs built on the basis of scans, especially, low-quality scans. These structures are hierarchically organized, which many existing systems often fail to recognize.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">With the advance of machine learning (ML) and deep learning (DL) techniques, parsing documents can be done more efficiently than ever.
+As the first end-to-end system for parsing renderings into hierarchical document structures,
+DocParser <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite> was recently introduced. It presents a robust way to parse complete document structures from rendered PDFs. Such learning-based systems require large amounts of labeled training data. This problem is alleviated through a novel weak supervision approach that automatically generates training data from structured LaTeX source files in readily available scientific articles. DocParser demonstrates a significant reduction of the labeling complexity through this weak supervision in their experiments.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">As a special document type, tables are one of the most natural ways to organize structured contents. Tabular data are ubiquitous and come in different formats, e.g., CSV (plain and unformatted) and Microsoft Excel (annotated and formatted), depending on the file creation. Many data processing tasks require tables to be represented in a structured format. However, structured information is not always available in rendered file formats such as PDF. Especially when PDFs are generated from image scans, such information is missing. Luckily, the existing matrix-type organization of spreadsheets can assist to automatically generate document annotations to PDFs. <span id="S1.p3.1.1" class="ltx_text ltx_font_bold">With spreadsheets as weak supervision, this paper proposes a pipeline to provide an automated process of reading tables from PDFs and utilize them as a weak supervision source for DL systems.</span></p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">There are three different types of tasks discussed in the literature about table processing in PDFs, namely, table detection, table structure parsing/recognition <cite class="ltx_cite ltx_citemacro_citep">(Zhong, ShafieiBavani, and
+Jimeno Yepes, <a href="#bib.bib32" title="" class="ltx_ref">2020</a>)</cite>.<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>Table detection is a task to draw the bounding boxes of tables in documents; table structure recognition/parsing refers to the (additional) identification of the structural (row and column layout) information of tables. We distinguish between bottom-up and top-down approaches in table structure detection. Bottom-up typically refers to structure detection by recognizing formatting cues such as text, lines, and spacing, while top-down entails table cell detection (see <cite class="ltx_cite ltx_citemacro_cite">Kieninger and Dengel (<a href="#bib.bib9" title="" class="ltx_ref">1998</a>); Pivk et al<span class="ltx_text">.</span> (<a href="#bib.bib18" title="" class="ltx_ref">2007</a>); Zhong, ShafieiBavani, and
+Jimeno Yepes (<a href="#bib.bib32" title="" class="ltx_ref">2020</a>)</cite>).</span></span></span> Table detection is a popular task with a large body of literature, table structure parsing and table recognition were revisited<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>Some recent works on Cascade R-CNN <cite class="ltx_cite ltx_citemacro_cite">Fernandes et al<span class="ltx_text">.</span> (<a href="#bib.bib5" title="" class="ltx_ref">2022</a>); Prasad et al<span class="ltx_text">.</span> (<a href="#bib.bib19" title="" class="ltx_ref">2020</a>)</cite> manage to push the frontier of table detection. See <cite class="ltx_cite ltx_citemacro_cite">Rausch et al<span class="ltx_text">.</span> (<a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite> for a general review on table detection and <cite class="ltx_cite ltx_citemacro_cite">Zhong, ShafieiBavani, and
+Jimeno Yepes (<a href="#bib.bib32" title="" class="ltx_ref">2020</a>)</cite> for a general review on table recognition.</span></span></span> after the pioneering work of <cite class="ltx_cite ltx_citemacro_cite">Schreiber et al<span class="ltx_text">.</span> (<a href="#bib.bib25" title="" class="ltx_ref">2017</a>)</cite> using state-of-the-art deep neural networks.
+Before DL started to gain success in object detection, table structure parsing was done by bottom-up approaches, using heuristics or ML-based methods like <cite class="ltx_cite ltx_citemacro_cite">Pinto et al<span class="ltx_text">.</span> (<a href="#bib.bib17" title="" class="ltx_ref">2003</a>); Farrukh et al<span class="ltx_text">.</span> (<a href="#bib.bib4" title="" class="ltx_ref">2017</a>)</cite>. See <cite class="ltx_cite ltx_citemacro_cite">Pivk et al<span class="ltx_text">.</span> (<a href="#bib.bib18" title="" class="ltx_ref">2007</a>); Wang, Phillips, and
+Haralick (<a href="#bib.bib28" title="" class="ltx_ref">2004</a>)</cite> for comprehensive reviews on ML methods. The purposes of table structure detection are either layout detection <cite class="ltx_cite ltx_citemacro_citep">(Kieninger and Dengel, <a href="#bib.bib9" title="" class="ltx_ref">1998</a>)</cite> or information retrieval <cite class="ltx_cite ltx_citemacro_citep">(Pivk et al<span class="ltx_text">.</span>, <a href="#bib.bib18" title="" class="ltx_ref">2007</a>)</cite> from tabular structures, usually with the former as a preprocessing step for the latter.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">The DL-based methods in <cite class="ltx_cite ltx_citemacro_cite">Schreiber et al<span class="ltx_text">.</span> (<a href="#bib.bib25" title="" class="ltx_ref">2017</a>); Qasim, Mahmood, and
+Shafait (<a href="#bib.bib20" title="" class="ltx_ref">2019</a>)</cite> are among the first to apply neural networks designed for object detection to table parsing. Typically, taking pretrained object detection models e.g., Faster RCNN <cite class="ltx_cite ltx_citemacro_citep">(Long, Shelhamer, and
+Darrell, <a href="#bib.bib14" title="" class="ltx_ref">2015</a>; Ren et al<span class="ltx_text">.</span>, <a href="#bib.bib23" title="" class="ltx_ref">2015</a>)</cite> on benchmarking datasets like ImageNet <cite class="ltx_cite ltx_citemacro_citep">(Russakovsky et al<span class="ltx_text">.</span>, <a href="#bib.bib24" title="" class="ltx_ref">2015</a>)</cite>, Pascal VOC <cite class="ltx_cite ltx_citemacro_citep">(Everingham et al<span class="ltx_text">.</span>, <a href="#bib.bib3" title="" class="ltx_ref">2010</a>)</cite>, and Microsoft COCO <cite class="ltx_cite ltx_citemacro_citep">(Lin et al<span class="ltx_text">.</span>, <a href="#bib.bib12" title="" class="ltx_ref">2015</a>)</cite>, they fine-tune the pretrained models with in-domain images for table detection and table structure parsing (domain adaption and transfer learning). In some best performing frameworks <cite class="ltx_cite ltx_citemacro_citep">(Raja, Mondal, and
+Jawahar, <a href="#bib.bib21" title="" class="ltx_ref">2020</a>; Zheng et al<span class="ltx_text">.</span>, <a href="#bib.bib31" title="" class="ltx_ref">2021</a>; Jiang et al<span class="ltx_text">.</span>, <a href="#bib.bib8" title="" class="ltx_ref">2021</a>)</cite>, they all jointly optimize the structure detection and entity relations in the structure, as in DocParser.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">However, a key problem in training DL-based systems is the labeling complexity of generating high-quality in-domain annotations. More generally, an essential limiting factor is the lack of large amounts of training data. Efforts have been put into generating datasets to enable tasks with weak supervision. TableBank <cite class="ltx_cite ltx_citemacro_citep">(Li et al<span class="ltx_text">.</span>, <a href="#bib.bib10" title="" class="ltx_ref">2019</a>)</cite> is built upon a data set of Word and LaTeX files and extracts annotations directly from the sources. They use 4-gram BLEU score to evaluate the cell content alignments. However, the table layout structure is not of particular focus in TableBank. PubTabNet <cite class="ltx_cite ltx_citemacro_citep">(Zhong, ShafieiBavani, and
+Jimeno Yepes, <a href="#bib.bib32" title="" class="ltx_ref">2020</a>)</cite> enables table detection and table cell content detection. arXivdocs-target and arXivdocs-weak by DocParser <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite> enables an end-to-end document parsing system of the hierarchical document structure.</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">In this paper, we devise TableParser with inspiration from DocParser, due to its flexibility in processing both tables and more general documents.
+We demonstrate that <span id="S1.p7.1.1" class="ltx_text ltx_font_bold">TableParser</span> is an effective tool for recognizing table structures and content. The application of TableParser to a new target domain requires newly generated training data.
+Depending on the target domain, we specify two TableParsers: <span id="S1.p7.1.2" class="ltx_text ltx_font_bold">ModernTableParser</span> fine-tuned with native PDFs and <span id="S1.p7.1.3" class="ltx_text ltx_font_bold">HistoricalTableParser</span> fine-tuned with scan images.
+TableParser works in conjunction with <span id="S1.p7.1.4" class="ltx_text ltx_font_bold">TableAnnotator</span> (Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) which efficiently assists developers in visualizing the output, as well as help users to generate high-quality human annotations.<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>For a live demo of table annotations using our annotation tool, refer to the video under <a target="_blank" href="https://github.com/DS3Lab/TableParser/blob/main/demo/2021-06-15%2002-05-58.gif" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/DS3Lab/TableParser/blob/main/demo/2021-06-15%2002-05-58.gif</a>.</span></span></span> To generate training instances, we develop <span id="S1.p7.1.5" class="ltx_text ltx_font_bold">ExcelAnnotator</span> to interact with spreadsheets and produce annotations for weak supervision.</p>
+</div>
+<div id="S1.p8" class="ltx_para">
+<p id="S1.p8.1" class="ltx_p">With <span id="S1.p8.1.1" class="ltx_text ltx_font_bold">ExcelAnnotator</span>, we have compiled a spreadsheet dataset ZHYearbooks-Excel, which is processed via a Python library on Excel (PyWin32<span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span><a target="_blank" href="https://pypi.org/project/pywin32/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://pypi.org/project/pywin32/</a> (last accessed: Sep. 30, 2021).</span></span></span>) to leverage the structured information stored in the spreadsheets.
+TableParser is trained with 16’041 Excel-rendered tables using detectron2 (<cite class="ltx_cite ltx_citemacro_cite">He et al<span class="ltx_text">.</span> (<a href="#bib.bib7" title="" class="ltx_ref">2017</a>); Wu et al<span class="ltx_text">.</span> (<a href="#bib.bib29" title="" class="ltx_ref">2019</a>)</cite>) and fine-tuned with 17 high-quality manual annotations in each domain. We have conducted extensive experiments of domain adaptation. Finally, we evaluate different TableParsers in two domains and make the following observations:</p>
+<ol id="S1.I1" class="ltx_enumerate">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">In general, domain adaptation works well with fine-tuning the pretrained model (<math id="S1.I1.i1.p1.1.m1.1" class="ltx_Math" alttext="M_{WS}" display="inline"><semantics id="S1.I1.i1.p1.1.m1.1a"><msub id="S1.I1.i1.p1.1.m1.1.1" xref="S1.I1.i1.p1.1.m1.1.1.cmml"><mi id="S1.I1.i1.p1.1.m1.1.1.2" xref="S1.I1.i1.p1.1.m1.1.1.2.cmml">M</mi><mrow id="S1.I1.i1.p1.1.m1.1.1.3" xref="S1.I1.i1.p1.1.m1.1.1.3.cmml"><mi id="S1.I1.i1.p1.1.m1.1.1.3.2" xref="S1.I1.i1.p1.1.m1.1.1.3.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S1.I1.i1.p1.1.m1.1.1.3.1" xref="S1.I1.i1.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S1.I1.i1.p1.1.m1.1.1.3.3" xref="S1.I1.i1.p1.1.m1.1.1.3.3.cmml">S</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S1.I1.i1.p1.1.m1.1b"><apply id="S1.I1.i1.p1.1.m1.1.1.cmml" xref="S1.I1.i1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S1.I1.i1.p1.1.m1.1.1.1.cmml" xref="S1.I1.i1.p1.1.m1.1.1">subscript</csymbol><ci id="S1.I1.i1.p1.1.m1.1.1.2.cmml" xref="S1.I1.i1.p1.1.m1.1.1.2">𝑀</ci><apply id="S1.I1.i1.p1.1.m1.1.1.3.cmml" xref="S1.I1.i1.p1.1.m1.1.1.3"><times id="S1.I1.i1.p1.1.m1.1.1.3.1.cmml" xref="S1.I1.i1.p1.1.m1.1.1.3.1"></times><ci id="S1.I1.i1.p1.1.m1.1.1.3.2.cmml" xref="S1.I1.i1.p1.1.m1.1.1.3.2">𝑊</ci><ci id="S1.I1.i1.p1.1.m1.1.1.3.3.cmml" xref="S1.I1.i1.p1.1.m1.1.1.3.3">𝑆</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I1.i1.p1.1.m1.1c">M_{WS}</annotation></semantics></math> in Figure <a href="#S1.F2" title="Figure 2 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>) with high-quality in-domain data.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">On the test set of 20 tables rendered by Excel, with ModernTableParser we are able to achieve an average precision score (IoU <math id="S1.I1.i2.p1.1.m1.1" class="ltx_Math" alttext="\geq" display="inline"><semantics id="S1.I1.i2.p1.1.m1.1a"><mo id="S1.I1.i2.p1.1.m1.1.1" xref="S1.I1.i2.p1.1.m1.1.1.cmml">≥</mo><annotation-xml encoding="MathML-Content" id="S1.I1.i2.p1.1.m1.1b"><geq id="S1.I1.i2.p1.1.m1.1.1.cmml" xref="S1.I1.i2.p1.1.m1.1.1"></geq></annotation-xml><annotation encoding="application/x-tex" id="S1.I1.i2.p1.1.m1.1c">\geq</annotation></semantics></math> 0.5) of 83.53% and 73.28% on table rows and columns, respectively.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">We have tested our HistoricalTableParser on scanned tables in both historical (medium-quality, scan-based) and modern tables. Overall, HistoricalTableParser works better than ModernTableParser on tables stored in image scans.</p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S1.I1.i4.p1" class="ltx_para">
+<p id="S1.I1.i4.p1.1" class="ltx_p">Interestingly, we find that ModernTableParser built on top of DocParser <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite> is very robust in adapting to new domains, such as scanned historical tables.</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S1.p9" class="ltx_para">
+<p id="S1.p9.1" class="ltx_p">We are willing to open source the ZHYearbook-Excel dataset, TableAnnotator, TableParser system, and its pipeline to the research communities.<span id="footnote5" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">5</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">5</sup><span class="ltx_tag ltx_tag_note">5</span>The source code, data, and/or other artifacts for the complete TableParser pipeline have been made available at <a target="_blank" href="https://github.com/DS3Lab/TableParser" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/DS3Lab/TableParser</a>.</span></span></span> Moreover, we welcome future contributions to the project to further increase the usability of TableParser in various domains.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2201.01654/assets/figures/demo_TableAnnotator.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="387" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>TableAnnotator.</figcaption>
+</figure>
+<figure id="S1.F2" class="ltx_figure"><img src="/html/2201.01654/assets/x1.png" id="S1.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="136" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>System design of TableParser: Weak supervision, ExcelAnnotator, ModernTableParser and HistoricalTableParser. <math id="S1.F2.2.m1.1" class="ltx_Math" alttext="M_{WS}" display="inline"><semantics id="S1.F2.2.m1.1b"><msub id="S1.F2.2.m1.1.1" xref="S1.F2.2.m1.1.1.cmml"><mi id="S1.F2.2.m1.1.1.2" xref="S1.F2.2.m1.1.1.2.cmml">M</mi><mrow id="S1.F2.2.m1.1.1.3" xref="S1.F2.2.m1.1.1.3.cmml"><mi id="S1.F2.2.m1.1.1.3.2" xref="S1.F2.2.m1.1.1.3.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S1.F2.2.m1.1.1.3.1" xref="S1.F2.2.m1.1.1.3.1.cmml">​</mo><mi id="S1.F2.2.m1.1.1.3.3" xref="S1.F2.2.m1.1.1.3.3.cmml">S</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S1.F2.2.m1.1c"><apply id="S1.F2.2.m1.1.1.cmml" xref="S1.F2.2.m1.1.1"><csymbol cd="ambiguous" id="S1.F2.2.m1.1.1.1.cmml" xref="S1.F2.2.m1.1.1">subscript</csymbol><ci id="S1.F2.2.m1.1.1.2.cmml" xref="S1.F2.2.m1.1.1.2">𝑀</ci><apply id="S1.F2.2.m1.1.1.3.cmml" xref="S1.F2.2.m1.1.1.3"><times id="S1.F2.2.m1.1.1.3.1.cmml" xref="S1.F2.2.m1.1.1.3.1"></times><ci id="S1.F2.2.m1.1.1.3.2.cmml" xref="S1.F2.2.m1.1.1.3.2">𝑊</ci><ci id="S1.F2.2.m1.1.1.3.3.cmml" xref="S1.F2.2.m1.1.1.3.3">𝑆</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.F2.2.m1.1d">M_{WS}</annotation></semantics></math>: the pretrained model with the dataset ZHYearbooks-Excel-WS. M1: for ModernTableParser, fine-tuned on Excel-rendered images; M2: for HistoricalTableParser, fine-tuned on scan images. </figcaption>
+</figure>
+<div id="S1.p10" class="ltx_para">
+<p id="S1.p10.1" class="ltx_p">To summarize, our key contributions in this paper are:</p>
+<ol id="S1.I2" class="ltx_enumerate">
+<li id="S1.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S1.I2.i1.p1" class="ltx_para">
+<p id="S1.I2.i1.p1.1" class="ltx_p">We present <span id="S1.I2.i1.p1.1.1" class="ltx_text ltx_font_bold">TableParser</span> which is a robust tool for parsing modern and historical tables stored in native PDFs or image scans.</p>
+</div>
+</li>
+<li id="S1.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S1.I2.i2.p1" class="ltx_para">
+<p id="S1.I2.i2.p1.1" class="ltx_p">We conduct experiments to show the efficacy of domain adaptation in TableParser.</p>
+</div>
+</li>
+<li id="S1.I2.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S1.I2.i3.p1" class="ltx_para">
+<p id="S1.I2.i3.p1.1" class="ltx_p">We contribute a new pipeline (using <span id="S1.I2.i3.p1.1.1" class="ltx_text ltx_font_bold">ExcelAnnotator</span> as the main component) to automatically generate weakly labeled data for DL-based table parsing.</p>
+</div>
+</li>
+<li id="S1.I2.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S1.I2.i4.p1" class="ltx_para">
+<p id="S1.I2.i4.p1.1" class="ltx_p">We contribute <span id="S1.I2.i4.p1.1.1" class="ltx_text ltx_font_bold">TableAnnotator</span> as a graphical interface to assist table structure understanding and manual labeling.
+</p>
+</div>
+</li>
+<li id="S1.I2.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">5.</span> 
+<div id="S1.I2.i5.p1" class="ltx_para">
+<p id="S1.I2.i5.p1.1" class="ltx_p">We open-source the spreadsheet weak supervision dataset and the pipeline of TableParser to encourage further research in this direction.</p>
+</div>
+</li>
+</ol>
+</div>
+<figure id="S1.F3" class="ltx_figure">
+<table id="S1.F3.4" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S1.F3.4.4" class="ltx_tr">
+<td id="S1.F3.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/MTableParser_Example.jpg" id="S1.F3.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="150" height="75" alt="Refer to caption"></td>
+<td id="S1.F3.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/DeExcelerator.jpg" id="S1.F3.2.2.2.g1" class="ltx_graphics ltx_img_landscape" width="150" height="74" alt="Refer to caption"></td>
+<td id="S1.F3.3.3.3" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/MTableParser_Excel.jpg" id="S1.F3.3.3.3.g1" class="ltx_graphics ltx_img_landscape" width="108" height="59" alt="Refer to caption"></td>
+<td id="S1.F3.4.4.4" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/MTableParser_bbox.jpg" id="S1.F3.4.4.4.g1" class="ltx_graphics ltx_img_square" width="120" height="113" alt="Refer to caption"></td>
+</tr>
+<tr id="S1.F3.4.5.1" class="ltx_tr">
+<td id="S1.F3.4.5.1.1" class="ltx_td ltx_align_center">
+<table id="S1.F3.4.5.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.F3.4.5.1.1.1.1" class="ltx_tr">
+<td id="S1.F3.4.5.1.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(a) Example worksheet</td>
+</tr>
+<tr id="S1.F3.4.5.1.1.1.2" class="ltx_tr">
+<td id="S1.F3.4.5.1.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">from ZHYearbook-Excel-WS.</td>
+</tr>
+</table>
+</td>
+<td id="S1.F3.4.5.1.2" class="ltx_td ltx_align_center">(b) Annotations with DeExcelerator.</td>
+<td id="S1.F3.4.5.1.3" class="ltx_td ltx_align_center">
+<table id="S1.F3.4.5.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.F3.4.5.1.3.1.1" class="ltx_tr">
+<td id="S1.F3.4.5.1.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(c) Representing bounding</td>
+</tr>
+<tr id="S1.F3.4.5.1.3.1.2" class="ltx_tr">
+<td id="S1.F3.4.5.1.3.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">boxes in Excel.</td>
+</tr>
+</table>
+</td>
+<td id="S1.F3.4.5.1.4" class="ltx_td ltx_align_center">
+<table id="S1.F3.4.5.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S1.F3.4.5.1.4.1.1" class="ltx_tr">
+<td id="S1.F3.4.5.1.4.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(d) Visualization of</td>
+</tr>
+<tr id="S1.F3.4.5.1.4.1.2" class="ltx_tr">
+<td id="S1.F3.4.5.1.4.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">bounding boxes with</td>
+</tr>
+<tr id="S1.F3.4.5.1.4.1.3" class="ltx_tr">
+<td id="S1.F3.4.5.1.4.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">TableAnnotator.</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>A working example in ExcelAnnotator.</figcaption>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>TableParser System</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Problem Description</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Following the hierarchical document parsing in DocParser, our objective is to generate a hierarchical structure for a table which consists of the entities (<span id="S2.SS1.p1.1.1" class="ltx_text ltx_font_italic">table, tabular, table_caption, table_row, table_column, table_footnote</span>) and their relations in the document tree.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">Our ultimate goal of table structure parsing is (1) to establish row/column relationships between the table cells, and (2) post-process the established structure and cell content (e.g., with PDFMiner<span id="footnote6" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">6</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">6</sup><span class="ltx_tag ltx_tag_note">6</span><a target="_blank" href="https://pypi.org/project/pdfminer/" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://pypi.org/project/pdfminer/</a> (last accessed: Nov. 11, 2021).</span></span></span> or OCR engines) to enable a CSV export function. In this paper, we emphasize (1) and are still in development to enable (2). Our work will enable a user to parse a table stored in a PDF format and obtain (i) the location of a certain cell (specified by its row range and column range) and (ii) the cell content mapped to the cell location.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>System Components</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">We introduce the main system components in TableParser, incl. TableAnnotator, ExcelAnnotator, ModernTableParser, and HistoricalTableParser.</p>
+</div>
+<section id="S2.SS2.SSSx1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">TableAnnotator.</h4>
+
+<div id="S2.SS2.SSSx1.p1" class="ltx_para">
+<p id="S2.SS2.SSSx1.p1.1" class="ltx_p">In Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> we show TableAnnotator, which is mainly composed of two parts: image panel (left) and document tree (right). In the code repository<span id="footnote7" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">7</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">7</sup><span class="ltx_tag ltx_tag_note">7</span>TableAnnotator repo: <a target="_blank" href="https://anonymous.4open.science/r/doc_annotation-SDU-AAAI22" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://anonymous.4open.science/r/doc_annotation-SDU-AAAI22</a>.</span></span></span>, there is a manual describing its functionalities in details. In a nutshell, annotators can draw bounding boxes on the left panel and create their entities and relationships on the right. In Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, the highlighted bounding box (the red thick contour on the left) corresponds to the <span id="S2.SS2.SSSx1.p1.1.1" class="ltx_text ltx_font_italic">table_cell</span> on the second row and second column, indexed by 1-1, 1-1 (the blue highlight on the right). Note that TableAnnotator is versatile and can be used to annotate not only tables, but also generic documents. The output of the tree is in JSON format as shown in the following code snippet.</p>
+</div>
+<div id="S2.SS2.SSSx1.p2" class="ltx_para">
+<div id="S2.SS2.SSSx1.p2.1" class="ltx_listing ltx_lst_numbers_left ltx_lstlisting ltx_listing">
+<div class="ltx_listing_data"><a href="data:text/plain;base64,ICBbeyJpZCI6IDI4LAogICJjYXRlZ29yeSI6ICJ0YWJsZVxfY2VsbCIsCiAgInByb3BlcnRpZXMiOiAiMS0xLDEtMSIsCiAgInJvd1xfcmFuZ2UiOiBbMSwxXSwKICAiY29sXF9yYW5nZSI6IFsxLDFdLAogICJwYXJlbnQiOiA5fSwKICB7ImlkIjogMjksCiAgImNhdGVnb3J5IjogImJveCIsCiAgInBhZ2UiOiAwLAogICJiYm94IjogWzM2NSwzMzIsMjk5LDI3XSwKICAicGFyZW50IjogMjh9XQ==" download="">⬇</a></div>
+<div id="lstnumberx1" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">1</span><span id="lstnumberx1.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx1.2" class="ltx_text ltx_font_typewriter">[{"</span><span id="lstnumberx1.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">id</span><span id="lstnumberx1.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx1.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx1.6" class="ltx_text ltx_font_typewriter">28,</span>
+</div>
+<div id="lstnumberx2" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">2</span><span id="lstnumberx2.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx2.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx2.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">category</span><span id="lstnumberx2.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx2.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx2.6" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx2.7" class="ltx_text ltx_lst_identifier ltx_font_typewriter">table</span><span id="lstnumberx2.8" class="ltx_text ltx_font_typewriter">\</span><span id="lstnumberx2.9" class="ltx_text ltx_lst_identifier ltx_font_typewriter">_cell</span><span id="lstnumberx2.10" class="ltx_text ltx_font_typewriter">",</span>
+</div>
+<div id="lstnumberx3" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">3</span><span id="lstnumberx3.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx3.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx3.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">properties</span><span id="lstnumberx3.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx3.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx3.6" class="ltx_text ltx_font_typewriter">"1-1,1-1",</span>
+</div>
+<div id="lstnumberx4" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">4</span><span id="lstnumberx4.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx4.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx4.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">row</span><span id="lstnumberx4.4" class="ltx_text ltx_font_typewriter">\</span><span id="lstnumberx4.5" class="ltx_text ltx_lst_identifier ltx_font_typewriter">_range</span><span id="lstnumberx4.6" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx4.7" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx4.8" class="ltx_text ltx_font_typewriter">[1,1],</span>
+</div>
+<div id="lstnumberx5" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">5</span><span id="lstnumberx5.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx5.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx5.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">col</span><span id="lstnumberx5.4" class="ltx_text ltx_font_typewriter">\</span><span id="lstnumberx5.5" class="ltx_text ltx_lst_identifier ltx_font_typewriter">_range</span><span id="lstnumberx5.6" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx5.7" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx5.8" class="ltx_text ltx_font_typewriter">[1,1],</span>
+</div>
+<div id="lstnumberx6" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">6</span><span id="lstnumberx6.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx6.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx6.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">parent</span><span id="lstnumberx6.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx6.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx6.6" class="ltx_text ltx_font_typewriter">9},</span>
+</div>
+<div id="lstnumberx7" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">7</span><span id="lstnumberx7.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx7.2" class="ltx_text ltx_font_typewriter">{"</span><span id="lstnumberx7.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">id</span><span id="lstnumberx7.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx7.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx7.6" class="ltx_text ltx_font_typewriter">29,</span>
+</div>
+<div id="lstnumberx8" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">8</span><span id="lstnumberx8.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx8.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx8.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">category</span><span id="lstnumberx8.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx8.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx8.6" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx8.7" class="ltx_text ltx_lst_identifier ltx_font_typewriter">box</span><span id="lstnumberx8.8" class="ltx_text ltx_font_typewriter">",</span>
+</div>
+<div id="lstnumberx9" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">9</span><span id="lstnumberx9.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx9.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx9.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">page</span><span id="lstnumberx9.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx9.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx9.6" class="ltx_text ltx_font_typewriter">0,</span>
+</div>
+<div id="lstnumberx10" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">10</span><span id="lstnumberx10.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx10.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx10.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">bbox</span><span id="lstnumberx10.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx10.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx10.6" class="ltx_text ltx_font_typewriter">[365,332,299,27],</span>
+</div>
+<div id="lstnumberx11" class="ltx_listingline">
+<span class="ltx_tag ltx_tag_listingline">11</span><span id="lstnumberx11.1" class="ltx_text ltx_lst_space ltx_font_typewriter">  </span><span id="lstnumberx11.2" class="ltx_text ltx_font_typewriter">"</span><span id="lstnumberx11.3" class="ltx_text ltx_lst_identifier ltx_font_typewriter">parent</span><span id="lstnumberx11.4" class="ltx_text ltx_font_typewriter">":</span><span id="lstnumberx11.5" class="ltx_text ltx_lst_space ltx_font_typewriter"> </span><span id="lstnumberx11.6" class="ltx_text ltx_font_typewriter">28}]</span>
+</div>
+</div>
+</div>
+<figure id="S2.F5" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S2.F5.fig1" class="ltx_figure ltx_figure_panel">
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2201.01654/assets/figures/googlevision-ocr-bad.png" id="S2.F5.g1" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="538" height="361" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Google Vision OCR API output (left) of image (right): bad quality of OCR. </figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S2.F5.fig2" class="ltx_figure ltx_figure_panel">
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2"><img src="/html/2201.01654/assets/figures/googlevision-ocr-good.png" id="S2.F5.g2" class="ltx_graphics ltx_figure_panel ltx_img_landscape" width="538" height="382" alt="Refer to caption"></div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Google Vision OCR API output (left) of image (right): good quality of OCR.</figcaption>
+</figure>
+<figure id="S2.F6" class="ltx_figure">
+<table id="S2.F6.4" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S2.F6.4.4" class="ltx_tr">
+<td id="S2.F6.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/HTableParser_input.png" id="S2.F6.1.1.1.g1" class="ltx_graphics ltx_img_square" width="120" height="101" alt="Refer to caption"></td>
+<td id="S2.F6.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M1_HTableParserInput.png" id="S2.F6.2.2.2.g1" class="ltx_graphics ltx_img_square" width="120" height="102" alt="Refer to caption"></td>
+<td id="S2.F6.3.3.3" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/HTableParser_csv.jpg" id="S2.F6.3.3.3.g1" class="ltx_graphics ltx_img_landscape" width="222" height="106" alt="Refer to caption"></td>
+<td id="S2.F6.4.4.4" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/LayoutParser_HTableParserInput.png" id="S2.F6.4.4.4.g1" class="ltx_graphics ltx_img_square" width="120" height="103" alt="Refer to caption"></td>
+</tr>
+<tr id="S2.F6.4.5.1" class="ltx_tr">
+<td id="S2.F6.4.5.1.1" class="ltx_td ltx_align_center">
+<table id="S2.F6.4.5.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S2.F6.4.5.1.1.1.1" class="ltx_tr">
+<td id="S2.F6.4.5.1.1.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(a) An input into</td>
+</tr>
+<tr id="S2.F6.4.5.1.1.1.2" class="ltx_tr">
+<td id="S2.F6.4.5.1.1.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">HistoricalTableParser.</td>
+</tr>
+</table>
+</td>
+<td id="S2.F6.4.5.1.2" class="ltx_td ltx_align_center">
+<table id="S2.F6.4.5.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S2.F6.4.5.1.2.1.1" class="ltx_tr">
+<td id="S2.F6.4.5.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(b) Table structure</td>
+</tr>
+<tr id="S2.F6.4.5.1.2.1.2" class="ltx_tr">
+<td id="S2.F6.4.5.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">parsing by TableParser.</td>
+</tr>
+</table>
+</td>
+<td id="S2.F6.4.5.1.3" class="ltx_td ltx_align_center">
+<table id="S2.F6.4.5.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S2.F6.4.5.1.3.1.1" class="ltx_tr">
+<td id="S2.F6.4.5.1.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(c) Merging the layout by TableParser</td>
+</tr>
+<tr id="S2.F6.4.5.1.3.1.2" class="ltx_tr">
+<td id="S2.F6.4.5.1.3.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">and the OCR bounding boxes.</td>
+</tr>
+</table>
+</td>
+<td id="S2.F6.4.5.1.4" class="ltx_td ltx_align_center">
+<table id="S2.F6.4.5.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S2.F6.4.5.1.4.1.1" class="ltx_tr">
+<td id="S2.F6.4.5.1.4.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left">(d) Run LayoutParser</td>
+</tr>
+<tr id="S2.F6.4.5.1.4.1.2" class="ltx_tr">
+<td id="S2.F6.4.5.1.4.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left"><cite class="ltx_cite ltx_citemacro_citep">(Shen et al<span class="ltx_text">.</span>, <a href="#bib.bib26" title="" class="ltx_ref">2021</a>)</cite></td>
+</tr>
+<tr id="S2.F6.4.5.1.4.1.3" class="ltx_tr">
+<td id="S2.F6.4.5.1.4.1.3.1" class="ltx_td ltx_nopad_r ltx_align_left">on tables.</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>A working example in HistoricalTableParser.</figcaption>
+</figure>
+</section>
+<section id="S2.SS2.SSSx2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">ModernTableParser.</h4>
+
+<div id="S2.SS2.SSSx2.p1" class="ltx_para">
+<p id="S2.SS2.SSSx2.p1.1" class="ltx_p">We train ModernTableParser using the data generated by weak supervision signals from Excel sheets and fine-tuned by high-quality manual annotations in this domain. In Figure <a href="#S1.F2" title="Figure 2 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we show the system design following the underlying components of DocParser.<span id="footnote8" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">8</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">8</sup><span class="ltx_tag ltx_tag_note">8</span>The model structure of DocParser is sketched in Figure 11 of the DocParser paper <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite>, see <a target="_blank" href="https://arxiv.org/pdf/1911.01702.pdf" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/pdf/1911.01702.pdf</a>. The model structure (Mask RCNN) can also be found <a target="_blank" href="https://github.com/DS3Lab/TableParser/blob/main/figures/mask-rcnn.drawio.pdf" title="" class="ltx_ref ltx_href">here</a>.</span></span></span> We denote the model that produces ModernTableParser as <span id="S2.SS2.SSSx2.p1.1.1" class="ltx_text ltx_font_bold">M1</span>.</p>
+</div>
+<section id="S2.SS2.SSSx2.Px1" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Weak Supervision with ExcelAnnotator.</h5>
+
+<div id="S2.SS2.SSSx2.Px1.p1" class="ltx_para">
+<p id="S2.SS2.SSSx2.Px1.p1.1" class="ltx_p">Now we present the crucial steps in generating weak supervision (the model <math id="S2.SS2.SSSx2.Px1.p1.1.m1.1" class="ltx_Math" alttext="M_{WS}" display="inline"><semantics id="S2.SS2.SSSx2.Px1.p1.1.m1.1a"><msub id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.cmml"><mi id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.2" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.2.cmml">M</mi><mrow id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.cmml"><mi id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.2" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.2.cmml">W</mi><mo lspace="0em" rspace="0em" id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.1" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.1.cmml">​</mo><mi id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.3" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.3.cmml">S</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.SSSx2.Px1.p1.1.m1.1b"><apply id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.1.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.2.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.2">𝑀</ci><apply id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3"><times id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.1.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.1"></times><ci id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.2.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.2">𝑊</ci><ci id="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.3.cmml" xref="S2.SS2.SSSx2.Px1.p1.1.m1.1.1.3.3">𝑆</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.SSSx2.Px1.p1.1.m1.1c">M_{WS}</annotation></semantics></math> in Figure <a href="#S1.F2" title="Figure 2 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>) for TableParser. These steps are mainly conducted by ExcelAnnotator in Figure <a href="#S1.F2" title="Figure 2 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (left). Take a worksheet-like Figure <a href="#S1.F3" title="Figure 3 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (a) from our ZHYearbook-Excel-WS dataset (cf. Section <a href="#S3" title="3 Datasets ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>), where we see caption, tabular, and footnote areas. We subsequently use DeExcelerator <cite class="ltx_cite ltx_citemacro_citep">(Eberius et al<span class="ltx_text">.</span>, <a href="#bib.bib2" title="" class="ltx_ref">2013</a>)</cite>
+to extract relations from the spreadsheets.
+We utilize DeExcelerator to categorize the content, such that we can differentiate among table captions, table footnotes and tabular data and create a correct auxiliary file to each PDF containing the structural information of the represented table(s).
+Illustrated in Figure <a href="#S1.F3" title="Figure 3 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (b), in this case we annotate the table caption and footnote as ‘meta’, and mark the range of content with ‘content’ and ‘empty’. We use PyWin32 in Python to interact with Excel, so that intermediate representations like Figure <a href="#S1.F3" title="Figure 3 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (c) can be created to retrieve entity locations in the PDF rendering. Concretely, we mark neighboring cells with distinct colors, remove all borders, and set the font color to white. To summarize, ExcelAnnotator detects spreadsheet metadata and cell types, as well as retrieves entity locations via intermediate representations. Finally, we are able to load the annotations into TableAnnotator to inspect the quality of weak supervision (Figure <a href="#S1.F3" title="Figure 3 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (d)).</p>
+</div>
+</section>
+</section>
+<section id="S2.SS2.SSSx3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">HistoricalTableParser.</h4>
+
+<div id="S2.SS2.SSSx3.p1" class="ltx_para">
+<p id="S2.SS2.SSSx3.p1.1" class="ltx_p">We use the OCR engine from Google Vision API to recognize the text bounding boxes. Then we convert bounding boxes into the input format TableParser requires. Now we are able to manually adjust the bounding boxes in TableAnnotator to produce high-quality annotations. Note that the quality of OCR highly depends on the table layout (Figures <a href="#S2.F5" title="Figure 5 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> vs. <a href="#S2.F5" title="Figure 5 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>), we often need to adjust the locations of bounding boxes and redraw the bounding boxes of individual cells.</p>
+</div>
+<div id="S2.SS2.SSSx3.p2" class="ltx_para">
+<p id="S2.SS2.SSSx3.p2.1" class="ltx_p">In Figure <a href="#S1.F2" title="Figure 2 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (lower right), we show the system design by adding an OCR component and a fine-tuning component for domain adaptation. We denote the model that produces HistoricalTableParser as <span id="S2.SS2.SSSx3.p2.1.1" class="ltx_text ltx_font_bold">M2</span>.
+Take Figure <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (a) as input, TableParser can produce a parsed layout-like Figure <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (b) which can be combined with the OCR bounding boxes in the subsequent steps and export as a CSV file (Figure <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (c)).<span id="footnote9" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">9</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">9</sup><span class="ltx_tag ltx_tag_note">9</span>c.f. The performance of LayoutParser is quite poor on the tabular data in Figure <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (d) using the best model from its model zoo (PubLayNet/faster_rcnn_R_50_FPN_3x). Input and annotated figures of original size can be found under <a target="_blank" href="https://github.com/DS3Lab/TableParser/tree/main/figures" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/DS3Lab/TableParser/tree/main/figures</a>.</span></span></span></p>
+</div>
+<div id="S2.SS2.SSSx3.p3" class="ltx_para">
+<p id="S2.SS2.SSSx3.p3.1" class="ltx_p">For domain adaptation, we assume that an out-of-domain model performs worse than an in-domain model in one domain. Namely, we would expect ModernTableParser to work better on Excel-rendered PDFs or tables created similarly; on the contrary, we would expect HistoricalTableParser to perform better on older table scans.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Datasets</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">We have compiled various datasets to train, fine-tune, test, and evaluate TableParser.
+</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p"><span id="S3.p2.1.1" class="ltx_text ltx_font_bold">ZHYearbooks-Excel.</span>
+We create three datasets from this source: ZHYearbooks-Excel-WS, ZHYearbooks-Excel-FT, and ZHYearbooks-Excel-Test, with 16’041, 17, and 20 tables in each set.
+On average, it takes 3 minutes 30 seconds for an annotator to produce high-quality annotations of a table. The manual annotations are done with automatically generated bounding boxes and document tree as aid.</p>
+</div>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.1" class="ltx_p"><span id="S3.p3.1.1" class="ltx_text ltx_font_bold">ZHYearbooks-OCR.</span>
+We create the dataset ZHYearbook-OCR-Test, with 20 tables. On average, it takes 2 minutes and 45 seconds to annotate a table with the similar annotation aids mentioned above.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.1" class="ltx_p"><span id="S3.p4.1.1" class="ltx_text ltx_font_bold">EUYearbooks-OCR.</span>
+We create two datasets from this source: EUYearbook-OCR-FT and EUYearbook-OCR-Test, with 17 and 10 tables, respectively. Note that these datasets contain various languages like Hungarian and German, with various formats depending on the language. On average, it takes 8 minutes and 15 seconds to annotate a table with the similar annotation aids mentioned above.</p>
+</div>
+<div id="S3.p5" class="ltx_para">
+<p id="S3.p5.1" class="ltx_p"><span id="S3.p5.1.1" class="ltx_text ltx_font_bold">Miscellaneous historical yearbooks.</span>
+We ran ModernTableParser and HistoricalTableParser on Chinese and Korean historical yearbooks and inspect their outputs qualitatively (see Section <a href="#S5.SS2" title="5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5.2</span></a>).</p>
+</div>
+<div id="S3.p6" class="ltx_para">
+<p id="S3.p6.1" class="ltx_p"><span id="S3.p6.1.1" class="ltx_text ltx_font_bold">Human labeling efforts.</span>
+We observe a large variance in labeling intensity across the datasets. The EUYearbooks-OCR datasets require more corrections per table compared to the datasets of modern tables. Moreover, they also require more iterations of human annotations with heuristics as aid.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Computational Setup</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Mask R-CNN</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">In line with DocParser, we use the same model but with an updated backend implementation. Namely, we utilize Detectron2 to apply an updated version of Mask R-CNN <cite class="ltx_cite ltx_citemacro_citep">(He et al<span class="ltx_text">.</span>, <a href="#bib.bib6" title="" class="ltx_ref">2016</a>)</cite>. For technical details of Mask R-CNN, we refer to DocParser <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite>.</p>
+</div>
+<section id="S4.SS1.SSSx1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">Training Procedure: Weak Supervision + Fine-Tuning.</h4>
+
+<div id="S4.SS1.SSSx1.p1" class="ltx_para">
+<p id="S4.SS1.SSSx1.p1.1" class="ltx_p">All neural models are initialized with weights trained on the MS COCO dataset. We first pretrain on the weak supervision data ZHYearbook-Excel-WS for 540k iterations, then fine-tune on our target datasets ZHYearbook-Excel-FT and EUYearbook-OCR-FT for M1 and M2, respectively.
+We then fine-tune each model across three phrases for a total of 30k iterations. This is split into 22k, 4k, 4k iterations, respectively. The performance is measured every 500 iterations via the IoU with a threshold of 0.5. We train all models in a multi-GPU setting, using 8 GPUs with a vRAM of 12 GB. Each GPU was fed with one image per training iteration. Accordingly, the batch size per training iteration is set to 8. Furthermore, we use stochastic gradient descent with a learning rate of 0.005 and learning momentum of 0.9.</p>
+</div>
+</section>
+<section id="S4.SS1.SSSx2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">Parameter Settings.</h4>
+
+<div id="S4.SS1.SSSx2.p1" class="ltx_para">
+<p id="S4.SS1.SSSx2.p1.1" class="ltx_p">During training, we sampled randomly 100 entities from the ground truth per document image (i.e., up to 100 entities, as some document images might have less). In Mask R-CNN, the maximum number of entity predictions per image is set to 100. During prediction, we only keep entities with a confidence score of 0.5 or higher.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Fine-tuning results of M1 and M2. M1: for ModernTableParser, fine-tuned on Excel-rendered images; M2: for HistoricalTableParser, fine-tuned on scan images; FT: fine-tune.</figcaption>
+<div id="S4.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:281.9pt;height:82.4pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-105.4pt,30.8pt) scale(0.572026029471288,0.572026029471288) ;">
+<table id="S4.T1.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.1.1.1.1" class="ltx_tr">
+<th id="S4.T1.1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt" colspan="4"><span id="S4.T1.1.1.1.1.1.1" class="ltx_text ltx_font_bold">ZHYearbook-Excel-FT</span></th>
+<th id="S4.T1.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_tt" colspan="4"><span id="S4.T1.1.1.1.1.2.1" class="ltx_text ltx_font_bold">EUYearbook-OCR-FT</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.1.2.1" class="ltx_tr">
+<th id="S4.T1.1.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T1.1.1.2.1.1.1" class="ltx_text ltx_font_bold">Category</span></th>
+<th id="S4.T1.1.1.2.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T1.1.1.2.1.2.1" class="ltx_text ltx_font_bold"># instances</span></th>
+<td id="S4.T1.1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" colspan="2"><span id="S4.T1.1.1.2.1.3.1" class="ltx_text ltx_font_bold ltx_framed ltx_framed_underline">Average Precision</span></td>
+<th id="S4.T1.1.1.2.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T1.1.1.2.1.4.1" class="ltx_text ltx_font_bold">Category</span></th>
+<th id="S4.T1.1.1.2.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T1.1.1.2.1.5.1" class="ltx_text ltx_font_bold"># instances</span></th>
+<td id="S4.T1.1.1.2.1.6" class="ltx_td ltx_align_center ltx_border_t" colspan="2"><span id="S4.T1.1.1.2.1.6.1" class="ltx_text ltx_font_bold ltx_framed ltx_framed_underline">Average Precision</span></td>
+</tr>
+<tr id="S4.T1.1.1.3.2" class="ltx_tr">
+<td id="S4.T1.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r">
+<span id="S4.T1.1.1.3.2.1.1" class="ltx_text ltx_font_bold">M1</span> (FT)</td>
+<td id="S4.T1.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r">
+<span id="S4.T1.1.1.3.2.2.1" class="ltx_text ltx_font_bold">M2</span> (Test)</td>
+<td id="S4.T1.1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r">
+<span id="S4.T1.1.1.3.2.3.1" class="ltx_text ltx_font_bold">M1</span> (Test)</td>
+<td id="S4.T1.1.1.3.2.4" class="ltx_td ltx_align_center">
+<span id="S4.T1.1.1.3.2.4.1" class="ltx_text ltx_font_bold">M2</span> (FT)</td>
+</tr>
+<tr id="S4.T1.1.1.4.3" class="ltx_tr">
+<th id="S4.T1.1.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(1)</th>
+<th id="S4.T1.1.1.4.3.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(2)</th>
+<td id="S4.T1.1.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(3)</td>
+<td id="S4.T1.1.1.4.3.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(4)</td>
+<th id="S4.T1.1.1.4.3.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(5)</th>
+<th id="S4.T1.1.1.4.3.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(6)</th>
+<td id="S4.T1.1.1.4.3.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(7)</td>
+<td id="S4.T1.1.1.4.3.8" class="ltx_td ltx_align_center ltx_border_t">(8)</td>
+</tr>
+<tr id="S4.T1.1.1.5.4" class="ltx_tr">
+<th id="S4.T1.1.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T1.1.1.5.4.1.1" class="ltx_text ltx_font_italic">table</span></th>
+<th id="S4.T1.1.1.5.4.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">17</th>
+<td id="S4.T1.1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">90.973</td>
+<td id="S4.T1.1.1.5.4.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">38.034</td>
+<th id="S4.T1.1.1.5.4.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T1.1.1.5.4.5.1" class="ltx_text ltx_font_italic">table</span></th>
+<th id="S4.T1.1.1.5.4.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">17</th>
+<td id="S4.T1.1.1.5.4.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">67.467</td>
+<td id="S4.T1.1.1.5.4.8" class="ltx_td ltx_align_center ltx_border_t">93.011</td>
+</tr>
+<tr id="S4.T1.1.1.6.5" class="ltx_tr">
+<th id="S4.T1.1.1.6.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T1.1.1.6.5.1.1" class="ltx_text ltx_font_italic">tabular</span></th>
+<th id="S4.T1.1.1.6.5.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">17</th>
+<td id="S4.T1.1.1.6.5.3" class="ltx_td ltx_align_center ltx_border_r">100.000</td>
+<td id="S4.T1.1.1.6.5.4" class="ltx_td ltx_align_center ltx_border_r">57.897</td>
+<th id="S4.T1.1.1.6.5.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T1.1.1.6.5.5.1" class="ltx_text ltx_font_italic">tabular</span></th>
+<th id="S4.T1.1.1.6.5.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">17</th>
+<td id="S4.T1.1.1.6.5.7" class="ltx_td ltx_align_center ltx_border_r">76.423</td>
+<td id="S4.T1.1.1.6.5.8" class="ltx_td ltx_align_center">100.000</td>
+</tr>
+<tr id="S4.T1.1.1.7.6" class="ltx_tr">
+<th id="S4.T1.1.1.7.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T1.1.1.7.6.1.1" class="ltx_text ltx_font_italic">table_column</span></th>
+<th id="S4.T1.1.1.7.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">134</th>
+<td id="S4.T1.1.1.7.6.3" class="ltx_td ltx_align_center ltx_border_r">96.730</td>
+<td id="S4.T1.1.1.7.6.4" class="ltx_td ltx_align_center ltx_border_r">15.253</td>
+<th id="S4.T1.1.1.7.6.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T1.1.1.7.6.5.1" class="ltx_text ltx_font_italic">table_column</span></th>
+<th id="S4.T1.1.1.7.6.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">260</th>
+<td id="S4.T1.1.1.7.6.7" class="ltx_td ltx_align_center ltx_border_r">24.930</td>
+<td id="S4.T1.1.1.7.6.8" class="ltx_td ltx_align_center">81.376</td>
+</tr>
+<tr id="S4.T1.1.1.8.7" class="ltx_tr">
+<th id="S4.T1.1.1.8.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S4.T1.1.1.8.7.1.1" class="ltx_text ltx_font_italic">table_row</span></th>
+<th id="S4.T1.1.1.8.7.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r">548</th>
+<td id="S4.T1.1.1.8.7.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">79.228</td>
+<td id="S4.T1.1.1.8.7.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">39.485</td>
+<th id="S4.T1.1.1.8.7.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S4.T1.1.1.8.7.5.1" class="ltx_text ltx_font_italic">table_row</span></th>
+<th id="S4.T1.1.1.8.7.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r">1180</th>
+<td id="S4.T1.1.1.8.7.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">19.256</td>
+<td id="S4.T1.1.1.8.7.8" class="ltx_td ltx_align_center ltx_border_bb">60.899</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Test results of M1 and M2 on various data sets.</figcaption>
+<div id="S4.T2.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:455.3pt;height:101.5pt;vertical-align:-0.7pt;"><span class="ltx_transformed_inner" style="transform:translate(-97.4pt,21.6pt) scale(0.700277506854239,0.700277506854239) ;">
+<table id="S4.T2.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.1.1.1.1" class="ltx_tr">
+<th id="S4.T2.1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt" colspan="4"><span id="S4.T2.1.1.1.1.1.1" class="ltx_text ltx_font_bold">ZHYearbook-Excel-Test</span></th>
+<th id="S4.T2.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt" colspan="4"><span id="S4.T2.1.1.1.1.2.1" class="ltx_text ltx_font_bold">ZHYearbook-OCR-Test</span></th>
+<th id="S4.T2.1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_tt" colspan="4"><span id="S4.T2.1.1.1.1.3.1" class="ltx_text ltx_font_bold">EUYearbook-OCR-Test</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.1.2.1" class="ltx_tr">
+<th id="S4.T2.1.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.1.1" class="ltx_text ltx_font_bold">Category</span></th>
+<th id="S4.T2.1.1.2.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.2.1" class="ltx_text ltx_font_bold"># instances</span></th>
+<td id="S4.T2.1.1.2.1.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" colspan="2"><span id="S4.T2.1.1.2.1.3.1" class="ltx_text ltx_font_bold ltx_framed ltx_framed_underline">Average Precision</span></td>
+<th id="S4.T2.1.1.2.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.4.1" class="ltx_text"><span id="S4.T2.1.1.2.1.4.1.1" class="ltx_text ltx_font_bold">Category</span></span></th>
+<th id="S4.T2.1.1.2.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.5.1" class="ltx_text ltx_font_bold"># instances</span></th>
+<td id="S4.T2.1.1.2.1.6" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" colspan="2"><span id="S4.T2.1.1.2.1.6.1" class="ltx_text ltx_font_bold ltx_framed ltx_framed_underline">Average Precision</span></td>
+<th id="S4.T2.1.1.2.1.7" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.7.1" class="ltx_text ltx_font_bold">Category</span></th>
+<th id="S4.T2.1.1.2.1.8" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S4.T2.1.1.2.1.8.1" class="ltx_text ltx_font_bold"># instances</span></th>
+<td id="S4.T2.1.1.2.1.9" class="ltx_td ltx_align_left ltx_border_t" colspan="2"><span id="S4.T2.1.1.2.1.9.1" class="ltx_text ltx_font_bold ltx_framed ltx_framed_underline">Average Precision</span></td>
+</tr>
+<tr id="S4.T2.1.1.3.2" class="ltx_tr">
+<td id="S4.T2.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T2.1.1.3.2.1.1" class="ltx_text ltx_font_bold">M1</span></td>
+<td id="S4.T2.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T2.1.1.3.2.2.1" class="ltx_text ltx_font_bold">M2</span></td>
+<td id="S4.T2.1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T2.1.1.3.2.3.1" class="ltx_text ltx_font_bold">M1</span></td>
+<td id="S4.T2.1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T2.1.1.3.2.4.1" class="ltx_text ltx_font_bold">M2</span></td>
+<td id="S4.T2.1.1.3.2.5" class="ltx_td ltx_align_center ltx_border_r"><span id="S4.T2.1.1.3.2.5.1" class="ltx_text ltx_font_bold">M1</span></td>
+<td id="S4.T2.1.1.3.2.6" class="ltx_td ltx_align_center"><span id="S4.T2.1.1.3.2.6.1" class="ltx_text ltx_font_bold">M2</span></td>
+</tr>
+<tr id="S4.T2.1.1.4.3" class="ltx_tr">
+<th id="S4.T2.1.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(1)</th>
+<th id="S4.T2.1.1.4.3.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(2)</th>
+<td id="S4.T2.1.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(3)</td>
+<td id="S4.T2.1.1.4.3.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(4)</td>
+<th id="S4.T2.1.1.4.3.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(5)</th>
+<th id="S4.T2.1.1.4.3.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(6)</th>
+<td id="S4.T2.1.1.4.3.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(7)</td>
+<td id="S4.T2.1.1.4.3.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(8)</td>
+<th id="S4.T2.1.1.4.3.9" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(9)</th>
+<th id="S4.T2.1.1.4.3.10" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">(10)</th>
+<td id="S4.T2.1.1.4.3.11" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">(11)</td>
+<td id="S4.T2.1.1.4.3.12" class="ltx_td ltx_align_center ltx_border_t">(12)</td>
+</tr>
+<tr id="S4.T2.1.1.5.4" class="ltx_tr">
+<th id="S4.T2.1.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T2.1.1.5.4.1.1" class="ltx_text ltx_font_italic">table</span></th>
+<th id="S4.T2.1.1.5.4.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">20</th>
+<td id="S4.T2.1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">85.407</td>
+<td id="S4.T2.1.1.5.4.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">32.821</td>
+<th id="S4.T2.1.1.5.4.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T2.1.1.5.4.5.1" class="ltx_text ltx_font_italic">table</span></th>
+<th id="S4.T2.1.1.5.4.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">10</th>
+<td id="S4.T2.1.1.5.4.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">56.942</td>
+<td id="S4.T2.1.1.5.4.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">53.356</td>
+<th id="S4.T2.1.1.5.4.9" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">table</th>
+<th id="S4.T2.1.1.5.4.10" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">10</th>
+<td id="S4.T2.1.1.5.4.11" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">57.151</td>
+<td id="S4.T2.1.1.5.4.12" class="ltx_td ltx_align_center ltx_border_t">81.907</td>
+</tr>
+<tr id="S4.T2.1.1.6.5" class="ltx_tr">
+<th id="S4.T2.1.1.6.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.6.5.1.1" class="ltx_text ltx_font_italic">tabular</span></th>
+<th id="S4.T2.1.1.6.5.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">21</th>
+<td id="S4.T2.1.1.6.5.3" class="ltx_td ltx_align_center ltx_border_r">80.193</td>
+<td id="S4.T2.1.1.6.5.4" class="ltx_td ltx_align_center ltx_border_r">43.801</td>
+<th id="S4.T2.1.1.6.5.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.6.5.5.1" class="ltx_text ltx_font_italic">tabular</span></th>
+<th id="S4.T2.1.1.6.5.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">10</th>
+<td id="S4.T2.1.1.6.5.7" class="ltx_td ltx_align_center ltx_border_r">64.175</td>
+<td id="S4.T2.1.1.6.5.8" class="ltx_td ltx_align_center ltx_border_r">52.563</td>
+<th id="S4.T2.1.1.6.5.9" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.6.5.9.1" class="ltx_text ltx_font_italic">tabular</span></th>
+<th id="S4.T2.1.1.6.5.10" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">10</th>
+<td id="S4.T2.1.1.6.5.11" class="ltx_td ltx_align_center ltx_border_r">85.956</td>
+<td id="S4.T2.1.1.6.5.12" class="ltx_td ltx_align_center">91.429</td>
+</tr>
+<tr id="S4.T2.1.1.7.6" class="ltx_tr">
+<th id="S4.T2.1.1.7.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.7.6.1.1" class="ltx_text ltx_font_italic">table_column</span></th>
+<th id="S4.T2.1.1.7.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">176</th>
+<td id="S4.T2.1.1.7.6.3" class="ltx_td ltx_align_center ltx_border_r">73.277</td>
+<td id="S4.T2.1.1.7.6.4" class="ltx_td ltx_align_center ltx_border_r">14.927</td>
+<th id="S4.T2.1.1.7.6.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.7.6.5.1" class="ltx_text ltx_font_italic">table_column</span></th>
+<th id="S4.T2.1.1.7.6.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">74</th>
+<td id="S4.T2.1.1.7.6.7" class="ltx_td ltx_align_center ltx_border_r">43.094</td>
+<td id="S4.T2.1.1.7.6.8" class="ltx_td ltx_align_center ltx_border_r">21.997</td>
+<th id="S4.T2.1.1.7.6.9" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r"><span id="S4.T2.1.1.7.6.9.1" class="ltx_text ltx_font_italic">table_column</span></th>
+<th id="S4.T2.1.1.7.6.10" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">136</th>
+<td id="S4.T2.1.1.7.6.11" class="ltx_td ltx_align_center ltx_border_r">36.616</td>
+<td id="S4.T2.1.1.7.6.12" class="ltx_td ltx_align_center">40.509</td>
+</tr>
+<tr id="S4.T2.1.1.8.7" class="ltx_tr">
+<th id="S4.T2.1.1.8.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S4.T2.1.1.8.7.1.1" class="ltx_text ltx_font_italic">table_row</span></th>
+<th id="S4.T2.1.1.8.7.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r">513</th>
+<td id="S4.T2.1.1.8.7.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">83.528</td>
+<td id="S4.T2.1.1.8.7.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">48.912</td>
+<th id="S4.T2.1.1.8.7.5" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S4.T2.1.1.8.7.5.1" class="ltx_text ltx_font_italic">table_row</span></th>
+<th id="S4.T2.1.1.8.7.6" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r">226</th>
+<td id="S4.T2.1.1.8.7.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">50.055</td>
+<td id="S4.T2.1.1.8.7.8" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">36.619</td>
+<th id="S4.T2.1.1.8.7.9" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S4.T2.1.1.8.7.9.1" class="ltx_text ltx_font_italic">table_row</span></th>
+<th id="S4.T2.1.1.8.7.10" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_r">665</th>
+<td id="S4.T2.1.1.8.7.11" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">25.645</td>
+<td id="S4.T2.1.1.8.7.12" class="ltx_td ltx_align_center ltx_border_bb">40.229</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Results and Discussion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">Here, we evaluate the performance of TableParser in two domains quantitatively and qualitatively.</p>
+</div>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Quantitative assessment</h3>
+
+<section id="S5.SS1.SSS0.Px1" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Metric.</h5>
+
+<div id="S5.SS1.SSS0.Px1.p1" class="ltx_para">
+<p id="S5.SS1.SSS0.Px1.p1.1" class="ltx_p">We first introduce the evaluation metric for the object detection/classification tasks. The metric we report is Average Precision (AP), which corresponds to an Intersection over Union rate of IoU=.50:.05:.95.<span id="footnote10" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">10</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">10</sup><span class="ltx_tag ltx_tag_note">10</span>We refer readers to <a target="_blank" href="https://cocodataset.org/#detection-eval" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://cocodataset.org/#detection-eval</a> for more details on the evaluation metrics (last accessed: Nov. 1, 2021).</span></span></span> IoU ranges from 0 to 1 and specifies the amount of overlap between the predicted and ground truth bounding box. It is a common metric used when calculating AP.</p>
+</div>
+</section>
+<section id="S5.SS1.SSS0.Px2" class="ltx_paragraph">
+<h5 class="ltx_title ltx_title_paragraph">Performances in various domains.</h5>
+
+<div id="S5.SS1.SSS0.Px2.p1" class="ltx_para">
+<p id="S5.SS1.SSS0.Px2.p1.1" class="ltx_p">As we discussed in Section <a href="#S2" title="2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we have developed ModernTableParser to parse tables with input images rendered by Excel (M1). Then, to work with historical tables in scans, we adapt the pretrained TableParser by fine-tuning it on scanned documents (M2). Now, we present the performances of M1 and M2 in two different domains in the following aspects:</p>
+<ol id="S5.I1" class="ltx_enumerate">
+<li id="S5.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S5.I1.i1.p1" class="ltx_para">
+<p id="S5.I1.i1.p1.1" class="ltx_p"><span id="S5.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">(P1)</span> the performances on fine-tuning sets on M1 and M2 in Table <a href="#S4.T1" title="Table 1 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>;</p>
+</div>
+</li>
+<li id="S5.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S5.I1.i2.p1" class="ltx_para">
+<p id="S5.I1.i2.p1.1" class="ltx_p"><span id="S5.I1.i2.p1.1.1" class="ltx_text ltx_font_bold">(P2)</span> the performances on fine-tuning sets as test sets on M1 and M2 in Table <a href="#S4.T1" title="Table 1 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>;<span id="footnote11" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">11</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">11</sup><span class="ltx_tag ltx_tag_note">11</span>This means we evaluate the performance of M1 on the fine-tuned set for M2 (as a test set for M1) and vice versa.</span></span></span></p>
+</div>
+</li>
+<li id="S5.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S5.I1.i3.p1" class="ltx_para">
+<p id="S5.I1.i3.p1.1" class="ltx_p"><span id="S5.I1.i3.p1.1.1" class="ltx_text ltx_font_bold">(P3)</span> the performances on three test sets from two domains on M1 and M2 in Table <a href="#S4.T2" title="Table 2 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S5.SS1.SSS0.Px2.p2" class="ltx_para">
+<p id="S5.SS1.SSS0.Px2.p2.1" class="ltx_p"><span id="S5.SS1.SSS0.Px2.p2.1.1" class="ltx_text ltx_font_bold">(P1) &amp; (P2).</span>
+We want to study the impact of fine-tuning of a pretrained model (using a large body of tables generated by weak supervision signals). The instances used to fine-tune must be high-quality in-domain data. Concretely, we create in-domain annotations for modern tables (rendered by Excel) and historical tables (from scans) with high human efforts assisted by automatic preprocessing: ZHYearbook-Excel-FT and EUYearbook-OCR-FT, each with 17 tables. Note that the latter has much denser rows and columns than the former (see the tables in Figures <a href="#S1.F3" title="Figure 3 ‣ 1 Introduction ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (a) vs. <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (a) for an illustration). It is apparent from Table <a href="#S4.T1" title="Table 1 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> that the AP performance of models on the fine-tuning sets is highly optimized (columns (3) and (8) in Table <a href="#S4.T1" title="Table 1 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), and it should be better than using those datasets as test sets. This means, if we run M1 (fine-tuned by modern tables) on EUYearbook-OCR-FT (column 7), its performance is worse than fine-tuning; and if we run M2 (fine-tuned by historical tables) on ZHYearbook-Excel-FT (column 4), it performs worse than fine-tuning. Interestingly, if we compare the performance of M2 on modern tables (column (4)) with the performance of M1 on historical tables (column (7)), we clearly see that the latter has a better performance in all other categories than the class of <span id="S5.SS1.SSS0.Px2.p2.1.2" class="ltx_text ltx_font_italic">table_row</span>. This can be explained by the fact that the model trained on modern tables is robust in annotating historical tables, at least on the column level. We see this in Figures <a href="#S5.F9" title="Figure 9 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a> and <a href="#S5.F10" title="Figure 10 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>, where ModernTableParser clearly performs better. <span id="S5.SS1.SSS0.Px2.p2.1.3" class="ltx_text ltx_font_bold">However, the algorithm has problems in delineating narrow and less clearly separated rows.</span> This could be due to the setting of the maximum number of entities being 100 when predicting per table (Section <a href="#S4.SS1" title="4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.1</span></a>).</p>
+</div>
+<div id="S5.SS1.SSS0.Px2.p3" class="ltx_para">
+<p id="S5.SS1.SSS0.Px2.p3.1" class="ltx_p"><span id="S5.SS1.SSS0.Px2.p3.1.1" class="ltx_text ltx_font_bold">(P3).</span> In Table <a href="#S4.T2" title="Table 2 ‣ Parameter Settings. ‣ 4.1 Mask R-CNN ‣ 4 Computational Setup ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we show the performances of three test sets from two domains (Excel-rendered PDFs and historical scans), namely, ZHYearbook-Excel-Test, ZHYearbook-OCR-Test, and EUYearbook-OCR-Test. We see that M2 which is fine-tuned by historical scans performs worse than M1 on both ZHYearbook-Excel-Test and ZHYearbook-OCR-Test. Vice versa, M1 that is fine-tuned by Excel-rendered PDFs performs worse than M2 on EUYearbook-OCR-Test. This suggests that domain adaptation by fine-tuning the pretrained TableParser with in-domain high-quality data works well.</p>
+</div>
+<div id="S5.SS1.SSS0.Px2.p4" class="ltx_para">
+<p id="S5.SS1.SSS0.Px2.p4.2" class="ltx_p">Additionally, if we compare the <math id="S5.SS1.SSS0.Px2.p4.1.m1.1" class="ltx_Math" alttext="\Delta AP|(M1-M2)|" display="inline"><semantics id="S5.SS1.SSS0.Px2.p4.1.m1.1a"><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.cmml"><mi mathvariant="normal" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.3.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2.cmml">​</mo><mi id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.4" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.4.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2a" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2.cmml">​</mo><mi id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.5" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.5.cmml">P</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2b" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2.cmml">​</mo><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.2.cmml"><mo stretchy="false" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.2.1.cmml">|</mo><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.cmml"><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.cmml"><mi id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.2.cmml">M</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.1.cmml">​</mo><mn id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.3.cmml">1</mn></mrow><mo id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.1.cmml">−</mo><mrow id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.cmml"><mi id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.2" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.2.cmml">M</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.1" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.1.cmml">​</mo><mn id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.3.cmml">2</mn></mrow></mrow><mo stretchy="false" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.cmml">)</mo></mrow><mo stretchy="false" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.3" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.2.1.cmml">|</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S5.SS1.SSS0.Px2.p4.1.m1.1b"><apply id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1"><times id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.2"></times><ci id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.3.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.3">Δ</ci><ci id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.4.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.4">𝐴</ci><ci id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.5.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.5">𝑃</ci><apply id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.2.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1"><abs id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.2.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.2"></abs><apply id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1"><minus id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.1"></minus><apply id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2"><times id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.1"></times><ci id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.2.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.2">𝑀</ci><cn type="integer" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.3.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.2.3">1</cn></apply><apply id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3"><times id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.1.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.1"></times><ci id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.2.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.2">𝑀</ci><cn type="integer" id="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.3.cmml" xref="S5.SS1.SSS0.Px2.p4.1.m1.1.1.1.1.1.1.1.3.3">2</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS1.SSS0.Px2.p4.1.m1.1c">\Delta AP|(M1-M2)|</annotation></semantics></math> under each test set (e.g., the differences of columns (3) and (4), of (7) and (8), of (11) and (12)), the <math id="S5.SS1.SSS0.Px2.p4.2.m2.1" class="ltx_Math" alttext="\Delta AP" display="inline"><semantics id="S5.SS1.SSS0.Px2.p4.2.m2.1a"><mrow id="S5.SS1.SSS0.Px2.p4.2.m2.1.1" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.cmml"><mi mathvariant="normal" id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.2" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.2.cmml">Δ</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1.cmml">​</mo><mi id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.3" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.3.cmml">A</mi><mo lspace="0em" rspace="0em" id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1a" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1.cmml">​</mo><mi id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.4" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.4.cmml">P</mi></mrow><annotation-xml encoding="MathML-Content" id="S5.SS1.SSS0.Px2.p4.2.m2.1b"><apply id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.cmml" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1"><times id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1.cmml" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.1"></times><ci id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.2.cmml" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.2">Δ</ci><ci id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.3.cmml" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.3">𝐴</ci><ci id="S5.SS1.SSS0.Px2.p4.2.m2.1.1.4.cmml" xref="S5.SS1.SSS0.Px2.p4.2.m2.1.1.4">𝑃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS1.SSS0.Px2.p4.2.m2.1c">\Delta AP</annotation></semantics></math> on *-OCR-Test in all categories is smaller than ZHYearbook-Excel-Test, with M1 already achieving medium-high performance on the test set. Although M1 is not fine-tuned by in-domain historical images, ModernTableParser is still able to parse historical scans with moderate performance. This suggests that TableParser trained on modern table structures can be used to parse the layout of tabular historical scans. Because the cost is often too high in generating a large amount of training data of historical scans (see Section <a href="#S3" title="3 Datasets ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> for the discussion of labeling efforts), our approach shows a promising direction in first developing TableParser that works well for modern tables, and then adapting TableParser to the historical domain by fine-tuning on only a few manually annotated historical scans of good quality.</p>
+</div>
+</section>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Qualitative Assessment</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">In Figures <a href="#S5.F7" title="Figure 7 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>, <a href="#S5.F8" title="Figure 8 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a>, <a href="#S5.F9" title="Figure 9 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a>, and <a href="#S5.F10" title="Figure 10 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>, we show the qualitative outputs of ModernTableParser and HistoricalTableParser on various types of inputs.<span id="footnote12" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">12</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">12</sup><span class="ltx_tag ltx_tag_note">12</span>Input and annotated figures of original size can be found under <a target="_blank" href="https://github.com/DS3Lab/TableParser/tree/main/figures" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/DS3Lab/TableParser/tree/main/figures</a>.</span></span></span> The quality of structure parsing varies across inputs, but overall, the quality is high. Even if we simply use ModernTableParser to parse old scans, it achieves a moderate performance, sometimes better than HistoricalTableParser (see Figures <a href="#S5.F9" title="Figure 9 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a> and <a href="#S5.F10" title="Figure 10 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>). This substantiates our claim that knowing the table structure (caption, tabular, row, column, multi-cell, etc.) is of foremost importance for parsing tables. We see that the performance of LayoutParser is quite poor on the tabular data in Figure <a href="#S2.F6" title="Figure 6 ‣ TableAnnotator. ‣ 2.2 System Components ‣ 2 TableParser System ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> (d) using the best model from its model zoo (PubLayNet/faster_rcnn_R_50_FPN_3x).</p>
+</div>
+<figure id="S5.F7" class="ltx_figure">
+<table id="S5.F7.2" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.F7.2.2" class="ltx_tr">
+<td id="S5.F7.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M1_18-0.png" id="S5.F7.1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="299" height="431" alt="Refer to caption"></td>
+<td id="S5.F7.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M2_18-0.png" id="S5.F7.2.2.2.g1" class="ltx_graphics ltx_img_portrait" width="299" height="431" alt="Refer to caption"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>A Hungarian table parsed by ModernTableParser (left) and HistoricalTableParser (right).</figcaption>
+</figure>
+<figure id="S5.F8" class="ltx_figure">
+<table id="S5.F8.2" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.F8.2.2" class="ltx_tr">
+<td id="S5.F8.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M1_27-0.png" id="S5.F8.1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="287" height="388" alt="Refer to caption"></td>
+<td id="S5.F8.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M2_27-0.png" id="S5.F8.2.2.2.g1" class="ltx_graphics ltx_img_portrait" width="287" height="388" alt="Refer to caption"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>A German table parsed by ModernTableParser (left) and HistoricalTableParser (right).</figcaption>
+</figure>
+<figure id="S5.F9" class="ltx_figure">
+<table id="S5.F9.2" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.F9.2.2" class="ltx_tr">
+<td id="S5.F9.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M1_KR_CB_Page1.png" id="S5.F9.1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="287" height="371" alt="Refer to caption"></td>
+<td id="S5.F9.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M2_KR_CB_Page1.png" id="S5.F9.2.2.2.g1" class="ltx_graphics ltx_img_portrait" width="287" height="371" alt="Refer to caption"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 9: </span>A Korean table parsed by ModernTableParser (left) and HistoricalTableParser (right).</figcaption>
+</figure>
+<figure id="S5.F10" class="ltx_figure">
+<table id="S5.F10.2" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.F10.2.2" class="ltx_tr">
+<td id="S5.F10.1.1.1" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M1_ZH_cut1.png" id="S5.F10.1.1.1.g1" class="ltx_graphics ltx_img_portrait" width="144" height="374" alt="Refer to caption"></td>
+<td id="S5.F10.2.2.2" class="ltx_td ltx_align_center"><img src="/html/2201.01654/assets/figures/M2_ZH_cut1.png" id="S5.F10.2.2.2.g1" class="ltx_graphics ltx_img_portrait" width="144" height="374" alt="Refer to caption"></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 10: </span>A Chinese table parsed by ModernTableParser (left) and HistoricalTableParser (right).</figcaption>
+</figure>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Related Work</h2>
+
+<section id="S6.SS0.SSS0.Px1" class="ltx_paragraph">
+<h5 class="ltx_title ltx_font_bold ltx_title_paragraph">Table Annotation.</h5>
+
+<div id="S6.SS0.SSS0.Px1.p1" class="ltx_para">
+<p id="S6.SS0.SSS0.Px1.p1.1" class="ltx_p">TableLab <cite class="ltx_cite ltx_citemacro_citep">(Wang, Burdick, and
+Li, <a href="#bib.bib27" title="" class="ltx_ref">2021</a>)</cite> provides an active learning based annotation GUI for users to jointly optimize the model performance under the hood. LayoutParser <cite class="ltx_cite ltx_citemacro_citep">(Shen et al<span class="ltx_text">.</span>, <a href="#bib.bib26" title="" class="ltx_ref">2021</a>)</cite> has also promoted an interactive document annotation tool<span id="footnote13" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">13</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">13</sup><span class="ltx_tag ltx_tag_note">13</span>See <a target="_blank" href="https://github.com/Layout-Parser/annotation-service" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/Layout-Parser/annotation-service</a> (last accessed: Nov. 1, 2021).</span></span></span>, but the tool is not optimized for table annotations.</p>
+</div>
+</section>
+<section id="S6.SS0.SSS0.Px2" class="ltx_paragraph">
+<h5 class="ltx_title ltx_font_bold ltx_title_paragraph">Table Structure Parsing.</h5>
+
+<div id="S6.SS0.SSS0.Px2.p1" class="ltx_para">
+<p id="S6.SS0.SSS0.Px2.p1.1" class="ltx_p">As pioneering works in table structure parsing, <cite class="ltx_cite ltx_citemacro_cite">Kieninger and Dengel (<a href="#bib.bib9" title="" class="ltx_ref">1998</a>)</cite> and <cite class="ltx_cite ltx_citemacro_cite">Schreiber et al<span class="ltx_text">.</span> (<a href="#bib.bib25" title="" class="ltx_ref">2017</a>)</cite> have both included a review of works in table structure recognition prior to DL. Prior methods typically required high human efforts in creating the feature extraction. After <cite class="ltx_cite ltx_citemacro_cite">Schreiber et al<span class="ltx_text">.</span> (<a href="#bib.bib25" title="" class="ltx_ref">2017</a>)</cite>, researchers have started to revisit table structure parsing with DL methods, which turned out highly promising compared to the rule-based (e.g., <cite class="ltx_cite ltx_citemacro_cite">Kieninger and Dengel (<a href="#bib.bib9" title="" class="ltx_ref">1998</a>); Pivk et al<span class="ltx_text">.</span> (<a href="#bib.bib18" title="" class="ltx_ref">2007</a>)</cite>) and ML-based methods (e.g., <cite class="ltx_cite ltx_citemacro_cite">Pinto et al<span class="ltx_text">.</span> (<a href="#bib.bib17" title="" class="ltx_ref">2003</a>); Wang, Phillips, and
+Haralick (<a href="#bib.bib28" title="" class="ltx_ref">2004</a>); Farrukh et al<span class="ltx_text">.</span> (<a href="#bib.bib4" title="" class="ltx_ref">2017</a>)</cite>).</p>
+</div>
+<div id="S6.SS0.SSS0.Px2.p2" class="ltx_para">
+<p id="S6.SS0.SSS0.Px2.p2.1" class="ltx_p">The success of DL has marked the revisiting of table structure parsing by <cite class="ltx_cite ltx_citemacro_cite">Schreiber et al<span class="ltx_text">.</span> (<a href="#bib.bib25" title="" class="ltx_ref">2017</a>)</cite>, which inspired follow-up research <cite class="ltx_cite ltx_citemacro_citep">(Chi et al<span class="ltx_text">.</span>, <a href="#bib.bib1" title="" class="ltx_ref">2019</a>; Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>; Prasad et al<span class="ltx_text">.</span>, <a href="#bib.bib19" title="" class="ltx_ref">2020</a>; Zhong, ShafieiBavani, and
+Jimeno Yepes, <a href="#bib.bib32" title="" class="ltx_ref">2020</a>; Li et al<span class="ltx_text">.</span>, <a href="#bib.bib11" title="" class="ltx_ref">2021</a>; Xue et al<span class="ltx_text">.</span>, <a href="#bib.bib30" title="" class="ltx_ref">2021</a>; Long et al<span class="ltx_text">.</span>, <a href="#bib.bib13" title="" class="ltx_ref">2021</a>; Jiang et al<span class="ltx_text">.</span>, <a href="#bib.bib8" title="" class="ltx_ref">2021</a>; Nazir et al<span class="ltx_text">.</span>, <a href="#bib.bib16" title="" class="ltx_ref">2021</a>; Zheng et al<span class="ltx_text">.</span>, <a href="#bib.bib31" title="" class="ltx_ref">2021</a>; Luo et al<span class="ltx_text">.</span>, <a href="#bib.bib15" title="" class="ltx_ref">2021</a>; Raja, Mondal, and
+Jawahar, <a href="#bib.bib21" title="" class="ltx_ref">2020</a>)</cite>. To highlight a few,
+<cite class="ltx_cite ltx_citemacro_cite">Zhong, ShafieiBavani, and
+Jimeno Yepes (<a href="#bib.bib32" title="" class="ltx_ref">2020</a>)</cite> proposed EDD (encoder-dual-decoder) to covert table images into HTML code, and they evaluate table recognition (parsing both table structures and cell contents) using a newly devised metric, TEDS (Tree-Edit-Distance-based Similarity).
+<cite class="ltx_cite ltx_citemacro_cite">Xue et al<span class="ltx_text">.</span> (<a href="#bib.bib30" title="" class="ltx_ref">2021</a>)</cite> proposed TGRNet as an effective end-to-end trainable table graph construction network, which encodes a table by combining the cell location detection and cell relation prediction.
+<cite class="ltx_cite ltx_citemacro_cite">Li et al<span class="ltx_text">.</span> (<a href="#bib.bib11" title="" class="ltx_ref">2021</a>)</cite> used bi-LSTM on table cell detection by encoding rows/columns in neural networks before the softmax layer. Researchers also started discussing effectively parsing tables in the wild <cite class="ltx_cite ltx_citemacro_citep">(Long et al<span class="ltx_text">.</span>, <a href="#bib.bib13" title="" class="ltx_ref">2021</a>)</cite>, which is relevant to the perturbation tests we want to conduct for historical tables.
+TabCellNet by <cite class="ltx_cite ltx_citemacro_cite">Jiang et al<span class="ltx_text">.</span> (<a href="#bib.bib8" title="" class="ltx_ref">2021</a>)</cite> adopts a Hybrid Task Cascade network, interweaving object detection and instance segmentation tasks to progressively improve model performance. We see from the previous works, the most effective methods <cite class="ltx_cite ltx_citemacro_citep">(Raja, Mondal, and
+Jawahar, <a href="#bib.bib21" title="" class="ltx_ref">2020</a>; Zheng et al<span class="ltx_text">.</span>, <a href="#bib.bib31" title="" class="ltx_ref">2021</a>; Jiang et al<span class="ltx_text">.</span>, <a href="#bib.bib8" title="" class="ltx_ref">2021</a>)</cite> always jointly optimize the cell locations and cell relationships. In our work, we consider these two aspects by learning the row and column alignments in a hierarchical structure, where we know the relationship of entities in the table (row, column, cell, caption, footnote).</p>
+</div>
+</section>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">7 </span>Discussion and Conclusion</h2>
+
+<section id="S7.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">7.1 </span>Efficiency</h3>
+
+<div id="S7.SS1.p1" class="ltx_para">
+<p id="S7.SS1.p1.1" class="ltx_p">PyWin32 uses the
+component object model (COM), which only supports single-thread processing and only runs under Windows. But with 20 VMs, we managed to process a large amount of files. This is a one-time development cost. On average – on the fastest machine used (with 16 GB memory, 6 cores, each of 4.8GHz max (2.9 base)) – it took 15.25 seconds to process one document (a worksheet in this case). To fine-tune a pretrained TableParser with 17 images, it takes 3-4 hours to fine-tune the model with 30k iterations.</p>
+</div>
+</section>
+<section id="S7.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">7.2 </span>Future Work</h3>
+
+<div id="S7.SS2.p1" class="ltx_para">
+<p id="S7.SS2.p1.1" class="ltx_p">Based on our findings, we will further improve the parsing performance on table row/column/cell. Besides, we plan to enable a CSV-export functionality in TableParser, which allows users to export a CSV file that attends to both bounding boxes generated by the OCR’ed and the hierarchical table structure. We will also benchmark this functionality against human efforts. Another practical functionality we add to facilitate users’ assessment of table parsing quality, is that we enable TableParser to compute row and column sums when exporting to the CSV format. Because tables sometimes come with row/column sums in the rendered format, this functionality can help users to assess their manual efforts in post-editing the CSV output.
+We also plan to conduct perturbation tests of table structures and quantify the robustness of our models in those scenarios. These exercises will be highly valuable because, as we see in Figure <a href="#S5.F7" title="Figure 7 ‣ 5.2 Qualitative Assessment ‣ 5 Results and Discussion ‣ TableParser: Automatic Table Parsing with Weak Supervision from Spreadsheets" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>, we often encounter scan images of tables where the rectangle structures cannot be maintained (the upper right corner). This brings us to another interesting research direction: how to efficiently annotate the non-rectangle elements in a table, e.g., <cite class="ltx_cite ltx_citemacro_cite">Long et al<span class="ltx_text">.</span> (<a href="#bib.bib13" title="" class="ltx_ref">2021</a>)</cite> have provided the benchmarking dataset and method for parsing tables in the wild.
+Finally, we would like to benchmark TableParser using the popular benchmarking datasets such as ICDAR-2013, ICDAR-2019, TableBank, and PubTabNet. Note that since we develop TableParser on top of the DocParser <cite class="ltx_cite ltx_citemacro_citep">(Rausch et al<span class="ltx_text">.</span>, <a href="#bib.bib22" title="" class="ltx_ref">2021</a>)</cite>, where the reported F1 score has shown superior performance of our method on ICDAR-2013.</p>
+</div>
+</section>
+<section id="S7.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">7.3 </span>Conclusion</h3>
+
+<div id="S7.SS3.p1" class="ltx_para">
+<p id="S7.SS3.p1.1" class="ltx_p">We present in this work our DL-based pipeline to parse table structures and its components: TableAnnotator, TableParser (Modern and Historical), and ExcelAnnotator.
+We also demonstrate that pre-training TableParser on weakly annotated data allows highly accurate parsing of structured data in real-world table-form data documents. Fine-tuning the pretrained TableParser in various domains has shown large improvements in detection accuracy.
+We have observed that the state-of-the-art for table extraction is shifting towards DL-based approaches. However, devising suitable tools to facilitate training of such DL approaches for the research community is still lacking. Hence, we provide a pipeline and open-source code and data to invite the active contribution of the community.</p>
+</div>
+</section>
+</section>
+<section id="S8" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">8 </span>Acknowledgement</h2>
+
+<div id="S8.p1" class="ltx_para">
+<p id="S8.p1.1" class="ltx_p">Peter Egger acknowledges Swiss National Science Foundation (Project Number 100018_204647) for supporting this research project. Ce Zhang and the DS3Lab gratefully acknowledge the support from Swiss National Science Foundation (Project Number 200021_184628, and 197485), Innosuisse/SNF BRIDGE Discovery (Project Number 40B2-0_187132), European Union Horizon 2020 Research and Innovation Programme (DAPHNE, 957407), Botnar Research Centre for Child Health, Swiss Data Science Center, Alibaba, Cisco, eBay, Google Focused Research Awards, Kuaishou Inc., Oracle Labs, Zurich Insurance, and the Department of Computer Science at ETH Zurich. Besides, this work would not be possible without our student assistants: We thank Ms. Ada Langenfeld for assisting us in finding the Hungarian scans and annotating the tables; we thank Mr. Livio Kaiser for building an ExcelAnnotator prototype during his master thesis. We also appreciate the users’ insights on LayoutParser <cite class="ltx_cite ltx_citemacro_citep">(Shen et al<span class="ltx_text">.</span>, <a href="#bib.bib26" title="" class="ltx_ref">2021</a>)</cite> shared by Mr. Cheongyeon Won. Moreover, the comments and feedback from Sascha Becker and his colleagues at SoDa Labs, Monash University, are valuable in producing the current version of TableParser. We also thank Sascha for providing us with various Korean/European table scans. Finally, we thank the reviewers at <a target="_blank" href="https://sites.google.com/view/sdu-aaai22/home" title="" class="ltx_ref ltx_href">SDU@AAAI22</a> for carefully evaluating our manuscripts and their constructive comments.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chi et al<span id="bib.bib1.2.2.1" class="ltx_text">.</span> (2019)</span>
+<span class="ltx_bibblock">
+Chi, Z.; Huang, H.; Xu, H.-D.; Yu, H.; Yin, W.; and Mao, X.-L.
+
+</span>
+<span class="ltx_bibblock">2019.
+
+</span>
+<span class="ltx_bibblock">Complicated table structure recognition.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:1908.04729</span>.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Eberius et al<span id="bib.bib2.2.2.1" class="ltx_text">.</span> (2013)</span>
+<span class="ltx_bibblock">
+Eberius, J.; Werner, C.; Thiele, M.; Braunschweig, K.; Dannecker, L.; and
+Lehner, W.
+
+</span>
+<span class="ltx_bibblock">2013.
+
+</span>
+<span class="ltx_bibblock">Deexcelerator: a framework for extracting relational data from
+partially structured documents.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib2.3.1" class="ltx_text ltx_font_italic">22nd ACM International Conference on Information and
+Knowledge Management, CIKM’13, San Francisco, CA, USA, October 27 - November
+1, 2013</span>, 2477–2480.
+
+</span>
+<span class="ltx_bibblock">He, Qi; Iyengar, Arun; Nejdl, Wolfgang; Pei, Jian &amp; Rastogi, Rajeev.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Everingham et al<span id="bib.bib3.2.2.1" class="ltx_text">.</span> (2010)</span>
+<span class="ltx_bibblock">
+Everingham, M.; Van Gool, L.; Williams, C. K.; Winn, J.; and Zisserman, A.
+
+</span>
+<span class="ltx_bibblock">2010.
+
+</span>
+<span class="ltx_bibblock">The pascal visual object classes (voc) challenge.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.3.1" class="ltx_text ltx_font_italic">International journal of computer vision</span> 88(2):303–338.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Farrukh et al<span id="bib.bib4.2.2.1" class="ltx_text">.</span> (2017)</span>
+<span class="ltx_bibblock">
+Farrukh, W.; Foncubierta-Rodriguez, A.; Ciubotaru, A.-N.; Jaume, G.; Bejas, C.;
+Goksel, O.; and Gabrani, M.
+
+</span>
+<span class="ltx_bibblock">2017.
+
+</span>
+<span class="ltx_bibblock">Interpreting data from scanned tables.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib4.3.1" class="ltx_text ltx_font_italic">2017 14th IAPR International Conference on Document Analysis
+and Recognition (ICDAR)</span>, volume 2, 5–6.
+
+</span>
+<span class="ltx_bibblock">IEEE.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Fernandes et al<span id="bib.bib5.2.2.1" class="ltx_text">.</span> (2022)</span>
+<span class="ltx_bibblock">
+Fernandes, J.; Simsek, M.; Kantarci, B.; and Khan, S.
+
+</span>
+<span class="ltx_bibblock">2022.
+
+</span>
+<span class="ltx_bibblock">Tabledet: An end-to-end deep learning approach for table detection
+and table image classification in data sheet images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text ltx_font_italic">Neurocomputing</span> 468:317–334.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">He et al<span id="bib.bib6.2.2.1" class="ltx_text">.</span> (2016)</span>
+<span class="ltx_bibblock">
+He, K.; Zhang, X.; Ren, S.; and Sun, J.
+
+</span>
+<span class="ltx_bibblock">2016.
+
+</span>
+<span class="ltx_bibblock">Deep residual learning for image recognition.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib6.3.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</span>, 770–778.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">He et al<span id="bib.bib7.2.2.1" class="ltx_text">.</span> (2017)</span>
+<span class="ltx_bibblock">
+He, K.; Gkioxari, G.; Dollár, P.; and Girshick, R.
+
+</span>
+<span class="ltx_bibblock">2017.
+
+</span>
+<span class="ltx_bibblock">Mask r-cnn.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib7.3.1" class="ltx_text ltx_font_italic">2017 IEEE International Conference on Computer Vision
+(ICCV)</span>, 2980–2988.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Jiang et al<span id="bib.bib8.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Jiang, J.; Simsek, M.; Kantarci, B.; and Khan, S.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Tabcellnet: Deep learning-based tabular cell structure detection.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.3.1" class="ltx_text ltx_font_italic">Neurocomputing</span> 440:12–23.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kieninger and Dengel (1998)</span>
+<span class="ltx_bibblock">
+Kieninger, T., and Dengel, A.
+
+</span>
+<span class="ltx_bibblock">1998.
+
+</span>
+<span class="ltx_bibblock">The t-recs table recognition and analysis system.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">International Workshop on Document Analysis Systems</span>,
+255–270.
+
+</span>
+<span class="ltx_bibblock">Springer.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al<span id="bib.bib10.2.2.1" class="ltx_text">.</span> (2019)</span>
+<span class="ltx_bibblock">
+Li, M.; Cui, L.; Huang, S.; Wei, F.; Zhou, M.; and Li, Z.
+
+</span>
+<span class="ltx_bibblock">2019.
+
+</span>
+<span class="ltx_bibblock">Tablebank: A benchmark dataset for table detection and recognition.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al<span id="bib.bib11.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Li, Y.; Huang, Y.; Zhu, Z.; Pan, L.; Huang, Y.; Du, L.; Tang, Z.; and Gao, L.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Rethinking table structure recognition using sequence labeling
+methods.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib11.3.1" class="ltx_text ltx_font_italic">International Conference on Document Analysis and
+Recognition</span>, 541–553.
+
+</span>
+<span class="ltx_bibblock">Springer.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lin et al<span id="bib.bib12.2.2.1" class="ltx_text">.</span> (2015)</span>
+<span class="ltx_bibblock">
+Lin, T.-Y.; Maire, M.; Belongie, S.; Bourdev, L.; Girshick, R.; Hays, J.;
+Perona, P.; Ramanan, D.; Zitnick, C. L.; and Dollár, P.
+
+</span>
+<span class="ltx_bibblock">2015.
+
+</span>
+<span class="ltx_bibblock">Microsoft coco: Common objects in context.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Long et al<span id="bib.bib13.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Long, R.; Wang, W.; Xue, N.; Gao, F.; Yang, Z.; Wang, Y.; and Xia, G.-S.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Parsing table structures in the wild.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib13.3.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF International Conference on
+Computer Vision</span>, 944–952.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Long, Shelhamer, and
+Darrell (2015)</span>
+<span class="ltx_bibblock">
+Long, J.; Shelhamer, E.; and Darrell, T.
+
+</span>
+<span class="ltx_bibblock">2015.
+
+</span>
+<span class="ltx_bibblock">Fully convolutional networks for semantic segmentation.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</span>, 3431–3440.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Luo et al<span id="bib.bib15.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Luo, S.; Wu, M.; Gong, Y.; Zhou, W.; and Poon, J.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Deep structured feature networks for table detection and tabular data
+extraction from scanned financial document images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2102.10287</span>.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nazir et al<span id="bib.bib16.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Nazir, D.; Hashmi, K. A.; Pagani, A.; Liwicki, M.; Stricker, D.; and Afzal,
+M. Z.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Hybridtabnet: Towards better table detection in scanned document
+images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text ltx_font_italic">Applied Sciences</span> 11(18):8396.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Pinto et al<span id="bib.bib17.2.2.1" class="ltx_text">.</span> (2003)</span>
+<span class="ltx_bibblock">
+Pinto, D.; McCallum, A.; Wei, X.; and Croft, W. B.
+
+</span>
+<span class="ltx_bibblock">2003.
+
+</span>
+<span class="ltx_bibblock">Table extraction using conditional random fields.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib17.3.1" class="ltx_text ltx_font_italic">Proceedings of the 26th annual international ACM SIGIR
+conference on Research and development in informaion retrieval</span>, 235–242.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Pivk et al<span id="bib.bib18.2.2.1" class="ltx_text">.</span> (2007)</span>
+<span class="ltx_bibblock">
+Pivk, A.; Cimiano, P.; Sure, Y.; Gams, M.; Rajkovič, V.; and Studer, R.
+
+</span>
+<span class="ltx_bibblock">2007.
+
+</span>
+<span class="ltx_bibblock">Transforming arbitrary tables into logical form with tartar.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text ltx_font_italic">Data &amp; Knowledge Engineering</span> 60(3):567–595.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Prasad et al<span id="bib.bib19.2.2.1" class="ltx_text">.</span> (2020)</span>
+<span class="ltx_bibblock">
+Prasad, D.; Gadpal, A.; Kapadni, K.; Visave, M.; and Sultanpure, K.
+
+</span>
+<span class="ltx_bibblock">2020.
+
+</span>
+<span class="ltx_bibblock">Cascadetabnet: An approach for end to end table detection and
+structure recognition from image-based documents.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib19.3.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition Workshops</span>, 572–573.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Qasim, Mahmood, and
+Shafait (2019)</span>
+<span class="ltx_bibblock">
+Qasim, S. R.; Mahmood, H.; and Shafait, F.
+
+</span>
+<span class="ltx_bibblock">2019.
+
+</span>
+<span class="ltx_bibblock">Rethinking table recognition using graph neural networks.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">2019 International Conference on Document Analysis and
+Recognition (ICDAR)</span>, 142–147.
+
+</span>
+<span class="ltx_bibblock">IEEE.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Raja, Mondal, and
+Jawahar (2020)</span>
+<span class="ltx_bibblock">
+Raja, S.; Mondal, A.; and Jawahar, C.
+
+</span>
+<span class="ltx_bibblock">2020.
+
+</span>
+<span class="ltx_bibblock">Table structure recognition using top-down and bottom-up cues.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">European Conference on Computer Vision</span>, 70–86.
+
+</span>
+<span class="ltx_bibblock">Springer.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Rausch et al<span id="bib.bib22.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Rausch, J.; Martinez Bermudez, J. O.; Bissig, F.; Zhang, C.; and Feuerriegel,
+S.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Docparser: Hierarchical document structure parsing from renderings.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib22.3.1" class="ltx_text ltx_font_italic">35th AAAI Conference on Artificial Intelligence
+(AAAI-21)(virtual)</span>.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ren et al<span id="bib.bib23.2.2.1" class="ltx_text">.</span> (2015)</span>
+<span class="ltx_bibblock">
+Ren, S.; He, K.; Girshick, R.; and Sun, J.
+
+</span>
+<span class="ltx_bibblock">2015.
+
+</span>
+<span class="ltx_bibblock">Faster r-cnn: Towards real-time object detection with region proposal
+networks.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.3.1" class="ltx_text ltx_font_italic">Advances in neural information processing systems</span> 28:91–99.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Russakovsky et al<span id="bib.bib24.2.2.1" class="ltx_text">.</span> (2015)</span>
+<span class="ltx_bibblock">
+Russakovsky, O.; Deng, J.; Su, H.; Krause, J.; Satheesh, S.; Ma, S.; Huang, Z.;
+Karpathy, A.; Khosla, A.; Bernstein, M.; et al.
+
+</span>
+<span class="ltx_bibblock">2015.
+
+</span>
+<span class="ltx_bibblock">Imagenet large scale visual recognition challenge.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.3.1" class="ltx_text ltx_font_italic">International journal of computer vision</span> 115(3):211–252.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Schreiber et al<span id="bib.bib25.2.2.1" class="ltx_text">.</span> (2017)</span>
+<span class="ltx_bibblock">
+Schreiber, S.; Agne, S.; Wolf, I.; Dengel, A.; and Ahmed, S.
+
+</span>
+<span class="ltx_bibblock">2017.
+
+</span>
+<span class="ltx_bibblock">Deepdesrt: Deep learning for detection and structure recognition of
+tables in document images.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib25.3.1" class="ltx_text ltx_font_italic">2017 14th IAPR international conference on document analysis
+and recognition (ICDAR)</span>, volume 1, 1162–1167.
+
+</span>
+<span class="ltx_bibblock">IEEE.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shen et al<span id="bib.bib26.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Shen, Z.; Zhang, R.; Dell, M.; Lee, B. C. G.; Carlson, J.; and Li, W.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Layoutparser: A unified toolkit for deep learning based document
+image analysis.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2103.15348</span>.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang, Burdick, and
+Li (2021)</span>
+<span class="ltx_bibblock">
+Wang, N. X. R.; Burdick, D.; and Li, Y.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Tablelab: An interactive table extraction system with adaptive deep
+learning.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib27.1.1" class="ltx_text ltx_font_italic">26th International Conference on Intelligent User
+Interfaces</span>, 87–89.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang, Phillips, and
+Haralick (2004)</span>
+<span class="ltx_bibblock">
+Wang, Y.; Phillips, I. T.; and Haralick, R. M.
+
+</span>
+<span class="ltx_bibblock">2004.
+
+</span>
+<span class="ltx_bibblock">Table structure understanding and its performance evaluation.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text ltx_font_italic">Pattern recognition</span> 37(7):1479–1497.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wu et al<span id="bib.bib29.2.2.1" class="ltx_text">.</span> (2019)</span>
+<span class="ltx_bibblock">
+Wu, Y.; Kirillov, A.; Massa, F.; Lo, W.-Y.; and Girshick, R.
+
+</span>
+<span class="ltx_bibblock">2019.
+
+</span>
+<span class="ltx_bibblock">Detectron2.
+
+</span>
+<span class="ltx_bibblock"><a target="_blank" href="https://github.com/facebookresearch/detectron2" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/facebookresearch/detectron2</a>.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Xue et al<span id="bib.bib30.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Xue, W.; Yu, B.; Wang, W.; Tao, D.; and Li, Q.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Tgrnet: A table graph reconstruction network for table structure
+recognition.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib30.3.1" class="ltx_text ltx_font_italic">arXiv preprint arXiv:2106.10598</span>.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zheng et al<span id="bib.bib31.2.2.1" class="ltx_text">.</span> (2021)</span>
+<span class="ltx_bibblock">
+Zheng, X.; Burdick, D.; Popa, L.; Zhong, X.; and Wang, N. X. R.
+
+</span>
+<span class="ltx_bibblock">2021.
+
+</span>
+<span class="ltx_bibblock">Global table extractor (gte): A framework for joint table
+identification and cell structure recognition using visual context.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib31.3.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE/CVF Winter Conference on Applications
+of Computer Vision</span>, 697–706.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhong, ShafieiBavani, and
+Jimeno Yepes (2020)</span>
+<span class="ltx_bibblock">
+Zhong, X.; ShafieiBavani, E.; and Jimeno Yepes, A.
+
+</span>
+<span class="ltx_bibblock">2020.
+
+</span>
+<span class="ltx_bibblock">Image-based table recognition: data, model, and evaluation.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib32.1.1" class="ltx_text ltx_font_italic">Computer Vision–ECCV 2020: 16th European Conference,
+Glasgow, UK, August 23–28, 2020, Proceedings, Part XXI 16</span>, 564–580.
+
+</span>
+<span class="ltx_bibblock">Springer.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2201.01652" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2201.01654" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2201.01654">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2201.01654" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2201.01655" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Wed Mar  6 10:36:48 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

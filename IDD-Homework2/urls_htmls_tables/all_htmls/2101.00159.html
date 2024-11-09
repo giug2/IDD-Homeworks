@@ -1,0 +1,1274 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2101.00159] Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning</title><meta property="og:description" content="With the increasing number of data collectors such as smartphones, immense amounts of data are available. Federated learning was developed to allow for distributed learning on a massive scale whilst still protecting ea…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2101.00159">
+
+<!--Generated on Tue Mar 12 00:59:36 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="
+Federated Learning,  Privacy,  Sample Reconstruction,  First Dense Layer Attack,  Fidel
+">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+David Enthoven         Zaid Al-Ars
+</span><span class="ltx_author_notes">
+<span class="ltx_contact ltx_role_affiliation"><span id="id1.1.id1" class="ltx_text ltx_font_italic">Accelerated Big Data Systems Group</span>
+<br class="ltx_break"><span id="id2.2.id2" class="ltx_text ltx_font_italic">Delft University of Technology, NL
+<br class="ltx_break"></span>{D.A.Enthoven, Z.Al-Ars}@tudelft.nl
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id3.id1" class="ltx_p">With the increasing number of data collectors such as smartphones, immense amounts of data are available. Federated learning was developed to allow for distributed learning on a massive scale whilst still protecting each users’ privacy. This privacy is claimed by the notion that the centralized server does not have any access to a client’s data, solely the client’s model update. In this paper, we evaluate a novel attack method within regular federated learning which we name the <em id="id3.id1.1" class="ltx_emph ltx_font_italic">First Dense Layer Attack (Fidel)</em>. The methodology of using this attack is discussed, and as a proof of viability we show how this attack method can be used to great effect for densely connected networks and convolutional neural networks. We evaluate some key design decisions and show that the usage of ReLu and Dropout are detrimental to the privacy of a client’s local dataset. We show how to recover on average twenty out of thirty private data samples from a client’s model update employing a fully connected neural network with very little computational resources required. Similarly, we show that over thirteen out of twenty samples can be recovered from a convolutional neural network update. An open source implementation of this attack can be found here <span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://github.com/Davidenthoven/Fidel-Reconstruction-Demo</span></p>
+</div>
+<div class="ltx_keywords">
+<h6 class="ltx_title ltx_title_keywords">Index Terms: </h6>
+Federated Learning, Privacy, Sample Reconstruction, First Dense Layer Attack, Fidel
+
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Deep learning algorithms have grown significantly in capabilities and popularity in the past decade. Advances in computing performance, increased data availability (and decreased data-storage costs) and developments of effective algorithms have created a surge of new applications using deep learning algorithms.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">These algorithms commonly require an extensive amount of task-specific data to be accurate. Conventionally, this data is gathered and stored on an accessible centralized server, which is becoming increasingly cheap to access due to the increasing bandwidths available for remote data storage and retrieval.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">This centralized data storage, however, introduces two problems. First, because of the exponential increase of data collectors in the field, the amount of available data is becoming excessively large, which increases the bandwidth requirements for communication as well as the computational requirements needed for processing. Second, devices may gather data of sensitive nature subject to privacy laws and regulations <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Therefore, it is important to manage this sensitive data in a way that protects privacy. To combat these problems, alternative ways of decentralized learning have been proposed, most notably that of federated learning (FL) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">FL is a specific form of distributed learning in which no actual data is sent to a centralized server. Instead, an abstraction of this data in the form of machine learning model weights or weight gradients is sent to the server. These model weights are trained locally on client devices, each with their respective datasets. After training, each client sends its updated model back to the centralized server. The server then aggregates the models into a single model which is commonly done by averaging the models. Hereafter, the aggregated model is sent back to the clients. Figure <a href="#S1.F1" title="Figure 1 ‣ I Introduction ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> illustrates these steps. This process is performed multiple times iteratively, whereby all clients jointly improve a shared model. FL claims to have distinct privacy advantages over traditional centralized data-driven model training approaches as well as reducing communication bandwidth requirements <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. FL protects sensitive data from external adversaries, but it does not guarantee safety against internal adversaries such as a malicious centralized server.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<p id="S1.F1.1" class="ltx_p ltx_align_center"><span id="S1.F1.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x1.png" id="S1.F1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="460" height="131" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>The federated learning process: A) A model is sent from the server to the client devices. B) The clients train the model further on their local dataset. C) The clients send their local model back to the server which combines them into a single new model.</figcaption>
+</figure>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Federated learning provides substantial benefits compared to traditional machine learning in certain cases. Exemplary implementations for next word prediction on mobile devices <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> and emoticon prediction <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> show promising results for the use case of mobile phones. FL has found its use in medical applications as well <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> which creates a need for justification of the security of FL because of the sensitive nature of medical data. This security comes two-fold. First, FL should protect against adversarial clients. Second, modern information storage legislation such as the European General Data Protection Regulation (GDPR <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>) stipulates that user data cannot be gathered without the users’ consent. Therefore, FL must be demonstrably secure against the server obtaining private user information from the user models.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">Recent research has shown multiple vulnerabilities in the privacy protection capabilities of FL <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>.
+Identifying new attack methods and analyzing their capabilities and limitations is of high importance to understand their impact and to propose defensive strategies against them <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>.</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">In this paper, we discuss a mechanism by which a deep fully connected neural network trained on a singular sample can be expected to reveal this underlying training sample in full. We call this mechanism the <em id="S1.p7.1.1" class="ltx_emph ltx_font_italic">First Dense Layer Attack (Fidel)</em>. Then, we describe a methodology of how to apply the Fidel and subsequently, thoroughly demonstrate the efficacy of the Fidel for cases of both <em id="S1.p7.1.2" class="ltx_emph ltx_font_italic">fully connected neural networks (FCNNs)</em> and <em id="S1.p7.1.3" class="ltx_emph ltx_font_italic">convolutional neural networks (CNNs)</em>. This demonstration includes a practical study of applicability concerning various activation functions, model design decisions and local dataset sizes. We formulate key insights which serve as a starting point for extending the application domain of this attack method.</p>
+</div>
+<div id="S1.p8" class="ltx_para">
+<p id="S1.p8.1" class="ltx_p">This paper is organized as follows. Section <a href="#S2" title="II First Dense Layer Attack ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a> describes the mathematical foundation of our method of attack and discusses the most important exploitable surface concerning federated learning. Section <a href="#S3" title="III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a> discusses the methodology of how to apply Fidel in a practical setting. Hereafter a demonstration is given on trivial one-sample training rounds in both a FCNN and CNN. Section <a href="#S4" title="IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a> demonstrates the efficacy of this attack for more realistic multi-sample training rounds. Section <a href="#S5" title="V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">V</span></a> provides insight into how this attack can be used to its fullest extent, as well as how protection against this attack can be achieved. Section <a href="#S6" title="VI Discussion ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">VI</span></a> provides a selection of considerations essential to understanding Fidel. These include, among others, limitation in applications and considerations with regards to privacy. Finally, Section <a href="#S7" title="VII Conclusion ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">VII</span></a> ends with the conclusions.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">First Dense Layer Attack</span>
+</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">In this Section, the mathematical foundation of the Fidel attack method is explained. Hereafter, the security implications that this may have on federated learning are briefly discussed.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS1.4.1.1" class="ltx_text">II-A</span> </span><span id="S2.SS1.5.2" class="ltx_text ltx_font_italic">Mathematical foundation</span>
+</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">The mathematical foundation of this attack method is formulated by Le Trieu et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> and is repeated in this section as background information. Le Trieu et al. found that neurons in densely connected layers can reconstruct the activation of the previous layer by leveraging the fact that the weight and bias changes associated with this neuron are relative to the activation of the previous layer.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.14" class="ltx_p">The activation of a neuron <math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><mi id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><ci id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">i</annotation></semantics></math> in a densely connected layer <math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="l" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mi id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml">l</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><ci id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1">𝑙</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">l</annotation></semantics></math> is formulated as <math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="a_{i}=A(W^{l-1}_{i}\cdot a^{l-1}+b_{i})" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mrow id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml"><msub id="S2.SS1.p2.3.m3.1.1.3" xref="S2.SS1.p2.3.m3.1.1.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.3.2" xref="S2.SS1.p2.3.m3.1.1.3.2.cmml">a</mi><mi id="S2.SS1.p2.3.m3.1.1.3.3" xref="S2.SS1.p2.3.m3.1.1.3.3.cmml">i</mi></msub><mo id="S2.SS1.p2.3.m3.1.1.2" xref="S2.SS1.p2.3.m3.1.1.2.cmml">=</mo><mrow id="S2.SS1.p2.3.m3.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.3" xref="S2.SS1.p2.3.m3.1.1.1.3.cmml">A</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.3.m3.1.1.1.2" xref="S2.SS1.p2.3.m3.1.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS1.p2.3.m3.1.1.1.1.1.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml"><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.cmml"><msubsup id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.2.cmml">W</mi><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.3.cmml">i</mi><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.2.cmml">l</mi><mo id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.1.cmml">−</mo><mn id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.3.cmml">1</mn></mrow></msubsup><mo lspace="0.222em" rspace="0.222em" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.1.cmml">⋅</mo><msup id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.2.cmml">a</mi><mrow id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.2.cmml">l</mi><mo id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.1.cmml">−</mo><mn id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.3.cmml">1</mn></mrow></msup></mrow><mo id="S2.SS1.p2.3.m3.1.1.1.1.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.1.cmml">+</mo><msub id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.cmml"><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.2" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.2.cmml">b</mi><mi id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.3.cmml">i</mi></msub></mrow><mo stretchy="false" id="S2.SS1.p2.3.m3.1.1.1.1.1.3" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><apply id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1"><eq id="S2.SS1.p2.3.m3.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.2"></eq><apply id="S2.SS1.p2.3.m3.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.3.2">𝑎</ci><ci id="S2.SS1.p2.3.m3.1.1.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.3.3">𝑖</ci></apply><apply id="S2.SS1.p2.3.m3.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1"><times id="S2.SS1.p2.3.m3.1.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.2"></times><ci id="S2.SS1.p2.3.m3.1.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.3">𝐴</ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1"><plus id="S2.SS1.p2.3.m3.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.1"></plus><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2"><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.1">⋅</ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2">subscript</csymbol><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2">superscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.2">𝑊</ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3"><minus id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.1"></minus><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.2">𝑙</ci><cn type="integer" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.2.3.3">1</cn></apply></apply><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.2.3">𝑖</ci></apply><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3">superscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.2">𝑎</ci><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3"><minus id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.1"></minus><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.2">𝑙</ci><cn type="integer" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.2.3.3.3">1</cn></apply></apply></apply><apply id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.2.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.2">𝑏</ci><ci id="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.3.cmml" xref="S2.SS1.p2.3.m3.1.1.1.1.1.1.3.3">𝑖</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">a_{i}=A(W^{l-1}_{i}\cdot a^{l-1}+b_{i})</annotation></semantics></math> in which <math id="S2.SS1.p2.4.m4.1" class="ltx_Math" alttext="b_{i}" display="inline"><semantics id="S2.SS1.p2.4.m4.1a"><msub id="S2.SS1.p2.4.m4.1.1" xref="S2.SS1.p2.4.m4.1.1.cmml"><mi id="S2.SS1.p2.4.m4.1.1.2" xref="S2.SS1.p2.4.m4.1.1.2.cmml">b</mi><mi id="S2.SS1.p2.4.m4.1.1.3" xref="S2.SS1.p2.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.4.m4.1b"><apply id="S2.SS1.p2.4.m4.1.1.cmml" xref="S2.SS1.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.4.m4.1.1.1.cmml" xref="S2.SS1.p2.4.m4.1.1">subscript</csymbol><ci id="S2.SS1.p2.4.m4.1.1.2.cmml" xref="S2.SS1.p2.4.m4.1.1.2">𝑏</ci><ci id="S2.SS1.p2.4.m4.1.1.3.cmml" xref="S2.SS1.p2.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.4.m4.1c">b_{i}</annotation></semantics></math> is the bias of neuron <math id="S2.SS1.p2.5.m5.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS1.p2.5.m5.1a"><mi id="S2.SS1.p2.5.m5.1.1" xref="S2.SS1.p2.5.m5.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.5.m5.1b"><ci id="S2.SS1.p2.5.m5.1.1.cmml" xref="S2.SS1.p2.5.m5.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.5.m5.1c">i</annotation></semantics></math>, <math id="S2.SS1.p2.6.m6.1" class="ltx_Math" alttext="W^{l-1}_{i}" display="inline"><semantics id="S2.SS1.p2.6.m6.1a"><msubsup id="S2.SS1.p2.6.m6.1.1" xref="S2.SS1.p2.6.m6.1.1.cmml"><mi id="S2.SS1.p2.6.m6.1.1.2.2" xref="S2.SS1.p2.6.m6.1.1.2.2.cmml">W</mi><mi id="S2.SS1.p2.6.m6.1.1.3" xref="S2.SS1.p2.6.m6.1.1.3.cmml">i</mi><mrow id="S2.SS1.p2.6.m6.1.1.2.3" xref="S2.SS1.p2.6.m6.1.1.2.3.cmml"><mi id="S2.SS1.p2.6.m6.1.1.2.3.2" xref="S2.SS1.p2.6.m6.1.1.2.3.2.cmml">l</mi><mo id="S2.SS1.p2.6.m6.1.1.2.3.1" xref="S2.SS1.p2.6.m6.1.1.2.3.1.cmml">−</mo><mn id="S2.SS1.p2.6.m6.1.1.2.3.3" xref="S2.SS1.p2.6.m6.1.1.2.3.3.cmml">1</mn></mrow></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.6.m6.1b"><apply id="S2.SS1.p2.6.m6.1.1.cmml" xref="S2.SS1.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.6.m6.1.1.1.cmml" xref="S2.SS1.p2.6.m6.1.1">subscript</csymbol><apply id="S2.SS1.p2.6.m6.1.1.2.cmml" xref="S2.SS1.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.6.m6.1.1.2.1.cmml" xref="S2.SS1.p2.6.m6.1.1">superscript</csymbol><ci id="S2.SS1.p2.6.m6.1.1.2.2.cmml" xref="S2.SS1.p2.6.m6.1.1.2.2">𝑊</ci><apply id="S2.SS1.p2.6.m6.1.1.2.3.cmml" xref="S2.SS1.p2.6.m6.1.1.2.3"><minus id="S2.SS1.p2.6.m6.1.1.2.3.1.cmml" xref="S2.SS1.p2.6.m6.1.1.2.3.1"></minus><ci id="S2.SS1.p2.6.m6.1.1.2.3.2.cmml" xref="S2.SS1.p2.6.m6.1.1.2.3.2">𝑙</ci><cn type="integer" id="S2.SS1.p2.6.m6.1.1.2.3.3.cmml" xref="S2.SS1.p2.6.m6.1.1.2.3.3">1</cn></apply></apply><ci id="S2.SS1.p2.6.m6.1.1.3.cmml" xref="S2.SS1.p2.6.m6.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.6.m6.1c">W^{l-1}_{i}</annotation></semantics></math> is the weight vector connecting layer <math id="S2.SS1.p2.7.m7.1" class="ltx_Math" alttext="l-1" display="inline"><semantics id="S2.SS1.p2.7.m7.1a"><mrow id="S2.SS1.p2.7.m7.1.1" xref="S2.SS1.p2.7.m7.1.1.cmml"><mi id="S2.SS1.p2.7.m7.1.1.2" xref="S2.SS1.p2.7.m7.1.1.2.cmml">l</mi><mo id="S2.SS1.p2.7.m7.1.1.1" xref="S2.SS1.p2.7.m7.1.1.1.cmml">−</mo><mn id="S2.SS1.p2.7.m7.1.1.3" xref="S2.SS1.p2.7.m7.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.7.m7.1b"><apply id="S2.SS1.p2.7.m7.1.1.cmml" xref="S2.SS1.p2.7.m7.1.1"><minus id="S2.SS1.p2.7.m7.1.1.1.cmml" xref="S2.SS1.p2.7.m7.1.1.1"></minus><ci id="S2.SS1.p2.7.m7.1.1.2.cmml" xref="S2.SS1.p2.7.m7.1.1.2">𝑙</ci><cn type="integer" id="S2.SS1.p2.7.m7.1.1.3.cmml" xref="S2.SS1.p2.7.m7.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.7.m7.1c">l-1</annotation></semantics></math> to neuron <math id="S2.SS1.p2.8.m8.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS1.p2.8.m8.1a"><mi id="S2.SS1.p2.8.m8.1.1" xref="S2.SS1.p2.8.m8.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.8.m8.1b"><ci id="S2.SS1.p2.8.m8.1.1.cmml" xref="S2.SS1.p2.8.m8.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.8.m8.1c">i</annotation></semantics></math> and <math id="S2.SS1.p2.9.m9.1" class="ltx_Math" alttext="A()" display="inline"><semantics id="S2.SS1.p2.9.m9.1a"><mrow id="S2.SS1.p2.9.m9.1.1" xref="S2.SS1.p2.9.m9.1.1.cmml"><mi id="S2.SS1.p2.9.m9.1.1.2" xref="S2.SS1.p2.9.m9.1.1.2.cmml">A</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.9.m9.1.1.1" xref="S2.SS1.p2.9.m9.1.1.1.cmml">​</mo><mrow id="S2.SS1.p2.9.m9.1.1.3.2" xref="S2.SS1.p2.9.m9.1.1.cmml"><mo stretchy="false" id="S2.SS1.p2.9.m9.1.1.3.2.1" xref="S2.SS1.p2.9.m9.1.1.3.1.cmml">(</mo><mo stretchy="false" id="S2.SS1.p2.9.m9.1.1.3.2.2" xref="S2.SS1.p2.9.m9.1.1.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.9.m9.1b"><apply id="S2.SS1.p2.9.m9.1.1.cmml" xref="S2.SS1.p2.9.m9.1.1"><times id="S2.SS1.p2.9.m9.1.1.1.cmml" xref="S2.SS1.p2.9.m9.1.1.1"></times><ci id="S2.SS1.p2.9.m9.1.1.2.cmml" xref="S2.SS1.p2.9.m9.1.1.2">𝐴</ci><list id="S2.SS1.p2.9.m9.1.1.3.1.cmml" xref="S2.SS1.p2.9.m9.1.1.3.2.1"></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.9.m9.1c">A()</annotation></semantics></math> is the activation function. For a small network that connects an input vector to a singular neuron as illustrated in Figure <a href="#S2.F2" title="Figure 2 ‣ II-A Mathematical foundation ‣ II First Dense Layer Attack ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, the activation of the previous layer is the actual input values <math id="S2.SS1.p2.10.m10.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p2.10.m10.1a"><mi id="S2.SS1.p2.10.m10.1.1" xref="S2.SS1.p2.10.m10.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.10.m10.1b"><ci id="S2.SS1.p2.10.m10.1.1.cmml" xref="S2.SS1.p2.10.m10.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.10.m10.1c">x</annotation></semantics></math> of a sample thus <math id="S2.SS1.p2.11.m11.1" class="ltx_Math" alttext="a_{i}=A(W\cdot x+b)" display="inline"><semantics id="S2.SS1.p2.11.m11.1a"><mrow id="S2.SS1.p2.11.m11.1.1" xref="S2.SS1.p2.11.m11.1.1.cmml"><msub id="S2.SS1.p2.11.m11.1.1.3" xref="S2.SS1.p2.11.m11.1.1.3.cmml"><mi id="S2.SS1.p2.11.m11.1.1.3.2" xref="S2.SS1.p2.11.m11.1.1.3.2.cmml">a</mi><mi id="S2.SS1.p2.11.m11.1.1.3.3" xref="S2.SS1.p2.11.m11.1.1.3.3.cmml">i</mi></msub><mo id="S2.SS1.p2.11.m11.1.1.2" xref="S2.SS1.p2.11.m11.1.1.2.cmml">=</mo><mrow id="S2.SS1.p2.11.m11.1.1.1" xref="S2.SS1.p2.11.m11.1.1.1.cmml"><mi id="S2.SS1.p2.11.m11.1.1.1.3" xref="S2.SS1.p2.11.m11.1.1.1.3.cmml">A</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.11.m11.1.1.1.2" xref="S2.SS1.p2.11.m11.1.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.11.m11.1.1.1.1.1" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS1.p2.11.m11.1.1.1.1.1.2" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p2.11.m11.1.1.1.1.1.1" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.cmml"><mrow id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.cmml"><mi id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.2" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.2.cmml">W</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.1" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.1.cmml">⋅</mo><mi id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.3" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.3.cmml">x</mi></mrow><mo id="S2.SS1.p2.11.m11.1.1.1.1.1.1.1" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.1.cmml">+</mo><mi id="S2.SS1.p2.11.m11.1.1.1.1.1.1.3" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.3.cmml">b</mi></mrow><mo stretchy="false" id="S2.SS1.p2.11.m11.1.1.1.1.1.3" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.11.m11.1b"><apply id="S2.SS1.p2.11.m11.1.1.cmml" xref="S2.SS1.p2.11.m11.1.1"><eq id="S2.SS1.p2.11.m11.1.1.2.cmml" xref="S2.SS1.p2.11.m11.1.1.2"></eq><apply id="S2.SS1.p2.11.m11.1.1.3.cmml" xref="S2.SS1.p2.11.m11.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.11.m11.1.1.3.1.cmml" xref="S2.SS1.p2.11.m11.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.11.m11.1.1.3.2.cmml" xref="S2.SS1.p2.11.m11.1.1.3.2">𝑎</ci><ci id="S2.SS1.p2.11.m11.1.1.3.3.cmml" xref="S2.SS1.p2.11.m11.1.1.3.3">𝑖</ci></apply><apply id="S2.SS1.p2.11.m11.1.1.1.cmml" xref="S2.SS1.p2.11.m11.1.1.1"><times id="S2.SS1.p2.11.m11.1.1.1.2.cmml" xref="S2.SS1.p2.11.m11.1.1.1.2"></times><ci id="S2.SS1.p2.11.m11.1.1.1.3.cmml" xref="S2.SS1.p2.11.m11.1.1.1.3">𝐴</ci><apply id="S2.SS1.p2.11.m11.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1"><plus id="S2.SS1.p2.11.m11.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.1"></plus><apply id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2"><ci id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.1.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.1">⋅</ci><ci id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.2.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.2">𝑊</ci><ci id="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.2.3">𝑥</ci></apply><ci id="S2.SS1.p2.11.m11.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.11.m11.1.1.1.1.1.1.3">𝑏</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.11.m11.1c">a_{i}=A(W\cdot x+b)</annotation></semantics></math>. Generally, for a given input <math id="S2.SS1.p2.12.m12.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p2.12.m12.1a"><mi id="S2.SS1.p2.12.m12.1.1" xref="S2.SS1.p2.12.m12.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.12.m12.1b"><ci id="S2.SS1.p2.12.m12.1.1.cmml" xref="S2.SS1.p2.12.m12.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.12.m12.1c">x</annotation></semantics></math> we note that <math id="S2.SS1.p2.13.m13.1" class="ltx_Math" alttext="a^{0}=x" display="inline"><semantics id="S2.SS1.p2.13.m13.1a"><mrow id="S2.SS1.p2.13.m13.1.1" xref="S2.SS1.p2.13.m13.1.1.cmml"><msup id="S2.SS1.p2.13.m13.1.1.2" xref="S2.SS1.p2.13.m13.1.1.2.cmml"><mi id="S2.SS1.p2.13.m13.1.1.2.2" xref="S2.SS1.p2.13.m13.1.1.2.2.cmml">a</mi><mn id="S2.SS1.p2.13.m13.1.1.2.3" xref="S2.SS1.p2.13.m13.1.1.2.3.cmml">0</mn></msup><mo id="S2.SS1.p2.13.m13.1.1.1" xref="S2.SS1.p2.13.m13.1.1.1.cmml">=</mo><mi id="S2.SS1.p2.13.m13.1.1.3" xref="S2.SS1.p2.13.m13.1.1.3.cmml">x</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.13.m13.1b"><apply id="S2.SS1.p2.13.m13.1.1.cmml" xref="S2.SS1.p2.13.m13.1.1"><eq id="S2.SS1.p2.13.m13.1.1.1.cmml" xref="S2.SS1.p2.13.m13.1.1.1"></eq><apply id="S2.SS1.p2.13.m13.1.1.2.cmml" xref="S2.SS1.p2.13.m13.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p2.13.m13.1.1.2.1.cmml" xref="S2.SS1.p2.13.m13.1.1.2">superscript</csymbol><ci id="S2.SS1.p2.13.m13.1.1.2.2.cmml" xref="S2.SS1.p2.13.m13.1.1.2.2">𝑎</ci><cn type="integer" id="S2.SS1.p2.13.m13.1.1.2.3.cmml" xref="S2.SS1.p2.13.m13.1.1.2.3">0</cn></apply><ci id="S2.SS1.p2.13.m13.1.1.3.cmml" xref="S2.SS1.p2.13.m13.1.1.3">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.13.m13.1c">a^{0}=x</annotation></semantics></math> and <math id="S2.SS1.p2.14.m14.1" class="ltx_Math" alttext="h(x)" display="inline"><semantics id="S2.SS1.p2.14.m14.1a"><mrow id="S2.SS1.p2.14.m14.1.2" xref="S2.SS1.p2.14.m14.1.2.cmml"><mi id="S2.SS1.p2.14.m14.1.2.2" xref="S2.SS1.p2.14.m14.1.2.2.cmml">h</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p2.14.m14.1.2.1" xref="S2.SS1.p2.14.m14.1.2.1.cmml">​</mo><mrow id="S2.SS1.p2.14.m14.1.2.3.2" xref="S2.SS1.p2.14.m14.1.2.cmml"><mo stretchy="false" id="S2.SS1.p2.14.m14.1.2.3.2.1" xref="S2.SS1.p2.14.m14.1.2.cmml">(</mo><mi id="S2.SS1.p2.14.m14.1.1" xref="S2.SS1.p2.14.m14.1.1.cmml">x</mi><mo stretchy="false" id="S2.SS1.p2.14.m14.1.2.3.2.2" xref="S2.SS1.p2.14.m14.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.14.m14.1b"><apply id="S2.SS1.p2.14.m14.1.2.cmml" xref="S2.SS1.p2.14.m14.1.2"><times id="S2.SS1.p2.14.m14.1.2.1.cmml" xref="S2.SS1.p2.14.m14.1.2.1"></times><ci id="S2.SS1.p2.14.m14.1.2.2.cmml" xref="S2.SS1.p2.14.m14.1.2.2">ℎ</ci><ci id="S2.SS1.p2.14.m14.1.1.cmml" xref="S2.SS1.p2.14.m14.1.1">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.14.m14.1c">h(x)</annotation></semantics></math> is the activation of the last layer of the network.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure">
+<p id="S2.F2.1" class="ltx_p ltx_align_center"><span id="S2.F2.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x2.png" id="S2.F2.1.1.g1" class="ltx_graphics ltx_img_square" width="229" height="193" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Activation of a neuron in the first dense layer.</figcaption>
+</figure>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.9" class="ltx_p">Loss on a training sample <math id="S2.SS1.p3.1.m1.2" class="ltx_Math" alttext="(x,y)" display="inline"><semantics id="S2.SS1.p3.1.m1.2a"><mrow id="S2.SS1.p3.1.m1.2.3.2" xref="S2.SS1.p3.1.m1.2.3.1.cmml"><mo stretchy="false" id="S2.SS1.p3.1.m1.2.3.2.1" xref="S2.SS1.p3.1.m1.2.3.1.cmml">(</mo><mi id="S2.SS1.p3.1.m1.1.1" xref="S2.SS1.p3.1.m1.1.1.cmml">x</mi><mo id="S2.SS1.p3.1.m1.2.3.2.2" xref="S2.SS1.p3.1.m1.2.3.1.cmml">,</mo><mi id="S2.SS1.p3.1.m1.2.2" xref="S2.SS1.p3.1.m1.2.2.cmml">y</mi><mo stretchy="false" id="S2.SS1.p3.1.m1.2.3.2.3" xref="S2.SS1.p3.1.m1.2.3.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.1.m1.2b"><interval closure="open" id="S2.SS1.p3.1.m1.2.3.1.cmml" xref="S2.SS1.p3.1.m1.2.3.2"><ci id="S2.SS1.p3.1.m1.1.1.cmml" xref="S2.SS1.p3.1.m1.1.1">𝑥</ci><ci id="S2.SS1.p3.1.m1.2.2.cmml" xref="S2.SS1.p3.1.m1.2.2">𝑦</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.1.m1.2c">(x,y)</annotation></semantics></math> is calculated by applying a loss function <math id="S2.SS1.p3.2.m2.1" class="ltx_Math" alttext="\mathcal{L}" display="inline"><semantics id="S2.SS1.p3.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p3.2.m2.1.1" xref="S2.SS1.p3.2.m2.1.1.cmml">ℒ</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.2.m2.1b"><ci id="S2.SS1.p3.2.m2.1.1.cmml" xref="S2.SS1.p3.2.m2.1.1">ℒ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.2.m2.1c">\mathcal{L}</annotation></semantics></math> on the network with its weights <math id="S2.SS1.p3.3.m3.1" class="ltx_Math" alttext="W" display="inline"><semantics id="S2.SS1.p3.3.m3.1a"><mi id="S2.SS1.p3.3.m3.1.1" xref="S2.SS1.p3.3.m3.1.1.cmml">W</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.3.m3.1b"><ci id="S2.SS1.p3.3.m3.1.1.cmml" xref="S2.SS1.p3.3.m3.1.1">𝑊</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.3.m3.1c">W</annotation></semantics></math> biases <math id="S2.SS1.p3.4.m4.1" class="ltx_Math" alttext="b" display="inline"><semantics id="S2.SS1.p3.4.m4.1a"><mi id="S2.SS1.p3.4.m4.1.1" xref="S2.SS1.p3.4.m4.1.1.cmml">b</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.4.m4.1b"><ci id="S2.SS1.p3.4.m4.1.1.cmml" xref="S2.SS1.p3.4.m4.1.1">𝑏</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.4.m4.1c">b</annotation></semantics></math>. The loss determines the error of the weights based on the distance between the true value <math id="S2.SS1.p3.5.m5.1" class="ltx_Math" alttext="y" display="inline"><semantics id="S2.SS1.p3.5.m5.1a"><mi id="S2.SS1.p3.5.m5.1.1" xref="S2.SS1.p3.5.m5.1.1.cmml">y</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.5.m5.1b"><ci id="S2.SS1.p3.5.m5.1.1.cmml" xref="S2.SS1.p3.5.m5.1.1">𝑦</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.5.m5.1c">y</annotation></semantics></math> and the output value for <math id="S2.SS1.p3.6.m6.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p3.6.m6.1a"><mi id="S2.SS1.p3.6.m6.1.1" xref="S2.SS1.p3.6.m6.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.6.m6.1b"><ci id="S2.SS1.p3.6.m6.1.1.cmml" xref="S2.SS1.p3.6.m6.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.6.m6.1c">x</annotation></semantics></math> as calculated by the network <math id="S2.SS1.p3.7.m7.1" class="ltx_Math" alttext="h(x)" display="inline"><semantics id="S2.SS1.p3.7.m7.1a"><mrow id="S2.SS1.p3.7.m7.1.2" xref="S2.SS1.p3.7.m7.1.2.cmml"><mi id="S2.SS1.p3.7.m7.1.2.2" xref="S2.SS1.p3.7.m7.1.2.2.cmml">h</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p3.7.m7.1.2.1" xref="S2.SS1.p3.7.m7.1.2.1.cmml">​</mo><mrow id="S2.SS1.p3.7.m7.1.2.3.2" xref="S2.SS1.p3.7.m7.1.2.cmml"><mo stretchy="false" id="S2.SS1.p3.7.m7.1.2.3.2.1" xref="S2.SS1.p3.7.m7.1.2.cmml">(</mo><mi id="S2.SS1.p3.7.m7.1.1" xref="S2.SS1.p3.7.m7.1.1.cmml">x</mi><mo stretchy="false" id="S2.SS1.p3.7.m7.1.2.3.2.2" xref="S2.SS1.p3.7.m7.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.7.m7.1b"><apply id="S2.SS1.p3.7.m7.1.2.cmml" xref="S2.SS1.p3.7.m7.1.2"><times id="S2.SS1.p3.7.m7.1.2.1.cmml" xref="S2.SS1.p3.7.m7.1.2.1"></times><ci id="S2.SS1.p3.7.m7.1.2.2.cmml" xref="S2.SS1.p3.7.m7.1.2.2">ℎ</ci><ci id="S2.SS1.p3.7.m7.1.1.cmml" xref="S2.SS1.p3.7.m7.1.1">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.7.m7.1c">h(x)</annotation></semantics></math>. For a single sample <math id="S2.SS1.p3.8.m8.2" class="ltx_Math" alttext="(x,y)" display="inline"><semantics id="S2.SS1.p3.8.m8.2a"><mrow id="S2.SS1.p3.8.m8.2.3.2" xref="S2.SS1.p3.8.m8.2.3.1.cmml"><mo stretchy="false" id="S2.SS1.p3.8.m8.2.3.2.1" xref="S2.SS1.p3.8.m8.2.3.1.cmml">(</mo><mi id="S2.SS1.p3.8.m8.1.1" xref="S2.SS1.p3.8.m8.1.1.cmml">x</mi><mo id="S2.SS1.p3.8.m8.2.3.2.2" xref="S2.SS1.p3.8.m8.2.3.1.cmml">,</mo><mi id="S2.SS1.p3.8.m8.2.2" xref="S2.SS1.p3.8.m8.2.2.cmml">y</mi><mo stretchy="false" id="S2.SS1.p3.8.m8.2.3.2.3" xref="S2.SS1.p3.8.m8.2.3.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.8.m8.2b"><interval closure="open" id="S2.SS1.p3.8.m8.2.3.1.cmml" xref="S2.SS1.p3.8.m8.2.3.2"><ci id="S2.SS1.p3.8.m8.1.1.cmml" xref="S2.SS1.p3.8.m8.1.1">𝑥</ci><ci id="S2.SS1.p3.8.m8.2.2.cmml" xref="S2.SS1.p3.8.m8.2.2">𝑦</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.8.m8.2c">(x,y)</annotation></semantics></math> the loss function is <math id="S2.SS1.p3.9.m9.4" class="ltx_Math" alttext="\mathcal{L}(W,b,x,y)" display="inline"><semantics id="S2.SS1.p3.9.m9.4a"><mrow id="S2.SS1.p3.9.m9.4.5" xref="S2.SS1.p3.9.m9.4.5.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p3.9.m9.4.5.2" xref="S2.SS1.p3.9.m9.4.5.2.cmml">ℒ</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p3.9.m9.4.5.1" xref="S2.SS1.p3.9.m9.4.5.1.cmml">​</mo><mrow id="S2.SS1.p3.9.m9.4.5.3.2" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml"><mo stretchy="false" id="S2.SS1.p3.9.m9.4.5.3.2.1" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml">(</mo><mi id="S2.SS1.p3.9.m9.1.1" xref="S2.SS1.p3.9.m9.1.1.cmml">W</mi><mo id="S2.SS1.p3.9.m9.4.5.3.2.2" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml">,</mo><mi id="S2.SS1.p3.9.m9.2.2" xref="S2.SS1.p3.9.m9.2.2.cmml">b</mi><mo id="S2.SS1.p3.9.m9.4.5.3.2.3" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml">,</mo><mi id="S2.SS1.p3.9.m9.3.3" xref="S2.SS1.p3.9.m9.3.3.cmml">x</mi><mo id="S2.SS1.p3.9.m9.4.5.3.2.4" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml">,</mo><mi id="S2.SS1.p3.9.m9.4.4" xref="S2.SS1.p3.9.m9.4.4.cmml">y</mi><mo stretchy="false" id="S2.SS1.p3.9.m9.4.5.3.2.5" xref="S2.SS1.p3.9.m9.4.5.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.9.m9.4b"><apply id="S2.SS1.p3.9.m9.4.5.cmml" xref="S2.SS1.p3.9.m9.4.5"><times id="S2.SS1.p3.9.m9.4.5.1.cmml" xref="S2.SS1.p3.9.m9.4.5.1"></times><ci id="S2.SS1.p3.9.m9.4.5.2.cmml" xref="S2.SS1.p3.9.m9.4.5.2">ℒ</ci><vector id="S2.SS1.p3.9.m9.4.5.3.1.cmml" xref="S2.SS1.p3.9.m9.4.5.3.2"><ci id="S2.SS1.p3.9.m9.1.1.cmml" xref="S2.SS1.p3.9.m9.1.1">𝑊</ci><ci id="S2.SS1.p3.9.m9.2.2.cmml" xref="S2.SS1.p3.9.m9.2.2">𝑏</ci><ci id="S2.SS1.p3.9.m9.3.3.cmml" xref="S2.SS1.p3.9.m9.3.3">𝑥</ci><ci id="S2.SS1.p3.9.m9.4.4.cmml" xref="S2.SS1.p3.9.m9.4.4">𝑦</ci></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.9.m9.4c">\mathcal{L}(W,b,x,y)</annotation></semantics></math>.</p>
+</div>
+<div id="S2.SS1.p4" class="ltx_para">
+<p id="S2.SS1.p4.1" class="ltx_p">Two commonly used loss functions on which this attack works are squared error and cross-entropy loss functions. Using the squared error function as an example, the loss is calculated as <math id="S2.SS1.p4.1.m1.6" class="ltx_Math" alttext="\mathcal{L}(W,b,x,y)=(h(x)-y)^{2}" display="inline"><semantics id="S2.SS1.p4.1.m1.6a"><mrow id="S2.SS1.p4.1.m1.6.6" xref="S2.SS1.p4.1.m1.6.6.cmml"><mrow id="S2.SS1.p4.1.m1.6.6.3" xref="S2.SS1.p4.1.m1.6.6.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS1.p4.1.m1.6.6.3.2" xref="S2.SS1.p4.1.m1.6.6.3.2.cmml">ℒ</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p4.1.m1.6.6.3.1" xref="S2.SS1.p4.1.m1.6.6.3.1.cmml">​</mo><mrow id="S2.SS1.p4.1.m1.6.6.3.3.2" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml"><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.3.3.2.1" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml">(</mo><mi id="S2.SS1.p4.1.m1.1.1" xref="S2.SS1.p4.1.m1.1.1.cmml">W</mi><mo id="S2.SS1.p4.1.m1.6.6.3.3.2.2" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml">,</mo><mi id="S2.SS1.p4.1.m1.2.2" xref="S2.SS1.p4.1.m1.2.2.cmml">b</mi><mo id="S2.SS1.p4.1.m1.6.6.3.3.2.3" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml">,</mo><mi id="S2.SS1.p4.1.m1.3.3" xref="S2.SS1.p4.1.m1.3.3.cmml">x</mi><mo id="S2.SS1.p4.1.m1.6.6.3.3.2.4" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml">,</mo><mi id="S2.SS1.p4.1.m1.4.4" xref="S2.SS1.p4.1.m1.4.4.cmml">y</mi><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.3.3.2.5" xref="S2.SS1.p4.1.m1.6.6.3.3.1.cmml">)</mo></mrow></mrow><mo id="S2.SS1.p4.1.m1.6.6.2" xref="S2.SS1.p4.1.m1.6.6.2.cmml">=</mo><msup id="S2.SS1.p4.1.m1.6.6.1" xref="S2.SS1.p4.1.m1.6.6.1.cmml"><mrow id="S2.SS1.p4.1.m1.6.6.1.1.1" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.1.1.1.2" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p4.1.m1.6.6.1.1.1.1" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.cmml"><mrow id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.cmml"><mi id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.2" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.2.cmml">h</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.1" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.1.cmml">​</mo><mrow id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.3.2" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.cmml"><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.3.2.1" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.cmml">(</mo><mi id="S2.SS1.p4.1.m1.5.5" xref="S2.SS1.p4.1.m1.5.5.cmml">x</mi><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.3.2.2" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.SS1.p4.1.m1.6.6.1.1.1.1.1" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.1.cmml">−</mo><mi id="S2.SS1.p4.1.m1.6.6.1.1.1.1.3" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.3.cmml">y</mi></mrow><mo stretchy="false" id="S2.SS1.p4.1.m1.6.6.1.1.1.3" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.cmml">)</mo></mrow><mn id="S2.SS1.p4.1.m1.6.6.1.3" xref="S2.SS1.p4.1.m1.6.6.1.3.cmml">2</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p4.1.m1.6b"><apply id="S2.SS1.p4.1.m1.6.6.cmml" xref="S2.SS1.p4.1.m1.6.6"><eq id="S2.SS1.p4.1.m1.6.6.2.cmml" xref="S2.SS1.p4.1.m1.6.6.2"></eq><apply id="S2.SS1.p4.1.m1.6.6.3.cmml" xref="S2.SS1.p4.1.m1.6.6.3"><times id="S2.SS1.p4.1.m1.6.6.3.1.cmml" xref="S2.SS1.p4.1.m1.6.6.3.1"></times><ci id="S2.SS1.p4.1.m1.6.6.3.2.cmml" xref="S2.SS1.p4.1.m1.6.6.3.2">ℒ</ci><vector id="S2.SS1.p4.1.m1.6.6.3.3.1.cmml" xref="S2.SS1.p4.1.m1.6.6.3.3.2"><ci id="S2.SS1.p4.1.m1.1.1.cmml" xref="S2.SS1.p4.1.m1.1.1">𝑊</ci><ci id="S2.SS1.p4.1.m1.2.2.cmml" xref="S2.SS1.p4.1.m1.2.2">𝑏</ci><ci id="S2.SS1.p4.1.m1.3.3.cmml" xref="S2.SS1.p4.1.m1.3.3">𝑥</ci><ci id="S2.SS1.p4.1.m1.4.4.cmml" xref="S2.SS1.p4.1.m1.4.4">𝑦</ci></vector></apply><apply id="S2.SS1.p4.1.m1.6.6.1.cmml" xref="S2.SS1.p4.1.m1.6.6.1"><csymbol cd="ambiguous" id="S2.SS1.p4.1.m1.6.6.1.2.cmml" xref="S2.SS1.p4.1.m1.6.6.1">superscript</csymbol><apply id="S2.SS1.p4.1.m1.6.6.1.1.1.1.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1"><minus id="S2.SS1.p4.1.m1.6.6.1.1.1.1.1.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.1"></minus><apply id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2"><times id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.1.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.1"></times><ci id="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.2.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.2.2">ℎ</ci><ci id="S2.SS1.p4.1.m1.5.5.cmml" xref="S2.SS1.p4.1.m1.5.5">𝑥</ci></apply><ci id="S2.SS1.p4.1.m1.6.6.1.1.1.1.3.cmml" xref="S2.SS1.p4.1.m1.6.6.1.1.1.1.3">𝑦</ci></apply><cn type="integer" id="S2.SS1.p4.1.m1.6.6.1.3.cmml" xref="S2.SS1.p4.1.m1.6.6.1.3">2</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p4.1.m1.6c">\mathcal{L}(W,b,x,y)=(h(x)-y)^{2}</annotation></semantics></math>.</p>
+</div>
+<div id="S2.SS1.p5" class="ltx_para">
+<p id="S2.SS1.p5.1" class="ltx_p">To find the numerical direction in which the weights and biases of the network must move to provide a lower loss value for a specific training sample <math id="S2.SS1.p5.1.m1.2" class="ltx_Math" alttext="(x,y)" display="inline"><semantics id="S2.SS1.p5.1.m1.2a"><mrow id="S2.SS1.p5.1.m1.2.3.2" xref="S2.SS1.p5.1.m1.2.3.1.cmml"><mo stretchy="false" id="S2.SS1.p5.1.m1.2.3.2.1" xref="S2.SS1.p5.1.m1.2.3.1.cmml">(</mo><mi id="S2.SS1.p5.1.m1.1.1" xref="S2.SS1.p5.1.m1.1.1.cmml">x</mi><mo id="S2.SS1.p5.1.m1.2.3.2.2" xref="S2.SS1.p5.1.m1.2.3.1.cmml">,</mo><mi id="S2.SS1.p5.1.m1.2.2" xref="S2.SS1.p5.1.m1.2.2.cmml">y</mi><mo stretchy="false" id="S2.SS1.p5.1.m1.2.3.2.3" xref="S2.SS1.p5.1.m1.2.3.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p5.1.m1.2b"><interval closure="open" id="S2.SS1.p5.1.m1.2.3.1.cmml" xref="S2.SS1.p5.1.m1.2.3.2"><ci id="S2.SS1.p5.1.m1.1.1.cmml" xref="S2.SS1.p5.1.m1.1.1">𝑥</ci><ci id="S2.SS1.p5.1.m1.2.2.cmml" xref="S2.SS1.p5.1.m1.2.2">𝑦</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p5.1.m1.2c">(x,y)</annotation></semantics></math>, the gradient of each weight and bias are calculated.</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.9" class="ltx_Math" alttext="g_{w,j}=\frac{d\mathcal{L}(W,b,x,y)}{dW}=2(h(x)-y)A^{\prime}(W\cdot x+b)\cdot x_{j}" display="block"><semantics id="S2.Ex1.m1.9a"><mrow id="S2.Ex1.m1.9.9" xref="S2.Ex1.m1.9.9.cmml"><msub id="S2.Ex1.m1.9.9.4" xref="S2.Ex1.m1.9.9.4.cmml"><mi id="S2.Ex1.m1.9.9.4.2" xref="S2.Ex1.m1.9.9.4.2.cmml">g</mi><mrow id="S2.Ex1.m1.2.2.2.4" xref="S2.Ex1.m1.2.2.2.3.cmml"><mi id="S2.Ex1.m1.1.1.1.1" xref="S2.Ex1.m1.1.1.1.1.cmml">w</mi><mo id="S2.Ex1.m1.2.2.2.4.1" xref="S2.Ex1.m1.2.2.2.3.cmml">,</mo><mi id="S2.Ex1.m1.2.2.2.2" xref="S2.Ex1.m1.2.2.2.2.cmml">j</mi></mrow></msub><mo id="S2.Ex1.m1.9.9.5" xref="S2.Ex1.m1.9.9.5.cmml">=</mo><mfrac id="S2.Ex1.m1.6.6" xref="S2.Ex1.m1.6.6.cmml"><mrow id="S2.Ex1.m1.6.6.4" xref="S2.Ex1.m1.6.6.4.cmml"><mi id="S2.Ex1.m1.6.6.4.6" xref="S2.Ex1.m1.6.6.4.6.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.6.4.5" xref="S2.Ex1.m1.6.6.4.5.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.6.6.4.7" xref="S2.Ex1.m1.6.6.4.7.cmml">ℒ</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.6.4.5a" xref="S2.Ex1.m1.6.6.4.5.cmml">​</mo><mrow id="S2.Ex1.m1.6.6.4.8.2" xref="S2.Ex1.m1.6.6.4.8.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.6.6.4.8.2.1" xref="S2.Ex1.m1.6.6.4.8.1.cmml">(</mo><mi id="S2.Ex1.m1.3.3.1.1" xref="S2.Ex1.m1.3.3.1.1.cmml">W</mi><mo id="S2.Ex1.m1.6.6.4.8.2.2" xref="S2.Ex1.m1.6.6.4.8.1.cmml">,</mo><mi id="S2.Ex1.m1.4.4.2.2" xref="S2.Ex1.m1.4.4.2.2.cmml">b</mi><mo id="S2.Ex1.m1.6.6.4.8.2.3" xref="S2.Ex1.m1.6.6.4.8.1.cmml">,</mo><mi id="S2.Ex1.m1.5.5.3.3" xref="S2.Ex1.m1.5.5.3.3.cmml">x</mi><mo id="S2.Ex1.m1.6.6.4.8.2.4" xref="S2.Ex1.m1.6.6.4.8.1.cmml">,</mo><mi id="S2.Ex1.m1.6.6.4.4" xref="S2.Ex1.m1.6.6.4.4.cmml">y</mi><mo stretchy="false" id="S2.Ex1.m1.6.6.4.8.2.5" xref="S2.Ex1.m1.6.6.4.8.1.cmml">)</mo></mrow></mrow><mrow id="S2.Ex1.m1.6.6.6" xref="S2.Ex1.m1.6.6.6.cmml"><mi id="S2.Ex1.m1.6.6.6.2" xref="S2.Ex1.m1.6.6.6.2.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.6.6.1" xref="S2.Ex1.m1.6.6.6.1.cmml">​</mo><mi id="S2.Ex1.m1.6.6.6.3" xref="S2.Ex1.m1.6.6.6.3.cmml">W</mi></mrow></mfrac><mo id="S2.Ex1.m1.9.9.6" xref="S2.Ex1.m1.9.9.6.cmml">=</mo><mrow id="S2.Ex1.m1.9.9.2" xref="S2.Ex1.m1.9.9.2.cmml"><mrow id="S2.Ex1.m1.9.9.2.2" xref="S2.Ex1.m1.9.9.2.2.cmml"><mn id="S2.Ex1.m1.9.9.2.2.4" xref="S2.Ex1.m1.9.9.2.2.4.cmml">2</mn><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.9.9.2.2.3" xref="S2.Ex1.m1.9.9.2.2.3.cmml">​</mo><mrow id="S2.Ex1.m1.8.8.1.1.1.1" xref="S2.Ex1.m1.8.8.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.8.8.1.1.1.1.2" xref="S2.Ex1.m1.8.8.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex1.m1.8.8.1.1.1.1.1" xref="S2.Ex1.m1.8.8.1.1.1.1.1.cmml"><mrow id="S2.Ex1.m1.8.8.1.1.1.1.1.2" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.cmml"><mi id="S2.Ex1.m1.8.8.1.1.1.1.1.2.2" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.2.cmml">h</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.8.8.1.1.1.1.1.2.1" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.1.cmml">​</mo><mrow id="S2.Ex1.m1.8.8.1.1.1.1.1.2.3.2" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.cmml"><mo stretchy="false" id="S2.Ex1.m1.8.8.1.1.1.1.1.2.3.2.1" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.cmml">(</mo><mi id="S2.Ex1.m1.7.7" xref="S2.Ex1.m1.7.7.cmml">x</mi><mo stretchy="false" id="S2.Ex1.m1.8.8.1.1.1.1.1.2.3.2.2" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.Ex1.m1.8.8.1.1.1.1.1.1" xref="S2.Ex1.m1.8.8.1.1.1.1.1.1.cmml">−</mo><mi id="S2.Ex1.m1.8.8.1.1.1.1.1.3" xref="S2.Ex1.m1.8.8.1.1.1.1.1.3.cmml">y</mi></mrow><mo stretchy="false" id="S2.Ex1.m1.8.8.1.1.1.1.3" xref="S2.Ex1.m1.8.8.1.1.1.1.1.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.9.9.2.2.3a" xref="S2.Ex1.m1.9.9.2.2.3.cmml">​</mo><msup id="S2.Ex1.m1.9.9.2.2.5" xref="S2.Ex1.m1.9.9.2.2.5.cmml"><mi id="S2.Ex1.m1.9.9.2.2.5.2" xref="S2.Ex1.m1.9.9.2.2.5.2.cmml">A</mi><mo id="S2.Ex1.m1.9.9.2.2.5.3" xref="S2.Ex1.m1.9.9.2.2.5.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.9.9.2.2.3b" xref="S2.Ex1.m1.9.9.2.2.3.cmml">​</mo><mrow id="S2.Ex1.m1.9.9.2.2.2.1" xref="S2.Ex1.m1.9.9.2.2.2.1.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.9.9.2.2.2.1.2" xref="S2.Ex1.m1.9.9.2.2.2.1.1.cmml">(</mo><mrow id="S2.Ex1.m1.9.9.2.2.2.1.1" xref="S2.Ex1.m1.9.9.2.2.2.1.1.cmml"><mrow id="S2.Ex1.m1.9.9.2.2.2.1.1.2" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.cmml"><mi id="S2.Ex1.m1.9.9.2.2.2.1.1.2.2" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.2.cmml">W</mi><mo lspace="0.222em" rspace="0.222em" id="S2.Ex1.m1.9.9.2.2.2.1.1.2.1" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.1.cmml">⋅</mo><mi id="S2.Ex1.m1.9.9.2.2.2.1.1.2.3" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.3.cmml">x</mi></mrow><mo id="S2.Ex1.m1.9.9.2.2.2.1.1.1" xref="S2.Ex1.m1.9.9.2.2.2.1.1.1.cmml">+</mo><mi id="S2.Ex1.m1.9.9.2.2.2.1.1.3" xref="S2.Ex1.m1.9.9.2.2.2.1.1.3.cmml">b</mi></mrow><mo rspace="0.055em" stretchy="false" id="S2.Ex1.m1.9.9.2.2.2.1.3" xref="S2.Ex1.m1.9.9.2.2.2.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.222em" id="S2.Ex1.m1.9.9.2.3" xref="S2.Ex1.m1.9.9.2.3.cmml">⋅</mo><msub id="S2.Ex1.m1.9.9.2.4" xref="S2.Ex1.m1.9.9.2.4.cmml"><mi id="S2.Ex1.m1.9.9.2.4.2" xref="S2.Ex1.m1.9.9.2.4.2.cmml">x</mi><mi id="S2.Ex1.m1.9.9.2.4.3" xref="S2.Ex1.m1.9.9.2.4.3.cmml">j</mi></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.9b"><apply id="S2.Ex1.m1.9.9.cmml" xref="S2.Ex1.m1.9.9"><and id="S2.Ex1.m1.9.9a.cmml" xref="S2.Ex1.m1.9.9"></and><apply id="S2.Ex1.m1.9.9b.cmml" xref="S2.Ex1.m1.9.9"><eq id="S2.Ex1.m1.9.9.5.cmml" xref="S2.Ex1.m1.9.9.5"></eq><apply id="S2.Ex1.m1.9.9.4.cmml" xref="S2.Ex1.m1.9.9.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.9.9.4.1.cmml" xref="S2.Ex1.m1.9.9.4">subscript</csymbol><ci id="S2.Ex1.m1.9.9.4.2.cmml" xref="S2.Ex1.m1.9.9.4.2">𝑔</ci><list id="S2.Ex1.m1.2.2.2.3.cmml" xref="S2.Ex1.m1.2.2.2.4"><ci id="S2.Ex1.m1.1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1.1">𝑤</ci><ci id="S2.Ex1.m1.2.2.2.2.cmml" xref="S2.Ex1.m1.2.2.2.2">𝑗</ci></list></apply><apply id="S2.Ex1.m1.6.6.cmml" xref="S2.Ex1.m1.6.6"><divide id="S2.Ex1.m1.6.6.5.cmml" xref="S2.Ex1.m1.6.6"></divide><apply id="S2.Ex1.m1.6.6.4.cmml" xref="S2.Ex1.m1.6.6.4"><times id="S2.Ex1.m1.6.6.4.5.cmml" xref="S2.Ex1.m1.6.6.4.5"></times><ci id="S2.Ex1.m1.6.6.4.6.cmml" xref="S2.Ex1.m1.6.6.4.6">𝑑</ci><ci id="S2.Ex1.m1.6.6.4.7.cmml" xref="S2.Ex1.m1.6.6.4.7">ℒ</ci><vector id="S2.Ex1.m1.6.6.4.8.1.cmml" xref="S2.Ex1.m1.6.6.4.8.2"><ci id="S2.Ex1.m1.3.3.1.1.cmml" xref="S2.Ex1.m1.3.3.1.1">𝑊</ci><ci id="S2.Ex1.m1.4.4.2.2.cmml" xref="S2.Ex1.m1.4.4.2.2">𝑏</ci><ci id="S2.Ex1.m1.5.5.3.3.cmml" xref="S2.Ex1.m1.5.5.3.3">𝑥</ci><ci id="S2.Ex1.m1.6.6.4.4.cmml" xref="S2.Ex1.m1.6.6.4.4">𝑦</ci></vector></apply><apply id="S2.Ex1.m1.6.6.6.cmml" xref="S2.Ex1.m1.6.6.6"><times id="S2.Ex1.m1.6.6.6.1.cmml" xref="S2.Ex1.m1.6.6.6.1"></times><ci id="S2.Ex1.m1.6.6.6.2.cmml" xref="S2.Ex1.m1.6.6.6.2">𝑑</ci><ci id="S2.Ex1.m1.6.6.6.3.cmml" xref="S2.Ex1.m1.6.6.6.3">𝑊</ci></apply></apply></apply><apply id="S2.Ex1.m1.9.9c.cmml" xref="S2.Ex1.m1.9.9"><eq id="S2.Ex1.m1.9.9.6.cmml" xref="S2.Ex1.m1.9.9.6"></eq><share href="#S2.Ex1.m1.6.6.cmml" id="S2.Ex1.m1.9.9d.cmml" xref="S2.Ex1.m1.9.9"></share><apply id="S2.Ex1.m1.9.9.2.cmml" xref="S2.Ex1.m1.9.9.2"><ci id="S2.Ex1.m1.9.9.2.3.cmml" xref="S2.Ex1.m1.9.9.2.3">⋅</ci><apply id="S2.Ex1.m1.9.9.2.2.cmml" xref="S2.Ex1.m1.9.9.2.2"><times id="S2.Ex1.m1.9.9.2.2.3.cmml" xref="S2.Ex1.m1.9.9.2.2.3"></times><cn type="integer" id="S2.Ex1.m1.9.9.2.2.4.cmml" xref="S2.Ex1.m1.9.9.2.2.4">2</cn><apply id="S2.Ex1.m1.8.8.1.1.1.1.1.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1"><minus id="S2.Ex1.m1.8.8.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1.1.1"></minus><apply id="S2.Ex1.m1.8.8.1.1.1.1.1.2.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2"><times id="S2.Ex1.m1.8.8.1.1.1.1.1.2.1.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.1"></times><ci id="S2.Ex1.m1.8.8.1.1.1.1.1.2.2.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1.1.2.2">ℎ</ci><ci id="S2.Ex1.m1.7.7.cmml" xref="S2.Ex1.m1.7.7">𝑥</ci></apply><ci id="S2.Ex1.m1.8.8.1.1.1.1.1.3.cmml" xref="S2.Ex1.m1.8.8.1.1.1.1.1.3">𝑦</ci></apply><apply id="S2.Ex1.m1.9.9.2.2.5.cmml" xref="S2.Ex1.m1.9.9.2.2.5"><csymbol cd="ambiguous" id="S2.Ex1.m1.9.9.2.2.5.1.cmml" xref="S2.Ex1.m1.9.9.2.2.5">superscript</csymbol><ci id="S2.Ex1.m1.9.9.2.2.5.2.cmml" xref="S2.Ex1.m1.9.9.2.2.5.2">𝐴</ci><ci id="S2.Ex1.m1.9.9.2.2.5.3.cmml" xref="S2.Ex1.m1.9.9.2.2.5.3">′</ci></apply><apply id="S2.Ex1.m1.9.9.2.2.2.1.1.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1"><plus id="S2.Ex1.m1.9.9.2.2.2.1.1.1.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.1"></plus><apply id="S2.Ex1.m1.9.9.2.2.2.1.1.2.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2"><ci id="S2.Ex1.m1.9.9.2.2.2.1.1.2.1.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.1">⋅</ci><ci id="S2.Ex1.m1.9.9.2.2.2.1.1.2.2.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.2">𝑊</ci><ci id="S2.Ex1.m1.9.9.2.2.2.1.1.2.3.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.2.3">𝑥</ci></apply><ci id="S2.Ex1.m1.9.9.2.2.2.1.1.3.cmml" xref="S2.Ex1.m1.9.9.2.2.2.1.1.3">𝑏</ci></apply></apply><apply id="S2.Ex1.m1.9.9.2.4.cmml" xref="S2.Ex1.m1.9.9.2.4"><csymbol cd="ambiguous" id="S2.Ex1.m1.9.9.2.4.1.cmml" xref="S2.Ex1.m1.9.9.2.4">subscript</csymbol><ci id="S2.Ex1.m1.9.9.2.4.2.cmml" xref="S2.Ex1.m1.9.9.2.4.2">𝑥</ci><ci id="S2.Ex1.m1.9.9.2.4.3.cmml" xref="S2.Ex1.m1.9.9.2.4.3">𝑗</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.9c">g_{w,j}=\frac{d\mathcal{L}(W,b,x,y)}{dW}=2(h(x)-y)A^{\prime}(W\cdot x+b)\cdot x_{j}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<table id="S2.Ex2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex2.m1.7" class="ltx_Math" alttext="g_{b}=\frac{d\mathcal{L}(W,b,x,y)}{db}=2(h(x)-y)A^{\prime}(W\cdot x+b)\cdot 1" display="block"><semantics id="S2.Ex2.m1.7a"><mrow id="S2.Ex2.m1.7.7" xref="S2.Ex2.m1.7.7.cmml"><msub id="S2.Ex2.m1.7.7.4" xref="S2.Ex2.m1.7.7.4.cmml"><mi id="S2.Ex2.m1.7.7.4.2" xref="S2.Ex2.m1.7.7.4.2.cmml">g</mi><mi id="S2.Ex2.m1.7.7.4.3" xref="S2.Ex2.m1.7.7.4.3.cmml">b</mi></msub><mo id="S2.Ex2.m1.7.7.5" xref="S2.Ex2.m1.7.7.5.cmml">=</mo><mfrac id="S2.Ex2.m1.4.4" xref="S2.Ex2.m1.4.4.cmml"><mrow id="S2.Ex2.m1.4.4.4" xref="S2.Ex2.m1.4.4.4.cmml"><mi id="S2.Ex2.m1.4.4.4.6" xref="S2.Ex2.m1.4.4.4.6.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.4.4.4.5" xref="S2.Ex2.m1.4.4.4.5.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S2.Ex2.m1.4.4.4.7" xref="S2.Ex2.m1.4.4.4.7.cmml">ℒ</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.4.4.4.5a" xref="S2.Ex2.m1.4.4.4.5.cmml">​</mo><mrow id="S2.Ex2.m1.4.4.4.8.2" xref="S2.Ex2.m1.4.4.4.8.1.cmml"><mo stretchy="false" id="S2.Ex2.m1.4.4.4.8.2.1" xref="S2.Ex2.m1.4.4.4.8.1.cmml">(</mo><mi id="S2.Ex2.m1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.cmml">W</mi><mo id="S2.Ex2.m1.4.4.4.8.2.2" xref="S2.Ex2.m1.4.4.4.8.1.cmml">,</mo><mi id="S2.Ex2.m1.2.2.2.2" xref="S2.Ex2.m1.2.2.2.2.cmml">b</mi><mo id="S2.Ex2.m1.4.4.4.8.2.3" xref="S2.Ex2.m1.4.4.4.8.1.cmml">,</mo><mi id="S2.Ex2.m1.3.3.3.3" xref="S2.Ex2.m1.3.3.3.3.cmml">x</mi><mo id="S2.Ex2.m1.4.4.4.8.2.4" xref="S2.Ex2.m1.4.4.4.8.1.cmml">,</mo><mi id="S2.Ex2.m1.4.4.4.4" xref="S2.Ex2.m1.4.4.4.4.cmml">y</mi><mo stretchy="false" id="S2.Ex2.m1.4.4.4.8.2.5" xref="S2.Ex2.m1.4.4.4.8.1.cmml">)</mo></mrow></mrow><mrow id="S2.Ex2.m1.4.4.6" xref="S2.Ex2.m1.4.4.6.cmml"><mi id="S2.Ex2.m1.4.4.6.2" xref="S2.Ex2.m1.4.4.6.2.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.4.4.6.1" xref="S2.Ex2.m1.4.4.6.1.cmml">​</mo><mi id="S2.Ex2.m1.4.4.6.3" xref="S2.Ex2.m1.4.4.6.3.cmml">b</mi></mrow></mfrac><mo id="S2.Ex2.m1.7.7.6" xref="S2.Ex2.m1.7.7.6.cmml">=</mo><mrow id="S2.Ex2.m1.7.7.2" xref="S2.Ex2.m1.7.7.2.cmml"><mrow id="S2.Ex2.m1.7.7.2.2" xref="S2.Ex2.m1.7.7.2.2.cmml"><mn id="S2.Ex2.m1.7.7.2.2.4" xref="S2.Ex2.m1.7.7.2.2.4.cmml">2</mn><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.7.7.2.2.3" xref="S2.Ex2.m1.7.7.2.2.3.cmml">​</mo><mrow id="S2.Ex2.m1.6.6.1.1.1.1" xref="S2.Ex2.m1.6.6.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex2.m1.6.6.1.1.1.1.2" xref="S2.Ex2.m1.6.6.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex2.m1.6.6.1.1.1.1.1" xref="S2.Ex2.m1.6.6.1.1.1.1.1.cmml"><mrow id="S2.Ex2.m1.6.6.1.1.1.1.1.2" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.cmml"><mi id="S2.Ex2.m1.6.6.1.1.1.1.1.2.2" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.2.cmml">h</mi><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.6.6.1.1.1.1.1.2.1" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.1.cmml">​</mo><mrow id="S2.Ex2.m1.6.6.1.1.1.1.1.2.3.2" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.cmml"><mo stretchy="false" id="S2.Ex2.m1.6.6.1.1.1.1.1.2.3.2.1" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.cmml">(</mo><mi id="S2.Ex2.m1.5.5" xref="S2.Ex2.m1.5.5.cmml">x</mi><mo stretchy="false" id="S2.Ex2.m1.6.6.1.1.1.1.1.2.3.2.2" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.cmml">)</mo></mrow></mrow><mo id="S2.Ex2.m1.6.6.1.1.1.1.1.1" xref="S2.Ex2.m1.6.6.1.1.1.1.1.1.cmml">−</mo><mi id="S2.Ex2.m1.6.6.1.1.1.1.1.3" xref="S2.Ex2.m1.6.6.1.1.1.1.1.3.cmml">y</mi></mrow><mo stretchy="false" id="S2.Ex2.m1.6.6.1.1.1.1.3" xref="S2.Ex2.m1.6.6.1.1.1.1.1.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.7.7.2.2.3a" xref="S2.Ex2.m1.7.7.2.2.3.cmml">​</mo><msup id="S2.Ex2.m1.7.7.2.2.5" xref="S2.Ex2.m1.7.7.2.2.5.cmml"><mi id="S2.Ex2.m1.7.7.2.2.5.2" xref="S2.Ex2.m1.7.7.2.2.5.2.cmml">A</mi><mo id="S2.Ex2.m1.7.7.2.2.5.3" xref="S2.Ex2.m1.7.7.2.2.5.3.cmml">′</mo></msup><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.7.7.2.2.3b" xref="S2.Ex2.m1.7.7.2.2.3.cmml">​</mo><mrow id="S2.Ex2.m1.7.7.2.2.2.1" xref="S2.Ex2.m1.7.7.2.2.2.1.1.cmml"><mo stretchy="false" id="S2.Ex2.m1.7.7.2.2.2.1.2" xref="S2.Ex2.m1.7.7.2.2.2.1.1.cmml">(</mo><mrow id="S2.Ex2.m1.7.7.2.2.2.1.1" xref="S2.Ex2.m1.7.7.2.2.2.1.1.cmml"><mrow id="S2.Ex2.m1.7.7.2.2.2.1.1.2" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.cmml"><mi id="S2.Ex2.m1.7.7.2.2.2.1.1.2.2" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.2.cmml">W</mi><mo lspace="0.222em" rspace="0.222em" id="S2.Ex2.m1.7.7.2.2.2.1.1.2.1" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.1.cmml">⋅</mo><mi id="S2.Ex2.m1.7.7.2.2.2.1.1.2.3" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.3.cmml">x</mi></mrow><mo id="S2.Ex2.m1.7.7.2.2.2.1.1.1" xref="S2.Ex2.m1.7.7.2.2.2.1.1.1.cmml">+</mo><mi id="S2.Ex2.m1.7.7.2.2.2.1.1.3" xref="S2.Ex2.m1.7.7.2.2.2.1.1.3.cmml">b</mi></mrow><mo rspace="0.055em" stretchy="false" id="S2.Ex2.m1.7.7.2.2.2.1.3" xref="S2.Ex2.m1.7.7.2.2.2.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.222em" id="S2.Ex2.m1.7.7.2.3" xref="S2.Ex2.m1.7.7.2.3.cmml">⋅</mo><mn id="S2.Ex2.m1.7.7.2.4" xref="S2.Ex2.m1.7.7.2.4.cmml">1</mn></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex2.m1.7b"><apply id="S2.Ex2.m1.7.7.cmml" xref="S2.Ex2.m1.7.7"><and id="S2.Ex2.m1.7.7a.cmml" xref="S2.Ex2.m1.7.7"></and><apply id="S2.Ex2.m1.7.7b.cmml" xref="S2.Ex2.m1.7.7"><eq id="S2.Ex2.m1.7.7.5.cmml" xref="S2.Ex2.m1.7.7.5"></eq><apply id="S2.Ex2.m1.7.7.4.cmml" xref="S2.Ex2.m1.7.7.4"><csymbol cd="ambiguous" id="S2.Ex2.m1.7.7.4.1.cmml" xref="S2.Ex2.m1.7.7.4">subscript</csymbol><ci id="S2.Ex2.m1.7.7.4.2.cmml" xref="S2.Ex2.m1.7.7.4.2">𝑔</ci><ci id="S2.Ex2.m1.7.7.4.3.cmml" xref="S2.Ex2.m1.7.7.4.3">𝑏</ci></apply><apply id="S2.Ex2.m1.4.4.cmml" xref="S2.Ex2.m1.4.4"><divide id="S2.Ex2.m1.4.4.5.cmml" xref="S2.Ex2.m1.4.4"></divide><apply id="S2.Ex2.m1.4.4.4.cmml" xref="S2.Ex2.m1.4.4.4"><times id="S2.Ex2.m1.4.4.4.5.cmml" xref="S2.Ex2.m1.4.4.4.5"></times><ci id="S2.Ex2.m1.4.4.4.6.cmml" xref="S2.Ex2.m1.4.4.4.6">𝑑</ci><ci id="S2.Ex2.m1.4.4.4.7.cmml" xref="S2.Ex2.m1.4.4.4.7">ℒ</ci><vector id="S2.Ex2.m1.4.4.4.8.1.cmml" xref="S2.Ex2.m1.4.4.4.8.2"><ci id="S2.Ex2.m1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1.1">𝑊</ci><ci id="S2.Ex2.m1.2.2.2.2.cmml" xref="S2.Ex2.m1.2.2.2.2">𝑏</ci><ci id="S2.Ex2.m1.3.3.3.3.cmml" xref="S2.Ex2.m1.3.3.3.3">𝑥</ci><ci id="S2.Ex2.m1.4.4.4.4.cmml" xref="S2.Ex2.m1.4.4.4.4">𝑦</ci></vector></apply><apply id="S2.Ex2.m1.4.4.6.cmml" xref="S2.Ex2.m1.4.4.6"><times id="S2.Ex2.m1.4.4.6.1.cmml" xref="S2.Ex2.m1.4.4.6.1"></times><ci id="S2.Ex2.m1.4.4.6.2.cmml" xref="S2.Ex2.m1.4.4.6.2">𝑑</ci><ci id="S2.Ex2.m1.4.4.6.3.cmml" xref="S2.Ex2.m1.4.4.6.3">𝑏</ci></apply></apply></apply><apply id="S2.Ex2.m1.7.7c.cmml" xref="S2.Ex2.m1.7.7"><eq id="S2.Ex2.m1.7.7.6.cmml" xref="S2.Ex2.m1.7.7.6"></eq><share href="#S2.Ex2.m1.4.4.cmml" id="S2.Ex2.m1.7.7d.cmml" xref="S2.Ex2.m1.7.7"></share><apply id="S2.Ex2.m1.7.7.2.cmml" xref="S2.Ex2.m1.7.7.2"><ci id="S2.Ex2.m1.7.7.2.3.cmml" xref="S2.Ex2.m1.7.7.2.3">⋅</ci><apply id="S2.Ex2.m1.7.7.2.2.cmml" xref="S2.Ex2.m1.7.7.2.2"><times id="S2.Ex2.m1.7.7.2.2.3.cmml" xref="S2.Ex2.m1.7.7.2.2.3"></times><cn type="integer" id="S2.Ex2.m1.7.7.2.2.4.cmml" xref="S2.Ex2.m1.7.7.2.2.4">2</cn><apply id="S2.Ex2.m1.6.6.1.1.1.1.1.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1"><minus id="S2.Ex2.m1.6.6.1.1.1.1.1.1.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1.1.1"></minus><apply id="S2.Ex2.m1.6.6.1.1.1.1.1.2.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2"><times id="S2.Ex2.m1.6.6.1.1.1.1.1.2.1.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.1"></times><ci id="S2.Ex2.m1.6.6.1.1.1.1.1.2.2.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1.1.2.2">ℎ</ci><ci id="S2.Ex2.m1.5.5.cmml" xref="S2.Ex2.m1.5.5">𝑥</ci></apply><ci id="S2.Ex2.m1.6.6.1.1.1.1.1.3.cmml" xref="S2.Ex2.m1.6.6.1.1.1.1.1.3">𝑦</ci></apply><apply id="S2.Ex2.m1.7.7.2.2.5.cmml" xref="S2.Ex2.m1.7.7.2.2.5"><csymbol cd="ambiguous" id="S2.Ex2.m1.7.7.2.2.5.1.cmml" xref="S2.Ex2.m1.7.7.2.2.5">superscript</csymbol><ci id="S2.Ex2.m1.7.7.2.2.5.2.cmml" xref="S2.Ex2.m1.7.7.2.2.5.2">𝐴</ci><ci id="S2.Ex2.m1.7.7.2.2.5.3.cmml" xref="S2.Ex2.m1.7.7.2.2.5.3">′</ci></apply><apply id="S2.Ex2.m1.7.7.2.2.2.1.1.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1"><plus id="S2.Ex2.m1.7.7.2.2.2.1.1.1.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.1"></plus><apply id="S2.Ex2.m1.7.7.2.2.2.1.1.2.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2"><ci id="S2.Ex2.m1.7.7.2.2.2.1.1.2.1.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.1">⋅</ci><ci id="S2.Ex2.m1.7.7.2.2.2.1.1.2.2.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.2">𝑊</ci><ci id="S2.Ex2.m1.7.7.2.2.2.1.1.2.3.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.2.3">𝑥</ci></apply><ci id="S2.Ex2.m1.7.7.2.2.2.1.1.3.cmml" xref="S2.Ex2.m1.7.7.2.2.2.1.1.3">𝑏</ci></apply></apply><cn type="integer" id="S2.Ex2.m1.7.7.2.4.cmml" xref="S2.Ex2.m1.7.7.2.4">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex2.m1.7c">g_{b}=\frac{d\mathcal{L}(W,b,x,y)}{db}=2(h(x)-y)A^{\prime}(W\cdot x+b)\cdot 1</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p5.4" class="ltx_p">where <math id="S2.SS1.p5.2.m1.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S2.SS1.p5.2.m1.1a"><mi id="S2.SS1.p5.2.m1.1.1" xref="S2.SS1.p5.2.m1.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p5.2.m1.1b"><ci id="S2.SS1.p5.2.m1.1.1.cmml" xref="S2.SS1.p5.2.m1.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p5.2.m1.1c">j</annotation></semantics></math> is the <math id="S2.SS1.p5.3.m2.1" class="ltx_Math" alttext="j^{th}" display="inline"><semantics id="S2.SS1.p5.3.m2.1a"><msup id="S2.SS1.p5.3.m2.1.1" xref="S2.SS1.p5.3.m2.1.1.cmml"><mi id="S2.SS1.p5.3.m2.1.1.2" xref="S2.SS1.p5.3.m2.1.1.2.cmml">j</mi><mrow id="S2.SS1.p5.3.m2.1.1.3" xref="S2.SS1.p5.3.m2.1.1.3.cmml"><mi id="S2.SS1.p5.3.m2.1.1.3.2" xref="S2.SS1.p5.3.m2.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p5.3.m2.1.1.3.1" xref="S2.SS1.p5.3.m2.1.1.3.1.cmml">​</mo><mi id="S2.SS1.p5.3.m2.1.1.3.3" xref="S2.SS1.p5.3.m2.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S2.SS1.p5.3.m2.1b"><apply id="S2.SS1.p5.3.m2.1.1.cmml" xref="S2.SS1.p5.3.m2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p5.3.m2.1.1.1.cmml" xref="S2.SS1.p5.3.m2.1.1">superscript</csymbol><ci id="S2.SS1.p5.3.m2.1.1.2.cmml" xref="S2.SS1.p5.3.m2.1.1.2">𝑗</ci><apply id="S2.SS1.p5.3.m2.1.1.3.cmml" xref="S2.SS1.p5.3.m2.1.1.3"><times id="S2.SS1.p5.3.m2.1.1.3.1.cmml" xref="S2.SS1.p5.3.m2.1.1.3.1"></times><ci id="S2.SS1.p5.3.m2.1.1.3.2.cmml" xref="S2.SS1.p5.3.m2.1.1.3.2">𝑡</ci><ci id="S2.SS1.p5.3.m2.1.1.3.3.cmml" xref="S2.SS1.p5.3.m2.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p5.3.m2.1c">j^{th}</annotation></semantics></math> input element in the input space of <math id="S2.SS1.p5.4.m3.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p5.4.m3.1a"><mi id="S2.SS1.p5.4.m3.1.1" xref="S2.SS1.p5.4.m3.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p5.4.m3.1b"><ci id="S2.SS1.p5.4.m3.1.1.cmml" xref="S2.SS1.p5.4.m3.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p5.4.m3.1c">x</annotation></semantics></math>.</p>
+</div>
+<div id="S2.SS1.p6" class="ltx_para">
+<p id="S2.SS1.p6.8" class="ltx_p">We can identify two important characteristics of this derivation. First, having <math id="S2.SS1.p6.1.m1.1" class="ltx_Math" alttext="g_{w}" display="inline"><semantics id="S2.SS1.p6.1.m1.1a"><msub id="S2.SS1.p6.1.m1.1.1" xref="S2.SS1.p6.1.m1.1.1.cmml"><mi id="S2.SS1.p6.1.m1.1.1.2" xref="S2.SS1.p6.1.m1.1.1.2.cmml">g</mi><mi id="S2.SS1.p6.1.m1.1.1.3" xref="S2.SS1.p6.1.m1.1.1.3.cmml">w</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.1.m1.1b"><apply id="S2.SS1.p6.1.m1.1.1.cmml" xref="S2.SS1.p6.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p6.1.m1.1.1.1.cmml" xref="S2.SS1.p6.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p6.1.m1.1.1.2.cmml" xref="S2.SS1.p6.1.m1.1.1.2">𝑔</ci><ci id="S2.SS1.p6.1.m1.1.1.3.cmml" xref="S2.SS1.p6.1.m1.1.1.3">𝑤</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.1.m1.1c">g_{w}</annotation></semantics></math> and <math id="S2.SS1.p6.2.m2.1" class="ltx_Math" alttext="g_{b}" display="inline"><semantics id="S2.SS1.p6.2.m2.1a"><msub id="S2.SS1.p6.2.m2.1.1" xref="S2.SS1.p6.2.m2.1.1.cmml"><mi id="S2.SS1.p6.2.m2.1.1.2" xref="S2.SS1.p6.2.m2.1.1.2.cmml">g</mi><mi id="S2.SS1.p6.2.m2.1.1.3" xref="S2.SS1.p6.2.m2.1.1.3.cmml">b</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.2.m2.1b"><apply id="S2.SS1.p6.2.m2.1.1.cmml" xref="S2.SS1.p6.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p6.2.m2.1.1.1.cmml" xref="S2.SS1.p6.2.m2.1.1">subscript</csymbol><ci id="S2.SS1.p6.2.m2.1.1.2.cmml" xref="S2.SS1.p6.2.m2.1.1.2">𝑔</ci><ci id="S2.SS1.p6.2.m2.1.1.3.cmml" xref="S2.SS1.p6.2.m2.1.1.3">𝑏</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.2.m2.1c">g_{b}</annotation></semantics></math> allows us to retrieve the entire input <math id="S2.SS1.p6.3.m3.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p6.3.m3.1a"><mi id="S2.SS1.p6.3.m3.1.1" xref="S2.SS1.p6.3.m3.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.3.m3.1b"><ci id="S2.SS1.p6.3.m3.1.1.cmml" xref="S2.SS1.p6.3.m3.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.3.m3.1c">x</annotation></semantics></math> on which the network was trained by dividing <math id="S2.SS1.p6.4.m4.1" class="ltx_Math" alttext="\frac{g_{w}}{g_{b}}=x" display="inline"><semantics id="S2.SS1.p6.4.m4.1a"><mrow id="S2.SS1.p6.4.m4.1.1" xref="S2.SS1.p6.4.m4.1.1.cmml"><mfrac id="S2.SS1.p6.4.m4.1.1.2" xref="S2.SS1.p6.4.m4.1.1.2.cmml"><msub id="S2.SS1.p6.4.m4.1.1.2.2" xref="S2.SS1.p6.4.m4.1.1.2.2.cmml"><mi id="S2.SS1.p6.4.m4.1.1.2.2.2" xref="S2.SS1.p6.4.m4.1.1.2.2.2.cmml">g</mi><mi id="S2.SS1.p6.4.m4.1.1.2.2.3" xref="S2.SS1.p6.4.m4.1.1.2.2.3.cmml">w</mi></msub><msub id="S2.SS1.p6.4.m4.1.1.2.3" xref="S2.SS1.p6.4.m4.1.1.2.3.cmml"><mi id="S2.SS1.p6.4.m4.1.1.2.3.2" xref="S2.SS1.p6.4.m4.1.1.2.3.2.cmml">g</mi><mi id="S2.SS1.p6.4.m4.1.1.2.3.3" xref="S2.SS1.p6.4.m4.1.1.2.3.3.cmml">b</mi></msub></mfrac><mo id="S2.SS1.p6.4.m4.1.1.1" xref="S2.SS1.p6.4.m4.1.1.1.cmml">=</mo><mi id="S2.SS1.p6.4.m4.1.1.3" xref="S2.SS1.p6.4.m4.1.1.3.cmml">x</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.4.m4.1b"><apply id="S2.SS1.p6.4.m4.1.1.cmml" xref="S2.SS1.p6.4.m4.1.1"><eq id="S2.SS1.p6.4.m4.1.1.1.cmml" xref="S2.SS1.p6.4.m4.1.1.1"></eq><apply id="S2.SS1.p6.4.m4.1.1.2.cmml" xref="S2.SS1.p6.4.m4.1.1.2"><divide id="S2.SS1.p6.4.m4.1.1.2.1.cmml" xref="S2.SS1.p6.4.m4.1.1.2"></divide><apply id="S2.SS1.p6.4.m4.1.1.2.2.cmml" xref="S2.SS1.p6.4.m4.1.1.2.2"><csymbol cd="ambiguous" id="S2.SS1.p6.4.m4.1.1.2.2.1.cmml" xref="S2.SS1.p6.4.m4.1.1.2.2">subscript</csymbol><ci id="S2.SS1.p6.4.m4.1.1.2.2.2.cmml" xref="S2.SS1.p6.4.m4.1.1.2.2.2">𝑔</ci><ci id="S2.SS1.p6.4.m4.1.1.2.2.3.cmml" xref="S2.SS1.p6.4.m4.1.1.2.2.3">𝑤</ci></apply><apply id="S2.SS1.p6.4.m4.1.1.2.3.cmml" xref="S2.SS1.p6.4.m4.1.1.2.3"><csymbol cd="ambiguous" id="S2.SS1.p6.4.m4.1.1.2.3.1.cmml" xref="S2.SS1.p6.4.m4.1.1.2.3">subscript</csymbol><ci id="S2.SS1.p6.4.m4.1.1.2.3.2.cmml" xref="S2.SS1.p6.4.m4.1.1.2.3.2">𝑔</ci><ci id="S2.SS1.p6.4.m4.1.1.2.3.3.cmml" xref="S2.SS1.p6.4.m4.1.1.2.3.3">𝑏</ci></apply></apply><ci id="S2.SS1.p6.4.m4.1.1.3.cmml" xref="S2.SS1.p6.4.m4.1.1.3">𝑥</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.4.m4.1c">\frac{g_{w}}{g_{b}}=x</annotation></semantics></math>. Secondly, if <math id="S2.SS1.p6.5.m5.1" class="ltx_Math" alttext="g_{b}" display="inline"><semantics id="S2.SS1.p6.5.m5.1a"><msub id="S2.SS1.p6.5.m5.1.1" xref="S2.SS1.p6.5.m5.1.1.cmml"><mi id="S2.SS1.p6.5.m5.1.1.2" xref="S2.SS1.p6.5.m5.1.1.2.cmml">g</mi><mi id="S2.SS1.p6.5.m5.1.1.3" xref="S2.SS1.p6.5.m5.1.1.3.cmml">b</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.5.m5.1b"><apply id="S2.SS1.p6.5.m5.1.1.cmml" xref="S2.SS1.p6.5.m5.1.1"><csymbol cd="ambiguous" id="S2.SS1.p6.5.m5.1.1.1.cmml" xref="S2.SS1.p6.5.m5.1.1">subscript</csymbol><ci id="S2.SS1.p6.5.m5.1.1.2.cmml" xref="S2.SS1.p6.5.m5.1.1.2">𝑔</ci><ci id="S2.SS1.p6.5.m5.1.1.3.cmml" xref="S2.SS1.p6.5.m5.1.1.3">𝑏</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.5.m5.1c">g_{b}</annotation></semantics></math> is not known, <math id="S2.SS1.p6.6.m6.1" class="ltx_Math" alttext="g_{w}" display="inline"><semantics id="S2.SS1.p6.6.m6.1a"><msub id="S2.SS1.p6.6.m6.1.1" xref="S2.SS1.p6.6.m6.1.1.cmml"><mi id="S2.SS1.p6.6.m6.1.1.2" xref="S2.SS1.p6.6.m6.1.1.2.cmml">g</mi><mi id="S2.SS1.p6.6.m6.1.1.3" xref="S2.SS1.p6.6.m6.1.1.3.cmml">w</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.6.m6.1b"><apply id="S2.SS1.p6.6.m6.1.1.cmml" xref="S2.SS1.p6.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS1.p6.6.m6.1.1.1.cmml" xref="S2.SS1.p6.6.m6.1.1">subscript</csymbol><ci id="S2.SS1.p6.6.m6.1.1.2.cmml" xref="S2.SS1.p6.6.m6.1.1.2">𝑔</ci><ci id="S2.SS1.p6.6.m6.1.1.3.cmml" xref="S2.SS1.p6.6.m6.1.1.3">𝑤</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.6.m6.1c">g_{w}</annotation></semantics></math> allows for a reconstruction of the input <math id="S2.SS1.p6.7.m7.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p6.7.m7.1a"><mi id="S2.SS1.p6.7.m7.1.1" xref="S2.SS1.p6.7.m7.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.7.m7.1b"><ci id="S2.SS1.p6.7.m7.1.1.cmml" xref="S2.SS1.p6.7.m7.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.7.m7.1c">x</annotation></semantics></math> that is linearly related to the true sample <math id="S2.SS1.p6.8.m8.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p6.8.m8.1a"><mi id="S2.SS1.p6.8.m8.1.1" xref="S2.SS1.p6.8.m8.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p6.8.m8.1b"><ci id="S2.SS1.p6.8.m8.1.1.cmml" xref="S2.SS1.p6.8.m8.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p6.8.m8.1c">x</annotation></semantics></math>. This principle is illustrated in Figure <a href="#S2.F3" title="Figure 3 ‣ II-A Mathematical foundation ‣ II First Dense Layer Attack ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> in which three different samples can be derived from their respective training gradients even if the bias gradient is unknown.</p>
+</div>
+<figure id="S2.F3" class="ltx_figure">
+<p id="S2.F3.1" class="ltx_p ltx_align_center"><span id="S2.F3.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x3.png" id="S2.F3.1.1.g1" class="ltx_graphics ltx_img_landscape" width="462" height="218" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Weight gradient on different samples (length of arrow represents value)</figcaption>
+</figure>
+<div id="S2.SS1.p7" class="ltx_para">
+<p id="S2.SS1.p7.5" class="ltx_p">After the gradients of a model are calculated (can be aggregation over multiple samples) the weights of the model are updated by <math id="S2.SS1.p7.1.m1.1" class="ltx_Math" alttext="w_{t+1}\leftarrow w_{t}-\eta g" display="inline"><semantics id="S2.SS1.p7.1.m1.1a"><mrow id="S2.SS1.p7.1.m1.1.1" xref="S2.SS1.p7.1.m1.1.1.cmml"><msub id="S2.SS1.p7.1.m1.1.1.2" xref="S2.SS1.p7.1.m1.1.1.2.cmml"><mi id="S2.SS1.p7.1.m1.1.1.2.2" xref="S2.SS1.p7.1.m1.1.1.2.2.cmml">w</mi><mrow id="S2.SS1.p7.1.m1.1.1.2.3" xref="S2.SS1.p7.1.m1.1.1.2.3.cmml"><mi id="S2.SS1.p7.1.m1.1.1.2.3.2" xref="S2.SS1.p7.1.m1.1.1.2.3.2.cmml">t</mi><mo id="S2.SS1.p7.1.m1.1.1.2.3.1" xref="S2.SS1.p7.1.m1.1.1.2.3.1.cmml">+</mo><mn id="S2.SS1.p7.1.m1.1.1.2.3.3" xref="S2.SS1.p7.1.m1.1.1.2.3.3.cmml">1</mn></mrow></msub><mo stretchy="false" id="S2.SS1.p7.1.m1.1.1.1" xref="S2.SS1.p7.1.m1.1.1.1.cmml">←</mo><mrow id="S2.SS1.p7.1.m1.1.1.3" xref="S2.SS1.p7.1.m1.1.1.3.cmml"><msub id="S2.SS1.p7.1.m1.1.1.3.2" xref="S2.SS1.p7.1.m1.1.1.3.2.cmml"><mi id="S2.SS1.p7.1.m1.1.1.3.2.2" xref="S2.SS1.p7.1.m1.1.1.3.2.2.cmml">w</mi><mi id="S2.SS1.p7.1.m1.1.1.3.2.3" xref="S2.SS1.p7.1.m1.1.1.3.2.3.cmml">t</mi></msub><mo id="S2.SS1.p7.1.m1.1.1.3.1" xref="S2.SS1.p7.1.m1.1.1.3.1.cmml">−</mo><mrow id="S2.SS1.p7.1.m1.1.1.3.3" xref="S2.SS1.p7.1.m1.1.1.3.3.cmml"><mi id="S2.SS1.p7.1.m1.1.1.3.3.2" xref="S2.SS1.p7.1.m1.1.1.3.3.2.cmml">η</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p7.1.m1.1.1.3.3.1" xref="S2.SS1.p7.1.m1.1.1.3.3.1.cmml">​</mo><mi id="S2.SS1.p7.1.m1.1.1.3.3.3" xref="S2.SS1.p7.1.m1.1.1.3.3.3.cmml">g</mi></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p7.1.m1.1b"><apply id="S2.SS1.p7.1.m1.1.1.cmml" xref="S2.SS1.p7.1.m1.1.1"><ci id="S2.SS1.p7.1.m1.1.1.1.cmml" xref="S2.SS1.p7.1.m1.1.1.1">←</ci><apply id="S2.SS1.p7.1.m1.1.1.2.cmml" xref="S2.SS1.p7.1.m1.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p7.1.m1.1.1.2.1.cmml" xref="S2.SS1.p7.1.m1.1.1.2">subscript</csymbol><ci id="S2.SS1.p7.1.m1.1.1.2.2.cmml" xref="S2.SS1.p7.1.m1.1.1.2.2">𝑤</ci><apply id="S2.SS1.p7.1.m1.1.1.2.3.cmml" xref="S2.SS1.p7.1.m1.1.1.2.3"><plus id="S2.SS1.p7.1.m1.1.1.2.3.1.cmml" xref="S2.SS1.p7.1.m1.1.1.2.3.1"></plus><ci id="S2.SS1.p7.1.m1.1.1.2.3.2.cmml" xref="S2.SS1.p7.1.m1.1.1.2.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p7.1.m1.1.1.2.3.3.cmml" xref="S2.SS1.p7.1.m1.1.1.2.3.3">1</cn></apply></apply><apply id="S2.SS1.p7.1.m1.1.1.3.cmml" xref="S2.SS1.p7.1.m1.1.1.3"><minus id="S2.SS1.p7.1.m1.1.1.3.1.cmml" xref="S2.SS1.p7.1.m1.1.1.3.1"></minus><apply id="S2.SS1.p7.1.m1.1.1.3.2.cmml" xref="S2.SS1.p7.1.m1.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS1.p7.1.m1.1.1.3.2.1.cmml" xref="S2.SS1.p7.1.m1.1.1.3.2">subscript</csymbol><ci id="S2.SS1.p7.1.m1.1.1.3.2.2.cmml" xref="S2.SS1.p7.1.m1.1.1.3.2.2">𝑤</ci><ci id="S2.SS1.p7.1.m1.1.1.3.2.3.cmml" xref="S2.SS1.p7.1.m1.1.1.3.2.3">𝑡</ci></apply><apply id="S2.SS1.p7.1.m1.1.1.3.3.cmml" xref="S2.SS1.p7.1.m1.1.1.3.3"><times id="S2.SS1.p7.1.m1.1.1.3.3.1.cmml" xref="S2.SS1.p7.1.m1.1.1.3.3.1"></times><ci id="S2.SS1.p7.1.m1.1.1.3.3.2.cmml" xref="S2.SS1.p7.1.m1.1.1.3.3.2">𝜂</ci><ci id="S2.SS1.p7.1.m1.1.1.3.3.3.cmml" xref="S2.SS1.p7.1.m1.1.1.3.3.3">𝑔</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p7.1.m1.1c">w_{t+1}\leftarrow w_{t}-\eta g</annotation></semantics></math> in which <math id="S2.SS1.p7.2.m2.1" class="ltx_Math" alttext="\eta" display="inline"><semantics id="S2.SS1.p7.2.m2.1a"><mi id="S2.SS1.p7.2.m2.1.1" xref="S2.SS1.p7.2.m2.1.1.cmml">η</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p7.2.m2.1b"><ci id="S2.SS1.p7.2.m2.1.1.cmml" xref="S2.SS1.p7.2.m2.1.1">𝜂</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p7.2.m2.1c">\eta</annotation></semantics></math> represents the so called learning rate. Having the before and after weights <math id="S2.SS1.p7.3.m3.2" class="ltx_Math" alttext="{w_{t+1},w_{t}}" display="inline"><semantics id="S2.SS1.p7.3.m3.2a"><mrow id="S2.SS1.p7.3.m3.2.2.2" xref="S2.SS1.p7.3.m3.2.2.3.cmml"><msub id="S2.SS1.p7.3.m3.1.1.1.1" xref="S2.SS1.p7.3.m3.1.1.1.1.cmml"><mi id="S2.SS1.p7.3.m3.1.1.1.1.2" xref="S2.SS1.p7.3.m3.1.1.1.1.2.cmml">w</mi><mrow id="S2.SS1.p7.3.m3.1.1.1.1.3" xref="S2.SS1.p7.3.m3.1.1.1.1.3.cmml"><mi id="S2.SS1.p7.3.m3.1.1.1.1.3.2" xref="S2.SS1.p7.3.m3.1.1.1.1.3.2.cmml">t</mi><mo id="S2.SS1.p7.3.m3.1.1.1.1.3.1" xref="S2.SS1.p7.3.m3.1.1.1.1.3.1.cmml">+</mo><mn id="S2.SS1.p7.3.m3.1.1.1.1.3.3" xref="S2.SS1.p7.3.m3.1.1.1.1.3.3.cmml">1</mn></mrow></msub><mo id="S2.SS1.p7.3.m3.2.2.2.3" xref="S2.SS1.p7.3.m3.2.2.3.cmml">,</mo><msub id="S2.SS1.p7.3.m3.2.2.2.2" xref="S2.SS1.p7.3.m3.2.2.2.2.cmml"><mi id="S2.SS1.p7.3.m3.2.2.2.2.2" xref="S2.SS1.p7.3.m3.2.2.2.2.2.cmml">w</mi><mi id="S2.SS1.p7.3.m3.2.2.2.2.3" xref="S2.SS1.p7.3.m3.2.2.2.2.3.cmml">t</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p7.3.m3.2b"><list id="S2.SS1.p7.3.m3.2.2.3.cmml" xref="S2.SS1.p7.3.m3.2.2.2"><apply id="S2.SS1.p7.3.m3.1.1.1.1.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p7.3.m3.1.1.1.1.1.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1">subscript</csymbol><ci id="S2.SS1.p7.3.m3.1.1.1.1.2.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1.2">𝑤</ci><apply id="S2.SS1.p7.3.m3.1.1.1.1.3.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1.3"><plus id="S2.SS1.p7.3.m3.1.1.1.1.3.1.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1.3.1"></plus><ci id="S2.SS1.p7.3.m3.1.1.1.1.3.2.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p7.3.m3.1.1.1.1.3.3.cmml" xref="S2.SS1.p7.3.m3.1.1.1.1.3.3">1</cn></apply></apply><apply id="S2.SS1.p7.3.m3.2.2.2.2.cmml" xref="S2.SS1.p7.3.m3.2.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p7.3.m3.2.2.2.2.1.cmml" xref="S2.SS1.p7.3.m3.2.2.2.2">subscript</csymbol><ci id="S2.SS1.p7.3.m3.2.2.2.2.2.cmml" xref="S2.SS1.p7.3.m3.2.2.2.2.2">𝑤</ci><ci id="S2.SS1.p7.3.m3.2.2.2.2.3.cmml" xref="S2.SS1.p7.3.m3.2.2.2.2.3">𝑡</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p7.3.m3.2c">{w_{t+1},w_{t}}</annotation></semantics></math> or the difference in weight value <math id="S2.SS1.p7.4.m4.1" class="ltx_Math" alttext="\delta=w_{t+1}-w_{t}" display="inline"><semantics id="S2.SS1.p7.4.m4.1a"><mrow id="S2.SS1.p7.4.m4.1.1" xref="S2.SS1.p7.4.m4.1.1.cmml"><mi id="S2.SS1.p7.4.m4.1.1.2" xref="S2.SS1.p7.4.m4.1.1.2.cmml">δ</mi><mo id="S2.SS1.p7.4.m4.1.1.1" xref="S2.SS1.p7.4.m4.1.1.1.cmml">=</mo><mrow id="S2.SS1.p7.4.m4.1.1.3" xref="S2.SS1.p7.4.m4.1.1.3.cmml"><msub id="S2.SS1.p7.4.m4.1.1.3.2" xref="S2.SS1.p7.4.m4.1.1.3.2.cmml"><mi id="S2.SS1.p7.4.m4.1.1.3.2.2" xref="S2.SS1.p7.4.m4.1.1.3.2.2.cmml">w</mi><mrow id="S2.SS1.p7.4.m4.1.1.3.2.3" xref="S2.SS1.p7.4.m4.1.1.3.2.3.cmml"><mi id="S2.SS1.p7.4.m4.1.1.3.2.3.2" xref="S2.SS1.p7.4.m4.1.1.3.2.3.2.cmml">t</mi><mo id="S2.SS1.p7.4.m4.1.1.3.2.3.1" xref="S2.SS1.p7.4.m4.1.1.3.2.3.1.cmml">+</mo><mn id="S2.SS1.p7.4.m4.1.1.3.2.3.3" xref="S2.SS1.p7.4.m4.1.1.3.2.3.3.cmml">1</mn></mrow></msub><mo id="S2.SS1.p7.4.m4.1.1.3.1" xref="S2.SS1.p7.4.m4.1.1.3.1.cmml">−</mo><msub id="S2.SS1.p7.4.m4.1.1.3.3" xref="S2.SS1.p7.4.m4.1.1.3.3.cmml"><mi id="S2.SS1.p7.4.m4.1.1.3.3.2" xref="S2.SS1.p7.4.m4.1.1.3.3.2.cmml">w</mi><mi id="S2.SS1.p7.4.m4.1.1.3.3.3" xref="S2.SS1.p7.4.m4.1.1.3.3.3.cmml">t</mi></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p7.4.m4.1b"><apply id="S2.SS1.p7.4.m4.1.1.cmml" xref="S2.SS1.p7.4.m4.1.1"><eq id="S2.SS1.p7.4.m4.1.1.1.cmml" xref="S2.SS1.p7.4.m4.1.1.1"></eq><ci id="S2.SS1.p7.4.m4.1.1.2.cmml" xref="S2.SS1.p7.4.m4.1.1.2">𝛿</ci><apply id="S2.SS1.p7.4.m4.1.1.3.cmml" xref="S2.SS1.p7.4.m4.1.1.3"><minus id="S2.SS1.p7.4.m4.1.1.3.1.cmml" xref="S2.SS1.p7.4.m4.1.1.3.1"></minus><apply id="S2.SS1.p7.4.m4.1.1.3.2.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2"><csymbol cd="ambiguous" id="S2.SS1.p7.4.m4.1.1.3.2.1.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2">subscript</csymbol><ci id="S2.SS1.p7.4.m4.1.1.3.2.2.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2.2">𝑤</ci><apply id="S2.SS1.p7.4.m4.1.1.3.2.3.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2.3"><plus id="S2.SS1.p7.4.m4.1.1.3.2.3.1.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2.3.1"></plus><ci id="S2.SS1.p7.4.m4.1.1.3.2.3.2.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2.3.2">𝑡</ci><cn type="integer" id="S2.SS1.p7.4.m4.1.1.3.2.3.3.cmml" xref="S2.SS1.p7.4.m4.1.1.3.2.3.3">1</cn></apply></apply><apply id="S2.SS1.p7.4.m4.1.1.3.3.cmml" xref="S2.SS1.p7.4.m4.1.1.3.3"><csymbol cd="ambiguous" id="S2.SS1.p7.4.m4.1.1.3.3.1.cmml" xref="S2.SS1.p7.4.m4.1.1.3.3">subscript</csymbol><ci id="S2.SS1.p7.4.m4.1.1.3.3.2.cmml" xref="S2.SS1.p7.4.m4.1.1.3.3.2">𝑤</ci><ci id="S2.SS1.p7.4.m4.1.1.3.3.3.cmml" xref="S2.SS1.p7.4.m4.1.1.3.3.3">𝑡</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p7.4.m4.1c">\delta=w_{t+1}-w_{t}</annotation></semantics></math> can result in the same reconstruction for <math id="S2.SS1.p7.5.m5.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S2.SS1.p7.5.m5.1a"><mi id="S2.SS1.p7.5.m5.1.1" xref="S2.SS1.p7.5.m5.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p7.5.m5.1b"><ci id="S2.SS1.p7.5.m5.1.1.cmml" xref="S2.SS1.p7.5.m5.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p7.5.m5.1c">x</annotation></semantics></math> as described above since</p>
+<table id="S2.Ex3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex3.m1.4" class="ltx_Math" alttext="x=\frac{g_{w}}{g_{b}}=\frac{\frac{(w_{t}-w_{t+1})_{w}}{\eta}}{\frac{(w_{t}-w_{t+1})_{b}}{\eta}}=\frac{(w_{t}-w_{t+1})_{w}}{(w_{t}-w_{t+1})_{b}}=\frac{-\delta_{w}}{-\delta_{b}}" display="block"><semantics id="S2.Ex3.m1.4a"><mrow id="S2.Ex3.m1.4.5" xref="S2.Ex3.m1.4.5.cmml"><mi id="S2.Ex3.m1.4.5.2" xref="S2.Ex3.m1.4.5.2.cmml">x</mi><mo id="S2.Ex3.m1.4.5.3" xref="S2.Ex3.m1.4.5.3.cmml">=</mo><mfrac id="S2.Ex3.m1.4.5.4" xref="S2.Ex3.m1.4.5.4.cmml"><msub id="S2.Ex3.m1.4.5.4.2" xref="S2.Ex3.m1.4.5.4.2.cmml"><mi id="S2.Ex3.m1.4.5.4.2.2" xref="S2.Ex3.m1.4.5.4.2.2.cmml">g</mi><mi id="S2.Ex3.m1.4.5.4.2.3" xref="S2.Ex3.m1.4.5.4.2.3.cmml">w</mi></msub><msub id="S2.Ex3.m1.4.5.4.3" xref="S2.Ex3.m1.4.5.4.3.cmml"><mi id="S2.Ex3.m1.4.5.4.3.2" xref="S2.Ex3.m1.4.5.4.3.2.cmml">g</mi><mi id="S2.Ex3.m1.4.5.4.3.3" xref="S2.Ex3.m1.4.5.4.3.3.cmml">b</mi></msub></mfrac><mo id="S2.Ex3.m1.4.5.5" xref="S2.Ex3.m1.4.5.5.cmml">=</mo><mfrac id="S2.Ex3.m1.2.2" xref="S2.Ex3.m1.2.2.cmml"><mfrac id="S2.Ex3.m1.1.1.1" xref="S2.Ex3.m1.1.1.1.cmml"><msub id="S2.Ex3.m1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.cmml"><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex3.m1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.cmml"><mi id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.2.cmml">w</mi><mi id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.3.cmml">t</mi></msub><mo id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.cmml">−</mo><msub id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.cmml"><mi id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.2.cmml">w</mi><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.cmml"><mi id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.2.cmml">t</mi><mo id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.1.cmml">+</mo><mn id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.3.cmml">1</mn></mrow></msub></mrow><mo stretchy="false" id="S2.Ex3.m1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow><mi id="S2.Ex3.m1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.3.cmml">w</mi></msub><mi id="S2.Ex3.m1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.3.cmml">η</mi></mfrac><mfrac id="S2.Ex3.m1.2.2.2" xref="S2.Ex3.m1.2.2.2.cmml"><msub id="S2.Ex3.m1.2.2.2.1.1" xref="S2.Ex3.m1.2.2.2.1.1.cmml"><mrow id="S2.Ex3.m1.2.2.2.1.1.1.1" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex3.m1.2.2.2.1.1.1.1.2" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex3.m1.2.2.2.1.1.1.1.1" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.cmml"><msub id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.cmml"><mi id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.2" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.2.cmml">w</mi><mi id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.3" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.3.cmml">t</mi></msub><mo id="S2.Ex3.m1.2.2.2.1.1.1.1.1.1" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.1.cmml">−</mo><msub id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.cmml"><mi id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.2" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.2.cmml">w</mi><mrow id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.cmml"><mi id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.2" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.2.cmml">t</mi><mo id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.1" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.1.cmml">+</mo><mn id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.3" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.3.cmml">1</mn></mrow></msub></mrow><mo stretchy="false" id="S2.Ex3.m1.2.2.2.1.1.1.1.3" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.cmml">)</mo></mrow><mi id="S2.Ex3.m1.2.2.2.1.1.3" xref="S2.Ex3.m1.2.2.2.1.1.3.cmml">b</mi></msub><mi id="S2.Ex3.m1.2.2.2.3" xref="S2.Ex3.m1.2.2.2.3.cmml">η</mi></mfrac></mfrac><mo id="S2.Ex3.m1.4.5.6" xref="S2.Ex3.m1.4.5.6.cmml">=</mo><mfrac id="S2.Ex3.m1.4.4" xref="S2.Ex3.m1.4.4.cmml"><msub id="S2.Ex3.m1.3.3.1" xref="S2.Ex3.m1.3.3.1.cmml"><mrow id="S2.Ex3.m1.3.3.1.1.1" xref="S2.Ex3.m1.3.3.1.1.1.1.cmml"><mo stretchy="false" id="S2.Ex3.m1.3.3.1.1.1.2" xref="S2.Ex3.m1.3.3.1.1.1.1.cmml">(</mo><mrow id="S2.Ex3.m1.3.3.1.1.1.1" xref="S2.Ex3.m1.3.3.1.1.1.1.cmml"><msub id="S2.Ex3.m1.3.3.1.1.1.1.2" xref="S2.Ex3.m1.3.3.1.1.1.1.2.cmml"><mi id="S2.Ex3.m1.3.3.1.1.1.1.2.2" xref="S2.Ex3.m1.3.3.1.1.1.1.2.2.cmml">w</mi><mi id="S2.Ex3.m1.3.3.1.1.1.1.2.3" xref="S2.Ex3.m1.3.3.1.1.1.1.2.3.cmml">t</mi></msub><mo id="S2.Ex3.m1.3.3.1.1.1.1.1" xref="S2.Ex3.m1.3.3.1.1.1.1.1.cmml">−</mo><msub id="S2.Ex3.m1.3.3.1.1.1.1.3" xref="S2.Ex3.m1.3.3.1.1.1.1.3.cmml"><mi id="S2.Ex3.m1.3.3.1.1.1.1.3.2" xref="S2.Ex3.m1.3.3.1.1.1.1.3.2.cmml">w</mi><mrow id="S2.Ex3.m1.3.3.1.1.1.1.3.3" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.cmml"><mi id="S2.Ex3.m1.3.3.1.1.1.1.3.3.2" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.2.cmml">t</mi><mo id="S2.Ex3.m1.3.3.1.1.1.1.3.3.1" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.1.cmml">+</mo><mn id="S2.Ex3.m1.3.3.1.1.1.1.3.3.3" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.3.cmml">1</mn></mrow></msub></mrow><mo stretchy="false" id="S2.Ex3.m1.3.3.1.1.1.3" xref="S2.Ex3.m1.3.3.1.1.1.1.cmml">)</mo></mrow><mi id="S2.Ex3.m1.3.3.1.3" xref="S2.Ex3.m1.3.3.1.3.cmml">w</mi></msub><msub id="S2.Ex3.m1.4.4.2" xref="S2.Ex3.m1.4.4.2.cmml"><mrow id="S2.Ex3.m1.4.4.2.1.1" xref="S2.Ex3.m1.4.4.2.1.1.1.cmml"><mo stretchy="false" id="S2.Ex3.m1.4.4.2.1.1.2" xref="S2.Ex3.m1.4.4.2.1.1.1.cmml">(</mo><mrow id="S2.Ex3.m1.4.4.2.1.1.1" xref="S2.Ex3.m1.4.4.2.1.1.1.cmml"><msub id="S2.Ex3.m1.4.4.2.1.1.1.2" xref="S2.Ex3.m1.4.4.2.1.1.1.2.cmml"><mi id="S2.Ex3.m1.4.4.2.1.1.1.2.2" xref="S2.Ex3.m1.4.4.2.1.1.1.2.2.cmml">w</mi><mi id="S2.Ex3.m1.4.4.2.1.1.1.2.3" xref="S2.Ex3.m1.4.4.2.1.1.1.2.3.cmml">t</mi></msub><mo id="S2.Ex3.m1.4.4.2.1.1.1.1" xref="S2.Ex3.m1.4.4.2.1.1.1.1.cmml">−</mo><msub id="S2.Ex3.m1.4.4.2.1.1.1.3" xref="S2.Ex3.m1.4.4.2.1.1.1.3.cmml"><mi id="S2.Ex3.m1.4.4.2.1.1.1.3.2" xref="S2.Ex3.m1.4.4.2.1.1.1.3.2.cmml">w</mi><mrow id="S2.Ex3.m1.4.4.2.1.1.1.3.3" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.cmml"><mi id="S2.Ex3.m1.4.4.2.1.1.1.3.3.2" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.2.cmml">t</mi><mo id="S2.Ex3.m1.4.4.2.1.1.1.3.3.1" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.1.cmml">+</mo><mn id="S2.Ex3.m1.4.4.2.1.1.1.3.3.3" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.3.cmml">1</mn></mrow></msub></mrow><mo stretchy="false" id="S2.Ex3.m1.4.4.2.1.1.3" xref="S2.Ex3.m1.4.4.2.1.1.1.cmml">)</mo></mrow><mi id="S2.Ex3.m1.4.4.2.3" xref="S2.Ex3.m1.4.4.2.3.cmml">b</mi></msub></mfrac><mo id="S2.Ex3.m1.4.5.7" xref="S2.Ex3.m1.4.5.7.cmml">=</mo><mfrac id="S2.Ex3.m1.4.5.8" xref="S2.Ex3.m1.4.5.8.cmml"><mrow id="S2.Ex3.m1.4.5.8.2" xref="S2.Ex3.m1.4.5.8.2.cmml"><mo id="S2.Ex3.m1.4.5.8.2a" xref="S2.Ex3.m1.4.5.8.2.cmml">−</mo><msub id="S2.Ex3.m1.4.5.8.2.2" xref="S2.Ex3.m1.4.5.8.2.2.cmml"><mi id="S2.Ex3.m1.4.5.8.2.2.2" xref="S2.Ex3.m1.4.5.8.2.2.2.cmml">δ</mi><mi id="S2.Ex3.m1.4.5.8.2.2.3" xref="S2.Ex3.m1.4.5.8.2.2.3.cmml">w</mi></msub></mrow><mrow id="S2.Ex3.m1.4.5.8.3" xref="S2.Ex3.m1.4.5.8.3.cmml"><mo id="S2.Ex3.m1.4.5.8.3a" xref="S2.Ex3.m1.4.5.8.3.cmml">−</mo><msub id="S2.Ex3.m1.4.5.8.3.2" xref="S2.Ex3.m1.4.5.8.3.2.cmml"><mi id="S2.Ex3.m1.4.5.8.3.2.2" xref="S2.Ex3.m1.4.5.8.3.2.2.cmml">δ</mi><mi id="S2.Ex3.m1.4.5.8.3.2.3" xref="S2.Ex3.m1.4.5.8.3.2.3.cmml">b</mi></msub></mrow></mfrac></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex3.m1.4b"><apply id="S2.Ex3.m1.4.5.cmml" xref="S2.Ex3.m1.4.5"><and id="S2.Ex3.m1.4.5a.cmml" xref="S2.Ex3.m1.4.5"></and><apply id="S2.Ex3.m1.4.5b.cmml" xref="S2.Ex3.m1.4.5"><eq id="S2.Ex3.m1.4.5.3.cmml" xref="S2.Ex3.m1.4.5.3"></eq><ci id="S2.Ex3.m1.4.5.2.cmml" xref="S2.Ex3.m1.4.5.2">𝑥</ci><apply id="S2.Ex3.m1.4.5.4.cmml" xref="S2.Ex3.m1.4.5.4"><divide id="S2.Ex3.m1.4.5.4.1.cmml" xref="S2.Ex3.m1.4.5.4"></divide><apply id="S2.Ex3.m1.4.5.4.2.cmml" xref="S2.Ex3.m1.4.5.4.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.5.4.2.1.cmml" xref="S2.Ex3.m1.4.5.4.2">subscript</csymbol><ci id="S2.Ex3.m1.4.5.4.2.2.cmml" xref="S2.Ex3.m1.4.5.4.2.2">𝑔</ci><ci id="S2.Ex3.m1.4.5.4.2.3.cmml" xref="S2.Ex3.m1.4.5.4.2.3">𝑤</ci></apply><apply id="S2.Ex3.m1.4.5.4.3.cmml" xref="S2.Ex3.m1.4.5.4.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.5.4.3.1.cmml" xref="S2.Ex3.m1.4.5.4.3">subscript</csymbol><ci id="S2.Ex3.m1.4.5.4.3.2.cmml" xref="S2.Ex3.m1.4.5.4.3.2">𝑔</ci><ci id="S2.Ex3.m1.4.5.4.3.3.cmml" xref="S2.Ex3.m1.4.5.4.3.3">𝑏</ci></apply></apply></apply><apply id="S2.Ex3.m1.4.5c.cmml" xref="S2.Ex3.m1.4.5"><eq id="S2.Ex3.m1.4.5.5.cmml" xref="S2.Ex3.m1.4.5.5"></eq><share href="#S2.Ex3.m1.4.5.4.cmml" id="S2.Ex3.m1.4.5d.cmml" xref="S2.Ex3.m1.4.5"></share><apply id="S2.Ex3.m1.2.2.cmml" xref="S2.Ex3.m1.2.2"><divide id="S2.Ex3.m1.2.2.3.cmml" xref="S2.Ex3.m1.2.2"></divide><apply id="S2.Ex3.m1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1"><divide id="S2.Ex3.m1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1"></divide><apply id="S2.Ex3.m1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1">subscript</csymbol><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1"><minus id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1"></minus><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.2">𝑤</ci><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.2">𝑤</ci><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3"><plus id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.1"></plus><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply><ci id="S2.Ex3.m1.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.3">𝑤</ci></apply><ci id="S2.Ex3.m1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.3">𝜂</ci></apply><apply id="S2.Ex3.m1.2.2.2.cmml" xref="S2.Ex3.m1.2.2.2"><divide id="S2.Ex3.m1.2.2.2.2.cmml" xref="S2.Ex3.m1.2.2.2"></divide><apply id="S2.Ex3.m1.2.2.2.1.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1"><csymbol cd="ambiguous" id="S2.Ex3.m1.2.2.2.1.1.2.cmml" xref="S2.Ex3.m1.2.2.2.1.1">subscript</csymbol><apply id="S2.Ex3.m1.2.2.2.1.1.1.1.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1"><minus id="S2.Ex3.m1.2.2.2.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.1"></minus><apply id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2">subscript</csymbol><ci id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.2.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.2">𝑤</ci><ci id="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.3.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.2.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.2">𝑤</ci><apply id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3"><plus id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.1.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.1"></plus><ci id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.2.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.3.cmml" xref="S2.Ex3.m1.2.2.2.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply><ci id="S2.Ex3.m1.2.2.2.1.1.3.cmml" xref="S2.Ex3.m1.2.2.2.1.1.3">𝑏</ci></apply><ci id="S2.Ex3.m1.2.2.2.3.cmml" xref="S2.Ex3.m1.2.2.2.3">𝜂</ci></apply></apply></apply><apply id="S2.Ex3.m1.4.5e.cmml" xref="S2.Ex3.m1.4.5"><eq id="S2.Ex3.m1.4.5.6.cmml" xref="S2.Ex3.m1.4.5.6"></eq><share href="#S2.Ex3.m1.2.2.cmml" id="S2.Ex3.m1.4.5f.cmml" xref="S2.Ex3.m1.4.5"></share><apply id="S2.Ex3.m1.4.4.cmml" xref="S2.Ex3.m1.4.4"><divide id="S2.Ex3.m1.4.4.3.cmml" xref="S2.Ex3.m1.4.4"></divide><apply id="S2.Ex3.m1.3.3.1.cmml" xref="S2.Ex3.m1.3.3.1"><csymbol cd="ambiguous" id="S2.Ex3.m1.3.3.1.2.cmml" xref="S2.Ex3.m1.3.3.1">subscript</csymbol><apply id="S2.Ex3.m1.3.3.1.1.1.1.cmml" xref="S2.Ex3.m1.3.3.1.1.1"><minus id="S2.Ex3.m1.3.3.1.1.1.1.1.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.1"></minus><apply id="S2.Ex3.m1.3.3.1.1.1.1.2.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.3.3.1.1.1.1.2.1.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.2">subscript</csymbol><ci id="S2.Ex3.m1.3.3.1.1.1.1.2.2.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.2.2">𝑤</ci><ci id="S2.Ex3.m1.3.3.1.1.1.1.2.3.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.2.3">𝑡</ci></apply><apply id="S2.Ex3.m1.3.3.1.1.1.1.3.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.3.3.1.1.1.1.3.1.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex3.m1.3.3.1.1.1.1.3.2.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3.2">𝑤</ci><apply id="S2.Ex3.m1.3.3.1.1.1.1.3.3.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3"><plus id="S2.Ex3.m1.3.3.1.1.1.1.3.3.1.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.1"></plus><ci id="S2.Ex3.m1.3.3.1.1.1.1.3.3.2.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.Ex3.m1.3.3.1.1.1.1.3.3.3.cmml" xref="S2.Ex3.m1.3.3.1.1.1.1.3.3.3">1</cn></apply></apply></apply><ci id="S2.Ex3.m1.3.3.1.3.cmml" xref="S2.Ex3.m1.3.3.1.3">𝑤</ci></apply><apply id="S2.Ex3.m1.4.4.2.cmml" xref="S2.Ex3.m1.4.4.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.4.2.2.cmml" xref="S2.Ex3.m1.4.4.2">subscript</csymbol><apply id="S2.Ex3.m1.4.4.2.1.1.1.cmml" xref="S2.Ex3.m1.4.4.2.1.1"><minus id="S2.Ex3.m1.4.4.2.1.1.1.1.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.1"></minus><apply id="S2.Ex3.m1.4.4.2.1.1.1.2.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.4.2.1.1.1.2.1.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.2">subscript</csymbol><ci id="S2.Ex3.m1.4.4.2.1.1.1.2.2.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.2.2">𝑤</ci><ci id="S2.Ex3.m1.4.4.2.1.1.1.2.3.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.2.3">𝑡</ci></apply><apply id="S2.Ex3.m1.4.4.2.1.1.1.3.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.4.2.1.1.1.3.1.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3">subscript</csymbol><ci id="S2.Ex3.m1.4.4.2.1.1.1.3.2.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3.2">𝑤</ci><apply id="S2.Ex3.m1.4.4.2.1.1.1.3.3.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3"><plus id="S2.Ex3.m1.4.4.2.1.1.1.3.3.1.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.1"></plus><ci id="S2.Ex3.m1.4.4.2.1.1.1.3.3.2.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.2">𝑡</ci><cn type="integer" id="S2.Ex3.m1.4.4.2.1.1.1.3.3.3.cmml" xref="S2.Ex3.m1.4.4.2.1.1.1.3.3.3">1</cn></apply></apply></apply><ci id="S2.Ex3.m1.4.4.2.3.cmml" xref="S2.Ex3.m1.4.4.2.3">𝑏</ci></apply></apply></apply><apply id="S2.Ex3.m1.4.5g.cmml" xref="S2.Ex3.m1.4.5"><eq id="S2.Ex3.m1.4.5.7.cmml" xref="S2.Ex3.m1.4.5.7"></eq><share href="#S2.Ex3.m1.4.4.cmml" id="S2.Ex3.m1.4.5h.cmml" xref="S2.Ex3.m1.4.5"></share><apply id="S2.Ex3.m1.4.5.8.cmml" xref="S2.Ex3.m1.4.5.8"><divide id="S2.Ex3.m1.4.5.8.1.cmml" xref="S2.Ex3.m1.4.5.8"></divide><apply id="S2.Ex3.m1.4.5.8.2.cmml" xref="S2.Ex3.m1.4.5.8.2"><minus id="S2.Ex3.m1.4.5.8.2.1.cmml" xref="S2.Ex3.m1.4.5.8.2"></minus><apply id="S2.Ex3.m1.4.5.8.2.2.cmml" xref="S2.Ex3.m1.4.5.8.2.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.5.8.2.2.1.cmml" xref="S2.Ex3.m1.4.5.8.2.2">subscript</csymbol><ci id="S2.Ex3.m1.4.5.8.2.2.2.cmml" xref="S2.Ex3.m1.4.5.8.2.2.2">𝛿</ci><ci id="S2.Ex3.m1.4.5.8.2.2.3.cmml" xref="S2.Ex3.m1.4.5.8.2.2.3">𝑤</ci></apply></apply><apply id="S2.Ex3.m1.4.5.8.3.cmml" xref="S2.Ex3.m1.4.5.8.3"><minus id="S2.Ex3.m1.4.5.8.3.1.cmml" xref="S2.Ex3.m1.4.5.8.3"></minus><apply id="S2.Ex3.m1.4.5.8.3.2.cmml" xref="S2.Ex3.m1.4.5.8.3.2"><csymbol cd="ambiguous" id="S2.Ex3.m1.4.5.8.3.2.1.cmml" xref="S2.Ex3.m1.4.5.8.3.2">subscript</csymbol><ci id="S2.Ex3.m1.4.5.8.3.2.2.cmml" xref="S2.Ex3.m1.4.5.8.3.2.2">𝛿</ci><ci id="S2.Ex3.m1.4.5.8.3.2.3.cmml" xref="S2.Ex3.m1.4.5.8.3.2.3">𝑏</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex3.m1.4c">x=\frac{g_{w}}{g_{b}}=\frac{\frac{(w_{t}-w_{t+1})_{w}}{\eta}}{\frac{(w_{t}-w_{t+1})_{b}}{\eta}}=\frac{(w_{t}-w_{t+1})_{w}}{(w_{t}-w_{t+1})_{b}}=\frac{-\delta_{w}}{-\delta_{b}}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S2.SS2.4.1.1" class="ltx_text">II-B</span> </span><span id="S2.SS2.5.2" class="ltx_text ltx_font_italic">Exploitable surface in federated learning</span>
+</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">The previous section described how a neuron on any dense layer can reconstruct the activation of the previous layer if either the gradients of this layer or any form of weight update is known.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">This can be exploited during regular federated learning operation since the server must receive information about the change of weights of the participating clients. This exploitable surface makes it so that federated learning in its basic form is fundamentally unsafe against MITM attack and server-side attacks. Using more training-samples per update or a different network architecture such as CNN is no guarantee against this attack as will be demonstrated later on in Section <a href="#S4" title="IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a>.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">Commonly, dense layers have more than a singular neuron, thus multiple reconstructions of the same input can be reconstructed. This induces reconstruction robustness against noise, lossy compression or other model update perturbation. Additionally, communication bandwidth reduction techniques that rely on communicating randomly chosen weights or other partial weight update omittance schemes do not guarantee safety against this attack. Multiple neurons can be employed in order to collaboratively reconstruct the original sample.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Fidel attack methodology</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">The Fidel allows a server or an adversary impersonating a server to gain access to data which it should not have. For this analysis, we adopt the <em id="S3.p1.1.1" class="ltx_emph ltx_font_italic">honest-but-curious server</em> threat model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>
+This attack method operates passively on the server-side, which means that it is hard to detect. As discussed in this section, the implementation is easy and can produce accurate reconstructions of a victim client’s private training data.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">In a federated setting, this attack is easy to execute. Consider a client that is trained on a single sample for one epoch. The client sends its updated model to the server. The server picks a neuron in the first dense layer (of the client’s model) and divides the change in weights values weights by the respective change in bias value (which is part of the model update) revealing the training sample in full. This process is illustrated in Figure <a href="#S3.F4" title="Figure 4 ‣ III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>.</p>
+</div>
+<figure id="S3.F4" class="ltx_figure">
+<p id="S3.F4.1" class="ltx_p ltx_align_center"><span id="S3.F4.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x4.png" id="S3.F4.1.1.g1" class="ltx_graphics ltx_img_landscape" width="458" height="110" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Steps for Fidel method. A) the device trains on a private sample and sends its updated model to the server. B) the server subtracts the client’s updated model from the client’s previous model. C) The server divides the weight change of a neuron in the first dense layer by its bias change. </figcaption>
+</figure>
+<div id="S3.p3" class="ltx_para">
+<p id="S3.p3.1" class="ltx_p">The weights leading up to a neuron in a densely connected layer reveal the activation of the previous layer. This is the input sample for a FCNN but for a network that has convolutional layers before its first dense layer, the attack simply reveals the activation of this convolutional layer.</p>
+</div>
+<div id="S3.p4" class="ltx_para">
+<p id="S3.p4.1" class="ltx_p">Importantly, such an input reconstruction may be performed for each neuron in the first dense layer. This has huge implications for the privacy of the underlying data. We call the reconstruction based on a single neuron <em id="S3.p4.1.1" class="ltx_emph ltx_font_italic">partial reconstruction</em>. Networks with convolutional layers commonly use multiple convolution filters in parallel which means that for CNN’s the partial reconstructions have channels equal to the number of filter kernels.</p>
+</div>
+<div id="S3.p5" class="ltx_para">
+<p id="S3.p5.1" class="ltx_p">Included in the methodology of Fidel is the notion that the adversary can reconstruct the original sample by means of deconvoluting and up-scaling partial reconstructions. In this paper, we show the applicability of generative neural networks to do so.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS1.4.1.1" class="ltx_text">III-A</span> </span><span id="S3.SS1.5.2" class="ltx_text ltx_font_italic">FCNN single sample demonstration</span>
+</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">In an FCNN, the first layer is densely connected to the input. In this experiment, the first layer consists of 128 neurons. Therefore, 128 partial reconstructions are available to the adversary. After training the network for some rounds on the training-set, the client trains on a singular training sample of the test-set. By executing the Fidel on the weight update of the model, the adversary now has 128 partial reconstructions available. The first 24 partial reconstructions for the MNIST and CIFAR-10 datasets are illustrated in Figure <a href="#S3.F5" title="Figure 5 ‣ III-A FCNN single sample demonstration ‣ III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> in combination with the private training sample. The illustrated partial reconstructions values are normalized to be displayed properly.</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">It is clearly visible how such reconstructions reveal the underlying data. Note that some partial reconstructions are fully black. This is because of the application of the <em id="S3.SS1.p2.1.1" class="ltx_emph ltx_font_italic">ReLu activation function</em>; if the sum of weighted inputs is negative, the weights of this neuron will have no gradient and no reconstruction can be made from this neuron.</p>
+</div>
+<figure id="S3.F5" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F5.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F5.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x5.png" id="S3.F5.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="63" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F5.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F5.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x6.png" id="S3.F5.2.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="63" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Private sample and corresponding first 24 partial reconstructions. Top: MNIST, Bottom: CIFAR-10</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S3.SS2.4.1.1" class="ltx_text">III-B</span> </span><span id="S3.SS2.5.2" class="ltx_text ltx_font_italic">CNN single sample demonstration</span>
+</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">Neural networks trained for image recognition often implement convolutional layers followed by max-pooling layers. The partial reconstructions for a CNN are thus the convoluted and subsequently max-pooled input samples. The partial reconstructions for the first 24 filters of the first neuron are illustrated in Figure <a href="#S3.F6" title="Figure 6 ‣ III-B CNN single sample demonstration ‣ III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>. This small subset is only 24 of the possible 32 * 128 = 4096 (13x13 &amp; 15x15) partial reconstructions available to the adversary.</p>
+</div>
+<figure id="S3.F6" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F6.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F6.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x7.png" id="S3.F6.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="63" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F6.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F6.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x8.png" id="S3.F6.2.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="63" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>Private sample and corresponding first 24 channels of 1 partial reconstruction a single neuron in the first dense layer. Top: MNIST, Bottom: CIFAR-10</figcaption>
+</figure>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">These partial reconstructions may reveal information outright. The MNIST reconstructions show this particularly well. This is because a convolution operation often retains some spatial information of their input. A larger amount of stacked convolutional layers may reduce the ability to reveal private information in partial reconstructions. Reconstructing the original sample from such partial reconstructions can be done in various ways. In this paper, we use a generative neural network as an example.</p>
+</div>
+<section id="S3.SS2.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Generative network</h4>
+
+<div id="S3.SS2.SSS0.Px1.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p1.1" class="ltx_p">In federated learning, the entire model including convolution filters is available to the server. Therefore, a generative neural network may be employed to piece together the original training sample from its convoluted and max-pooled partial reconstructions. A step-wise approach is taken which is illustrated in Figure <a href="#S3.F7" title="Figure 7 ‣ Generative network ‣ III-B CNN single sample demonstration ‣ III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a>.</p>
+</div>
+<div id="S3.SS2.SSS0.Px1.p2" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p2.1" class="ltx_p">First, the adversary needs to have access to an auxiliary dataset. We can expect the best results when this dataset is stylistically similar to the training samples of the victim. This dataset can, for instance, be a test set available to the server. Using the client model, a set of corresponding partial reconstructions is created for each auxiliary dataset sample. The auxiliary dataset sample and its partial reconstructions are stored as a corresponding pair.
+A generative neural network is then trained with the goal of recreating the original auxiliary dataset sample from the associated partial reconstructions. Hereafter, the generative network reconstructs the victim’s private sample. The victim’s partial reconstructions (obtained with the Fidel) are used as an input on this generative neural network to reconstruct the victim’s original training sample.</p>
+</div>
+<figure id="S3.F7" class="ltx_figure">
+<p id="S3.F7.1" class="ltx_p ltx_align_center"><span id="S3.F7.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x9.png" id="S3.F7.1.1.g1" class="ltx_graphics ltx_img_landscape" width="460" height="91" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>Recreating training samples. A. Creating adversarial partial reconstructions. B. Training a generative network to reconstruct original samples from their partial reconstructions. C. Use the generative network to reconstruct the victim’s samples.</figcaption>
+</figure>
+<div id="S3.SS2.SSS0.Px1.p3" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p3.1" class="ltx_p">This approach is demonstrated with the use of a small (non-optimized) generative neural network described in Table <a href="#A1.T3" title="TABLE III ‣ Appendix A Network details ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a> for the MNIST generative network and in Table <a href="#A1.T4" title="TABLE IV ‣ Appendix A Network details ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">IV</span></a> for the CIFAR-10 generative network. These networks were trained no longer than 10 minutes each. Figure <a href="#S3.F8" title="Figure 8 ‣ Generative network ‣ III-B CNN single sample demonstration ‣ III Fidel attack methodology ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">8</span></a> shows 10 exemplary private samples of a client and their associated reconstructions. In this demonstration, the first 6000 images of the test set of MNIST and CIFAR-10 are used as the auxiliary dataset and the private samples are chosen from the other 4000 test set images.</p>
+</div>
+<figure id="S3.F8" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F8.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F8.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x10.png" id="S3.F8.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="89" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F8.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S3.F8.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x11.png" id="S3.F8.2.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="88" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>Input samples (upper row) and their respective generated samples (lower row) with the generative network approach. Top 2 rows: MNIST, Bottom 2 rows: CIFAR-10</figcaption>
+</figure>
+<div id="S3.SS2.SSS0.Px1.p4" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p4.1" class="ltx_p">It is directly visible that the reconstructions reveal close to all private information of the original sample. Noticeable differences between the ground truth and reconstruction are that for MNIST some regions seem noisy and pixelated and for CIFAR-10 the reconstructions are blurrier.</p>
+</div>
+<div id="S3.SS2.SSS0.Px1.p5" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p5.1" class="ltx_p">We justify the notion that this technique is also viable on more complex networks by pointing to our methods resemblance to an auto-encoder network. In such a network, the victims model intuitively serves as the (static) encoder part and the generative adversarial network serves as a trainable decoding structure.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">Experimental Results</span>
+</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">This section describes the experimental results and findings by performing the Fidel on simulated clients that have larger local datasets.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS1.4.1.1" class="ltx_text">IV-A</span> </span><span id="S4.SS1.5.2" class="ltx_text ltx_font_italic">Experimental setup</span>
+</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">For an FCNN, the gradient update of each neuron in the first layer can provide a full reconstruction of the provided input sample. Figure <a href="#S2.F2" title="Figure 2 ‣ II-A Mathematical foundation ‣ II First Dense Layer Attack ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> illustrates the first layer of such a network. Commonly such a network has more than one neuron indicating that multiple reconstructions are possible for each weight update.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">We use two basic networks for the experiments in this paper as the target victim networks, represented by an FCNN as described in Table <a href="#A1.T1" title="TABLE I ‣ Appendix A Network details ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">I</span></a>, and a CNN as described in Table <a href="#A1.T2" title="TABLE II ‣ Appendix A Network details ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a>. These networks are used for demonstrative purposes and are not optimized for any specific application.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">We demonstrate the experiments on the MNIST <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> and CIFAR-10 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite> datasets which consist of 70k 28x28 gray-scale and 60k 32x32 RGB images, respectively. Among these images, we reserve 10k images as a test set in both datasets. These datasets are intended for image classification tasks with 10 distinct labels.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS2.4.1.1" class="ltx_text">IV-B</span> </span><span id="S4.SS2.5.2" class="ltx_text ltx_font_italic">FCNN multi-sample reconstruction</span>
+</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">In this section, we illustrate the first 24 partial reconstructions out of a possible 128 formed from the weight update of a client’s network trained for one epoch on a batch of 10 samples. Applying the attack yields partial reconstructions as illustrated in Figure <a href="#S4.F9" title="Figure 9 ‣ IV-B FCNN multi-sample reconstruction ‣ IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a></p>
+</div>
+<figure id="S4.F9" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S4.F9.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S4.F9.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x12.png" id="S4.F9.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="125" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S4.F9.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S4.F9.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x13.png" id="S4.F9.2.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="136" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 9: </span>Batch of 10 samples and 24 partial reconstructions. Top 3 rows: MNIST, Bottom 3 rows: CIFAR-10</figcaption>
+</figure>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">From these examples, it is possible to see that even for models trained on more than only one sample, information is still revealed. For the CIFAR-10 example, the 3 partial reconstructions annotated by numbers (1, 2 and 3) are particularly revealing of the original private samples. It is interesting to note that in the figure, there is one neuron that did not activate for any of the provided samples and thus gave a fully black reconstruction.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">Without any additive noise or other data modification, the partial reconstructions are combinations of the input images individually scaled with some (possibly negative) factor. Therefore, theoretically, these partial reconstructions can be used to retrieve all underlying samples employing blind source separation algorithms. We do not explore this notion further in this paper.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS3.4.1.1" class="ltx_text">IV-C</span> </span><span id="S4.SS3.5.2" class="ltx_text ltx_font_italic">CNN multi-sample reconstruction</span>
+</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Figure <a href="#S4.F10" title="Figure 10 ‣ IV-C CNN multi-sample reconstruction ‣ IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a> shows the first 24 out of 32 filters for a single neuron on a model training update of 10 samples. Note that the neuron is particularly responsive to the 3rd sample for MNIST and the 7th sample for CIFAR-10.</p>
+</div>
+<figure id="S4.F10" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S4.F10.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S4.F10.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x14.png" id="S4.F10.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="124" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S4.F10.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S4.F10.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x15.png" id="S4.F10.2.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="124" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 10: </span>Input batch of 10 training samples and its respective set of 24 partial reconstructions from one neuron. Top 3 rows: MNIST, Bottom 3 rows: CIFAR-10</figcaption>
+</figure>
+<div id="S4.SS3.p2" class="ltx_para">
+<p id="S4.SS3.p2.1" class="ltx_p">Using the same generative method as demonstrated above, we show generated reconstructions from a local private data set of 10 samples. Each set of partial reconstructions retrieved associated with a neuron is now used to generate possible reconstructions. In Figure <a href="#A2.F15" title="Figure 15 ‣ Appendix B Reconstruction set ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">15</span></a>, 100 reconstructions for an MNIST sample batch and 120 reconstructions for a CIFAR-10 sample batch are illustrated. Within these reconstructions, nearly all private samples can be identified (albeit with varying degrees of fidelity).</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">V </span><span id="S5.1.1" class="ltx_text ltx_font_smallcaps">Gradients in Fidel</span>
+</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this section, the underlying principles of this attack method are explained.</p>
+</div>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS1.4.1.1" class="ltx_text">V-A</span> </span><span id="S5.SS1.5.2" class="ltx_text ltx_font_italic">Negligible gradients</span>
+</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">To understand why it is possible to see fully reproduce images when training on a batch of multiple images, we introduce the term <em id="S5.SS1.p1.1.1" class="ltx_emph ltx_font_italic">negligible gradients</em>. This term is used to identify a gradient of a sample (for a single neuron) which is an order of magnitude smaller than another sample gradient update. A demonstration of this is given in Figure <a href="#S5.F11" title="Figure 11 ‣ V-A Negligible gradients ‣ V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">11</span></a>. In this figure, a client trained on the FCNN network with 3 local samples (at the top) can leak (among others) the shown two partial reconstructions (at the bottom). Within these partial reconstructions, the number four and five are visible but do not obfuscate any private information about the number nine.</p>
+</div>
+<figure id="S5.F11" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S5.F11.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S5.F11.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x16.png" id="S5.F11.1.1.g1" class="ltx_graphics ltx_img_landscape" width="369" height="115" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S5.F11.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="S5.F11.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x17.png" id="S5.F11.2.1.g1" class="ltx_graphics ltx_img_landscape" width="370" height="175" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 11: </span>Top: Private training data, Bottom: 2 partial reconstructions.
+In the partial reconstructions the original samples 4 and 5 are faintly visible whereas the 9 is completely recognizable.</figcaption>
+</figure>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p">In Figure <a href="#S4.F9" title="Figure 9 ‣ IV-B FCNN multi-sample reconstruction ‣ IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a>, we showed that for a batch of 10 samples it is relatively likely that in an FCNN a neuron is only activated on a single sample of the whole batch. This phenomenon propagates with the CNN network where a neuron in the first dense layer (after the convolution layers) only activates for a single sample, which in turn allows for reconstruction as shown in Figure <a href="#S4.F10" title="Figure 10 ‣ IV-C CNN multi-sample reconstruction ‣ IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">10</span></a>.</p>
+</div>
+<div id="S5.SS1.p3" class="ltx_para">
+<p id="S5.SS1.p3.1" class="ltx_p">Two noteworthy factors influence this phenomenon to the detriment of privacy in the federated learning process. First, the usage of the ReLu activation function greatly enhances the likelihood that a neuron is only activated on a single sample. The absence of positive value ceilings in ReLu increases the likelihood that the activation of a sample is so large that all other samples have negligible gradient updates on its weights. Second, the usage of dropout after the first dense layer also increases the likelihood that a neuron is only activated for a single sample in the batch. Because dropout forces a samples gradient to zero for randomly chosen neurons.</p>
+</div>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS2.4.1.1" class="ltx_text">V-B</span> </span><span id="S5.SS2.5.2" class="ltx_text ltx_font_italic">Fully revealed private samples</span>
+</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">For image data, evaluating if private information is leaked is often not dependent on the value of single pixels. The context of the rest of the image can often provide enough information to compensate for the erroneous pixels. The reconstruction obtained with the Fidel may be scaled by some unknown (possibly negative) value.</p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p">To evaluate if a reconstruction is fully revealing a private sample, we use the Pearson correlation coefficients <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> between the reconstruction and the original sample. This metric is invariant against scaling of all sample values by some constant as well as invariant against adding some constant to all values in the sample. This metric is used to demonstrate that a linear relationship exists between the private sample and the reconstructed sample.</p>
+</div>
+<div id="S5.SS2.p3" class="ltx_para">
+<p id="S5.SS2.p3.1" class="ltx_p">As a threshold for the complete reveal of a sample, we chose a correlation coefficient of 0.98 to indicate that all private information of the input image is fully revealed. This threshold provides some robustness against negligible gradients and floating-point calculation errors. In a practical setting, two images taken right after one another with the same equipment can be expected to have at best such a correlation coefficient <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite>.</p>
+</div>
+<div id="S5.SS2.p4" class="ltx_para">
+<p id="S5.SS2.p4.1" class="ltx_p">To justify this threshold Figure <a href="#S5.F12" title="Figure 12 ‣ V-B Fully revealed private samples ‣ V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">12</span></a> shows example correlation coefficients between private samples and reconstructions in the batch FCNN setting. As depicted in this figure, correlations lower than 0.98 may still reveal sensitive private information, especially for image data.</p>
+</div>
+<figure id="S5.F12" class="ltx_figure">
+<p id="S5.F12.1" class="ltx_p ltx_align_center"><span id="S5.F12.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x18.png" id="S5.F12.1.1.g1" class="ltx_graphics ltx_img_landscape" width="370" height="201" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 12: </span>Top: ground truth, Middle: reconstruction, bottom correlation coefficient between the two (samples taken from the experiment displayed in Figure <a href="#S4.F9" title="Figure 9 ‣ IV-B FCNN multi-sample reconstruction ‣ IV Experimental Results ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">9</span></a></figcaption>
+</figure>
+<div id="S5.SS2.p5" class="ltx_para">
+<p id="S5.SS2.p5.1" class="ltx_p">For the FCNN MNIST demonstration, we test varying numbers of private samples used to train the local model to see how many of the underlying samples are fully revealed in the weight update. These results are illustrated in Figure <a href="#S5.F13" title="Figure 13 ‣ V-B Fully revealed private samples ‣ V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">13</span></a>. Private samples are not counted multiple times for different neurons, so it may very well be that multiple neurons fully reveal the same underlying private sample. The graph describes the average revealed samples per round over 200 measurements. Indicating the average per round reveal over 200 rounds of federated training. Notably, the graph shows the average sample reveal that is greater than one for nearly all scenarios. This means that having a large local dataset does not ensure privacy preservation as data samples can still be revealed with local datasets as large as 200 samples.</p>
+</div>
+<figure id="S5.F13" class="ltx_figure">
+<p id="S5.F13.1" class="ltx_p ltx_align_center"><span id="S5.F13.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x19.png" id="S5.F13.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="250" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 13: </span>Fully revealed private samples for the FCNN model on the MNIST dataset. The graph depicts a 200 measurement average.</figcaption>
+</figure>
+<div id="S5.SS2.p6" class="ltx_para">
+<p id="S5.SS2.p6.1" class="ltx_p">The amount of fully revealed private samples is incredibly depend on the employed activation function as well as the usage of dropout. The graph shows that in using the ReLu activation function, the amount of revealed private samples is significantly higher than other activation functions. Using dropout is demonstrably effective in allowing the Fidel attack to succeed. The worst-case scenario in this experiment shows that as much as <math id="S5.SS2.p6.1.m1.1" class="ltx_Math" alttext="\frac{2}{3}" display="inline"><semantics id="S5.SS2.p6.1.m1.1a"><mfrac id="S5.SS2.p6.1.m1.1.1" xref="S5.SS2.p6.1.m1.1.1.cmml"><mn id="S5.SS2.p6.1.m1.1.1.2" xref="S5.SS2.p6.1.m1.1.1.2.cmml">2</mn><mn id="S5.SS2.p6.1.m1.1.1.3" xref="S5.SS2.p6.1.m1.1.1.3.cmml">3</mn></mfrac><annotation-xml encoding="MathML-Content" id="S5.SS2.p6.1.m1.1b"><apply id="S5.SS2.p6.1.m1.1.1.cmml" xref="S5.SS2.p6.1.m1.1.1"><divide id="S5.SS2.p6.1.m1.1.1.1.cmml" xref="S5.SS2.p6.1.m1.1.1"></divide><cn type="integer" id="S5.SS2.p6.1.m1.1.1.2.cmml" xref="S5.SS2.p6.1.m1.1.1.2">2</cn><cn type="integer" id="S5.SS2.p6.1.m1.1.1.3.cmml" xref="S5.SS2.p6.1.m1.1.1.3">3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.p6.1.m1.1c">\frac{2}{3}</annotation></semantics></math> of a local dataset of 30 samples can be reconstructed.</p>
+</div>
+<div id="S5.SS2.p7" class="ltx_para">
+<p id="S5.SS2.p7.1" class="ltx_p">If the first dense layer has more neurons than in the network employed in this experiment, we expect that even more private samples may be revealed per weight update. This is based on the notion that the neurons may be expected to reveal samples in a non-dependent probabilistic fashion. Additionally, the probabilistic nature of a neuron activating for a singular training sample means that the expected amount of revealed samples will increase cumulatively over the number of training rounds.</p>
+</div>
+<div id="S5.SS2.p8" class="ltx_para">
+<p id="S5.SS2.p8.1" class="ltx_p">We perform the same experiment on the generative method with the CNN network and the CIFAR-10 dataset. The results of this experiment are illustrated in Figure <a href="#S5.F14" title="Figure 14 ‣ V-B Fully revealed private samples ‣ V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">14</span></a>. Here too, we find that especially for smaller sized local datasets the weight update may reveal private information that can be reconstructed to near-perfect accuracy.</p>
+</div>
+<div id="S5.SS2.p9" class="ltx_para">
+<p id="S5.SS2.p9.1" class="ltx_p">This graph shows that for the CNN network the local dataset size is of greater influence and the amount of fully revealed samples overall are far less than with the FCNN experiment. We can attribute this, in part, to the generative neural network that was employed for reconstruction. Additionally, the max-pooling layer might remove essential information needed for a full reconstruction.</p>
+</div>
+<figure id="S5.F14" class="ltx_figure">
+<p id="S5.F14.1" class="ltx_p ltx_align_center"><span id="S5.F14.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x20.png" id="S5.F14.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="173" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 14: </span>Fully revealed private samples for the CNN model on the CIFAR-10 dataset employing a generative network for reconstruction. The graph depicts a 200 measurement average.</figcaption>
+</figure>
+<div id="S5.SS2.p10" class="ltx_para">
+<p id="S5.SS2.p10.1" class="ltx_p">From these measurements, it seems that under most circumstances the activation function and network design are of great influence to the preservation of privacy. It is important to re-emphasize that the graphs solely show fully revealed images for the chosen threshold of 0.98 correlation or more. As shown in Figure <a href="#S5.F12" title="Figure 12 ‣ V-B Fully revealed private samples ‣ V Gradients in Fidel ‣ Fidel: Reconstructing Private Training Samples from Weight Updates in Federated Learning" class="ltx_ref"><span class="ltx_text ltx_ref_tag">12</span></a>, lower correlations may still reveal private information.</p>
+</div>
+<div id="S5.SS2.p11" class="ltx_para">
+<p id="S5.SS2.p11.1" class="ltx_p">Federated learning has been designed specifically for the setting of numerous clients with small datasets. The threat of this attack may, therefore, be assessed among other things on the distribution of the data among clients i.e. the number of samples in a clients local dataset.</p>
+</div>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VI </span><span id="S6.1.1" class="ltx_text ltx_font_smallcaps">Discussion</span>
+</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">The presented results are only accurate for the network in this experiment. These results are indicative of the exploitable potential in deep neural networks. This work of research is only meant to provide understanding about the methodology of this attack method and therefore serves as a starting point for more elaborate network-targeting attacks. For instance, the usage of blind source separation algorithms might provide a direct increase in the number of samples that can be reconstructed.</p>
+</div>
+<div id="S6.p2" class="ltx_para">
+<p id="S6.p2.1" class="ltx_p">The Fidel is passively executed on the network, meaning that the training procedures are not influenced during the attack which makes it near undetectable. The application domain for this method of attack is for networks using the mean squared and categorical cross-entropy loss functions that use at least one densely connected layer. The same ideas may be used to broaden the application domain. One of the key strengths of this attack method is that the adversarial resource requirements are extremely low. For the FCNN setting a single divide, operation suffices in most cases. For the CNN setting the design of a generative network is required which may be subject to network-specific optimization.</p>
+</div>
+<div id="S6.p3" class="ltx_para">
+<p id="S6.p3.1" class="ltx_p">The Fidel is a viable means of attack for most network designs. In networks employing ReLu Activation and Dropout layers, this attack is most effective. Furthermore, in settings where clients have small local data-sets, the Fidel proves additionally effective. This shows that this method of attack is particularly use-full for federated learning since one of federated learning’s key implementation environments is where numerous clients each have a fraction of the data.</p>
+</div>
+<section id="S6.SS0.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Privacy</h4>
+
+<div id="S6.SS0.SSS0.Px1.p1" class="ltx_para">
+<p id="S6.SS0.SSS0.Px1.p1.1" class="ltx_p">One attractive feature of federated learning is that by design the server does not have access to the data but merely to an abstract representation of it. For companies, this means that there is little to no need of collecting informed consent from participating clients when the data is of personal nature. Recent legislation such as GDPR <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> imposes strict rules on the collection and usage of personal data. The Fidel places a demonstrable burden on the deployment of federated learning by arguing that some private information can easily be recovered on the centralized server, which necessitates collecting the aforementioned client consent <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, Recital 26]</cite>.</p>
+</div>
+</section>
+</section>
+<section id="S7" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VII </span><span id="S7.1.1" class="ltx_text ltx_font_smallcaps">Conclusion</span>
+</h2>
+
+<div id="S7.p1" class="ltx_para">
+<p id="S7.p1.1" class="ltx_p">For the use in federated learning, Fidel proves to be an extremely low-cost attack method that in cases may completely reveal all private training data from a participating client. We demonstrate this attack to be viable in FCNNs and CNNs. Reconstruction for a CNN network requires an additional (tailor-made) generative network as well as an auxiliary dataset. This work of research is for the purpose of demonstrating the Fidel methodology rather than setting a benchmark for reconstruction in federated learning.</p>
+</div>
+<div id="S7.p2" class="ltx_para">
+<p id="S7.p2.1" class="ltx_p">Certain implementation considerations may greatly increase the viability of the Fidel. The most prominent is the usage of ReLu and Dropout layers. In addition, the Fidel benefits from small local client datasets, which is one of the key application purposes of federated learning. As such the Fidel can in cases nullify any privacy benefit gained from employing the federated learning strategy.</p>
+</div>
+<div id="S7.p3" class="ltx_para">
+<p id="S7.p3.1" class="ltx_p">We demonstrate that on average twenty out of thirty private data samples from a client’s FCNN model update can be reconstructed. Additionally, over thirteen out of twenty samples can be recovered from a CNN update.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_font_smallcaps ltx_title_section">Acknowledgments</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">This research was performed with the support of the European Commission, the ECSEL JU project NewControl (grant no. 826653), the Eureka PENTA project Vivaldy (grant no. PENT191004), and the Huawei grant no. YBN2019045113.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Council of European Union.
+
+</span>
+<span class="ltx_bibblock">General data protection regulation, 2018.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+H. Brendan McMahan, Eider Moore, Daniel Ramage, and Blaise Agüera
+y Arcas.
+
+</span>
+<span class="ltx_bibblock">Federated learning of deep networks using model averaging.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1602.05629, 2016.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Andrew Hard, Kanishka Rao, Rajiv Mathews, Françoise Beaufays, Sean
+Augenstein, Hubert Eichner, Chloé Kiddon, and Daniel Ramage.
+
+</span>
+<span class="ltx_bibblock">Federated learning for mobile keyboard prediction.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1811.03604, 2018.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Timothy Yang, Galen Andrew, Hubert Eichner, Haicheng Sun, Wei Li, Nicholas
+Kong, Daniel Ramage, and Françoise Beaufays.
+
+</span>
+<span class="ltx_bibblock">Applied federated learning: Improving google keyboard query
+suggestions.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1812.02903, 2018.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Swaroop Ramaswamy, Rajiv Mathews, Kanishka Rao, and Françoise Beaufays.
+
+</span>
+<span class="ltx_bibblock">Federated learning for emoji prediction in a mobile keyboard.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1906.04329, 2019.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Timo M. Deist, A. Jochems, Johan van Soest, Georgi Nalbantov, Cary Oberije,
+Seán Walsh, Michael Eble, Paul Bulens, Philippe Coucke, Wim Dries, Andre
+Dekker, and Philippe Lambin.
+
+</span>
+<span class="ltx_bibblock">Infrastructure and distributed learning methodology for
+privacy-preserving multi-centric rapid learning health care: eurocat.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Clinical and Translational Radiation Oncology</span>, 4:24 – 31,
+2017.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Stefan Zwaard, Henk-Jan Boele, Hani Alers, Christos Strydis, Casey
+Lew-Williams, and Zaid Al-Ars.
+
+</span>
+<span class="ltx_bibblock">Privacy-preserving object detection &amp; localization using distributed
+machine learning: A case study of infant eyeblink conditioning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">arXiv:2010.07259</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Arthur Jochems, Timo M. Deist, Issam El Naqa, Marc Kessler, Chuck Mayo, Jackson
+Reeves, Shruti Jolly, Martha Matuszak, Randall Ten Haken, Johan van Soest,
+Cary Oberije, Corinne Faivre-Finn, Gareth Price, Dirk de Ruysscher, Philippe
+Lambin, and Andre Dekker.
+
+</span>
+<span class="ltx_bibblock">Developing and validating a survival prediction model for nsclc
+patients through distributed learning across 3 countries.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">International Journal of Radiation Oncology Biology Physics</span>,
+99(2):344 – 352, 2017.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Arthur Jochems, Timo M. Deist, Johan van Soest, Michael Eble, Paul Bulens,
+Philippe Coucke, Wim Dries, Philippe Lambin, and Andre Dekker.
+
+</span>
+<span class="ltx_bibblock">Distributed learning: Developing a predictive model based on data
+from multiple hospitals without data leaving the hospital – a real life
+proof of concept.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Radiotherapy and Oncology</span>, 121(3):459 – 467, 2016.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Li Huang, Andrew L. Shea, Huining Qian, Aditya Masurkar, Hao Deng, and Dianbo
+Liu.
+
+</span>
+<span class="ltx_bibblock">Patient clustering improves efficiency of federated machine learning
+to predict mortality and hospital stay time using distributed electronic
+medical records.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text ltx_font_italic">Journal of Biomedical Informatics</span>, 99:103291, 2019.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Theodora S. Brisimi, Ruidi Chen, Theofanie Mela, Alex Olshevsky, Ioannis Ch.
+Paschalidis, and Wei Shi.
+
+</span>
+<span class="ltx_bibblock">Federated learning of predictive models from federated electronic
+health records.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">International Journal of Medical Informatics</span>, 112:59 – 67,
+2018.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Micah J. Sheller, G. Anthony Reina, Brandon Edwards, Jason Martin, and Spyridon
+Bakas.
+
+</span>
+<span class="ltx_bibblock">Multi-institutional deep learning modeling without sharing patient
+data: A feasibility study on brain tumor segmentation.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">Brainlesion : glioma, multiple sclerosis, stroke and traumatic
+brain injuries. BrainLes (Workshop)</span>, 11383:92–104, 2019.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+David Enthoven and Zaid Al-Ars.
+
+</span>
+<span class="ltx_bibblock">An overview of federated deep learning privacy attacks and defensive
+strategies.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text ltx_font_italic">arXiv:2004.04676</span>, 2020.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Lingjuan Lyu, Han Yu, and Qiang Yang.
+
+</span>
+<span class="ltx_bibblock">Threats to federated learning: A survey, 2020.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Ligeng Zhu, Zhijian Liu, and Song Han.
+
+</span>
+<span class="ltx_bibblock">Deep leakage from gradients, 2019.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Bo Zhao, Konda Reddy Mopuri, and Hakan Bilen.
+
+</span>
+<span class="ltx_bibblock">idlg: Improved deep leakage from gradients, 2020.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Le Trieu Phong, Yoshinori Aono, Takuya Hayashi, Lihua Wang, and Shiho Moriai.
+
+</span>
+<span class="ltx_bibblock">Privacy-preserving deep learning: Revisited and enhanced.
+
+</span>
+<span class="ltx_bibblock">In Lynn Batten, Dong Seong Kim, Xuyun Zhang, and Gang Li, editors,
+<span id="bib.bib17.1.1" class="ltx_text ltx_font_italic">Applications and Techniques in Information Security</span>, pages 100–110.
+Springer Singapore, 2017.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Matthew Fredrikson, Eric Lantz, Somesh Jha, Simon Lin, David Page, and Thomas
+Ristenpart.
+
+</span>
+<span class="ltx_bibblock">Privacy in pharmacogenetics: An end-to-end case study of personalized
+warfarin dosing.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Proceedings of the 23rd USENIX Conference on Security
+Symposium</span>, SEC’14, pages 17–32, Berkeley, CA, USA, 2014. USENIX
+Association.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Matt Fredrikson, Somesh Jha, and Thomas Ristenpart.
+
+</span>
+<span class="ltx_bibblock">Model inversion attacks that exploit confidence information and basic
+countermeasures.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Proceedings of the 22Nd ACM SIGSAC Conference on Computer and
+Communications Security</span>, CCS ’15, pages 1322–1333. ACM, 2015.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Zhibo Wang, Mengkai Song, Zhifei Zhang, Yang Song, Qian Wang, and Hairong Qi.
+
+</span>
+<span class="ltx_bibblock">Beyond inferring class representatives: User-level privacy leakage
+from federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1812.00535, 2018.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Briland Hitaj, Giuseppe Ateniese, and Fernando Pérez-Cruz.
+
+</span>
+<span class="ltx_bibblock">Deep models under the GAN: information leakage from collaborative
+deep learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1702.07464, 2017.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Xinyun Chen, Chang Liu, Bo Li, Kimberly Lu, and Dawn Song.
+
+</span>
+<span class="ltx_bibblock">Targeted backdoor attacks on deep learning systems using data
+poisoning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1712.05526, 2017.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+Eugene Bagdasaryan, Andreas Veit, Yiqing Hua, Deborah Estrin, and Vitaly
+Shmatikov.
+
+</span>
+<span class="ltx_bibblock">How to backdoor federated learning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1807.00459, 2018.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+Tianyu Gu, Brendan Dolan-Gavitt, and Siddharth Garg.
+
+</span>
+<span class="ltx_bibblock">Badnets: Identifying vulnerabilities in the machine learning model
+supply chain.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1708.06733, 2017.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Clement Fung, Chris J. M. Yoon, and Ivan Beschastnikh.
+
+</span>
+<span class="ltx_bibblock">Mitigating sybils in federated learning poisoning.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text ltx_font_italic">CoRR</span>, abs/1808.04866, 2018.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+Y. Lecun, L. Bottou, Y. Bengio, and P. Haffner.
+
+</span>
+<span class="ltx_bibblock">Gradient-based learning applied to document recognition.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text ltx_font_italic">Proceedings of the IEEE</span>, 86(11):2278–2324, Nov 1998.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+Alex Krizhevsky.
+
+</span>
+<span class="ltx_bibblock">Learning multiple layers of features from tiny images.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text ltx_font_italic">University of Toronto</span>, 05 2012.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+F.M. Dekking, C. Kraaikamp, H.P. Lopuhaä, and L.E. Meester.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text ltx_font_italic">A Modern Introduction to Probability and Statistics:
+Understanding Why and How</span>.
+
+</span>
+<span class="ltx_bibblock">Springer Texts in Statistics. Springer London, 2006.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+K. Yen, Eugene K. Yen, Roger G. Johnston, Roger G. Johnston, and Ph. D.
+
+</span>
+<span class="ltx_bibblock">The ineffectiveness of the correlation coefficient for image
+comparisons.
+
+</span>
+</li>
+</ul>
+</section>
+<section id="A1" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix A </span>Network details</h2>
+
+<figure id="A1.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE I: </span>The architecture of FCNN network used for metric testing. (*) This activation function is changed in some experiments.</figcaption>
+<table id="A1.T1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="A1.T1.1.1.1" class="ltx_tr">
+<th id="A1.T1.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt">layer</th>
+<td id="A1.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">size</td>
+<td id="A1.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">activation function</td>
+</tr>
+<tr id="A1.T1.1.2.2" class="ltx_tr">
+<th id="A1.T1.1.2.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">(input)</th>
+<td id="A1.T1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="A1.T1.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">-</td>
+</tr>
+<tr id="A1.T1.1.3.3" class="ltx_tr">
+<th id="A1.T1.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T1.1.3.3.2" class="ltx_td ltx_align_center">128</td>
+<td id="A1.T1.1.3.3.3" class="ltx_td ltx_align_center">ReLu*</td>
+</tr>
+<tr id="A1.T1.1.4.4" class="ltx_tr">
+<th id="A1.T1.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T1.1.4.4.2" class="ltx_td ltx_align_center">128</td>
+<td id="A1.T1.1.4.4.3" class="ltx_td ltx_align_center">ReLu</td>
+</tr>
+<tr id="A1.T1.1.5.5" class="ltx_tr">
+<th id="A1.T1.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T1.1.5.5.2" class="ltx_td ltx_align_center">64</td>
+<td id="A1.T1.1.5.5.3" class="ltx_td ltx_align_center">ReLu</td>
+</tr>
+<tr id="A1.T1.1.6.6" class="ltx_tr">
+<th id="A1.T1.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T1.1.6.6.2" class="ltx_td ltx_align_center">10</td>
+<td id="A1.T1.1.6.6.3" class="ltx_td ltx_align_center">Softmax</td>
+</tr>
+</tbody>
+<tfoot class="ltx_tfoot">
+<tr id="A1.T1.1.7.1" class="ltx_tr">
+<th id="A1.T1.1.7.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" colspan="3">learning-rate: 0.01</th>
+</tr>
+<tr id="A1.T1.1.8.2" class="ltx_tr">
+<th id="A1.T1.1.8.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" colspan="3">Loss function: categorical crossentropy</th>
+</tr>
+<tr id="A1.T1.1.9.3" class="ltx_tr">
+<th id="A1.T1.1.9.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" colspan="3">Optimizer: SGD with batch size 50</th>
+</tr>
+</tfoot>
+</table>
+</figure>
+<figure id="A1.T2" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE II: </span>The architecture of CNN network used for metric testing. (*) This activation function is changed in some experiments.</figcaption>
+<table id="A1.T2.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="A1.T2.1.1.1" class="ltx_tr">
+<th id="A1.T2.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_tt">layer</th>
+<td id="A1.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">size</td>
+<td id="A1.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">activation function</td>
+</tr>
+<tr id="A1.T2.1.2.2" class="ltx_tr">
+<th id="A1.T2.1.2.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">(input)</th>
+<td id="A1.T2.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="A1.T2.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">-</td>
+</tr>
+<tr id="A1.T2.1.3.3" class="ltx_tr">
+<th id="A1.T2.1.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Conv 2D</th>
+<td id="A1.T2.1.3.3.2" class="ltx_td ltx_align_center">3,3 X 32</td>
+<td id="A1.T2.1.3.3.3" class="ltx_td ltx_align_center">-</td>
+</tr>
+<tr id="A1.T2.1.4.4" class="ltx_tr">
+<th id="A1.T2.1.4.4.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Maxpool</th>
+<td id="A1.T2.1.4.4.2" class="ltx_td ltx_align_center">2,2</td>
+<td id="A1.T2.1.4.4.3" class="ltx_td ltx_align_center">-</td>
+</tr>
+<tr id="A1.T2.1.5.5" class="ltx_tr">
+<th id="A1.T2.1.5.5.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">flatten</th>
+<td id="A1.T2.1.5.5.2" class="ltx_td ltx_align_center">-</td>
+<td id="A1.T2.1.5.5.3" class="ltx_td ltx_align_center">-</td>
+</tr>
+<tr id="A1.T2.1.6.6" class="ltx_tr">
+<th id="A1.T2.1.6.6.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T2.1.6.6.2" class="ltx_td ltx_align_center">128</td>
+<td id="A1.T2.1.6.6.3" class="ltx_td ltx_align_center">ReLu*</td>
+</tr>
+<tr id="A1.T2.1.7.7" class="ltx_tr">
+<th id="A1.T2.1.7.7.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T2.1.7.7.2" class="ltx_td ltx_align_center">64</td>
+<td id="A1.T2.1.7.7.3" class="ltx_td ltx_align_center">ReLu</td>
+</tr>
+<tr id="A1.T2.1.8.8" class="ltx_tr">
+<th id="A1.T2.1.8.8.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">Dense</th>
+<td id="A1.T2.1.8.8.2" class="ltx_td ltx_align_center">10</td>
+<td id="A1.T2.1.8.8.3" class="ltx_td ltx_align_center">Softmax</td>
+</tr>
+</tbody>
+<tfoot class="ltx_tfoot">
+<tr id="A1.T2.1.9.1" class="ltx_tr">
+<th id="A1.T2.1.9.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" colspan="3">learning-rate: 0.01</th>
+</tr>
+<tr id="A1.T2.1.10.2" class="ltx_tr">
+<th id="A1.T2.1.10.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" colspan="3">Loss function: categorical crossentropy</th>
+</tr>
+<tr id="A1.T2.1.11.3" class="ltx_tr">
+<th id="A1.T2.1.11.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" colspan="3">Optimizer: SGD with batch size 50</th>
+</tr>
+</tfoot>
+</table>
+</figure>
+<figure id="A1.T3" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE III: </span>The architecture of the generative neural network to recreate the MNIST samples from their original partial reconstructions.</figcaption>
+<table id="A1.T3.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="A1.T3.1.1.1" class="ltx_tr">
+<td id="A1.T3.1.1.1.1" class="ltx_td ltx_align_left ltx_border_tt">layer</td>
+<td id="A1.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">size</td>
+<td id="A1.T3.1.1.1.3" class="ltx_td ltx_align_left ltx_border_tt">activation function</td>
+</tr>
+<tr id="A1.T3.1.2.2" class="ltx_tr">
+<td id="A1.T3.1.2.2.1" class="ltx_td ltx_align_left ltx_border_t">(input)</td>
+<td id="A1.T3.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">(13,13,32)</td>
+<td id="A1.T3.1.2.2.3" class="ltx_td ltx_align_left ltx_border_t">-</td>
+</tr>
+<tr id="A1.T3.1.3.3" class="ltx_tr">
+<td id="A1.T3.1.3.3.1" class="ltx_td ltx_align_left">up-sampling (nearest)</td>
+<td id="A1.T3.1.3.3.2" class="ltx_td ltx_align_center">2,2</td>
+<td id="A1.T3.1.3.3.3" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="A1.T3.1.4.4" class="ltx_tr">
+<td id="A1.T3.1.4.4.1" class="ltx_td ltx_align_left">Conv 2D</td>
+<td id="A1.T3.1.4.4.2" class="ltx_td ltx_align_center">5,5 X 20</td>
+<td id="A1.T3.1.4.4.3" class="ltx_td ltx_align_left">ReLu</td>
+</tr>
+<tr id="A1.T3.1.5.5" class="ltx_tr">
+<td id="A1.T3.1.5.5.1" class="ltx_td ltx_align_left">up-sampling (nearest)</td>
+<td id="A1.T3.1.5.5.2" class="ltx_td ltx_align_center">2,2</td>
+<td id="A1.T3.1.5.5.3" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="A1.T3.1.6.6" class="ltx_tr">
+<td id="A1.T3.1.6.6.1" class="ltx_td ltx_align_left">Conv 2D</td>
+<td id="A1.T3.1.6.6.2" class="ltx_td ltx_align_center">5,5 X 10 stride(2,2)</td>
+<td id="A1.T3.1.6.6.3" class="ltx_td ltx_align_left">ReLu</td>
+</tr>
+<tr id="A1.T3.1.7.7" class="ltx_tr">
+<td id="A1.T3.1.7.7.1" class="ltx_td ltx_align_left">flatten</td>
+<td id="A1.T3.1.7.7.2" class="ltx_td ltx_align_center">-</td>
+<td id="A1.T3.1.7.7.3" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="A1.T3.1.8.8" class="ltx_tr">
+<td id="A1.T3.1.8.8.1" class="ltx_td ltx_align_left">dense</td>
+<td id="A1.T3.1.8.8.2" class="ltx_td ltx_align_center">784</td>
+<td id="A1.T3.1.8.8.3" class="ltx_td ltx_align_left">Sigmoid</td>
+</tr>
+<tr id="A1.T3.1.9.9" class="ltx_tr">
+<td id="A1.T3.1.9.9.1" class="ltx_td ltx_align_left">reshape (28x28)</td>
+<td id="A1.T3.1.9.9.2" class="ltx_td ltx_align_center">(28,28)</td>
+<td id="A1.T3.1.9.9.3" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="A1.T3.1.10.10" class="ltx_tr">
+<td id="A1.T3.1.10.10.1" class="ltx_td ltx_align_left ltx_border_t" colspan="3">learning-rate: 0.001 rho: 0.95</td>
+</tr>
+<tr id="A1.T3.1.11.11" class="ltx_tr">
+<td id="A1.T3.1.11.11.1" class="ltx_td ltx_align_left" colspan="3">Loss function: mean squared error</td>
+</tr>
+<tr id="A1.T3.1.12.12" class="ltx_tr">
+<td id="A1.T3.1.12.12.1" class="ltx_td ltx_align_left" colspan="3">Optimizer: Adadelta</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="A1.T4" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">TABLE IV: </span>The architecture of the generative neural network to recreate the CIFAR-10 samples from their original partial reconstructions</figcaption>
+<table id="A1.T4.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="A1.T4.1.1.1" class="ltx_tr">
+<td id="A1.T4.1.1.1.1" class="ltx_td ltx_align_left ltx_border_tt">layer</td>
+<td id="A1.T4.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">size</td>
+<td id="A1.T4.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">stride</td>
+<td id="A1.T4.1.1.1.4" class="ltx_td ltx_align_left ltx_border_tt">padding</td>
+<td id="A1.T4.1.1.1.5" class="ltx_td ltx_align_left ltx_border_tt">activation</td>
+</tr>
+<tr id="A1.T4.1.2.2" class="ltx_tr">
+<td id="A1.T4.1.2.2.1" class="ltx_td ltx_align_left ltx_border_t">(input)</td>
+<td id="A1.T4.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">(15,15,32)</td>
+<td id="A1.T4.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="A1.T4.1.2.2.4" class="ltx_td ltx_align_left ltx_border_t">-</td>
+<td id="A1.T4.1.2.2.5" class="ltx_td ltx_align_left ltx_border_t">-</td>
+</tr>
+<tr id="A1.T4.1.3.3" class="ltx_tr">
+<td id="A1.T4.1.3.3.1" class="ltx_td ltx_align_left">ConvT 2D</td>
+<td id="A1.T4.1.3.3.2" class="ltx_td ltx_align_center">5,5 X 128</td>
+<td id="A1.T4.1.3.3.3" class="ltx_td ltx_align_center">1,1</td>
+<td id="A1.T4.1.3.3.4" class="ltx_td ltx_align_left">same</td>
+<td id="A1.T4.1.3.3.5" class="ltx_td ltx_align_left">Relu</td>
+</tr>
+<tr id="A1.T4.1.4.4" class="ltx_tr">
+<td id="A1.T4.1.4.4.1" class="ltx_td ltx_align_left">ConvT 2D</td>
+<td id="A1.T4.1.4.4.2" class="ltx_td ltx_align_center">5,5 X 64</td>
+<td id="A1.T4.1.4.4.3" class="ltx_td ltx_align_center">2,2</td>
+<td id="A1.T4.1.4.4.4" class="ltx_td ltx_align_left">same</td>
+<td id="A1.T4.1.4.4.5" class="ltx_td ltx_align_left">Relu</td>
+</tr>
+<tr id="A1.T4.1.5.5" class="ltx_tr">
+<td id="A1.T4.1.5.5.1" class="ltx_td ltx_align_left">Batchnorm</td>
+<td id="A1.T4.1.5.5.2" class="ltx_td ltx_align_center">-</td>
+<td id="A1.T4.1.5.5.3" class="ltx_td ltx_align_center">-</td>
+<td id="A1.T4.1.5.5.4" class="ltx_td ltx_align_left">-</td>
+<td id="A1.T4.1.5.5.5" class="ltx_td ltx_align_left">-</td>
+</tr>
+<tr id="A1.T4.1.6.6" class="ltx_tr">
+<td id="A1.T4.1.6.6.1" class="ltx_td ltx_align_left">ConvT 2D</td>
+<td id="A1.T4.1.6.6.2" class="ltx_td ltx_align_center">5,5 X 64</td>
+<td id="A1.T4.1.6.6.3" class="ltx_td ltx_align_center">1,1</td>
+<td id="A1.T4.1.6.6.4" class="ltx_td ltx_align_left">same</td>
+<td id="A1.T4.1.6.6.5" class="ltx_td ltx_align_left">Relu</td>
+</tr>
+<tr id="A1.T4.1.7.7" class="ltx_tr">
+<td id="A1.T4.1.7.7.1" class="ltx_td ltx_align_left">Conv 2D</td>
+<td id="A1.T4.1.7.7.2" class="ltx_td ltx_align_center">3,3 X 32</td>
+<td id="A1.T4.1.7.7.3" class="ltx_td ltx_align_center">1,1</td>
+<td id="A1.T4.1.7.7.4" class="ltx_td ltx_align_left">valid</td>
+<td id="A1.T4.1.7.7.5" class="ltx_td ltx_align_left">Tanh</td>
+</tr>
+<tr id="A1.T4.1.8.8" class="ltx_tr">
+<td id="A1.T4.1.8.8.1" class="ltx_td ltx_align_left">Conv 2D</td>
+<td id="A1.T4.1.8.8.2" class="ltx_td ltx_align_center">3,3 X 3</td>
+<td id="A1.T4.1.8.8.3" class="ltx_td ltx_align_center">1,1</td>
+<td id="A1.T4.1.8.8.4" class="ltx_td ltx_align_left">same</td>
+<td id="A1.T4.1.8.8.5" class="ltx_td ltx_align_left">Sigmoid</td>
+</tr>
+<tr id="A1.T4.1.9.9" class="ltx_tr">
+<td id="A1.T4.1.9.9.1" class="ltx_td ltx_align_left ltx_border_t" colspan="5">learning-rate: 0.001 rho: 0.95</td>
+</tr>
+<tr id="A1.T4.1.10.10" class="ltx_tr">
+<td id="A1.T4.1.10.10.1" class="ltx_td ltx_align_left" colspan="5">Loss function: mean squared error</td>
+</tr>
+<tr id="A1.T4.1.11.11" class="ltx_tr">
+<td id="A1.T4.1.11.11.1" class="ltx_td ltx_align_left" colspan="5">Optimizer: adadelta</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</section>
+<section id="A2" class="ltx_appendix">
+<h2 class="ltx_title ltx_title_appendix">
+<span class="ltx_tag ltx_tag_appendix">Appendix B </span>Reconstruction set</h2>
+
+<figure id="A2.F15" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="A2.F15.1" class="ltx_p ltx_align_center ltx_figure_panel"><span id="A2.F15.1.1" class="ltx_text"><img src="/html/2101.00159/assets/x21.png" id="A2.F15.1.1.g1" class="ltx_graphics ltx_img_square" width="415" height="447" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="A2.F15.2" class="ltx_p ltx_align_center ltx_figure_panel"><span id="A2.F15.2.1" class="ltx_text"><img src="/html/2101.00159/assets/x22.png" id="A2.F15.2.1.g1" class="ltx_graphics ltx_img_portrait" width="415" height="528" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 15: </span>Top. Batch of 10 private MNIST samples and 100 associated reconstructions.
+Bottom. Batch of 10 private CIFAR-10 samples and 120 associated reconstructions.
+These reconstructions are made by means of a generative neural network using the CNN partial reconstructions as an input.</figcaption>
+</figure>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2101.00158" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2101.00159" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2101.00159">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2101.00159" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2101.00160" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Tue Mar 12 00:59:36 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

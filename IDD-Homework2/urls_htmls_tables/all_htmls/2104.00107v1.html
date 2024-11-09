@@ -1,0 +1,1139 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2104.00107] Analysis on Image Set Visual Question Answering</title><meta property="og:description" content="We tackle the challenge of Visual Question Answering in multi-image setting for the ISVQA dataset. Traditional VQA tasks have focused on a single-image setting where the target answer is generated from a single image. …">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Analysis on Image Set Visual Question Answering">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Analysis on Image Set Visual Question Answering">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2104.00107">
+
+<!--Generated on Sat Mar 16 22:10:17 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="Machine Learning,  ICML">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_pruned_first">
+<h1 class="ltx_title ltx_title_document">Analysis on Image Set Visual Question Answering</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Abhinav Khattar
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Aviral Joshi
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Har Simrat Singh
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Pulkit Goel
+</span></span>
+<span class="ltx_author_before">  </span><span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Rohit Prakash Barnwal
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">We tackle the challenge of Visual Question Answering in multi-image setting for the ISVQA dataset. Traditional VQA tasks have focused on a single-image setting where the target answer is generated from a single image. Image set VQA, however, comprises of a set of images and requires finding connection between images, relate the objects across images based on these connections and generate a unified answer. In this report, we work with 4 approaches in a bid to improve the performance on the task. We analyse and compare our results with three baseline models - LXMERT, HME-VideoQA and VisualBERT - and show that our approaches can provide a slight improvement over the baselines. In specific, we try to improve on the spatial awareness of the model and help the model identify color using enhanced pre-training, reduce language dependence using adversarial regularization, and improve counting using regression loss and graph based deduplication. We further delve into an in-depth analysis on the language bias in the ISVQA dataset and show how models trained on ISVQA implicitly learn to associate language more strongly with the final answer.</p>
+</div>
+<div class="ltx_keywords">Machine Learning, ICML
+</div>
+<div id="p2" class="ltx_para">
+<br class="ltx_break">
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Image Set Visual Question Answering (ISVQA) <cite class="ltx_cite ltx_citemacro_citep">(Bansal et al., <a href="#bib.bib4" title="" class="ltx_ref">2020</a>)</cite> is the task of answering a question given a set of Images. In this paper we explore the task of ISVQA, identify relevant research challenges and propose well defined strategies inspired by error analysis and thorough investigation of Visual Question Answering <cite class="ltx_cite ltx_citemacro_citep">(Antol et al., <a href="#bib.bib3" title="" class="ltx_ref">2015</a>)</cite> a closely related task. Tasks that combine vision and natural language continue to inspire considerable research at the boundary of computer vision and natural language processing. Since its introduction, VQA has attracted significant attention from the research community as answering natural language questions about images requires understanding a wide range of detailed semantics of an image and how they are referred to in natural language. Furthermore, solving VQA is of practical importance given its utility in assisting visually impaired people. While the problem of ISVQA is quite similar to that of VQA, the former can be significantly more challenging than vanilla VQA since the answer is not necessarily contained within a single image and thus reasoning over objects and concepts in different images becomes paramount for achieving good performance on ISVQA. For example, In Fig <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, a model has to find the relationship between the bed in the left image and the mirror in the right, via pillows which are common to both the images.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2104.00107/assets/x1.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="664" height="221" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Image from the ISVQA dataset. The associated question with the image is, ”<span id="S1.F1.7.1" class="ltx_text ltx_markedasmath ltx_font_italic">What is hanging above the bed?</span>” and with the corresponding answer is, ”<span id="S1.F1.8.2" class="ltx_text ltx_markedasmath ltx_font_italic">mirror</span>”.</figcaption>
+</figure>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">ISVQA reflects information retrieval from multiple images of relevance but with no obvious continuous correspondences. A model for solving this type of problems has to understand the question, find the connections between different images, use these connections to relate objects across images and generate the answer. ISVQA leads to new research challenges, including: a) How to use natural language to guide scene understanding across multiple views/images. b) How to fuse information from relevant images to reason about relationships among entities. These challenges associated with scene understanding do not exist in single-image VQA settings but frequently happen in the real world. While ISVQA task includes answering questions about images taken at different times (e.g. like in camera trap photography, or images under same story on Facebook/Instagram), images taken at different locations (e.g. security cameras capturing different locations within a store, or pictures of same house on real estate websites), or images taken from different viewpoints (e.g. live sports coverage), we focus on images from multiple views of an environment.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">In this paper, we explore the specific challenges and issues faced while solving the problem proposed in ISVQA. To the best of our knowledge, this is the first work on solving the problem of Image Set Visual Question Answering, apart from the initial ISVQA dataset paper. Initially, we study the LXMERT baseline for ISVQA and discuss where the model lacks. Based on our findings, we focus on the issues of counting, color awareness, spatial awareness, and language dependence, proposing approaches to tackle each of these issues and finally improving the performance over the LXMERT baseline. We also discuss in-depth the problem of language bias in ISVQA, show how it significantly affects a model being trained on the dataset, and demonstrate how our adversarial regularization strategy stops the model from being overconfident in its prediction in the absence of visual modality. We finally call for work on a VQA-CP <cite class="ltx_cite ltx_citemacro_citep">(Agrawal et al., <a href="#bib.bib1" title="" class="ltx_ref">2018</a>)</cite> like dataset for the problem of ISVQA that helps evaluate how ISVQA models will perform in “real-life” setting.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In the following section <a href="#S2" title="2 Related Work ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we present the works that closely relate to ISVQA. We then analyze the ISVQA dataset and evaluation metrics in section <a href="#S3" title="3 Experimental Setup ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. We also formulate the problem statement and introduce the Multimodal baselines for ISVQA dataset in this section. Section <a href="#S4" title="4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> discusses the 4 research ideas that we propose in this paper; namely the adversarial regularization, enhanced VQA, count-aware ISVQA and Regression loss based improvements. In section <a href="#S5" title="5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> we present results obtained on the 4 proposed models and present an in-depth anaysis of adversarial regularization. Finally, we conclude and discuss future work in section <a href="#S6" title="6 Conclusion and Future Work ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Work</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Being a relatively new task, the only available work on ISVQA is the dataset paper. The paper describes 4 baseline architectures and concludes that their Transformer-based architecture - which derives from LXMERT <cite class="ltx_cite ltx_citemacro_citep">(Tan &amp; Bansal, <a href="#bib.bib26" title="" class="ltx_ref">2019</a>)</cite> - performs the best. The problem of ISVQA lies somewhere at the intersection of VideoQA and VQA where instead of having a single image (as in VQA) we have multiple images (which is the case with VideoQA), but the images do not form a continuous scene (as is the case with VideoQA). Given the similarity of our problem with Visual Question Answering (VQA) and Video Question Answering (VideoQA), in this section, we discuss existing works in both these fields and use existing methodologies from both of these as our baselines.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>VQA</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">VQA is a well-researched task with multiple datasets including VQA 1.0 <cite class="ltx_cite ltx_citemacro_citep">(Antol et al., <a href="#bib.bib3" title="" class="ltx_ref">2015</a>)</cite>, VQA 2.0 <cite class="ltx_cite ltx_citemacro_citep">(Goyal et al., <a href="#bib.bib11" title="" class="ltx_ref">2017</a>)</cite>, DAQUAR <cite class="ltx_cite ltx_citemacro_citep">(Malinowski &amp; Fritz, <a href="#bib.bib19" title="" class="ltx_ref">2014</a>)</cite>, and COCO-QA <cite class="ltx_cite ltx_citemacro_citep">(Ren et al., <a href="#bib.bib23" title="" class="ltx_ref">2015</a>)</cite>. VQA 2.0 is the largest, and most commonly used dataset for VQA with over 1.1M questions and over 11M ground-truth answers.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">While most current research in VQA involves using some sort of masked pre-training objective, for the sake of completeness, we discuss the 2 major types of models that exist to tackle VQA:</p>
+</div>
+<section id="S2.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.1.1 </span>RNN based models without masked pre-training</h4>
+
+<div id="S2.SS1.SSS1.p1" class="ltx_para">
+<p id="S2.SS1.SSS1.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Anderson et al. (<a href="#bib.bib2" title="" class="ltx_ref">2018</a>)</cite> introduced an approach which combines top-down(soft) and bottom-up (hard) attention mechanisms to achieve state-of-the-art performance on image captioning and obtain first place in the VQA 2017 challenge. The proposed approach utilized the Faster-RCNN model to identify objects of interest in images and a ResNet model to extract vector representations of those objects. The answer is generated using a 2 layer LSTM network where the first layer is referred to as top-down attention layer and the second deals with generating the final output for both image captioning and VQA. The top-down LSTM attention layer involved utilizes a concatenation of word embedding, image embedding and previous time-steps hidden-state of the 2nd layer as input. The hidden-state generated by the top-down attention layer is then fed to the Language LSTM layer which attends to the embeddings of the extracted regions generated by the bottom-up attention model. Finally the output of the Language LSTM layer is used to compute a probability distribution over the vocabulary to generate the caption in the case of Image Captioning and the answer in the case of Visual Question Answering.</p>
+</div>
+</section>
+<section id="S2.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.1.2 </span>Transformer based models with masked pre-training</h4>
+
+<div id="S2.SS1.SSS2.p1" class="ltx_para">
+<p id="S2.SS1.SSS2.p1.1" class="ltx_p">Recent works in the field of NLP have brought to light the positive effects of Language Model pre-training on various downstream tasks <cite class="ltx_cite ltx_citemacro_citep">(Devlin et al., <a href="#bib.bib9" title="" class="ltx_ref">2018</a>; Peters et al., <a href="#bib.bib22" title="" class="ltx_ref">2018</a>; Lample &amp; Conneau, <a href="#bib.bib15" title="" class="ltx_ref">2019</a>)</cite>. Taking inspiration from such architectures, recent VQA models adopt a BERT <cite class="ltx_cite ltx_citemacro_citep">(Devlin et al., <a href="#bib.bib9" title="" class="ltx_ref">2018</a>)</cite> style of pre-training for Transformer models <cite class="ltx_cite ltx_citemacro_citep">(Vaswani et al., <a href="#bib.bib29" title="" class="ltx_ref">2017</a>)</cite>. Some of these VQA models include: Visual BERT <cite class="ltx_cite ltx_citemacro_citep">(Li et al., <a href="#bib.bib17" title="" class="ltx_ref">2019</a>)</cite>, VL-BERT <cite class="ltx_cite ltx_citemacro_citep">(Su et al., <a href="#bib.bib25" title="" class="ltx_ref">2019</a>)</cite>, UNITER <cite class="ltx_cite ltx_citemacro_citep">(Chen et al., <a href="#bib.bib7" title="" class="ltx_ref">2019</a>)</cite>, and OSCAR <cite class="ltx_cite ltx_citemacro_citep">(Li et al., <a href="#bib.bib18" title="" class="ltx_ref">2020</a>)</cite>. Using a Transformer with a pre-training objective is a common theme that runs across all of these models.</p>
+</div>
+<div id="S2.SS1.SSS2.p2" class="ltx_para">
+<p id="S2.SS1.SSS2.p2.1" class="ltx_p">VisualBERT, which is probably the most simplistic architecture out of the three techniques mentioned, was one of the first VQA architectures to come out with a BERT-like architecture. In an attempt to learn implicit alignments between text and images, the model is trained on 2 pre-training objectives - (1) Masked Language Objective, (2) Sentence Image prediction. While the first objective is completely identical to BERT, the model, in this case, takes as input both the text and the image regions. The second objective, on the other hand, is unique and attempts to answer if the text provided with the image is the image’s true caption. The authors of VisualBERT first pre-train the model on MS-COCO, followed by pre-training on the VQA dataset, finally followed by task-specific fine-tuning.</p>
+</div>
+<div id="S2.SS1.SSS2.p3" class="ltx_para">
+<p id="S2.SS1.SSS2.p3.1" class="ltx_p">Works using Transformers that came after VisualBERT focus on how to learn better alignments and relationships between text and images. VL-BERT throws away the Sentence Image prediction brought in by VisualBERT and add a Masked Region of Interest Classification task which masks out Region of Interests (RoI) and then asks the model to predict the entity that may have been masked out. This objective helps learn stronger alignments and as a result, helps VL-BERT outperform VisualBERT. To further improve over VL-BERT, UNITER incorporates Image-Text Matching, Word-Region Alignment, Masked Region Feature Regression, Masked Region Classification, and Masked Region Classification with KL-Divergence objectives. OSCAR - which is the current SOTA on VQA 2.0 - outperforms UNITER by further helping image-text alignment using object-tags detected from images while just using Masked Token and Contrastive Loss. Another recent model, LXMERT <cite class="ltx_cite ltx_citemacro_citep">(Tan &amp; Bansal, <a href="#bib.bib26" title="" class="ltx_ref">2019</a>)</cite>, diverges a bit from the standard Transformer-Encoder architecture and uses an attention based architecture with different initial model segments for both the modalities. The architecture is also pre-trained on various pre-training objectives including Masked LM, Masked Object Precition, Cross-Modality Matching, and Image Question Answering. We use this LXMERT architecture as on of the baselines for ISVQA task as it is easy to directly use this model for our task.</p>
+</div>
+<div id="S2.SS1.SSS2.p4" class="ltx_para">
+<p id="S2.SS1.SSS2.p4.1" class="ltx_p">Owing to the strong positive effects of transfer learning and pre-training, recent Transformer-based pretrained models outperform the non pretrained RNN-based ones. The Transformer models, though, use the same visual features as the ones used by RNN models which are most commonly extracted using an R-CNN based feature extractor. As a whole, the modern Transformer-based architectures provide a more expressive and elegant solution to the problem of VQA learning from a glut of other information sources using an array of objectives that help the model learn better and more generalizable representations.</p>
+</div>
+</section>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>VideoQA</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Compared to image-based VQA, there has been less work done on video-based VQA. In past few years, several video QA datasets have been proposed, e.g. MovieFIB <cite class="ltx_cite ltx_citemacro_citep">(Chen et al., <a href="#bib.bib6" title="" class="ltx_ref">2017</a>)</cite>, MovieQA <cite class="ltx_cite ltx_citemacro_citep">(Tapaswi et al., <a href="#bib.bib27" title="" class="ltx_ref">2016</a>)</cite>, TGIF-QA <cite class="ltx_cite ltx_citemacro_citep">(Jang et al., <a href="#bib.bib14" title="" class="ltx_ref">2017</a>)</cite>, MarioQA <cite class="ltx_cite ltx_citemacro_citep">(Mun et al., <a href="#bib.bib20" title="" class="ltx_ref">2017</a>)</cite> and TVQA <cite class="ltx_cite ltx_citemacro_citep">(Lei et al., <a href="#bib.bib16" title="" class="ltx_ref">2018</a>)</cite>. TVQA is one of the largest video QA datasets, providing a large video QA dataset built on top of 6 famous TV series containing 152.5K multiple choice questions from 21.8K, 60-90 second long video clips. The image sets in ISVQA dataset are not akin to video frames which are temporally continuous. Also, unlike embodied QA <cite class="ltx_cite ltx_citemacro_citep">(Das et al., <a href="#bib.bib8" title="" class="ltx_ref">2018</a>)</cite>, ISVQA does not have an agent interacting with the environment.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Fan et al. (<a href="#bib.bib10" title="" class="ltx_ref">2019</a>)</cite> propose a novel Multimodal Fusion based architecture to solve the task of Video QA. The architecture takes as input 2 sets of visual features as appearance features extracted frame by frame using a standard CNN based architecture such as ResNet<cite class="ltx_cite ltx_citemacro_citep">(He et al., <a href="#bib.bib12" title="" class="ltx_ref">2015</a>)</cite> or VGG<cite class="ltx_cite ltx_citemacro_citep">(Simonyan &amp; Zisserman, <a href="#bib.bib24" title="" class="ltx_ref">2015</a>)</cite> and motion features extracted from clips of the video using the C3D<cite class="ltx_cite ltx_citemacro_citep">(Tran et al., <a href="#bib.bib28" title="" class="ltx_ref">2015</a>)</cite> model. GloVe 300-D<cite class="ltx_cite ltx_citemacro_citep">(Pennington et al., <a href="#bib.bib21" title="" class="ltx_ref">2014</a>)</cite> embeddings based features extracted from an LSTM network form the inputs of the textual modality.
+The architecture incorporates an external heterogeneous memory to integrate the two visual features and learn the joint attention. A similar external memory is also implemented for the question features. This helps to understand the global as well as the local context and also helps in multimodal fusion of the text and video modalities.
+The multimodal fusion consists of a core LSTM controller which takes the hidden memory of the combined video and question based features as the input. During each iteration, the controller attends to different parts of the video features and question features with temporal attention mechanism, and combines the attended features.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">Our work focuses on the problem of ISVQA, and to the best of our knowledge, ours is the first work exploring the techniques to solve this problem, apart from the initial dataset paper. As a result, none of our related works try to tackle the problem of ISVQA - adding to the novelty of our work. In addition, some of the techniques that we propose including enhanced pre-training and adversarial regularization are novel and have not been previously explored in other related contexts.
+</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Setup</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Dataset</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">We propose to use the dataset provided by ISVQA. The dataset comprises of 2 modalities - image and language. The authors of ISVQA use existing image set datasets of Gibson <cite class="ltx_cite ltx_citemacro_citep">(Xia et al., <a href="#bib.bib30" title="" class="ltx_ref">2018</a>)</cite> and nuScenes <cite class="ltx_cite ltx_citemacro_citep">(Caesar et al., <a href="#bib.bib5" title="" class="ltx_ref">2020</a>)</cite> as sources to build an ISVQA dataset. Gibson dataset provides 3D indoor scans of buildings, rooms and offices. The scans are of 2 types 1) Gibson Building and 2) Gibson Room. nuScenes contain outdoor scenes generated by a <math id="S3.SS1.p1.1.m1.1" class="ltx_Math" alttext="360^{\circ}" display="inline"><semantics id="S3.SS1.p1.1.m1.1a"><msup id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml"><mn id="S3.SS1.p1.1.m1.1.1.2" xref="S3.SS1.p1.1.m1.1.1.2.cmml">360</mn><mo id="S3.SS1.p1.1.m1.1.1.3" xref="S3.SS1.p1.1.m1.1.1.3.cmml">∘</mo></msup><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.1b"><apply id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS1.p1.1.m1.1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">superscript</csymbol><cn type="integer" id="S3.SS1.p1.1.m1.1.1.2.cmml" xref="S3.SS1.p1.1.m1.1.1.2">360</cn><compose id="S3.SS1.p1.1.m1.1.1.3.cmml" xref="S3.SS1.p1.1.m1.1.1.3"></compose></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.1c">360^{\circ}</annotation></semantics></math> camera mounted on a car in city streets. The details for the dataset are presented in Table <a href="#S3.T1" title="Table 1 ‣ 3.1 Dataset ‣ 3 Experimental Setup ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<table id="S3.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.1.1.1.1.1" class="ltx_text" style="font-size:70%;">Dataset</span></th>
+<th id="S3.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.1.1.1.2.1" class="ltx_text" style="font-size:70%;">Train Set</span></th>
+<th id="S3.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.1.1.1.3.1" class="ltx_text" style="font-size:70%;">Test Set</span></th>
+<th id="S3.T1.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S3.T1.1.1.1.4.1" class="ltx_text" style="font-size:70%;">Unique Answers</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.2.1" class="ltx_tr">
+<td id="S3.T1.1.2.1.1" class="ltx_td ltx_align_left ltx_border_r ltx_border_tt"><span id="S3.T1.1.2.1.1.1" class="ltx_text" style="font-size:70%;">Indoor - Gibson</span></td>
+<td id="S3.T1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S3.T1.1.2.1.2.1" class="ltx_text" style="font-size:70%;">69,207</span></td>
+<td id="S3.T1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S3.T1.1.2.1.3.1" class="ltx_text" style="font-size:70%;">22,272</span></td>
+<td id="S3.T1.1.2.1.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S3.T1.1.2.1.4.1" class="ltx_text" style="font-size:70%;">961</span></td>
+</tr>
+<tr id="S3.T1.1.3.2" class="ltx_tr">
+<td id="S3.T1.1.3.2.1" class="ltx_td ltx_align_left ltx_border_r ltx_border_t"><span id="S3.T1.1.3.2.1.1" class="ltx_text" style="font-size:70%;">Outdoor - nuScenes</span></td>
+<td id="S3.T1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T1.1.3.2.2.1" class="ltx_text" style="font-size:70%;">33,973</span></td>
+<td id="S3.T1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S3.T1.1.3.2.3.1" class="ltx_text" style="font-size:70%;">15,644</span></td>
+<td id="S3.T1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T1.1.3.2.4.1" class="ltx_text" style="font-size:70%;">650</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering" style="font-size:70%;"><span class="ltx_tag ltx_tag_table">Table 1: </span>Dataset specifications</figcaption>
+</figure>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">Currently, we are only working with the NuScenes data as the Gibson data has not entirely been made available by the ISVQA dataset authors.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Dataset Analysis</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">Most of the questions phrases contain between 5 and 10 words. Most frequent questions are
+about physical properties of objects, and spatial relationships between different entities. The questions can be broadly said to be about the color of objects in the images, relative spatial properties and the count of the objects.</p>
+</div>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">The dataset tries to ensure that there are a significant number of data points which require more than one image to answer a question. This forces the model to learn the entire scene rather than look at just one region of interest. About 7,000 such samples exist in Gibson-Room and about 3,000 in Gibson-Building. In nuScenes only about 1,000 such examples exist but the number of data points which require more than two images is greater than the indoor ones.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Evaluation Metric</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">Given that the questions are multiple-choice, we propose to use VQA-accuracy as the evaluation metric. In the ISVQA setting, each image set has been annotated by 3 annotators. VQA-accuracy for an ISVQA sample is thus, 1 when it is supported by 2 or more annotators, 0.5 when supported by 1 annotator, and 0 otherwise. Human performance using standard accuracy measure was calculated in ISVQA. VQA-accuracy of 91.88% for nuScenes and 88.80% for Gibson was obtained. This makes the task quite challenging and also provides an interesting observation of why the human performance was not close to 100%. In many cases, humans gave a similar answer to the question which although conveyed the same meaning, was not semantically similar to the provided ”true labels”. For example, the answer could be “black and white” but “white and black”, though same would not be considered semantically similar.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Problem Statement</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.12" class="ltx_p">The problem of ISVQA can thus be formulated as the following. Given an image set <math id="S3.SS4.p1.1.m1.4" class="ltx_Math" alttext="S=[I_{1},I_{2},\cdots,I_{N}]" display="inline"><semantics id="S3.SS4.p1.1.m1.4a"><mrow id="S3.SS4.p1.1.m1.4.4" xref="S3.SS4.p1.1.m1.4.4.cmml"><mi id="S3.SS4.p1.1.m1.4.4.5" xref="S3.SS4.p1.1.m1.4.4.5.cmml">S</mi><mo id="S3.SS4.p1.1.m1.4.4.4" xref="S3.SS4.p1.1.m1.4.4.4.cmml">=</mo><mrow id="S3.SS4.p1.1.m1.4.4.3.3" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml"><mo stretchy="false" id="S3.SS4.p1.1.m1.4.4.3.3.4" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml">[</mo><msub id="S3.SS4.p1.1.m1.2.2.1.1.1" xref="S3.SS4.p1.1.m1.2.2.1.1.1.cmml"><mi id="S3.SS4.p1.1.m1.2.2.1.1.1.2" xref="S3.SS4.p1.1.m1.2.2.1.1.1.2.cmml">I</mi><mn id="S3.SS4.p1.1.m1.2.2.1.1.1.3" xref="S3.SS4.p1.1.m1.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S3.SS4.p1.1.m1.4.4.3.3.5" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.1.m1.3.3.2.2.2" xref="S3.SS4.p1.1.m1.3.3.2.2.2.cmml"><mi id="S3.SS4.p1.1.m1.3.3.2.2.2.2" xref="S3.SS4.p1.1.m1.3.3.2.2.2.2.cmml">I</mi><mn id="S3.SS4.p1.1.m1.3.3.2.2.2.3" xref="S3.SS4.p1.1.m1.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S3.SS4.p1.1.m1.4.4.3.3.6" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS4.p1.1.m1.1.1" xref="S3.SS4.p1.1.m1.1.1.cmml">⋯</mi><mo id="S3.SS4.p1.1.m1.4.4.3.3.7" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.1.m1.4.4.3.3.3" xref="S3.SS4.p1.1.m1.4.4.3.3.3.cmml"><mi id="S3.SS4.p1.1.m1.4.4.3.3.3.2" xref="S3.SS4.p1.1.m1.4.4.3.3.3.2.cmml">I</mi><mi id="S3.SS4.p1.1.m1.4.4.3.3.3.3" xref="S3.SS4.p1.1.m1.4.4.3.3.3.3.cmml">N</mi></msub><mo stretchy="false" id="S3.SS4.p1.1.m1.4.4.3.3.8" xref="S3.SS4.p1.1.m1.4.4.3.4.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.1.m1.4b"><apply id="S3.SS4.p1.1.m1.4.4.cmml" xref="S3.SS4.p1.1.m1.4.4"><eq id="S3.SS4.p1.1.m1.4.4.4.cmml" xref="S3.SS4.p1.1.m1.4.4.4"></eq><ci id="S3.SS4.p1.1.m1.4.4.5.cmml" xref="S3.SS4.p1.1.m1.4.4.5">𝑆</ci><list id="S3.SS4.p1.1.m1.4.4.3.4.cmml" xref="S3.SS4.p1.1.m1.4.4.3.3"><apply id="S3.SS4.p1.1.m1.2.2.1.1.1.cmml" xref="S3.SS4.p1.1.m1.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.SS4.p1.1.m1.2.2.1.1.1.1.cmml" xref="S3.SS4.p1.1.m1.2.2.1.1.1">subscript</csymbol><ci id="S3.SS4.p1.1.m1.2.2.1.1.1.2.cmml" xref="S3.SS4.p1.1.m1.2.2.1.1.1.2">𝐼</ci><cn type="integer" id="S3.SS4.p1.1.m1.2.2.1.1.1.3.cmml" xref="S3.SS4.p1.1.m1.2.2.1.1.1.3">1</cn></apply><apply id="S3.SS4.p1.1.m1.3.3.2.2.2.cmml" xref="S3.SS4.p1.1.m1.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.SS4.p1.1.m1.3.3.2.2.2.1.cmml" xref="S3.SS4.p1.1.m1.3.3.2.2.2">subscript</csymbol><ci id="S3.SS4.p1.1.m1.3.3.2.2.2.2.cmml" xref="S3.SS4.p1.1.m1.3.3.2.2.2.2">𝐼</ci><cn type="integer" id="S3.SS4.p1.1.m1.3.3.2.2.2.3.cmml" xref="S3.SS4.p1.1.m1.3.3.2.2.2.3">2</cn></apply><ci id="S3.SS4.p1.1.m1.1.1.cmml" xref="S3.SS4.p1.1.m1.1.1">⋯</ci><apply id="S3.SS4.p1.1.m1.4.4.3.3.3.cmml" xref="S3.SS4.p1.1.m1.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.SS4.p1.1.m1.4.4.3.3.3.1.cmml" xref="S3.SS4.p1.1.m1.4.4.3.3.3">subscript</csymbol><ci id="S3.SS4.p1.1.m1.4.4.3.3.3.2.cmml" xref="S3.SS4.p1.1.m1.4.4.3.3.3.2">𝐼</ci><ci id="S3.SS4.p1.1.m1.4.4.3.3.3.3.cmml" xref="S3.SS4.p1.1.m1.4.4.3.3.3.3">𝑁</ci></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.1.m1.4c">S=[I_{1},I_{2},\cdots,I_{N}]</annotation></semantics></math>, where <math id="S3.SS4.p1.2.m2.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S3.SS4.p1.2.m2.1a"><mi id="S3.SS4.p1.2.m2.1.1" xref="S3.SS4.p1.2.m2.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.2.m2.1b"><ci id="S3.SS4.p1.2.m2.1.1.cmml" xref="S3.SS4.p1.2.m2.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.2.m2.1c">N</annotation></semantics></math> is the total number of images associated with a data point and a question <math id="S3.SS4.p1.3.m3.4" class="ltx_Math" alttext="Q=[q_{1},q_{2},\cdots,q_{T}]" display="inline"><semantics id="S3.SS4.p1.3.m3.4a"><mrow id="S3.SS4.p1.3.m3.4.4" xref="S3.SS4.p1.3.m3.4.4.cmml"><mi id="S3.SS4.p1.3.m3.4.4.5" xref="S3.SS4.p1.3.m3.4.4.5.cmml">Q</mi><mo id="S3.SS4.p1.3.m3.4.4.4" xref="S3.SS4.p1.3.m3.4.4.4.cmml">=</mo><mrow id="S3.SS4.p1.3.m3.4.4.3.3" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml"><mo stretchy="false" id="S3.SS4.p1.3.m3.4.4.3.3.4" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml">[</mo><msub id="S3.SS4.p1.3.m3.2.2.1.1.1" xref="S3.SS4.p1.3.m3.2.2.1.1.1.cmml"><mi id="S3.SS4.p1.3.m3.2.2.1.1.1.2" xref="S3.SS4.p1.3.m3.2.2.1.1.1.2.cmml">q</mi><mn id="S3.SS4.p1.3.m3.2.2.1.1.1.3" xref="S3.SS4.p1.3.m3.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S3.SS4.p1.3.m3.4.4.3.3.5" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.3.m3.3.3.2.2.2" xref="S3.SS4.p1.3.m3.3.3.2.2.2.cmml"><mi id="S3.SS4.p1.3.m3.3.3.2.2.2.2" xref="S3.SS4.p1.3.m3.3.3.2.2.2.2.cmml">q</mi><mn id="S3.SS4.p1.3.m3.3.3.2.2.2.3" xref="S3.SS4.p1.3.m3.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S3.SS4.p1.3.m3.4.4.3.3.6" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS4.p1.3.m3.1.1" xref="S3.SS4.p1.3.m3.1.1.cmml">⋯</mi><mo id="S3.SS4.p1.3.m3.4.4.3.3.7" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.3.m3.4.4.3.3.3" xref="S3.SS4.p1.3.m3.4.4.3.3.3.cmml"><mi id="S3.SS4.p1.3.m3.4.4.3.3.3.2" xref="S3.SS4.p1.3.m3.4.4.3.3.3.2.cmml">q</mi><mi id="S3.SS4.p1.3.m3.4.4.3.3.3.3" xref="S3.SS4.p1.3.m3.4.4.3.3.3.3.cmml">T</mi></msub><mo stretchy="false" id="S3.SS4.p1.3.m3.4.4.3.3.8" xref="S3.SS4.p1.3.m3.4.4.3.4.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.3.m3.4b"><apply id="S3.SS4.p1.3.m3.4.4.cmml" xref="S3.SS4.p1.3.m3.4.4"><eq id="S3.SS4.p1.3.m3.4.4.4.cmml" xref="S3.SS4.p1.3.m3.4.4.4"></eq><ci id="S3.SS4.p1.3.m3.4.4.5.cmml" xref="S3.SS4.p1.3.m3.4.4.5">𝑄</ci><list id="S3.SS4.p1.3.m3.4.4.3.4.cmml" xref="S3.SS4.p1.3.m3.4.4.3.3"><apply id="S3.SS4.p1.3.m3.2.2.1.1.1.cmml" xref="S3.SS4.p1.3.m3.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.SS4.p1.3.m3.2.2.1.1.1.1.cmml" xref="S3.SS4.p1.3.m3.2.2.1.1.1">subscript</csymbol><ci id="S3.SS4.p1.3.m3.2.2.1.1.1.2.cmml" xref="S3.SS4.p1.3.m3.2.2.1.1.1.2">𝑞</ci><cn type="integer" id="S3.SS4.p1.3.m3.2.2.1.1.1.3.cmml" xref="S3.SS4.p1.3.m3.2.2.1.1.1.3">1</cn></apply><apply id="S3.SS4.p1.3.m3.3.3.2.2.2.cmml" xref="S3.SS4.p1.3.m3.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.SS4.p1.3.m3.3.3.2.2.2.1.cmml" xref="S3.SS4.p1.3.m3.3.3.2.2.2">subscript</csymbol><ci id="S3.SS4.p1.3.m3.3.3.2.2.2.2.cmml" xref="S3.SS4.p1.3.m3.3.3.2.2.2.2">𝑞</ci><cn type="integer" id="S3.SS4.p1.3.m3.3.3.2.2.2.3.cmml" xref="S3.SS4.p1.3.m3.3.3.2.2.2.3">2</cn></apply><ci id="S3.SS4.p1.3.m3.1.1.cmml" xref="S3.SS4.p1.3.m3.1.1">⋯</ci><apply id="S3.SS4.p1.3.m3.4.4.3.3.3.cmml" xref="S3.SS4.p1.3.m3.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.SS4.p1.3.m3.4.4.3.3.3.1.cmml" xref="S3.SS4.p1.3.m3.4.4.3.3.3">subscript</csymbol><ci id="S3.SS4.p1.3.m3.4.4.3.3.3.2.cmml" xref="S3.SS4.p1.3.m3.4.4.3.3.3.2">𝑞</ci><ci id="S3.SS4.p1.3.m3.4.4.3.3.3.3.cmml" xref="S3.SS4.p1.3.m3.4.4.3.3.3.3">𝑇</ci></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.3.m3.4c">Q=[q_{1},q_{2},\cdots,q_{T}]</annotation></semantics></math>, where <math id="S3.SS4.p1.4.m4.1" class="ltx_Math" alttext="q_{i}" display="inline"><semantics id="S3.SS4.p1.4.m4.1a"><msub id="S3.SS4.p1.4.m4.1.1" xref="S3.SS4.p1.4.m4.1.1.cmml"><mi id="S3.SS4.p1.4.m4.1.1.2" xref="S3.SS4.p1.4.m4.1.1.2.cmml">q</mi><mi id="S3.SS4.p1.4.m4.1.1.3" xref="S3.SS4.p1.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.4.m4.1b"><apply id="S3.SS4.p1.4.m4.1.1.cmml" xref="S3.SS4.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS4.p1.4.m4.1.1.1.cmml" xref="S3.SS4.p1.4.m4.1.1">subscript</csymbol><ci id="S3.SS4.p1.4.m4.1.1.2.cmml" xref="S3.SS4.p1.4.m4.1.1.2">𝑞</ci><ci id="S3.SS4.p1.4.m4.1.1.3.cmml" xref="S3.SS4.p1.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.4.m4.1c">q_{i}</annotation></semantics></math> denotes the <math id="S3.SS4.p1.5.m5.1" class="ltx_Math" alttext="i^{th}" display="inline"><semantics id="S3.SS4.p1.5.m5.1a"><msup id="S3.SS4.p1.5.m5.1.1" xref="S3.SS4.p1.5.m5.1.1.cmml"><mi id="S3.SS4.p1.5.m5.1.1.2" xref="S3.SS4.p1.5.m5.1.1.2.cmml">i</mi><mrow id="S3.SS4.p1.5.m5.1.1.3" xref="S3.SS4.p1.5.m5.1.1.3.cmml"><mi id="S3.SS4.p1.5.m5.1.1.3.2" xref="S3.SS4.p1.5.m5.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S3.SS4.p1.5.m5.1.1.3.1" xref="S3.SS4.p1.5.m5.1.1.3.1.cmml">​</mo><mi id="S3.SS4.p1.5.m5.1.1.3.3" xref="S3.SS4.p1.5.m5.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.5.m5.1b"><apply id="S3.SS4.p1.5.m5.1.1.cmml" xref="S3.SS4.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S3.SS4.p1.5.m5.1.1.1.cmml" xref="S3.SS4.p1.5.m5.1.1">superscript</csymbol><ci id="S3.SS4.p1.5.m5.1.1.2.cmml" xref="S3.SS4.p1.5.m5.1.1.2">𝑖</ci><apply id="S3.SS4.p1.5.m5.1.1.3.cmml" xref="S3.SS4.p1.5.m5.1.1.3"><times id="S3.SS4.p1.5.m5.1.1.3.1.cmml" xref="S3.SS4.p1.5.m5.1.1.3.1"></times><ci id="S3.SS4.p1.5.m5.1.1.3.2.cmml" xref="S3.SS4.p1.5.m5.1.1.3.2">𝑡</ci><ci id="S3.SS4.p1.5.m5.1.1.3.3.cmml" xref="S3.SS4.p1.5.m5.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.5.m5.1c">i^{th}</annotation></semantics></math> word in the question of total <math id="S3.SS4.p1.6.m6.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S3.SS4.p1.6.m6.1a"><mi id="S3.SS4.p1.6.m6.1.1" xref="S3.SS4.p1.6.m6.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.6.m6.1b"><ci id="S3.SS4.p1.6.m6.1.1.cmml" xref="S3.SS4.p1.6.m6.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.6.m6.1c">T</annotation></semantics></math> words, the model should provide an answer <math id="S3.SS4.p1.7.m7.1" class="ltx_Math" alttext="a" display="inline"><semantics id="S3.SS4.p1.7.m7.1a"><mi id="S3.SS4.p1.7.m7.1.1" xref="S3.SS4.p1.7.m7.1.1.cmml">a</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.7.m7.1b"><ci id="S3.SS4.p1.7.m7.1.1.cmml" xref="S3.SS4.p1.7.m7.1.1">𝑎</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.7.m7.1c">a</annotation></semantics></math> such that <math id="S3.SS4.p1.8.m8.2" class="ltx_Math" alttext="a=f(S,Q)" display="inline"><semantics id="S3.SS4.p1.8.m8.2a"><mrow id="S3.SS4.p1.8.m8.2.3" xref="S3.SS4.p1.8.m8.2.3.cmml"><mi id="S3.SS4.p1.8.m8.2.3.2" xref="S3.SS4.p1.8.m8.2.3.2.cmml">a</mi><mo id="S3.SS4.p1.8.m8.2.3.1" xref="S3.SS4.p1.8.m8.2.3.1.cmml">=</mo><mrow id="S3.SS4.p1.8.m8.2.3.3" xref="S3.SS4.p1.8.m8.2.3.3.cmml"><mi id="S3.SS4.p1.8.m8.2.3.3.2" xref="S3.SS4.p1.8.m8.2.3.3.2.cmml">f</mi><mo lspace="0em" rspace="0em" id="S3.SS4.p1.8.m8.2.3.3.1" xref="S3.SS4.p1.8.m8.2.3.3.1.cmml">​</mo><mrow id="S3.SS4.p1.8.m8.2.3.3.3.2" xref="S3.SS4.p1.8.m8.2.3.3.3.1.cmml"><mo stretchy="false" id="S3.SS4.p1.8.m8.2.3.3.3.2.1" xref="S3.SS4.p1.8.m8.2.3.3.3.1.cmml">(</mo><mi id="S3.SS4.p1.8.m8.1.1" xref="S3.SS4.p1.8.m8.1.1.cmml">S</mi><mo id="S3.SS4.p1.8.m8.2.3.3.3.2.2" xref="S3.SS4.p1.8.m8.2.3.3.3.1.cmml">,</mo><mi id="S3.SS4.p1.8.m8.2.2" xref="S3.SS4.p1.8.m8.2.2.cmml">Q</mi><mo stretchy="false" id="S3.SS4.p1.8.m8.2.3.3.3.2.3" xref="S3.SS4.p1.8.m8.2.3.3.3.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.8.m8.2b"><apply id="S3.SS4.p1.8.m8.2.3.cmml" xref="S3.SS4.p1.8.m8.2.3"><eq id="S3.SS4.p1.8.m8.2.3.1.cmml" xref="S3.SS4.p1.8.m8.2.3.1"></eq><ci id="S3.SS4.p1.8.m8.2.3.2.cmml" xref="S3.SS4.p1.8.m8.2.3.2">𝑎</ci><apply id="S3.SS4.p1.8.m8.2.3.3.cmml" xref="S3.SS4.p1.8.m8.2.3.3"><times id="S3.SS4.p1.8.m8.2.3.3.1.cmml" xref="S3.SS4.p1.8.m8.2.3.3.1"></times><ci id="S3.SS4.p1.8.m8.2.3.3.2.cmml" xref="S3.SS4.p1.8.m8.2.3.3.2">𝑓</ci><interval closure="open" id="S3.SS4.p1.8.m8.2.3.3.3.1.cmml" xref="S3.SS4.p1.8.m8.2.3.3.3.2"><ci id="S3.SS4.p1.8.m8.1.1.cmml" xref="S3.SS4.p1.8.m8.1.1">𝑆</ci><ci id="S3.SS4.p1.8.m8.2.2.cmml" xref="S3.SS4.p1.8.m8.2.2">𝑄</ci></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.8.m8.2c">a=f(S,Q)</annotation></semantics></math>. The task is a discriminative question answering task which implies that the model picks the best possible answer from a set of all possible answers. Thus, the function <math id="S3.SS4.p1.9.m9.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S3.SS4.p1.9.m9.1a"><mi id="S3.SS4.p1.9.m9.1.1" xref="S3.SS4.p1.9.m9.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.9.m9.1b"><ci id="S3.SS4.p1.9.m9.1.1.cmml" xref="S3.SS4.p1.9.m9.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.9.m9.1c">f</annotation></semantics></math> ideally generates a set of scores or probabilities over all the possible answers in the answer set <math id="S3.SS4.p1.10.m10.4" class="ltx_Math" alttext="A=[a_{1},a_{2},\cdots,a_{M}]" display="inline"><semantics id="S3.SS4.p1.10.m10.4a"><mrow id="S3.SS4.p1.10.m10.4.4" xref="S3.SS4.p1.10.m10.4.4.cmml"><mi id="S3.SS4.p1.10.m10.4.4.5" xref="S3.SS4.p1.10.m10.4.4.5.cmml">A</mi><mo id="S3.SS4.p1.10.m10.4.4.4" xref="S3.SS4.p1.10.m10.4.4.4.cmml">=</mo><mrow id="S3.SS4.p1.10.m10.4.4.3.3" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml"><mo stretchy="false" id="S3.SS4.p1.10.m10.4.4.3.3.4" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml">[</mo><msub id="S3.SS4.p1.10.m10.2.2.1.1.1" xref="S3.SS4.p1.10.m10.2.2.1.1.1.cmml"><mi id="S3.SS4.p1.10.m10.2.2.1.1.1.2" xref="S3.SS4.p1.10.m10.2.2.1.1.1.2.cmml">a</mi><mn id="S3.SS4.p1.10.m10.2.2.1.1.1.3" xref="S3.SS4.p1.10.m10.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S3.SS4.p1.10.m10.4.4.3.3.5" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.10.m10.3.3.2.2.2" xref="S3.SS4.p1.10.m10.3.3.2.2.2.cmml"><mi id="S3.SS4.p1.10.m10.3.3.2.2.2.2" xref="S3.SS4.p1.10.m10.3.3.2.2.2.2.cmml">a</mi><mn id="S3.SS4.p1.10.m10.3.3.2.2.2.3" xref="S3.SS4.p1.10.m10.3.3.2.2.2.3.cmml">2</mn></msub><mo id="S3.SS4.p1.10.m10.4.4.3.3.6" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml">,</mo><mi mathvariant="normal" id="S3.SS4.p1.10.m10.1.1" xref="S3.SS4.p1.10.m10.1.1.cmml">⋯</mi><mo id="S3.SS4.p1.10.m10.4.4.3.3.7" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml">,</mo><msub id="S3.SS4.p1.10.m10.4.4.3.3.3" xref="S3.SS4.p1.10.m10.4.4.3.3.3.cmml"><mi id="S3.SS4.p1.10.m10.4.4.3.3.3.2" xref="S3.SS4.p1.10.m10.4.4.3.3.3.2.cmml">a</mi><mi id="S3.SS4.p1.10.m10.4.4.3.3.3.3" xref="S3.SS4.p1.10.m10.4.4.3.3.3.3.cmml">M</mi></msub><mo stretchy="false" id="S3.SS4.p1.10.m10.4.4.3.3.8" xref="S3.SS4.p1.10.m10.4.4.3.4.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.10.m10.4b"><apply id="S3.SS4.p1.10.m10.4.4.cmml" xref="S3.SS4.p1.10.m10.4.4"><eq id="S3.SS4.p1.10.m10.4.4.4.cmml" xref="S3.SS4.p1.10.m10.4.4.4"></eq><ci id="S3.SS4.p1.10.m10.4.4.5.cmml" xref="S3.SS4.p1.10.m10.4.4.5">𝐴</ci><list id="S3.SS4.p1.10.m10.4.4.3.4.cmml" xref="S3.SS4.p1.10.m10.4.4.3.3"><apply id="S3.SS4.p1.10.m10.2.2.1.1.1.cmml" xref="S3.SS4.p1.10.m10.2.2.1.1.1"><csymbol cd="ambiguous" id="S3.SS4.p1.10.m10.2.2.1.1.1.1.cmml" xref="S3.SS4.p1.10.m10.2.2.1.1.1">subscript</csymbol><ci id="S3.SS4.p1.10.m10.2.2.1.1.1.2.cmml" xref="S3.SS4.p1.10.m10.2.2.1.1.1.2">𝑎</ci><cn type="integer" id="S3.SS4.p1.10.m10.2.2.1.1.1.3.cmml" xref="S3.SS4.p1.10.m10.2.2.1.1.1.3">1</cn></apply><apply id="S3.SS4.p1.10.m10.3.3.2.2.2.cmml" xref="S3.SS4.p1.10.m10.3.3.2.2.2"><csymbol cd="ambiguous" id="S3.SS4.p1.10.m10.3.3.2.2.2.1.cmml" xref="S3.SS4.p1.10.m10.3.3.2.2.2">subscript</csymbol><ci id="S3.SS4.p1.10.m10.3.3.2.2.2.2.cmml" xref="S3.SS4.p1.10.m10.3.3.2.2.2.2">𝑎</ci><cn type="integer" id="S3.SS4.p1.10.m10.3.3.2.2.2.3.cmml" xref="S3.SS4.p1.10.m10.3.3.2.2.2.3">2</cn></apply><ci id="S3.SS4.p1.10.m10.1.1.cmml" xref="S3.SS4.p1.10.m10.1.1">⋯</ci><apply id="S3.SS4.p1.10.m10.4.4.3.3.3.cmml" xref="S3.SS4.p1.10.m10.4.4.3.3.3"><csymbol cd="ambiguous" id="S3.SS4.p1.10.m10.4.4.3.3.3.1.cmml" xref="S3.SS4.p1.10.m10.4.4.3.3.3">subscript</csymbol><ci id="S3.SS4.p1.10.m10.4.4.3.3.3.2.cmml" xref="S3.SS4.p1.10.m10.4.4.3.3.3.2">𝑎</ci><ci id="S3.SS4.p1.10.m10.4.4.3.3.3.3.cmml" xref="S3.SS4.p1.10.m10.4.4.3.3.3.3">𝑀</ci></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.10.m10.4c">A=[a_{1},a_{2},\cdots,a_{M}]</annotation></semantics></math>. For nuScenes dataset, there are 6 images associated with each data point i.e. <math id="S3.SS4.p1.11.m11.1" class="ltx_Math" alttext="N=6" display="inline"><semantics id="S3.SS4.p1.11.m11.1a"><mrow id="S3.SS4.p1.11.m11.1.1" xref="S3.SS4.p1.11.m11.1.1.cmml"><mi id="S3.SS4.p1.11.m11.1.1.2" xref="S3.SS4.p1.11.m11.1.1.2.cmml">N</mi><mo id="S3.SS4.p1.11.m11.1.1.1" xref="S3.SS4.p1.11.m11.1.1.1.cmml">=</mo><mn id="S3.SS4.p1.11.m11.1.1.3" xref="S3.SS4.p1.11.m11.1.1.3.cmml">6</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.11.m11.1b"><apply id="S3.SS4.p1.11.m11.1.1.cmml" xref="S3.SS4.p1.11.m11.1.1"><eq id="S3.SS4.p1.11.m11.1.1.1.cmml" xref="S3.SS4.p1.11.m11.1.1.1"></eq><ci id="S3.SS4.p1.11.m11.1.1.2.cmml" xref="S3.SS4.p1.11.m11.1.1.2">𝑁</ci><cn type="integer" id="S3.SS4.p1.11.m11.1.1.3.cmml" xref="S3.SS4.p1.11.m11.1.1.3">6</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.11.m11.1c">N=6</annotation></semantics></math> and the total possible answers <math id="S3.SS4.p1.12.m12.1" class="ltx_Math" alttext="M=650" display="inline"><semantics id="S3.SS4.p1.12.m12.1a"><mrow id="S3.SS4.p1.12.m12.1.1" xref="S3.SS4.p1.12.m12.1.1.cmml"><mi id="S3.SS4.p1.12.m12.1.1.2" xref="S3.SS4.p1.12.m12.1.1.2.cmml">M</mi><mo id="S3.SS4.p1.12.m12.1.1.1" xref="S3.SS4.p1.12.m12.1.1.1.cmml">=</mo><mn id="S3.SS4.p1.12.m12.1.1.3" xref="S3.SS4.p1.12.m12.1.1.3.cmml">650</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.12.m12.1b"><apply id="S3.SS4.p1.12.m12.1.1.cmml" xref="S3.SS4.p1.12.m12.1.1"><eq id="S3.SS4.p1.12.m12.1.1.1.cmml" xref="S3.SS4.p1.12.m12.1.1.1"></eq><ci id="S3.SS4.p1.12.m12.1.1.2.cmml" xref="S3.SS4.p1.12.m12.1.1.2">𝑀</ci><cn type="integer" id="S3.SS4.p1.12.m12.1.1.3.cmml" xref="S3.SS4.p1.12.m12.1.1.3">650</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.12.m12.1c">M=650</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Multimodal Basline</h3>
+
+<div id="S3.SS5.p1" class="ltx_para">
+<p id="S3.SS5.p1.1" class="ltx_p">Given the lack of work on ISVQA specific baseline models, we implemented and adapted one Video-QA and two VQA models to work in an ISVQA setting. In specific, we tried: HME-Video VQA, VisualBERT, and LXMERT models as our baselines. The HME-Video VQA and LXMERT baselines have been proposed by the authors of the ISVQA dataset, and our re-implementation of these models on ISVQA yields results in the same domain as has been observed by authors of the dataset.</p>
+</div>
+<div id="S3.SS5.p2" class="ltx_para">
+<p id="S3.SS5.p2.3" class="ltx_p">To adapt HME-VideoQA model to ISVQA, we used the images in the set as the frames of the video so that the appearance features could be calculated directly. We used VGG19 to extract the features. For motion features, we assumed the images in the set to be a part of a 3D video. We used C3D model to extract the features. The visual features were of size 4096. Adam was used as the optimizer with learning rate of <math id="S3.SS5.p2.1.m1.1" class="ltx_Math" alttext="1e-3" display="inline"><semantics id="S3.SS5.p2.1.m1.1a"><mrow id="S3.SS5.p2.1.m1.1.1" xref="S3.SS5.p2.1.m1.1.1.cmml"><mrow id="S3.SS5.p2.1.m1.1.1.2" xref="S3.SS5.p2.1.m1.1.1.2.cmml"><mn id="S3.SS5.p2.1.m1.1.1.2.2" xref="S3.SS5.p2.1.m1.1.1.2.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S3.SS5.p2.1.m1.1.1.2.1" xref="S3.SS5.p2.1.m1.1.1.2.1.cmml">​</mo><mi id="S3.SS5.p2.1.m1.1.1.2.3" xref="S3.SS5.p2.1.m1.1.1.2.3.cmml">e</mi></mrow><mo id="S3.SS5.p2.1.m1.1.1.1" xref="S3.SS5.p2.1.m1.1.1.1.cmml">−</mo><mn id="S3.SS5.p2.1.m1.1.1.3" xref="S3.SS5.p2.1.m1.1.1.3.cmml">3</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.p2.1.m1.1b"><apply id="S3.SS5.p2.1.m1.1.1.cmml" xref="S3.SS5.p2.1.m1.1.1"><minus id="S3.SS5.p2.1.m1.1.1.1.cmml" xref="S3.SS5.p2.1.m1.1.1.1"></minus><apply id="S3.SS5.p2.1.m1.1.1.2.cmml" xref="S3.SS5.p2.1.m1.1.1.2"><times id="S3.SS5.p2.1.m1.1.1.2.1.cmml" xref="S3.SS5.p2.1.m1.1.1.2.1"></times><cn type="integer" id="S3.SS5.p2.1.m1.1.1.2.2.cmml" xref="S3.SS5.p2.1.m1.1.1.2.2">1</cn><ci id="S3.SS5.p2.1.m1.1.1.2.3.cmml" xref="S3.SS5.p2.1.m1.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S3.SS5.p2.1.m1.1.1.3.cmml" xref="S3.SS5.p2.1.m1.1.1.3">3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p2.1.m1.1c">1e-3</annotation></semantics></math>. A memory of size <math id="S3.SS5.p2.2.m2.1" class="ltx_Math" alttext="256" display="inline"><semantics id="S3.SS5.p2.2.m2.1a"><mn id="S3.SS5.p2.2.m2.1.1" xref="S3.SS5.p2.2.m2.1.1.cmml">256</mn><annotation-xml encoding="MathML-Content" id="S3.SS5.p2.2.m2.1b"><cn type="integer" id="S3.SS5.p2.2.m2.1.1.cmml" xref="S3.SS5.p2.2.m2.1.1">256</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p2.2.m2.1c">256</annotation></semantics></math> was used for the Heterogeneous memory model. LSTM of hidden memory size <math id="S3.SS5.p2.3.m3.1" class="ltx_Math" alttext="512" display="inline"><semantics id="S3.SS5.p2.3.m3.1a"><mn id="S3.SS5.p2.3.m3.1.1" xref="S3.SS5.p2.3.m3.1.1.cmml">512</mn><annotation-xml encoding="MathML-Content" id="S3.SS5.p2.3.m3.1b"><cn type="integer" id="S3.SS5.p2.3.m3.1.1.cmml" xref="S3.SS5.p2.3.m3.1.1">512</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p2.3.m3.1c">512</annotation></semantics></math> was used in the multimodal fusion module.</p>
+</div>
+<div id="S3.SS5.p3" class="ltx_para">
+<p id="S3.SS5.p3.1" class="ltx_p">For the VQA models, we stitched the images in the image-set together to get object features and positions. For LXMERT, we used the same amount of layers, embedding dimensions as have been used in LXMERT and a learning rate of <math id="S3.SS5.p3.1.m1.1" class="ltx_Math" alttext="2e-5" display="inline"><semantics id="S3.SS5.p3.1.m1.1a"><mrow id="S3.SS5.p3.1.m1.1.1" xref="S3.SS5.p3.1.m1.1.1.cmml"><mrow id="S3.SS5.p3.1.m1.1.1.2" xref="S3.SS5.p3.1.m1.1.1.2.cmml"><mn id="S3.SS5.p3.1.m1.1.1.2.2" xref="S3.SS5.p3.1.m1.1.1.2.2.cmml">2</mn><mo lspace="0em" rspace="0em" id="S3.SS5.p3.1.m1.1.1.2.1" xref="S3.SS5.p3.1.m1.1.1.2.1.cmml">​</mo><mi id="S3.SS5.p3.1.m1.1.1.2.3" xref="S3.SS5.p3.1.m1.1.1.2.3.cmml">e</mi></mrow><mo id="S3.SS5.p3.1.m1.1.1.1" xref="S3.SS5.p3.1.m1.1.1.1.cmml">−</mo><mn id="S3.SS5.p3.1.m1.1.1.3" xref="S3.SS5.p3.1.m1.1.1.3.cmml">5</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.p3.1.m1.1b"><apply id="S3.SS5.p3.1.m1.1.1.cmml" xref="S3.SS5.p3.1.m1.1.1"><minus id="S3.SS5.p3.1.m1.1.1.1.cmml" xref="S3.SS5.p3.1.m1.1.1.1"></minus><apply id="S3.SS5.p3.1.m1.1.1.2.cmml" xref="S3.SS5.p3.1.m1.1.1.2"><times id="S3.SS5.p3.1.m1.1.1.2.1.cmml" xref="S3.SS5.p3.1.m1.1.1.2.1"></times><cn type="integer" id="S3.SS5.p3.1.m1.1.1.2.2.cmml" xref="S3.SS5.p3.1.m1.1.1.2.2">2</cn><ci id="S3.SS5.p3.1.m1.1.1.2.3.cmml" xref="S3.SS5.p3.1.m1.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S3.SS5.p3.1.m1.1.1.3.cmml" xref="S3.SS5.p3.1.m1.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p3.1.m1.1c">2e-5</annotation></semantics></math> and trained our model for 4 epochs. Adam optimizer with linear-decayed learning-rate schedule was used for this task. For VisualBERT, all the hyperparameters utilized for training the model were kept the same as in the default implementation provided by the authors.</p>
+</div>
+<div id="S3.SS5.p4" class="ltx_para">
+<p id="S3.SS5.p4.1" class="ltx_p">For all the baseline models we use the Categorical Cross-Entropy loss for training.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Proposed Approach</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">An analysis of the relationship between the model performance and the nature of questions shows that certain question categories such as count-based and colour-based questions perform worse as compared to other question categories such as object-based and true/false questions. This is also shown in Fig. <a href="#S4.F2" title="Figure 2 ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> where we analyze the 15 most frequent types of questions in our dataset using LXMERT. This can be attributed to the inherent difficult nature of these tasks, often involving a multi-step process; including object detection, recognition and counting; to perform optimally while also limiting the impact of common issues such as double-counting.</p>
+</div>
+<figure id="S4.F2" class="ltx_figure"><img src="/html/2104.00107/assets/imgs/question_type_lxmert_op.txt.png" id="S4.F2.1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="225" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Question-based error analysis for LXMERT baseline</figcaption>
+</figure>
+<div id="S4.p2" class="ltx_para">
+<p id="S4.p2.1" class="ltx_p">We propose models using pre-training (Section <a href="#S4.SS2" title="4.2 Enhancing Pre-Training with Color and Position Questions ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.2</span></a>) and count-aware feature generation (Section <a href="#S4.SS3" title="4.3 Count Aware ISVQA using graph based deduplication ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3</span></a> and <a href="#S4.SS4" title="4.4 Improving Performance on Count-based Questions using Regression Loss ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.4</span></a>) for mitigating these issues. Further, the questions in our dataset have been susceptible to dataset biases. We propose using Adversarial regularization to remove language dependence in LXMERT in Section <a href="#S4.SS1" title="4.1 Removing Language Dependence using Adversarial Regularization ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.1</span></a>.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Removing Language Dependence using Adversarial Regularization</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">Adversarial regularization is the process of marginalizing biases which may be detrimental to performance of a model when evaluated on out of distribution data. The procedure of performing regularization adversarially involves introducing a competing framework which penalize overconfident predictions of the model when data with insufficient information is provided to the model.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.1" class="ltx_p">The idea to incorporate adversarial regularization stems from the observations made on the Question only Analysis. A model which captures strong language biases limits its ability to generalize to data which is not observed during training and hence introducing a regularizing component can prove beneficial to improve the performance of the ISVQA baselines discussed in section <a href="#S3.SS5" title="3.5 Multimodal Basline ‣ 3 Experimental Setup ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.5</span></a>. A similar observation to the one made in the Question only BERT baseline is observed in the LXMERT model. Here the LXMERT model which achieves the best result for ISVQA is able to accurately answer questions even when the information from the visual modality is completely removed by zeroing out object features extracted from the RCNN module. The Table <a href="#S5.T3" title="Table 3 ‣ 5.1 Removing Language Dependence using Adversarial Regularization (In-Depth Analysis) ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows the result from our experiment on adversarial regularization.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<p id="S4.SS1.p3.1" class="ltx_p">The procedure for adversarial regularization involves eliminating features of objects in the image that contain the answer to the question. This is done by parsing the question to identify objects (ex. car, person, truck, etc.) and removing their image feature representation information extracted by the Faster-RCNN module. The training example generated by the above process lacks important information needed to answer the question and hence the model must not be able to predict the correct answer for such an example. Correct answers to such questions might indicate the presence of unwanted biases learnt by the model during training and to eliminate them we reverse the direction of gradient on adversarial examples and add an additional term to the original loss formulation which maximizes the loss on adversarial examples, thus eliminating biases in the process. The equation <a href="#S4.Ex1" title="4.1 Removing Language Dependence using Adversarial Regularization ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.1</span></a> shows the formulation of the loss function with an additional loss term for adversarial examples.</p>
+</div>
+<div id="S4.SS1.p4" class="ltx_para">
+<table id="S4.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex1.m1.2" class="ltx_math_unparsed" alttext="L_{(}q,I,I^{\prime};\theta)=L_{(}q,I;\theta)-\lambda_{R}*L_{(}q,I^{\prime};\theta)" display="block"><semantics id="S4.Ex1.m1.2a"><mrow id="S4.Ex1.m1.2b"><mrow id="S4.Ex1.m1.2.3"><mrow id="S4.Ex1.m1.2.3.1"><msub id="S4.Ex1.m1.2.3.1.1"><mi id="S4.Ex1.m1.2.3.1.1.2">L</mi><mo stretchy="false" id="S4.Ex1.m1.2.3.1.1.3">(</mo></msub><mi id="S4.Ex1.m1.2.3.1.2">q</mi><mo id="S4.Ex1.m1.2.3.1.3">,</mo><mi id="S4.Ex1.m1.1.1">I</mi><mo id="S4.Ex1.m1.2.3.1.4">,</mo><msup id="S4.Ex1.m1.2.3.1.5"><mi id="S4.Ex1.m1.2.3.1.5.2">I</mi><mo id="S4.Ex1.m1.2.3.1.5.3">′</mo></msup><mo id="S4.Ex1.m1.2.3.1.6">;</mo><mi id="S4.Ex1.m1.2.2">θ</mi><mo stretchy="false" id="S4.Ex1.m1.2.3.1.7">)</mo></mrow><mo id="S4.Ex1.m1.2.3.2">=</mo><msub id="S4.Ex1.m1.2.3.3"><mi id="S4.Ex1.m1.2.3.3.2">L</mi><mo stretchy="false" id="S4.Ex1.m1.2.3.3.3">(</mo></msub><mi id="S4.Ex1.m1.2.3.4">q</mi><mo id="S4.Ex1.m1.2.3.5">,</mo><mi id="S4.Ex1.m1.2.3.6">I</mi><mo id="S4.Ex1.m1.2.3.7">;</mo><mi id="S4.Ex1.m1.2.3.8">θ</mi><mo stretchy="false" id="S4.Ex1.m1.2.3.9">)</mo></mrow><mo id="S4.Ex1.m1.2.4">−</mo><msub id="S4.Ex1.m1.2.5"><mi id="S4.Ex1.m1.2.5.2">λ</mi><mi id="S4.Ex1.m1.2.5.3">R</mi></msub><mo lspace="0.222em" rspace="0.222em" id="S4.Ex1.m1.2.6">∗</mo><msub id="S4.Ex1.m1.2.7"><mi id="S4.Ex1.m1.2.7.2">L</mi><mo stretchy="false" id="S4.Ex1.m1.2.7.3">(</mo></msub><mi id="S4.Ex1.m1.2.8">q</mi><mo id="S4.Ex1.m1.2.9">,</mo><msup id="S4.Ex1.m1.2.10"><mi id="S4.Ex1.m1.2.10.2">I</mi><mo id="S4.Ex1.m1.2.10.3">′</mo></msup><mo id="S4.Ex1.m1.2.11">;</mo><mi id="S4.Ex1.m1.2.12">θ</mi><mo stretchy="false" id="S4.Ex1.m1.2.13">)</mo></mrow><annotation encoding="application/x-tex" id="S4.Ex1.m1.2c">L_{(}q,I,I^{\prime};\theta)=L_{(}q,I;\theta)-\lambda_{R}*L_{(}q,I^{\prime};\theta)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS1.p5" class="ltx_para">
+<p id="S4.SS1.p5.8" class="ltx_p">Here, <math id="S4.SS1.p5.1.m1.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S4.SS1.p5.1.m1.1a"><mi id="S4.SS1.p5.1.m1.1.1" xref="S4.SS1.p5.1.m1.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.1.m1.1b"><ci id="S4.SS1.p5.1.m1.1.1.cmml" xref="S4.SS1.p5.1.m1.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.1.m1.1c">L</annotation></semantics></math> corresponds to the Loss of the ISVQA model. <math id="S4.SS1.p5.2.m2.1" class="ltx_Math" alttext="\lambda_{R}" display="inline"><semantics id="S4.SS1.p5.2.m2.1a"><msub id="S4.SS1.p5.2.m2.1.1" xref="S4.SS1.p5.2.m2.1.1.cmml"><mi id="S4.SS1.p5.2.m2.1.1.2" xref="S4.SS1.p5.2.m2.1.1.2.cmml">λ</mi><mi id="S4.SS1.p5.2.m2.1.1.3" xref="S4.SS1.p5.2.m2.1.1.3.cmml">R</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.2.m2.1b"><apply id="S4.SS1.p5.2.m2.1.1.cmml" xref="S4.SS1.p5.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p5.2.m2.1.1.1.cmml" xref="S4.SS1.p5.2.m2.1.1">subscript</csymbol><ci id="S4.SS1.p5.2.m2.1.1.2.cmml" xref="S4.SS1.p5.2.m2.1.1.2">𝜆</ci><ci id="S4.SS1.p5.2.m2.1.1.3.cmml" xref="S4.SS1.p5.2.m2.1.1.3">𝑅</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.2.m2.1c">\lambda_{R}</annotation></semantics></math> is the regularization constant and controls the strength of the regularization. <math id="S4.SS1.p5.3.m3.1" class="ltx_Math" alttext="q" display="inline"><semantics id="S4.SS1.p5.3.m3.1a"><mi id="S4.SS1.p5.3.m3.1.1" xref="S4.SS1.p5.3.m3.1.1.cmml">q</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.3.m3.1b"><ci id="S4.SS1.p5.3.m3.1.1.cmml" xref="S4.SS1.p5.3.m3.1.1">𝑞</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.3.m3.1c">q</annotation></semantics></math> represents the question, <math id="S4.SS1.p5.4.m4.1" class="ltx_Math" alttext="I" display="inline"><semantics id="S4.SS1.p5.4.m4.1a"><mi id="S4.SS1.p5.4.m4.1.1" xref="S4.SS1.p5.4.m4.1.1.cmml">I</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.4.m4.1b"><ci id="S4.SS1.p5.4.m4.1.1.cmml" xref="S4.SS1.p5.4.m4.1.1">𝐼</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.4.m4.1c">I</annotation></semantics></math> represents the true image features extracted from Faster-RCNN, <math id="S4.SS1.p5.5.m5.1" class="ltx_Math" alttext="I^{\prime}" display="inline"><semantics id="S4.SS1.p5.5.m5.1a"><msup id="S4.SS1.p5.5.m5.1.1" xref="S4.SS1.p5.5.m5.1.1.cmml"><mi id="S4.SS1.p5.5.m5.1.1.2" xref="S4.SS1.p5.5.m5.1.1.2.cmml">I</mi><mo id="S4.SS1.p5.5.m5.1.1.3" xref="S4.SS1.p5.5.m5.1.1.3.cmml">′</mo></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.5.m5.1b"><apply id="S4.SS1.p5.5.m5.1.1.cmml" xref="S4.SS1.p5.5.m5.1.1"><csymbol cd="ambiguous" id="S4.SS1.p5.5.m5.1.1.1.cmml" xref="S4.SS1.p5.5.m5.1.1">superscript</csymbol><ci id="S4.SS1.p5.5.m5.1.1.2.cmml" xref="S4.SS1.p5.5.m5.1.1.2">𝐼</ci><ci id="S4.SS1.p5.5.m5.1.1.3.cmml" xref="S4.SS1.p5.5.m5.1.1.3">′</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.5.m5.1c">I^{\prime}</annotation></semantics></math> represents the augmented Image features and <math id="S4.SS1.p5.6.m6.1" class="ltx_Math" alttext="\theta" display="inline"><semantics id="S4.SS1.p5.6.m6.1a"><mi id="S4.SS1.p5.6.m6.1.1" xref="S4.SS1.p5.6.m6.1.1.cmml">θ</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.6.m6.1b"><ci id="S4.SS1.p5.6.m6.1.1.cmml" xref="S4.SS1.p5.6.m6.1.1">𝜃</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.6.m6.1c">\theta</annotation></semantics></math> represents the model parameters. For all our experiments on adversarial regularization we fix <math id="S4.SS1.p5.7.m7.1" class="ltx_Math" alttext="\lambda_{R}" display="inline"><semantics id="S4.SS1.p5.7.m7.1a"><msub id="S4.SS1.p5.7.m7.1.1" xref="S4.SS1.p5.7.m7.1.1.cmml"><mi id="S4.SS1.p5.7.m7.1.1.2" xref="S4.SS1.p5.7.m7.1.1.2.cmml">λ</mi><mi id="S4.SS1.p5.7.m7.1.1.3" xref="S4.SS1.p5.7.m7.1.1.3.cmml">R</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.7.m7.1b"><apply id="S4.SS1.p5.7.m7.1.1.cmml" xref="S4.SS1.p5.7.m7.1.1"><csymbol cd="ambiguous" id="S4.SS1.p5.7.m7.1.1.1.cmml" xref="S4.SS1.p5.7.m7.1.1">subscript</csymbol><ci id="S4.SS1.p5.7.m7.1.1.2.cmml" xref="S4.SS1.p5.7.m7.1.1.2">𝜆</ci><ci id="S4.SS1.p5.7.m7.1.1.3.cmml" xref="S4.SS1.p5.7.m7.1.1.3">𝑅</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.7.m7.1c">\lambda_{R}</annotation></semantics></math> to be <math id="S4.SS1.p5.8.m8.1" class="ltx_Math" alttext="0.1" display="inline"><semantics id="S4.SS1.p5.8.m8.1a"><mn id="S4.SS1.p5.8.m8.1.1" xref="S4.SS1.p5.8.m8.1.1.cmml">0.1</mn><annotation-xml encoding="MathML-Content" id="S4.SS1.p5.8.m8.1b"><cn type="float" id="S4.SS1.p5.8.m8.1.1.cmml" xref="S4.SS1.p5.8.m8.1.1">0.1</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p5.8.m8.1c">0.1</annotation></semantics></math>.</p>
+</div>
+<div id="S4.SS1.p6" class="ltx_para">
+<p id="S4.SS1.p6.1" class="ltx_p">We also experiment with 2 different loss functions for adversarial regularization and analyze their effectiveness in reducing bias. The Cross-Entropy (CE) loss obtained on an adversarial example given the ground truth label gives us a measure of the extent to which the model is overconfident in its prediction hence we choose to maximize this loss. Another loss function that we try out is the per class Binary Cross-Entropy (BCE) loss which is used to determine the cumulative loss per class given an adversarial example and we choose to minimize this loss as its magnitude indicates how certain the model is of the predicted answer. Hence a higher value indicates more certainty which corresponds to overconfident predictions.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Enhancing Pre-Training with Color and Position Questions</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">Fig. <a href="#S4.F2" title="Figure 2 ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows that color based questions perform sub-optimally for ISVQA. We try to tackle this, along with the general problem of spatial-awareness (which is pivotal to ISVQA) using enhanced pre-training. Recent works in the field of NLP have focussed on different positional embedding strategies to improve performance with Transformer-based models. While pre-training using novel positional embedding strategies would have been an interesting path to pursue, the computational complexity of the problem would have been difficult to manage within the resources available (LXMERT pre-training took 10 days on 4 Titan Xp). In order to achieve the benefits of having a better spatial and color-awareness, we take advantage of the pre-training strategy used by LXMERT. In particular, we take advantage of the fact that LXMERT’s last 10 epochs of pre-training only take place on the Image Question-Answering task. In order to provide better spatial and color information, we continue pre-training the previously pre-trained LXMERT on artificially created color and position based VQA questions.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">In order to create artificial color VQA questions, we used the attributes predicted by R-CNN. For all the color-based attributes, we created a template question <span id="S4.SS2.p2.1.1" class="ltx_text ltx_font_italic">What is the color of X</span> where X is the object. For generating position questions, we looked into the left, right, top, and bottom-most objects, found the nearest objects to these objects based on Euclidean distance, and generated artificial question of the form <span id="S4.SS2.p2.1.2" class="ltx_text ltx_font_italic">what is below X</span>. We only consider the left-most object as the answer for a question of the format <span id="S4.SS2.p2.1.3" class="ltx_text ltx_font_italic">what is to the left of X</span> to ensure that there is no ambiguity. Further, we also ensure that the questions are generated for unique objects - i.e. objects that appear in the questions only appear once in the set of the images. Fig. <a href="#S4.F3" title="Figure 3 ‣ 4.2 Enhancing Pre-Training with Color and Position Questions ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> gives an example of questions generated for an image set using this technique.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p">For this apporach, we use the same hyperparameter, loss, and optimizer as with the LXMERT baseline.</p>
+</div>
+<figure id="S4.F3" class="ltx_figure"><img src="/html/2104.00107/assets/imgs/abhi.png" id="S4.F3.1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="166" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The given image generates two questions: <span id="S4.F3.4.1" class="ltx_text ltx_font_italic">What is the color of the sign?</span> (Green) and
+<span id="S4.F3.5.2" class="ltx_text ltx_font_italic">What is below the wall?</span> (Sidewalk)</figcaption>
+</figure>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Count Aware ISVQA using graph based deduplication</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.2" class="ltx_p">We observe that all the baseline models struggle to perform optimally on the count-based questions. Traditionally, these questions have been susceptible to dataset biases <cite class="ltx_cite ltx_citemacro_citep">(Jabri et al., <a href="#bib.bib13" title="" class="ltx_ref">2016</a>)</cite> and often require a multi-step process involving object detection, recognition and counting to perform optimally, while also maintaining the generalizability of the model. We propose an improvement on the baseline model by adapting and extending the work of <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib31" title="" class="ltx_ref">2018</a>)</cite> specifically to handle count based questions.
+In their work <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib31" title="" class="ltx_ref">2018</a>)</cite> propose that simply using soft attention for the VQA task does not help with the objective of counting. The major reason for this is attributed to the fact that the soft attention mechanism gives an equal weight to an object category. Thus if <math id="S4.SS3.p1.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S4.SS3.p1.1.m1.1a"><mi id="S4.SS3.p1.1.m1.1.1" xref="S4.SS3.p1.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.1.m1.1b"><ci id="S4.SS3.p1.1.m1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.1.m1.1c">n</annotation></semantics></math> objects of the same class are present in an image the attention weights for each are <math id="S4.SS3.p1.2.m2.1" class="ltx_Math" alttext="1/n" display="inline"><semantics id="S4.SS3.p1.2.m2.1a"><mrow id="S4.SS3.p1.2.m2.1.1" xref="S4.SS3.p1.2.m2.1.1.cmml"><mn id="S4.SS3.p1.2.m2.1.1.2" xref="S4.SS3.p1.2.m2.1.1.2.cmml">1</mn><mo id="S4.SS3.p1.2.m2.1.1.1" xref="S4.SS3.p1.2.m2.1.1.1.cmml">/</mo><mi id="S4.SS3.p1.2.m2.1.1.3" xref="S4.SS3.p1.2.m2.1.1.3.cmml">n</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.2.m2.1b"><apply id="S4.SS3.p1.2.m2.1.1.cmml" xref="S4.SS3.p1.2.m2.1.1"><divide id="S4.SS3.p1.2.m2.1.1.1.cmml" xref="S4.SS3.p1.2.m2.1.1.1"></divide><cn type="integer" id="S4.SS3.p1.2.m2.1.1.2.cmml" xref="S4.SS3.p1.2.m2.1.1.2">1</cn><ci id="S4.SS3.p1.2.m2.1.1.3.cmml" xref="S4.SS3.p1.2.m2.1.1.3">𝑛</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.2.m2.1c">1/n</annotation></semantics></math> times reduced (with all of them still summing to 1).</p>
+</div>
+<div id="S4.SS3.p2" class="ltx_para">
+<p id="S4.SS3.p2.7" class="ltx_p">The authors present a differentiable mechanism for counting from attention weights, while
+also dealing with the problem of overlapping object regions of interest to reduce double-counting of objects.
+The central idea is to create a graph and subsequently an adjacency matrix from these object proposals. Edges of the graph can then be scaled and pruned in a specific way such that a count of the number of underlying objects is found. The model takes in input as the region of interest features and the corresponding bounding boxes extracted from a Faster R-CNN network and the question encoded using an LSTM network.
+Adjacency graph <math id="S4.SS3.p2.1.m1.1" class="ltx_Math" alttext="A" display="inline"><semantics id="S4.SS3.p2.1.m1.1a"><mi id="S4.SS3.p2.1.m1.1.1" xref="S4.SS3.p2.1.m1.1.1.cmml">A</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.1.m1.1b"><ci id="S4.SS3.p2.1.m1.1.1.cmml" xref="S4.SS3.p2.1.m1.1.1">𝐴</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.1.m1.1c">A</annotation></semantics></math> is obtained from the attention matrix by computing the outer product - <math id="S4.SS3.p2.2.m2.1" class="ltx_Math" alttext="A=aa^{T}" display="inline"><semantics id="S4.SS3.p2.2.m2.1a"><mrow id="S4.SS3.p2.2.m2.1.1" xref="S4.SS3.p2.2.m2.1.1.cmml"><mi id="S4.SS3.p2.2.m2.1.1.2" xref="S4.SS3.p2.2.m2.1.1.2.cmml">A</mi><mo id="S4.SS3.p2.2.m2.1.1.1" xref="S4.SS3.p2.2.m2.1.1.1.cmml">=</mo><mrow id="S4.SS3.p2.2.m2.1.1.3" xref="S4.SS3.p2.2.m2.1.1.3.cmml"><mi id="S4.SS3.p2.2.m2.1.1.3.2" xref="S4.SS3.p2.2.m2.1.1.3.2.cmml">a</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p2.2.m2.1.1.3.1" xref="S4.SS3.p2.2.m2.1.1.3.1.cmml">​</mo><msup id="S4.SS3.p2.2.m2.1.1.3.3" xref="S4.SS3.p2.2.m2.1.1.3.3.cmml"><mi id="S4.SS3.p2.2.m2.1.1.3.3.2" xref="S4.SS3.p2.2.m2.1.1.3.3.2.cmml">a</mi><mi id="S4.SS3.p2.2.m2.1.1.3.3.3" xref="S4.SS3.p2.2.m2.1.1.3.3.3.cmml">T</mi></msup></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.2.m2.1b"><apply id="S4.SS3.p2.2.m2.1.1.cmml" xref="S4.SS3.p2.2.m2.1.1"><eq id="S4.SS3.p2.2.m2.1.1.1.cmml" xref="S4.SS3.p2.2.m2.1.1.1"></eq><ci id="S4.SS3.p2.2.m2.1.1.2.cmml" xref="S4.SS3.p2.2.m2.1.1.2">𝐴</ci><apply id="S4.SS3.p2.2.m2.1.1.3.cmml" xref="S4.SS3.p2.2.m2.1.1.3"><times id="S4.SS3.p2.2.m2.1.1.3.1.cmml" xref="S4.SS3.p2.2.m2.1.1.3.1"></times><ci id="S4.SS3.p2.2.m2.1.1.3.2.cmml" xref="S4.SS3.p2.2.m2.1.1.3.2">𝑎</ci><apply id="S4.SS3.p2.2.m2.1.1.3.3.cmml" xref="S4.SS3.p2.2.m2.1.1.3.3"><csymbol cd="ambiguous" id="S4.SS3.p2.2.m2.1.1.3.3.1.cmml" xref="S4.SS3.p2.2.m2.1.1.3.3">superscript</csymbol><ci id="S4.SS3.p2.2.m2.1.1.3.3.2.cmml" xref="S4.SS3.p2.2.m2.1.1.3.3.2">𝑎</ci><ci id="S4.SS3.p2.2.m2.1.1.3.3.3.cmml" xref="S4.SS3.p2.2.m2.1.1.3.3.3">𝑇</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.2.m2.1c">A=aa^{T}</annotation></semantics></math>. In this graph, the <math id="S4.SS3.p2.3.m3.1" class="ltx_Math" alttext="i^{th}" display="inline"><semantics id="S4.SS3.p2.3.m3.1a"><msup id="S4.SS3.p2.3.m3.1.1" xref="S4.SS3.p2.3.m3.1.1.cmml"><mi id="S4.SS3.p2.3.m3.1.1.2" xref="S4.SS3.p2.3.m3.1.1.2.cmml">i</mi><mrow id="S4.SS3.p2.3.m3.1.1.3" xref="S4.SS3.p2.3.m3.1.1.3.cmml"><mi id="S4.SS3.p2.3.m3.1.1.3.2" xref="S4.SS3.p2.3.m3.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p2.3.m3.1.1.3.1" xref="S4.SS3.p2.3.m3.1.1.3.1.cmml">​</mo><mi id="S4.SS3.p2.3.m3.1.1.3.3" xref="S4.SS3.p2.3.m3.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.3.m3.1b"><apply id="S4.SS3.p2.3.m3.1.1.cmml" xref="S4.SS3.p2.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS3.p2.3.m3.1.1.1.cmml" xref="S4.SS3.p2.3.m3.1.1">superscript</csymbol><ci id="S4.SS3.p2.3.m3.1.1.2.cmml" xref="S4.SS3.p2.3.m3.1.1.2">𝑖</ci><apply id="S4.SS3.p2.3.m3.1.1.3.cmml" xref="S4.SS3.p2.3.m3.1.1.3"><times id="S4.SS3.p2.3.m3.1.1.3.1.cmml" xref="S4.SS3.p2.3.m3.1.1.3.1"></times><ci id="S4.SS3.p2.3.m3.1.1.3.2.cmml" xref="S4.SS3.p2.3.m3.1.1.3.2">𝑡</ci><ci id="S4.SS3.p2.3.m3.1.1.3.3.cmml" xref="S4.SS3.p2.3.m3.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.3.m3.1c">i^{th}</annotation></semantics></math> vertex represents the object region associated with <math id="S4.SS3.p2.4.m4.1" class="ltx_Math" alttext="a_{i}" display="inline"><semantics id="S4.SS3.p2.4.m4.1a"><msub id="S4.SS3.p2.4.m4.1.1" xref="S4.SS3.p2.4.m4.1.1.cmml"><mi id="S4.SS3.p2.4.m4.1.1.2" xref="S4.SS3.p2.4.m4.1.1.2.cmml">a</mi><mi id="S4.SS3.p2.4.m4.1.1.3" xref="S4.SS3.p2.4.m4.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.4.m4.1b"><apply id="S4.SS3.p2.4.m4.1.1.cmml" xref="S4.SS3.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S4.SS3.p2.4.m4.1.1.1.cmml" xref="S4.SS3.p2.4.m4.1.1">subscript</csymbol><ci id="S4.SS3.p2.4.m4.1.1.2.cmml" xref="S4.SS3.p2.4.m4.1.1.2">𝑎</ci><ci id="S4.SS3.p2.4.m4.1.1.3.cmml" xref="S4.SS3.p2.4.m4.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.4.m4.1c">a_{i}</annotation></semantics></math> and the edge between any pair of vertices <math id="S4.SS3.p2.5.m5.2" class="ltx_Math" alttext="(i,j)" display="inline"><semantics id="S4.SS3.p2.5.m5.2a"><mrow id="S4.SS3.p2.5.m5.2.3.2" xref="S4.SS3.p2.5.m5.2.3.1.cmml"><mo stretchy="false" id="S4.SS3.p2.5.m5.2.3.2.1" xref="S4.SS3.p2.5.m5.2.3.1.cmml">(</mo><mi id="S4.SS3.p2.5.m5.1.1" xref="S4.SS3.p2.5.m5.1.1.cmml">i</mi><mo id="S4.SS3.p2.5.m5.2.3.2.2" xref="S4.SS3.p2.5.m5.2.3.1.cmml">,</mo><mi id="S4.SS3.p2.5.m5.2.2" xref="S4.SS3.p2.5.m5.2.2.cmml">j</mi><mo stretchy="false" id="S4.SS3.p2.5.m5.2.3.2.3" xref="S4.SS3.p2.5.m5.2.3.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.5.m5.2b"><interval closure="open" id="S4.SS3.p2.5.m5.2.3.1.cmml" xref="S4.SS3.p2.5.m5.2.3.2"><ci id="S4.SS3.p2.5.m5.1.1.cmml" xref="S4.SS3.p2.5.m5.1.1">𝑖</ci><ci id="S4.SS3.p2.5.m5.2.2.cmml" xref="S4.SS3.p2.5.m5.2.2">𝑗</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.5.m5.2c">(i,j)</annotation></semantics></math> has weight <math id="S4.SS3.p2.6.m6.1" class="ltx_Math" alttext="a_{i}a_{j}" display="inline"><semantics id="S4.SS3.p2.6.m6.1a"><mrow id="S4.SS3.p2.6.m6.1.1" xref="S4.SS3.p2.6.m6.1.1.cmml"><msub id="S4.SS3.p2.6.m6.1.1.2" xref="S4.SS3.p2.6.m6.1.1.2.cmml"><mi id="S4.SS3.p2.6.m6.1.1.2.2" xref="S4.SS3.p2.6.m6.1.1.2.2.cmml">a</mi><mi id="S4.SS3.p2.6.m6.1.1.2.3" xref="S4.SS3.p2.6.m6.1.1.2.3.cmml">i</mi></msub><mo lspace="0em" rspace="0em" id="S4.SS3.p2.6.m6.1.1.1" xref="S4.SS3.p2.6.m6.1.1.1.cmml">​</mo><msub id="S4.SS3.p2.6.m6.1.1.3" xref="S4.SS3.p2.6.m6.1.1.3.cmml"><mi id="S4.SS3.p2.6.m6.1.1.3.2" xref="S4.SS3.p2.6.m6.1.1.3.2.cmml">a</mi><mi id="S4.SS3.p2.6.m6.1.1.3.3" xref="S4.SS3.p2.6.m6.1.1.3.3.cmml">j</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.6.m6.1b"><apply id="S4.SS3.p2.6.m6.1.1.cmml" xref="S4.SS3.p2.6.m6.1.1"><times id="S4.SS3.p2.6.m6.1.1.1.cmml" xref="S4.SS3.p2.6.m6.1.1.1"></times><apply id="S4.SS3.p2.6.m6.1.1.2.cmml" xref="S4.SS3.p2.6.m6.1.1.2"><csymbol cd="ambiguous" id="S4.SS3.p2.6.m6.1.1.2.1.cmml" xref="S4.SS3.p2.6.m6.1.1.2">subscript</csymbol><ci id="S4.SS3.p2.6.m6.1.1.2.2.cmml" xref="S4.SS3.p2.6.m6.1.1.2.2">𝑎</ci><ci id="S4.SS3.p2.6.m6.1.1.2.3.cmml" xref="S4.SS3.p2.6.m6.1.1.2.3">𝑖</ci></apply><apply id="S4.SS3.p2.6.m6.1.1.3.cmml" xref="S4.SS3.p2.6.m6.1.1.3"><csymbol cd="ambiguous" id="S4.SS3.p2.6.m6.1.1.3.1.cmml" xref="S4.SS3.p2.6.m6.1.1.3">subscript</csymbol><ci id="S4.SS3.p2.6.m6.1.1.3.2.cmml" xref="S4.SS3.p2.6.m6.1.1.3.2">𝑎</ci><ci id="S4.SS3.p2.6.m6.1.1.3.3.cmml" xref="S4.SS3.p2.6.m6.1.1.3.3">𝑗</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.6.m6.1c">a_{i}a_{j}</annotation></semantics></math>. In the regions associated with bounding boxes, the matrix <math id="S4.SS3.p2.7.m7.1" class="ltx_Math" alttext="A" display="inline"><semantics id="S4.SS3.p2.7.m7.1a"><mi id="S4.SS3.p2.7.m7.1.1" xref="S4.SS3.p2.7.m7.1.1.cmml">A</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.7.m7.1b"><ci id="S4.SS3.p2.7.m7.1.1.cmml" xref="S4.SS3.p2.7.m7.1.1">𝐴</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.7.m7.1c">A</annotation></semantics></math> forms the basis for the graph between objects. Further pruning is done in two steps using an inter edge pruning and an intra edge pruning technique.</p>
+</div>
+<div id="S4.SS3.p3" class="ltx_para">
+<p id="S4.SS3.p3.6" class="ltx_p">Bounding boxes are compared using, intersection-over-union (IoU) metric. Hence the distance matrix <math id="S4.SS3.p3.1.m1.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S4.SS3.p3.1.m1.1a"><mi id="S4.SS3.p3.1.m1.1.1" xref="S4.SS3.p3.1.m1.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.1.m1.1b"><ci id="S4.SS3.p3.1.m1.1.1.cmml" xref="S4.SS3.p3.1.m1.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.1.m1.1c">D</annotation></semantics></math> is defined as <math id="S4.SS3.p3.2.m2.2" class="ltx_Math" alttext="D_{ij}=1-IoU(b_{i},b_{j})" display="inline"><semantics id="S4.SS3.p3.2.m2.2a"><mrow id="S4.SS3.p3.2.m2.2.2" xref="S4.SS3.p3.2.m2.2.2.cmml"><msub id="S4.SS3.p3.2.m2.2.2.4" xref="S4.SS3.p3.2.m2.2.2.4.cmml"><mi id="S4.SS3.p3.2.m2.2.2.4.2" xref="S4.SS3.p3.2.m2.2.2.4.2.cmml">D</mi><mrow id="S4.SS3.p3.2.m2.2.2.4.3" xref="S4.SS3.p3.2.m2.2.2.4.3.cmml"><mi id="S4.SS3.p3.2.m2.2.2.4.3.2" xref="S4.SS3.p3.2.m2.2.2.4.3.2.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p3.2.m2.2.2.4.3.1" xref="S4.SS3.p3.2.m2.2.2.4.3.1.cmml">​</mo><mi id="S4.SS3.p3.2.m2.2.2.4.3.3" xref="S4.SS3.p3.2.m2.2.2.4.3.3.cmml">j</mi></mrow></msub><mo id="S4.SS3.p3.2.m2.2.2.3" xref="S4.SS3.p3.2.m2.2.2.3.cmml">=</mo><mrow id="S4.SS3.p3.2.m2.2.2.2" xref="S4.SS3.p3.2.m2.2.2.2.cmml"><mn id="S4.SS3.p3.2.m2.2.2.2.4" xref="S4.SS3.p3.2.m2.2.2.2.4.cmml">1</mn><mo id="S4.SS3.p3.2.m2.2.2.2.3" xref="S4.SS3.p3.2.m2.2.2.2.3.cmml">−</mo><mrow id="S4.SS3.p3.2.m2.2.2.2.2" xref="S4.SS3.p3.2.m2.2.2.2.2.cmml"><mi id="S4.SS3.p3.2.m2.2.2.2.2.4" xref="S4.SS3.p3.2.m2.2.2.2.2.4.cmml">I</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p3.2.m2.2.2.2.2.3" xref="S4.SS3.p3.2.m2.2.2.2.2.3.cmml">​</mo><mi id="S4.SS3.p3.2.m2.2.2.2.2.5" xref="S4.SS3.p3.2.m2.2.2.2.2.5.cmml">o</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p3.2.m2.2.2.2.2.3a" xref="S4.SS3.p3.2.m2.2.2.2.2.3.cmml">​</mo><mi id="S4.SS3.p3.2.m2.2.2.2.2.6" xref="S4.SS3.p3.2.m2.2.2.2.2.6.cmml">U</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p3.2.m2.2.2.2.2.3b" xref="S4.SS3.p3.2.m2.2.2.2.2.3.cmml">​</mo><mrow id="S4.SS3.p3.2.m2.2.2.2.2.2.2" xref="S4.SS3.p3.2.m2.2.2.2.2.2.3.cmml"><mo stretchy="false" id="S4.SS3.p3.2.m2.2.2.2.2.2.2.3" xref="S4.SS3.p3.2.m2.2.2.2.2.2.3.cmml">(</mo><msub id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.cmml"><mi id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.2" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.2.cmml">b</mi><mi id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.3" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.3.cmml">i</mi></msub><mo id="S4.SS3.p3.2.m2.2.2.2.2.2.2.4" xref="S4.SS3.p3.2.m2.2.2.2.2.2.3.cmml">,</mo><msub id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.cmml"><mi id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.2" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.2.cmml">b</mi><mi id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.3" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.3.cmml">j</mi></msub><mo stretchy="false" id="S4.SS3.p3.2.m2.2.2.2.2.2.2.5" xref="S4.SS3.p3.2.m2.2.2.2.2.2.3.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.2.m2.2b"><apply id="S4.SS3.p3.2.m2.2.2.cmml" xref="S4.SS3.p3.2.m2.2.2"><eq id="S4.SS3.p3.2.m2.2.2.3.cmml" xref="S4.SS3.p3.2.m2.2.2.3"></eq><apply id="S4.SS3.p3.2.m2.2.2.4.cmml" xref="S4.SS3.p3.2.m2.2.2.4"><csymbol cd="ambiguous" id="S4.SS3.p3.2.m2.2.2.4.1.cmml" xref="S4.SS3.p3.2.m2.2.2.4">subscript</csymbol><ci id="S4.SS3.p3.2.m2.2.2.4.2.cmml" xref="S4.SS3.p3.2.m2.2.2.4.2">𝐷</ci><apply id="S4.SS3.p3.2.m2.2.2.4.3.cmml" xref="S4.SS3.p3.2.m2.2.2.4.3"><times id="S4.SS3.p3.2.m2.2.2.4.3.1.cmml" xref="S4.SS3.p3.2.m2.2.2.4.3.1"></times><ci id="S4.SS3.p3.2.m2.2.2.4.3.2.cmml" xref="S4.SS3.p3.2.m2.2.2.4.3.2">𝑖</ci><ci id="S4.SS3.p3.2.m2.2.2.4.3.3.cmml" xref="S4.SS3.p3.2.m2.2.2.4.3.3">𝑗</ci></apply></apply><apply id="S4.SS3.p3.2.m2.2.2.2.cmml" xref="S4.SS3.p3.2.m2.2.2.2"><minus id="S4.SS3.p3.2.m2.2.2.2.3.cmml" xref="S4.SS3.p3.2.m2.2.2.2.3"></minus><cn type="integer" id="S4.SS3.p3.2.m2.2.2.2.4.cmml" xref="S4.SS3.p3.2.m2.2.2.2.4">1</cn><apply id="S4.SS3.p3.2.m2.2.2.2.2.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2"><times id="S4.SS3.p3.2.m2.2.2.2.2.3.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.3"></times><ci id="S4.SS3.p3.2.m2.2.2.2.2.4.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.4">𝐼</ci><ci id="S4.SS3.p3.2.m2.2.2.2.2.5.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.5">𝑜</ci><ci id="S4.SS3.p3.2.m2.2.2.2.2.6.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.6">𝑈</ci><interval closure="open" id="S4.SS3.p3.2.m2.2.2.2.2.2.3.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2"><apply id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.cmml" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.1.cmml" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1">subscript</csymbol><ci id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.2.cmml" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.2">𝑏</ci><ci id="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.3.cmml" xref="S4.SS3.p3.2.m2.1.1.1.1.1.1.1.3">𝑖</ci></apply><apply id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2"><csymbol cd="ambiguous" id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.1.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2">subscript</csymbol><ci id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.2.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.2">𝑏</ci><ci id="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.3.cmml" xref="S4.SS3.p3.2.m2.2.2.2.2.2.2.2.3">𝑗</ci></apply></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.2.m2.2c">D_{ij}=1-IoU(b_{i},b_{j})</annotation></semantics></math>.
+Intra object edges are removed by elementwise multiplying the distance matrix with the attention matrix <math id="S4.SS3.p3.3.m3.2" class="ltx_Math" alttext="A^{\prime}=f_{1}(A)f_{2}(D)" display="inline"><semantics id="S4.SS3.p3.3.m3.2a"><mrow id="S4.SS3.p3.3.m3.2.3" xref="S4.SS3.p3.3.m3.2.3.cmml"><msup id="S4.SS3.p3.3.m3.2.3.2" xref="S4.SS3.p3.3.m3.2.3.2.cmml"><mi id="S4.SS3.p3.3.m3.2.3.2.2" xref="S4.SS3.p3.3.m3.2.3.2.2.cmml">A</mi><mo id="S4.SS3.p3.3.m3.2.3.2.3" xref="S4.SS3.p3.3.m3.2.3.2.3.cmml">′</mo></msup><mo id="S4.SS3.p3.3.m3.2.3.1" xref="S4.SS3.p3.3.m3.2.3.1.cmml">=</mo><mrow id="S4.SS3.p3.3.m3.2.3.3" xref="S4.SS3.p3.3.m3.2.3.3.cmml"><msub id="S4.SS3.p3.3.m3.2.3.3.2" xref="S4.SS3.p3.3.m3.2.3.3.2.cmml"><mi id="S4.SS3.p3.3.m3.2.3.3.2.2" xref="S4.SS3.p3.3.m3.2.3.3.2.2.cmml">f</mi><mn id="S4.SS3.p3.3.m3.2.3.3.2.3" xref="S4.SS3.p3.3.m3.2.3.3.2.3.cmml">1</mn></msub><mo lspace="0em" rspace="0em" id="S4.SS3.p3.3.m3.2.3.3.1" xref="S4.SS3.p3.3.m3.2.3.3.1.cmml">​</mo><mrow id="S4.SS3.p3.3.m3.2.3.3.3.2" xref="S4.SS3.p3.3.m3.2.3.3.cmml"><mo stretchy="false" id="S4.SS3.p3.3.m3.2.3.3.3.2.1" xref="S4.SS3.p3.3.m3.2.3.3.cmml">(</mo><mi id="S4.SS3.p3.3.m3.1.1" xref="S4.SS3.p3.3.m3.1.1.cmml">A</mi><mo stretchy="false" id="S4.SS3.p3.3.m3.2.3.3.3.2.2" xref="S4.SS3.p3.3.m3.2.3.3.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S4.SS3.p3.3.m3.2.3.3.1a" xref="S4.SS3.p3.3.m3.2.3.3.1.cmml">​</mo><msub id="S4.SS3.p3.3.m3.2.3.3.4" xref="S4.SS3.p3.3.m3.2.3.3.4.cmml"><mi id="S4.SS3.p3.3.m3.2.3.3.4.2" xref="S4.SS3.p3.3.m3.2.3.3.4.2.cmml">f</mi><mn id="S4.SS3.p3.3.m3.2.3.3.4.3" xref="S4.SS3.p3.3.m3.2.3.3.4.3.cmml">2</mn></msub><mo lspace="0em" rspace="0em" id="S4.SS3.p3.3.m3.2.3.3.1b" xref="S4.SS3.p3.3.m3.2.3.3.1.cmml">​</mo><mrow id="S4.SS3.p3.3.m3.2.3.3.5.2" xref="S4.SS3.p3.3.m3.2.3.3.cmml"><mo stretchy="false" id="S4.SS3.p3.3.m3.2.3.3.5.2.1" xref="S4.SS3.p3.3.m3.2.3.3.cmml">(</mo><mi id="S4.SS3.p3.3.m3.2.2" xref="S4.SS3.p3.3.m3.2.2.cmml">D</mi><mo stretchy="false" id="S4.SS3.p3.3.m3.2.3.3.5.2.2" xref="S4.SS3.p3.3.m3.2.3.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.3.m3.2b"><apply id="S4.SS3.p3.3.m3.2.3.cmml" xref="S4.SS3.p3.3.m3.2.3"><eq id="S4.SS3.p3.3.m3.2.3.1.cmml" xref="S4.SS3.p3.3.m3.2.3.1"></eq><apply id="S4.SS3.p3.3.m3.2.3.2.cmml" xref="S4.SS3.p3.3.m3.2.3.2"><csymbol cd="ambiguous" id="S4.SS3.p3.3.m3.2.3.2.1.cmml" xref="S4.SS3.p3.3.m3.2.3.2">superscript</csymbol><ci id="S4.SS3.p3.3.m3.2.3.2.2.cmml" xref="S4.SS3.p3.3.m3.2.3.2.2">𝐴</ci><ci id="S4.SS3.p3.3.m3.2.3.2.3.cmml" xref="S4.SS3.p3.3.m3.2.3.2.3">′</ci></apply><apply id="S4.SS3.p3.3.m3.2.3.3.cmml" xref="S4.SS3.p3.3.m3.2.3.3"><times id="S4.SS3.p3.3.m3.2.3.3.1.cmml" xref="S4.SS3.p3.3.m3.2.3.3.1"></times><apply id="S4.SS3.p3.3.m3.2.3.3.2.cmml" xref="S4.SS3.p3.3.m3.2.3.3.2"><csymbol cd="ambiguous" id="S4.SS3.p3.3.m3.2.3.3.2.1.cmml" xref="S4.SS3.p3.3.m3.2.3.3.2">subscript</csymbol><ci id="S4.SS3.p3.3.m3.2.3.3.2.2.cmml" xref="S4.SS3.p3.3.m3.2.3.3.2.2">𝑓</ci><cn type="integer" id="S4.SS3.p3.3.m3.2.3.3.2.3.cmml" xref="S4.SS3.p3.3.m3.2.3.3.2.3">1</cn></apply><ci id="S4.SS3.p3.3.m3.1.1.cmml" xref="S4.SS3.p3.3.m3.1.1">𝐴</ci><apply id="S4.SS3.p3.3.m3.2.3.3.4.cmml" xref="S4.SS3.p3.3.m3.2.3.3.4"><csymbol cd="ambiguous" id="S4.SS3.p3.3.m3.2.3.3.4.1.cmml" xref="S4.SS3.p3.3.m3.2.3.3.4">subscript</csymbol><ci id="S4.SS3.p3.3.m3.2.3.3.4.2.cmml" xref="S4.SS3.p3.3.m3.2.3.3.4.2">𝑓</ci><cn type="integer" id="S4.SS3.p3.3.m3.2.3.3.4.3.cmml" xref="S4.SS3.p3.3.m3.2.3.3.4.3">2</cn></apply><ci id="S4.SS3.p3.3.m3.2.2.cmml" xref="S4.SS3.p3.3.m3.2.2">𝐷</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.3.m3.2c">A^{\prime}=f_{1}(A)f_{2}(D)</annotation></semantics></math> where <math id="S4.SS3.p3.4.m4.2" class="ltx_Math" alttext="f_{1},f_{2}" display="inline"><semantics id="S4.SS3.p3.4.m4.2a"><mrow id="S4.SS3.p3.4.m4.2.2.2" xref="S4.SS3.p3.4.m4.2.2.3.cmml"><msub id="S4.SS3.p3.4.m4.1.1.1.1" xref="S4.SS3.p3.4.m4.1.1.1.1.cmml"><mi id="S4.SS3.p3.4.m4.1.1.1.1.2" xref="S4.SS3.p3.4.m4.1.1.1.1.2.cmml">f</mi><mn id="S4.SS3.p3.4.m4.1.1.1.1.3" xref="S4.SS3.p3.4.m4.1.1.1.1.3.cmml">1</mn></msub><mo id="S4.SS3.p3.4.m4.2.2.2.3" xref="S4.SS3.p3.4.m4.2.2.3.cmml">,</mo><msub id="S4.SS3.p3.4.m4.2.2.2.2" xref="S4.SS3.p3.4.m4.2.2.2.2.cmml"><mi id="S4.SS3.p3.4.m4.2.2.2.2.2" xref="S4.SS3.p3.4.m4.2.2.2.2.2.cmml">f</mi><mn id="S4.SS3.p3.4.m4.2.2.2.2.3" xref="S4.SS3.p3.4.m4.2.2.2.2.3.cmml">2</mn></msub></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.4.m4.2b"><list id="S4.SS3.p3.4.m4.2.2.3.cmml" xref="S4.SS3.p3.4.m4.2.2.2"><apply id="S4.SS3.p3.4.m4.1.1.1.1.cmml" xref="S4.SS3.p3.4.m4.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS3.p3.4.m4.1.1.1.1.1.cmml" xref="S4.SS3.p3.4.m4.1.1.1.1">subscript</csymbol><ci id="S4.SS3.p3.4.m4.1.1.1.1.2.cmml" xref="S4.SS3.p3.4.m4.1.1.1.1.2">𝑓</ci><cn type="integer" id="S4.SS3.p3.4.m4.1.1.1.1.3.cmml" xref="S4.SS3.p3.4.m4.1.1.1.1.3">1</cn></apply><apply id="S4.SS3.p3.4.m4.2.2.2.2.cmml" xref="S4.SS3.p3.4.m4.2.2.2.2"><csymbol cd="ambiguous" id="S4.SS3.p3.4.m4.2.2.2.2.1.cmml" xref="S4.SS3.p3.4.m4.2.2.2.2">subscript</csymbol><ci id="S4.SS3.p3.4.m4.2.2.2.2.2.cmml" xref="S4.SS3.p3.4.m4.2.2.2.2.2">𝑓</ci><cn type="integer" id="S4.SS3.p3.4.m4.2.2.2.2.3.cmml" xref="S4.SS3.p3.4.m4.2.2.2.2.3">2</cn></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.4.m4.2c">f_{1},f_{2}</annotation></semantics></math> represent piecewise linear functions. For removing inter-object edges a similarity metric is computed over the rows of <math id="S4.SS3.p3.5.m5.1" class="ltx_Math" alttext="A^{\prime}" display="inline"><semantics id="S4.SS3.p3.5.m5.1a"><msup id="S4.SS3.p3.5.m5.1.1" xref="S4.SS3.p3.5.m5.1.1.cmml"><mi id="S4.SS3.p3.5.m5.1.1.2" xref="S4.SS3.p3.5.m5.1.1.2.cmml">A</mi><mo id="S4.SS3.p3.5.m5.1.1.3" xref="S4.SS3.p3.5.m5.1.1.3.cmml">′</mo></msup><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.5.m5.1b"><apply id="S4.SS3.p3.5.m5.1.1.cmml" xref="S4.SS3.p3.5.m5.1.1"><csymbol cd="ambiguous" id="S4.SS3.p3.5.m5.1.1.1.cmml" xref="S4.SS3.p3.5.m5.1.1">superscript</csymbol><ci id="S4.SS3.p3.5.m5.1.1.2.cmml" xref="S4.SS3.p3.5.m5.1.1.2">𝐴</ci><ci id="S4.SS3.p3.5.m5.1.1.3.cmml" xref="S4.SS3.p3.5.m5.1.1.3">′</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.5.m5.1c">A^{\prime}</annotation></semantics></math>. The whole process results in the generation of the score matrix <math id="S4.SS3.p3.6.m6.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S4.SS3.p3.6.m6.1a"><mi id="S4.SS3.p3.6.m6.1.1" xref="S4.SS3.p3.6.m6.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.6.m6.1b"><ci id="S4.SS3.p3.6.m6.1.1.cmml" xref="S4.SS3.p3.6.m6.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.6.m6.1c">C</annotation></semantics></math> which is the count based score for each of the objects.</p>
+</div>
+<div id="S4.SS3.p4" class="ltx_para">
+<p id="S4.SS3.p4.3" class="ltx_p">We adapt this approach to the task of ISVQA as an intermediate step to improve the features extracted by the RCNN and score each ROI according to the computed matrix <math id="S4.SS3.p4.1.m1.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S4.SS3.p4.1.m1.1a"><mi id="S4.SS3.p4.1.m1.1.1" xref="S4.SS3.p4.1.m1.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p4.1.m1.1b"><ci id="S4.SS3.p4.1.m1.1.1.cmml" xref="S4.SS3.p4.1.m1.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p4.1.m1.1c">C</annotation></semantics></math>. Each of the image features is multiplied by its respective score and then fused with the question representation using soft attention. This output is considered as the updated ‘count-aware’ feature. The count aware features are used as an input to the LXMERT model. The count-aware embedding model uses the RCNN extracted features of dimension 2048 with 36 regions of interest in each image along with the corresponding bounding boxes. The questions are encoded with LSTM layers of hidden dimension 1024. The model is trained for 100 epochs using Adam optimizer using a learning rate of <math id="S4.SS3.p4.2.m2.1" class="ltx_Math" alttext="1.5e-3" display="inline"><semantics id="S4.SS3.p4.2.m2.1a"><mrow id="S4.SS3.p4.2.m2.1.1" xref="S4.SS3.p4.2.m2.1.1.cmml"><mrow id="S4.SS3.p4.2.m2.1.1.2" xref="S4.SS3.p4.2.m2.1.1.2.cmml"><mn id="S4.SS3.p4.2.m2.1.1.2.2" xref="S4.SS3.p4.2.m2.1.1.2.2.cmml">1.5</mn><mo lspace="0em" rspace="0em" id="S4.SS3.p4.2.m2.1.1.2.1" xref="S4.SS3.p4.2.m2.1.1.2.1.cmml">​</mo><mi id="S4.SS3.p4.2.m2.1.1.2.3" xref="S4.SS3.p4.2.m2.1.1.2.3.cmml">e</mi></mrow><mo id="S4.SS3.p4.2.m2.1.1.1" xref="S4.SS3.p4.2.m2.1.1.1.cmml">−</mo><mn id="S4.SS3.p4.2.m2.1.1.3" xref="S4.SS3.p4.2.m2.1.1.3.cmml">3</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p4.2.m2.1b"><apply id="S4.SS3.p4.2.m2.1.1.cmml" xref="S4.SS3.p4.2.m2.1.1"><minus id="S4.SS3.p4.2.m2.1.1.1.cmml" xref="S4.SS3.p4.2.m2.1.1.1"></minus><apply id="S4.SS3.p4.2.m2.1.1.2.cmml" xref="S4.SS3.p4.2.m2.1.1.2"><times id="S4.SS3.p4.2.m2.1.1.2.1.cmml" xref="S4.SS3.p4.2.m2.1.1.2.1"></times><cn type="float" id="S4.SS3.p4.2.m2.1.1.2.2.cmml" xref="S4.SS3.p4.2.m2.1.1.2.2">1.5</cn><ci id="S4.SS3.p4.2.m2.1.1.2.3.cmml" xref="S4.SS3.p4.2.m2.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S4.SS3.p4.2.m2.1.1.3.cmml" xref="S4.SS3.p4.2.m2.1.1.3">3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p4.2.m2.1c">1.5e-3</annotation></semantics></math> with an Exponential Learning Rate scheduler. The model is trained on negative log likelihood loss. The LXMERT model is trained from scratch with AdamW optimizer using an initial learning rate of <math id="S4.SS3.p4.3.m3.1" class="ltx_Math" alttext="2e-5" display="inline"><semantics id="S4.SS3.p4.3.m3.1a"><mrow id="S4.SS3.p4.3.m3.1.1" xref="S4.SS3.p4.3.m3.1.1.cmml"><mrow id="S4.SS3.p4.3.m3.1.1.2" xref="S4.SS3.p4.3.m3.1.1.2.cmml"><mn id="S4.SS3.p4.3.m3.1.1.2.2" xref="S4.SS3.p4.3.m3.1.1.2.2.cmml">2</mn><mo lspace="0em" rspace="0em" id="S4.SS3.p4.3.m3.1.1.2.1" xref="S4.SS3.p4.3.m3.1.1.2.1.cmml">​</mo><mi id="S4.SS3.p4.3.m3.1.1.2.3" xref="S4.SS3.p4.3.m3.1.1.2.3.cmml">e</mi></mrow><mo id="S4.SS3.p4.3.m3.1.1.1" xref="S4.SS3.p4.3.m3.1.1.1.cmml">−</mo><mn id="S4.SS3.p4.3.m3.1.1.3" xref="S4.SS3.p4.3.m3.1.1.3.cmml">5</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p4.3.m3.1b"><apply id="S4.SS3.p4.3.m3.1.1.cmml" xref="S4.SS3.p4.3.m3.1.1"><minus id="S4.SS3.p4.3.m3.1.1.1.cmml" xref="S4.SS3.p4.3.m3.1.1.1"></minus><apply id="S4.SS3.p4.3.m3.1.1.2.cmml" xref="S4.SS3.p4.3.m3.1.1.2"><times id="S4.SS3.p4.3.m3.1.1.2.1.cmml" xref="S4.SS3.p4.3.m3.1.1.2.1"></times><cn type="integer" id="S4.SS3.p4.3.m3.1.1.2.2.cmml" xref="S4.SS3.p4.3.m3.1.1.2.2">2</cn><ci id="S4.SS3.p4.3.m3.1.1.2.3.cmml" xref="S4.SS3.p4.3.m3.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S4.SS3.p4.3.m3.1.1.3.cmml" xref="S4.SS3.p4.3.m3.1.1.3">5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p4.3.m3.1c">2e-5</annotation></semantics></math>. We compare the prediction results of this model with an LXMERT model trained from scratch using base RCNN features and observe a visible improvement.</p>
+</div>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Improving Performance on Count-based Questions using Regression Loss</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">To address the poor performance on count-based questions we also experiment with another approach which approaches such questions from the prospective of regression. Contrary to the approach in section <a href="#S4.SS3" title="4.3 Count Aware ISVQA using graph based deduplication ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3</span></a> which involves processing inputs to the LXMERT model this approach introduces a new Mean Squared Error loss along with the classification loss for count based questions.
+The process for training this model involves utilizing both classification and regression heads to predict the answer and at inference time the answer to the question is determined by using only the classification head.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.1.1.1" class="ltx_tr">
+<th id="S4.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Model</th>
+<th id="S4.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Model Type</th>
+<th id="S4.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Train Accuracy (%)</th>
+<th id="S4.T2.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Test Accuracy (%)</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.2.1" class="ltx_tr">
+<td id="S4.T2.1.2.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">LXMERT</td>
+<td id="S4.T2.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Baseline</td>
+<td id="S4.T2.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">89.95</td>
+<td id="S4.T2.1.2.1.4" class="ltx_td ltx_align_center ltx_border_tt">64.55</td>
+</tr>
+<tr id="S4.T2.1.3.2" class="ltx_tr">
+<td id="S4.T2.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT without pretraining</td>
+<td id="S4.T2.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Baseline</td>
+<td id="S4.T2.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">79.37</td>
+<td id="S4.T2.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t">57.05</td>
+</tr>
+<tr id="S4.T2.1.4.3" class="ltx_tr">
+<td id="S4.T2.1.4.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Visual BERT</td>
+<td id="S4.T2.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Baseline</td>
+<td id="S4.T2.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">74.3</td>
+<td id="S4.T2.1.4.3.4" class="ltx_td ltx_align_center ltx_border_t">55.55</td>
+</tr>
+<tr id="S4.T2.1.5.4" class="ltx_tr">
+<td id="S4.T2.1.5.4.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">HME - Video QA</td>
+<td id="S4.T2.1.5.4.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Baseline</td>
+<td id="S4.T2.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">97.1</td>
+<td id="S4.T2.1.5.4.4" class="ltx_td ltx_align_center ltx_border_t">49.9</td>
+</tr>
+<tr id="S4.T2.1.6.5" class="ltx_tr">
+<td id="S4.T2.1.6.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">LXMERT with enhanced pre-training</td>
+<td id="S4.T2.1.6.5.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Ours</td>
+<td id="S4.T2.1.6.5.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">88.74</td>
+<td id="S4.T2.1.6.5.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T2.1.6.5.4.1" class="ltx_text ltx_font_bold">64.93</span></td>
+</tr>
+<tr id="S4.T2.1.7.6" class="ltx_tr">
+<td id="S4.T2.1.7.6.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT with Count-based VQA</td>
+<td id="S4.T2.1.7.6.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Ours</td>
+<td id="S4.T2.1.7.6.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">79.56</td>
+<td id="S4.T2.1.7.6.4" class="ltx_td ltx_align_center ltx_border_t">57.50</td>
+</tr>
+<tr id="S4.T2.1.8.7" class="ltx_tr">
+<td id="S4.T2.1.8.7.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT with Regression Loss</td>
+<td id="S4.T2.1.8.7.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">Ours</td>
+<td id="S4.T2.1.8.7.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">92.6</td>
+<td id="S4.T2.1.8.7.4" class="ltx_td ltx_align_center ltx_border_t">64.38</td>
+</tr>
+<tr id="S4.T2.1.9.8" class="ltx_tr">
+<td id="S4.T2.1.9.8.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">Adversarial Regularization</td>
+<td id="S4.T2.1.9.8.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">Ours</td>
+<td id="S4.T2.1.9.8.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t">82.62</td>
+<td id="S4.T2.1.9.8.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_t">63.24</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Baseline model results</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Results and Discussion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">Table <a href="#S4.T2" title="Table 2 ‣ 4.4 Improving Performance on Count-based Questions using Regression Loss ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> tabulates the results obtained for the baseline and the advanced models proposed by us on the ISVQA dataset. We further assess the performance of each research enhancement in the following sections.</p>
+</div>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Removing Language Dependence using Adversarial Regularization (In-Depth Analysis)</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">To better understand the bias present in the text dataset and its implications on the model performance, we analyze the distribution of answer categories across each questions and find that colour-based and count-based questions are often dominated by a smaller number of answer categories, as shown in Figure <a href="#S5.F4" title="Figure 4 ‣ 5.1 Removing Language Dependence using Adversarial Regularization (In-Depth Analysis) ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>. We can see that for count-based questions like <span id="S5.SS1.p1.1.1" class="ltx_text ltx_font_italic">how many people/cars/pedestrian etc</span>, same 2 answer categories occurred about 75% times (denoted by blue and green stacks), while all the remaining classes accounted for about 25% of the occurrences, thus denoting a high answer bias for count-based questions. Meanwhile, object-based questions like <span id="S5.SS1.p1.1.2" class="ltx_text ltx_font_italic">what does the/what are the</span> show a high diversity of answer classes, and thus low text-induced bias. This indicates the presence of bias in the ISVQA dataset and can lead the models learned on this data to not generalize well and under-utilize visual information when answering questions as the information needed to answer the questions can be learnt from just the language modality features. This is further highlighted from Table <a href="#S5.T4" title="Table 4 ‣ 5.1 Removing Language Dependence using Adversarial Regularization (In-Depth Analysis) ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> which shows the results for a BERT-based question-only model. We observe that this unimodal model is able to achieve over 52% accuracy.</p>
+</div>
+<figure id="S5.F4" class="ltx_figure"><img src="/html/2104.00107/assets/imgs/word_freq.png" id="S5.F4.1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="225" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Frequency of answer categories for 15 most frequent questions. Each column bar corresponds to a question-type and each colored-stack in the bar refers to an answer category</figcaption>
+</figure>
+<div id="S5.SS1.p2" class="ltx_para">
+<p id="S5.SS1.p2.1" class="ltx_p">High occurrence of certain answer categories can result in model being biased towards those answers. This is evident in Figure <a href="#S5.F5" title="Figure 5 ‣ 5.1 Removing Language Dependence using Adversarial Regularization (In-Depth Analysis) ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> where we show the accuracy of count-based answer categories for the baseline LXMERT model. We can see that more frequent answer categories such as <span id="S5.SS1.p2.1.1" class="ltx_text ltx_font_italic">Three/Two</span> had accuracy as high as 55%, while rare categories such as <span id="S5.SS1.p2.1.2" class="ltx_text ltx_font_italic">nine/fifteen</span> were never predicted correctly.</p>
+</div>
+<figure id="S5.F5" class="ltx_figure"><img src="/html/2104.00107/assets/imgs/number_lxmert_op.txt.png" id="S5.F5.1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="299" height="225" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Accuracy of count-based answer categories</figcaption>
+</figure>
+<figure id="S5.F6" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S5.F6.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2104.00107/assets/imgs/class-distri-train.png" id="S5.F6.sf1.g1" class="ltx_graphics ltx_img_square" width="287" height="276" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(a) </span>Train set </figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<figure id="S5.F6.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2104.00107/assets/imgs/class-distri-test.png" id="S5.F6.sf2.g1" class="ltx_graphics ltx_img_square" width="335" height="279" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(b) </span>Test set </figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>Most Frequent Answers</figcaption>
+</figure>
+<figure id="S5.T3" class="ltx_table">
+<table id="S5.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T3.1.1.1" class="ltx_tr">
+<th id="S5.T3.1.1.1.1" class="ltx_td ltx_th ltx_th_column ltx_border_r ltx_border_t"></th>
+<th id="S5.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Base LXMERT</th>
+<th id="S5.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">w/ CE Reg.</th>
+<th id="S5.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">w/ BCE Reg.</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T3.1.2.1" class="ltx_tr">
+<td id="S5.T3.1.2.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">L + V</td>
+<td id="S5.T3.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">64.55%</td>
+<td id="S5.T3.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">63.24%</td>
+<td id="S5.T3.1.2.1.4" class="ltx_td ltx_align_center ltx_border_tt">63.05%</td>
+</tr>
+<tr id="S5.T3.1.3.2" class="ltx_tr">
+<td id="S5.T3.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r">L</td>
+<td id="S5.T3.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r">42.87%</td>
+<td id="S5.T3.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r">5.66%</td>
+<td id="S5.T3.1.3.2.4" class="ltx_td ltx_align_center">12.8%</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Results for Adversarial Regularization. Here L corresponds to Language and V corresponds to visual modality</figcaption>
+</figure>
+<div id="S5.SS1.p3" class="ltx_para">
+<p id="S5.SS1.p3.1" class="ltx_p">To mitigate the presence of such biases we introduce a new adversarial regularization formulation. Here we experiment with training the LXMERT model using 2 different regularization loss terms which penalizes overconfident predictions on adversarial examples and to compare the effect of adversarial regularization we utilize the baseline LXMERT model which was trained on both Language and Visual Modalities. Our results presented in Table <a href="#S5.T3" title="Table 3 ‣ 5.1 Removing Language Dependence using Adversarial Regularization (In-Depth Analysis) ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> indicate that when visual information is scrubbed (zeroed out) during inference time (but is trained with both Visual and Language modality present) the LXMERT model trained without adversarial regularization is able to obtain considerably high accuracy on the test dataset showing its over reliance on language modality and the presence of bias in the test dataset. However, when the model is trained with adversarial regularization, performance on test set with srubbed out visual information is reduced drastically  37% while little impact is seen when both the visual and text data are provided which indicates that regularized model does not over rely on language biases. We also observe that using the label-wise Binary Cross-Entropy loss is less effective in removing bias when compared to using the Cross-Entropy adversarial loss formulation.</p>
+</div>
+<figure id="S5.T4" class="ltx_table">
+<table id="S5.T4.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.1.1.1" class="ltx_tr">
+<th id="S5.T4.1.1.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<span id="S5.T4.1.1.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T4.1.1.1.1.1.1" class="ltx_p" style="width:85.4pt;">Train Accuracy (%)</span>
+</span>
+</th>
+<th id="S5.T4.1.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_th ltx_th_column ltx_border_t">
+<span id="S5.T4.1.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T4.1.1.1.2.1.1" class="ltx_p" style="width:85.4pt;">Test Accuracy (%)</span>
+</span>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.1.2.1" class="ltx_tr">
+<td id="S5.T4.1.2.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_tt">
+<span id="S5.T4.1.2.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T4.1.2.1.1.1.1" class="ltx_p" style="width:85.4pt;">72.55</span>
+</span>
+</td>
+<td id="S5.T4.1.2.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_tt">
+<span id="S5.T4.1.2.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="S5.T4.1.2.1.2.1.1" class="ltx_p" style="width:85.4pt;">52.69</span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>Question-only BERT result</figcaption>
+</figure>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Enhancing Pre-Training with Color and Position Questions</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p">Table <a href="#S4.T2" title="Table 2 ‣ 4.4 Improving Performance on Count-based Questions using Regression Loss ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows that our LXMERT model with enhanced pre-training performs slightly better than the baseline LXMERT model. This shows the efficacy of pre-training on our artificially created data. Further, from Table <a href="#S5.T5" title="Table 5 ‣ 5.2 Enhancing Pre-Training with Color and Position Questions ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, we see that our performance on the color-based questions is significantly better than the baseline LXMERT model. We do not report results on position-specific questions as the aggregator for such questions is not provided in the dataset. These results re-iterate the need to provide better color representations to our model as they can significantly enhance the performance. More importantly, these results provide motivation on developing and spending computational resources on training better pre-training objectives that incorporate position and color as they can help improve accuracy on ISVQA even further.</p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p">While using such artificially generated questions leads a decent performance improvement for Color based questions, there is a clear disadvantage of using this approach as the errors in object or attribute prediction from R-CNN get cascaded to the questions generated, making our model susceptible to these errors. An of example of this is the question <span id="S5.SS2.p2.1.1" class="ltx_text ltx_font_italic">what is the color of the train</span> with answer <span id="S5.SS2.p2.1.2" class="ltx_text ltx_font_italic">orange</span> for image in Fig. <a href="#S4.F3" title="Figure 3 ‣ 4.2 Enhancing Pre-Training with Color and Position Questions ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. In this case, our R-CNN mis-detects the bus as a train and leads to the creation of an incorrect question.</p>
+</div>
+<figure id="S5.T5" class="ltx_table">
+<table id="S5.T5.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T5.1.1.1" class="ltx_tr">
+<th id="S5.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Model</th>
+<th id="S5.T5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Color-Only Accuracy</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T5.1.2.1" class="ltx_tr">
+<td id="S5.T5.1.2.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT</td>
+<td id="S5.T5.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">67.72</td>
+</tr>
+<tr id="S5.T5.1.3.2" class="ltx_tr">
+<td id="S5.T5.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r">LXMERT w/ enhanced PT</td>
+<td id="S5.T5.1.3.2.2" class="ltx_td ltx_align_center"><span id="S5.T5.1.3.2.2.1" class="ltx_text ltx_font_bold">70.09</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>Model performance on Color-based Questions only</figcaption>
+</figure>
+</section>
+<section id="S5.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.3 </span>Count Aware ISVQA using graph based deduplication</h3>
+
+<div id="S5.SS3.p1" class="ltx_para">
+<p id="S5.SS3.p1.1" class="ltx_p">The results for the Count based ISVQA is presented in table <a href="#S4.T2" title="Table 2 ‣ 4.4 Improving Performance on Count-based Questions using Regression Loss ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. The results are obtained on an LXMERT model trained from scratch rather than adopting a pretrained one. Thus the comparison will be done on an LXMERT model without pretraining using base RCNN features. This is done because the input features for the Count based model are changed and thus we cannot adapt a pretrained model as is (and pre-training our model is computationally unfeasible). A slight improvement over the baseline is observed on the overall results whereas Table <a href="#S5.T6" title="Table 6 ‣ 5.3 Count Aware ISVQA using graph based deduplication ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> compares the model performance specifically on count based questions. This shows a clear improvement over the baseline confirming that ’count-aware’ features perform better. The claims made by <cite class="ltx_cite ltx_citemacro_citep">(Zhang et al., <a href="#bib.bib31" title="" class="ltx_ref">2018</a>)</cite> that the soft attention based models generally do not perform well on count based question is proven. This also shows that a graph based modelling of the regions of interest in an image is a good approach to resolve disambiguities and solve the double counting problem especially in datasets such ISVQA where such anomalies are present in abundance.</p>
+</div>
+<figure id="S5.T6" class="ltx_table">
+<table id="S5.T6.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T6.1.1.1" class="ltx_tr">
+<th id="S5.T6.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Model</th>
+<th id="S5.T6.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Count-Only Accuracy</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T6.1.2.1" class="ltx_tr">
+<td id="S5.T6.1.2.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT w/o pre-training</td>
+<td id="S5.T6.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">42.7%</td>
+</tr>
+<tr id="S5.T6.1.3.2" class="ltx_tr">
+<td id="S5.T6.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r">LXMERT w/ Count Based VQA</td>
+<td id="S5.T6.1.3.2.2" class="ltx_td ltx_align_center">46.5%</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 6: </span>Model performance on Count-based Questions only</figcaption>
+</figure>
+</section>
+<section id="S5.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">5.4 </span> Improving Performance on Count-based Questions using Regression Loss</h3>
+
+<div id="S5.SS4.p1" class="ltx_para">
+<p id="S5.SS4.p1.1" class="ltx_p">The results for this experiment in Table <a href="#S4.T2" title="Table 2 ‣ 4.4 Improving Performance on Count-based Questions using Regression Loss ‣ 4 Proposed Approach ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> and <a href="#S5.T7" title="Table 7 ‣ 5.4 Improving Performance on Count-based Questions using Regression Loss ‣ 5 Results and Discussion ‣ Analysis on Image Set Visual Question Answering" class="ltx_ref"><span class="ltx_text ltx_ref_tag">7</span></a> show similar results to the LXMERT baseline and a marginal 0.2% improvement in Count-only question accuracy was observed. The results suggest that introducing an additional regression loss is enough to improve accuracy on count-based questions. And additional modifications such as changes in the features extraction process, better attention mechanisms to improve alignment and overall enhancements to the model architecture are required to improve accuracy on count based questions.</p>
+</div>
+<figure id="S5.T7" class="ltx_table">
+<table id="S5.T7.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T7.1.1.1" class="ltx_tr">
+<th id="S5.T7.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">Model</th>
+<th id="S5.T7.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">Count-Only Accuracy</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T7.1.2.1" class="ltx_tr">
+<td id="S5.T7.1.2.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">LXMERT</td>
+<td id="S5.T7.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">49.84%</td>
+</tr>
+<tr id="S5.T7.1.3.2" class="ltx_tr">
+<td id="S5.T7.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r">LXMERT w/ Regression Loss</td>
+<td id="S5.T7.1.3.2.2" class="ltx_td ltx_align_center">50.02%</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 7: </span>Model performance on Count-based Questions only</figcaption>
+</figure>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusion and Future Work</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">In this work we discuss 4 research ideas to improve performance on Image Set Visual Questions Answering and present an in depth analysis for the problem of Language Dependence along with testing 2 different adversarial regularization formalizations. We utilize three established baselines for the task and perform error analysis to provide a strong motivation for our research ideas. Our presented approaches include an enhanced pertaining strategy for the task of ISVQA that incorporates color and spatiality. We then describe ideas to incorporate count awareness in deep learning models for ISVQA. Finally, we discuss an adversarial regularization technique for bias removal technique as we observe the presence of significant bias in both training and testing data. We observe that our proposed approaches are able to improve performance over the LXMERT baseline, with a 0.38% absolute performance increase using our enhanced pre-training strategy. Our count-based models were able to improve performance on count-based questions by 3.8% while enhanced pre-training helped improved the performance on color-based questions by 2.3%. Additionally, our adversarial regularization technique is able to reduce dependence on the language modality.</p>
+</div>
+<div id="S6.p2" class="ltx_para">
+<p id="S6.p2.1" class="ltx_p">As a future work, we suggest the development of a ISVQA dataset with changing priors similar to VQA-CP to study the generalizability of ISVQA models. Furthermore, work needs to be done to improve the performance on count based questions as our experiments reveal that count based questions are particularly harder for Visual Questions Answering models to handle. Finally, our results from the enhanced pre-training model show that incorporating more pre-training objectives that cater to spatial and color-awareness can help improve the performance even further and running such experiments can be worth the computational efforts.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Agrawal et al. (2018)</span>
+<span class="ltx_bibblock">
+Agrawal, A., Batra, D., Parikh, D., and Kembhavi, A.
+
+</span>
+<span class="ltx_bibblock">Don’t just assume; look and answer: Overcoming priors for visual
+question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition</em>, pp.  4971–4980, 2018.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Anderson et al. (2018)</span>
+<span class="ltx_bibblock">
+Anderson, P., He, X., Buehler, C., Teney, D., Johnson, M., Gould, S., and
+Zhang, L.
+
+</span>
+<span class="ltx_bibblock">Bottom-up and top-down attention for image captioning and visual
+question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</em>, pp.  6077–6086, 2018.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Antol et al. (2015)</span>
+<span class="ltx_bibblock">
+Antol, S., Agrawal, A., Lu, J., Mitchell, M., Batra, D., Lawrence Zitnick, C.,
+and Parikh, D.
+
+</span>
+<span class="ltx_bibblock">Vqa: Visual question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE international conference on computer
+vision</em>, pp.  2425–2433, 2015.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Bansal et al. (2020)</span>
+<span class="ltx_bibblock">
+Bansal, A., Zhang, Y., and Chellappa, R.
+
+</span>
+<span class="ltx_bibblock">Visual question answering on image sets.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2008.11976</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Caesar et al. (2020)</span>
+<span class="ltx_bibblock">
+Caesar, H., Bankiti, V., Lang, A. H., Vora, S., Liong, V. E., Xu, Q., Krishnan,
+A., Pan, Y., Baldan, G., and Beijbom, O.
+
+</span>
+<span class="ltx_bibblock">nuscenes: A multimodal dataset for autonomous driving.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE/CVF Conference on Computer Vision
+and Pattern Recognition</em>, pp.  11621–11631, 2020.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2017)</span>
+<span class="ltx_bibblock">
+Chen, J., Shao, J., Shen, F., He, C., Gao, L., and Shen, H. T.
+
+</span>
+<span class="ltx_bibblock">Movie fill in the blank with adaptive temporal attention and
+description update.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2017 ACM on Conference on Information and
+Knowledge Management</em>, pp.  1039–1048, 2017.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2019)</span>
+<span class="ltx_bibblock">
+Chen, Y.-C., Li, L., Yu, L., Kholy, A. E., Ahmed, F., Gan, Z., Cheng, Y., and
+Liu, J.
+
+</span>
+<span class="ltx_bibblock">Uniter: Learning universal image-text representations.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1909.11740</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Das et al. (2018)</span>
+<span class="ltx_bibblock">
+Das, A., Datta, S., Gkioxari, G., Lee, S., Parikh, D., and Batra, D.
+
+</span>
+<span class="ltx_bibblock">Embodied question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition Workshops</em>, pp.  2054–2063, 2018.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Devlin et al. (2018)</span>
+<span class="ltx_bibblock">
+Devlin, J., Chang, M.-W., Lee, K., and Toutanova, K.
+
+</span>
+<span class="ltx_bibblock">Bert: Pre-training of deep bidirectional transformers for language
+understanding.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1810.04805</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Fan et al. (2019)</span>
+<span class="ltx_bibblock">
+Fan, C., Zhang, X., Zhang, S., Wang, W., Zhang, C., and Huang, H.
+
+</span>
+<span class="ltx_bibblock">Heterogeneous memory enhanced multimodal attention model for video
+question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition</em>, pp.  1999–2007, 2019.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Goyal et al. (2017)</span>
+<span class="ltx_bibblock">
+Goyal, Y., Khot, T., Summers-Stay, D., Batra, D., and Parikh, D.
+
+</span>
+<span class="ltx_bibblock">Making the v in vqa matter: Elevating the role of image understanding
+in visual question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition</em>, pp.  6904–6913, 2017.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">He et al. (2015)</span>
+<span class="ltx_bibblock">
+He, K., Zhang, X., Ren, S., and Sun, J.
+
+</span>
+<span class="ltx_bibblock">Deep residual learning for image recognition, 2015.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Jabri et al. (2016)</span>
+<span class="ltx_bibblock">
+Jabri, A., Joulin, A., and Van Der Maaten, L.
+
+</span>
+<span class="ltx_bibblock">Revisiting visual question answering baselines.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">European conference on computer vision</em>, pp.  727–739.
+Springer, 2016.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Jang et al. (2017)</span>
+<span class="ltx_bibblock">
+Jang, Y., Song, Y., Yu, Y., Kim, Y., and Kim, G.
+
+</span>
+<span class="ltx_bibblock">Tgif-qa: Toward spatio-temporal reasoning in visual question
+answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition</em>, pp.  2758–2766, 2017.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lample &amp; Conneau (2019)</span>
+<span class="ltx_bibblock">
+Lample, G. and Conneau, A.
+
+</span>
+<span class="ltx_bibblock">Cross-lingual language model pretraining.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1901.07291</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lei et al. (2018)</span>
+<span class="ltx_bibblock">
+Lei, J., Yu, L., Bansal, M., and Berg, T. L.
+
+</span>
+<span class="ltx_bibblock">Tvqa: Localized, compositional video question answering.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1809.01696</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al. (2019)</span>
+<span class="ltx_bibblock">
+Li, L. H., Yatskar, M., Yin, D., Hsieh, C.-J., and Chang, K.-W.
+
+</span>
+<span class="ltx_bibblock">Visualbert: A simple and performant baseline for vision and language.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1908.03557</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al. (2020)</span>
+<span class="ltx_bibblock">
+Li, X., Yin, X., Li, C., Zhang, P., Hu, X., Zhang, L., Wang, L., Hu, H., Dong,
+L., Wei, F., et al.
+
+</span>
+<span class="ltx_bibblock">Oscar: Object-semantics aligned pre-training for vision-language
+tasks.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">European Conference on Computer Vision</em>, pp.  121–137.
+Springer, 2020.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Malinowski &amp; Fritz (2014)</span>
+<span class="ltx_bibblock">
+Malinowski, M. and Fritz, M.
+
+</span>
+<span class="ltx_bibblock">A multi-world approach to question answering about real-world scenes
+based on uncertain input.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, pp. 1682–1690, 2014.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Mun et al. (2017)</span>
+<span class="ltx_bibblock">
+Mun, J., Hongsuck Seo, P., Jung, I., and Han, B.
+
+</span>
+<span class="ltx_bibblock">Marioqa: Answering questions by watching gameplay videos.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE International Conference on Computer
+Vision</em>, pp.  2867–2875, 2017.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Pennington et al. (2014)</span>
+<span class="ltx_bibblock">
+Pennington, J., Socher, R., and Manning, C. D.
+
+</span>
+<span class="ltx_bibblock">Glove: Global vectors for word representation.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">Empirical Methods in Natural Language Processing (EMNLP)</em>,
+pp.  1532–1543, 2014.
+
+</span>
+<span class="ltx_bibblock">URL <a target="_blank" href="http://www.aclweb.org/anthology/D14-1162" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://www.aclweb.org/anthology/D14-1162</a>.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Peters et al. (2018)</span>
+<span class="ltx_bibblock">
+Peters, M. E., Neumann, M., Iyyer, M., Gardner, M., Clark, C., Lee, K., and
+Zettlemoyer, L.
+
+</span>
+<span class="ltx_bibblock">Deep contextualized word representations.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1802.05365</em>, 2018.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ren et al. (2015)</span>
+<span class="ltx_bibblock">
+Ren, M., Kiros, R., and Zemel, R.
+
+</span>
+<span class="ltx_bibblock">Exploring models and data for image question answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, pp. 2953–2961, 2015.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Simonyan &amp; Zisserman (2015)</span>
+<span class="ltx_bibblock">
+Simonyan, K. and Zisserman, A.
+
+</span>
+<span class="ltx_bibblock">Very deep convolutional networks for large-scale image recognition,
+2015.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Su et al. (2019)</span>
+<span class="ltx_bibblock">
+Su, W., Zhu, X., Cao, Y., Li, B., Lu, L., Wei, F., and Dai, J.
+
+</span>
+<span class="ltx_bibblock">Vl-bert: Pre-training of generic visual-linguistic representations.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1908.08530</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tan &amp; Bansal (2019)</span>
+<span class="ltx_bibblock">
+Tan, H. and Bansal, M.
+
+</span>
+<span class="ltx_bibblock">Lxmert: Learning cross-modality encoder representations from
+transformers.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1908.07490</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tapaswi et al. (2016)</span>
+<span class="ltx_bibblock">
+Tapaswi, M., Zhu, Y., Stiefelhagen, R., Torralba, A., Urtasun, R., and Fidler,
+S.
+
+</span>
+<span class="ltx_bibblock">Movieqa: Understanding stories in movies through question-answering.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE conference on computer vision and
+pattern recognition</em>, pp.  4631–4640, 2016.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tran et al. (2015)</span>
+<span class="ltx_bibblock">
+Tran, D., Bourdev, L., Fergus, R., Torresani, L., and Paluri, M.
+
+</span>
+<span class="ltx_bibblock">Learning spatiotemporal features with 3d convolutional networks,
+2015.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Vaswani et al. (2017)</span>
+<span class="ltx_bibblock">
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N.,
+Kaiser, Ł., and Polosukhin, I.
+
+</span>
+<span class="ltx_bibblock">Attention is all you need.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>, pp. 5998–6008, 2017.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Xia et al. (2018)</span>
+<span class="ltx_bibblock">
+Xia, F., Zamir, A. R., He, Z., Sax, A., Malik, J., and Savarese, S.
+
+</span>
+<span class="ltx_bibblock">Gibson env: Real-world perception for embodied agents.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition</em>, pp.  9068–9079, 2018.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2018)</span>
+<span class="ltx_bibblock">
+Zhang, Y., Hare, J., and Prügel-Bennett, A.
+
+</span>
+<span class="ltx_bibblock">Learning to count objects in natural images for visual question
+answering.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1802.05766</em>, 2018.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2104.00106" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2104.00107" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2104.00107">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2104.00107" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2104.00109" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar 16 22:10:17 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

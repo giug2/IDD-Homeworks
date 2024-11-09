@@ -1,0 +1,1494 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2409.05601] Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation</title><meta property="og:description" content="This paper presents a new method for training sequence-to-sequence models for speech recognition and translation tasks. Instead of the traditional approach of training models on short segments containing only lowercase…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2409.05601">
+
+<!--Generated on Sun Oct  6 00:44:50 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">This paper presents a new method for training sequence-to-sequence models for speech recognition and translation tasks. Instead of the traditional approach of training models on short segments containing only lowercase or partial punctuation and capitalization (PnC) sentences, we propose training on longer utterances that include complete sentences with proper punctuation and capitalization. We achieve this by using the FastConformer architecture which allows training 1 Billion parameter models with sequences up to 60 seconds long with full attention. However, while training with PnC enhances the overall performance, we observed that accuracy plateaus when training on sequences longer than 40 seconds across various evaluation settings. Our proposed method significantly improves punctuation and capitalization accuracy, showing a 25% relative word error rate (WER) improvement on the Earnings-21 and Earnings-22 benchmarks. Additionally, training on longer audio segments increases the overall model accuracy across speech recognition and translation benchmarks. The model weights and training code are open-sourced though NVIDIA NeMo.
+<span id="footnotex1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://github.com/NVIDIA/NeMo</span></span></span></span><span id="footnotex2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://huggingface.co/nvidia/parakeet-tdt_ctc-1.1b</span></span></span></span>
+
+</p>
+<p id="id2.id2" class="ltx_p"><span id="id2.id2.1" class="ltx_text ltx_font_bold ltx_font_italic">Index Terms<span id="id2.id2.1.1" class="ltx_text ltx_font_upright">— </span></span>
+ASR, Translation, Punctuation, Capitalization, Longer Context Audio</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Over the past few years, we have seen great advancement in speech modeling. ’Traditional’ cascade and hybrid approaches have given way to fully end-to-end neural systems. However, data preprocessing has failed to see similar advancements; it remains standard practice to casefold and strip punctuation from training corpora. Even among recent state-of-the-art models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, training still assumes generally lowercase text (minus the rare exception for partial punctuation and capitalization). Instead of building casing and punctuation into model inference, modern systems typically leave this step to post-processing <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Two primary factors have contributed to this:
+(1) a scarcity of fully punctuated and capitalized training data, and (2) the emphasis on evaluating models on lowercase text within prominent benchmarks like LibriSpeech. While this approach has seen good performance so far, it limits the ability of such systems to leverage the rich acoustic information available in speech itself. (e.g. when a pause in speech is a strong indicator for the presence of punctuation). As such, for the next generation of speech models, there is a growing need to incorporate punctuation and casing prediction within end-to-end systems.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Further, the growing capability of modern model architectures to model long-term dependencies encourages exploration of long-duration speech input in ASR. At the time of writing, sophisticated architectures based on self-attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, have shown great ability to model long context. However, the most notable gains has been in text domains <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Long-form speech processing is still relatively under-explored due to constraints in computational resources as well as the intrinsic difficulty of the problem <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>. Typical training samples are limited to around  20s audio, severely hampering the ability of modern systems to learn discourse features such as conversation turns, anaphora, and tone-shifts.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In this work, we focus on exploring the FastConformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> architecture for recognition and translation speech tasks and propose several techniques to improve its performance, while training on unnormalized text, with punctuations and capitalizations. The contributions of this paper are as follows,</p>
+<ol id="S1.I1" class="ltx_enumerate">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">We propose a new training paradigm to train models on longer utterances containing complete sentences with punctuation and capitalization, instead of short segments with partial punctuation and capitalizations.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">Our model employs a hybrid TDT-CTC architecture. This is the first published result using such decoders. We perform ablation studies on training models with various input sequence durations for both speech recognition and translation tasks.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">By employing FastConformer, we present the first study demonstrating the feasibility of training on segments upto 60 seconds long for speech applications.</p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S1.I1.i4.p1" class="ltx_para">
+<p id="S1.I1.i4.p1.1" class="ltx_p">Our models brought a 25% relative WER reduction on the Earnings-21 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> and Earnings-22 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> benchmarks and 15% relative BLEU score improvement on MuST-C <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> test set.
+</p>
+</div>
+</li>
+<li id="S1.I1.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">5.</span> 
+<div id="S1.I1.i5.p1" class="ltx_para">
+<p id="S1.I1.i5.p1.1" class="ltx_p">Experiments show our methods also improve model accuracy on lower-cased benchmarking sets, achieving state-of-the-art results on the HF leaderboard.</p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">The paper is organized as follows: in Section <a href="#S2" title="2 Background ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, we provide the background information of the main models used for our work;
+in Section <a href="#S3" title="3 Method ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, we describe our proposed methods in detail;
+in Sections <a href="#S4" title="4 Datasets ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> and <a href="#S5" title="5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, we describe the datasets used for our work, and then the experiment results of our models on recognition and translation tasks, followed by our conclusions in Section <a href="#S6" title="6 Conclusions ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Background</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">The models presented in this paper are based on the FastConformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> encoder trained with a Hybrid Transducer-CTC loss.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>FastConformer</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">The Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> is a powerful architecture that comprises self-attention <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>, convolution, and feedforward layers. FastConformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> is a architecture that greatly reduces the Conformer computational complexity while giving superior performance with two major changes to the original Conformer:</p>
+<ol id="S2.I1" class="ltx_enumerate">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p">A modified subsampling scheme. Instead of the commonly adopted 4x subsampling rate used for the original conformer for speech models, FastConformer’s output uses an 8x subsampling rate, which cuts the output length by half. This is achieved by including 2X subsampling convolutions at the first three consecutive layers for the conformer network.</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p">The self-attention contexts of conformer blocks are redesigned to utilize a mixture of local and global attention.</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>CTC, Transducer, TDT and their Hybrid</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Transducers and CTC are two commonly used end-to-end model architectures. Both of them adopt a frame-synchronous paradigm, where the input speech signals, after being processed by the encoder, are processed frame by frame, and the model predicts a token for each of those frames. Both CTC and Transducer models adopt a blank symbol for frames that do not contribute extra information. However, CTC assumes conditional-independence between prediction and frame representations. Meanwhile, RNN-T includes a predictor network to model textual history, and a joint network to condition predictions on both frame and contextual representations.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">Token-and-Duration Transducer (TDT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite> is a recently proposed model that extends the traditional Transducer model by decoupling token and duration predictions. The model’s duration prediction is used to skip multiple frames during decoding, thus greatly improving the inference efficiency of Transducer models. TDT models have also been shown to achieve superior accuracy than traditional Transducers, making it a good choice for our models.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2409.05601/assets/figures/hybrid_color.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="192" height="108" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S2.F1.6.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Hybrid-TDT-CTC Model. Variables <math id="S2.F1.3.m1.1" class="ltx_Math" alttext="v" display="inline"><semantics id="S2.F1.3.m1.1b"><mi id="S2.F1.3.m1.1.1" xref="S2.F1.3.m1.1.1.cmml">v</mi><annotation-xml encoding="MathML-Content" id="S2.F1.3.m1.1c"><ci id="S2.F1.3.m1.1.1.cmml" xref="S2.F1.3.m1.1.1">𝑣</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.3.m1.1d">v</annotation></semantics></math> and <math id="S2.F1.4.m2.1" class="ltx_Math" alttext="d" display="inline"><semantics id="S2.F1.4.m2.1b"><mi id="S2.F1.4.m2.1.1" xref="S2.F1.4.m2.1.1.cmml">d</mi><annotation-xml encoding="MathML-Content" id="S2.F1.4.m2.1c"><ci id="S2.F1.4.m2.1.1.cmml" xref="S2.F1.4.m2.1.1">𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.4.m2.1d">d</annotation></semantics></math> represent the vocabulary and durations supported by the TDT model. The final loss of the model is computed as a linear interpolation of TDT loss and CTC loss.</figcaption>
+</figure>
+<section id="S2.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">2.2.1 </span>Hybrid TDT-CTC models</h4>
+
+<div id="S2.SS2.SSS1.p1" class="ltx_para">
+<p id="S2.SS2.SSS1.p1.1" class="ltx_p">A hybrid Transducer-CTC model, as first utilized in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>, combines aspects of both Transducer and CTC in a single model. In this approach, the encoder output is used in two pathways: 1) combining with a Transducer prediction network and joint network, to compute a Transducer loss and 2) feeding into a CTC decoder to compute a CTC loss. The two losses are combined with weighted summation to give the final loss for training. Thanks to this dual loss objective, hybrid models effectively train two models at once. Along with their faster convergence rate (in comparison to constituent models), hybrid models are also highly compute efficient. Needing to conduct several ablations over the course of this work, we chose hybrid models as our primary architecture.</p>
+</div>
+<div id="S2.SS2.SSS1.p2" class="ltx_para">
+<p id="S2.SS2.SSS1.p2.1" class="ltx_p">Further, we propose a new hybrid-TDT-CTC architecture, shown in Figure <a href="#S2.F1" title="Figure 1 ‣ 2.2 CTC, Transducer, TDT and their Hybrid ‣ 2 Background ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. The model replaces the Transducer components <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> with TDT. TDT offers two key advantages: 1) TDT models employ an architecture similar to RNN-T yet have demonstrated superior performance on various speech tasks, and 2) TDTs achieve significantly greater inference speed than RNN-T models, making them well-suited for deployment in both cloud and on-device computing environments. For computing the Hybrid-TDT-CTC model loss, we have,</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\text{final}}=\mathcal{L}_{\text{TDT}}+\lambda\mathcal{L}_{\text{CTC}}" display="block"><semantics id="S2.Ex1.m1.1a"><mrow id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml"><msub id="S2.Ex1.m1.1.1.2" xref="S2.Ex1.m1.1.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.1.1.2.2" xref="S2.Ex1.m1.1.1.2.2.cmml">ℒ</mi><mtext id="S2.Ex1.m1.1.1.2.3" xref="S2.Ex1.m1.1.1.2.3a.cmml">final</mtext></msub><mo id="S2.Ex1.m1.1.1.1" xref="S2.Ex1.m1.1.1.1.cmml">=</mo><mrow id="S2.Ex1.m1.1.1.3" xref="S2.Ex1.m1.1.1.3.cmml"><msub id="S2.Ex1.m1.1.1.3.2" xref="S2.Ex1.m1.1.1.3.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.1.1.3.2.2" xref="S2.Ex1.m1.1.1.3.2.2.cmml">ℒ</mi><mtext id="S2.Ex1.m1.1.1.3.2.3" xref="S2.Ex1.m1.1.1.3.2.3a.cmml">TDT</mtext></msub><mo id="S2.Ex1.m1.1.1.3.1" xref="S2.Ex1.m1.1.1.3.1.cmml">+</mo><mrow id="S2.Ex1.m1.1.1.3.3" xref="S2.Ex1.m1.1.1.3.3.cmml"><mi id="S2.Ex1.m1.1.1.3.3.2" xref="S2.Ex1.m1.1.1.3.3.2.cmml">λ</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.1.1.3.3.1" xref="S2.Ex1.m1.1.1.3.3.1.cmml">​</mo><msub id="S2.Ex1.m1.1.1.3.3.3" xref="S2.Ex1.m1.1.1.3.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.1.1.3.3.3.2" xref="S2.Ex1.m1.1.1.3.3.3.2.cmml">ℒ</mi><mtext id="S2.Ex1.m1.1.1.3.3.3.3" xref="S2.Ex1.m1.1.1.3.3.3.3a.cmml">CTC</mtext></msub></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.1b"><apply id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1"><eq id="S2.Ex1.m1.1.1.1.cmml" xref="S2.Ex1.m1.1.1.1"></eq><apply id="S2.Ex1.m1.1.1.2.cmml" xref="S2.Ex1.m1.1.1.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.2.1.cmml" xref="S2.Ex1.m1.1.1.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.2.2.cmml" xref="S2.Ex1.m1.1.1.2.2">ℒ</ci><ci id="S2.Ex1.m1.1.1.2.3a.cmml" xref="S2.Ex1.m1.1.1.2.3"><mtext mathsize="70%" id="S2.Ex1.m1.1.1.2.3.cmml" xref="S2.Ex1.m1.1.1.2.3">final</mtext></ci></apply><apply id="S2.Ex1.m1.1.1.3.cmml" xref="S2.Ex1.m1.1.1.3"><plus id="S2.Ex1.m1.1.1.3.1.cmml" xref="S2.Ex1.m1.1.1.3.1"></plus><apply id="S2.Ex1.m1.1.1.3.2.cmml" xref="S2.Ex1.m1.1.1.3.2"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.3.2.1.cmml" xref="S2.Ex1.m1.1.1.3.2">subscript</csymbol><ci id="S2.Ex1.m1.1.1.3.2.2.cmml" xref="S2.Ex1.m1.1.1.3.2.2">ℒ</ci><ci id="S2.Ex1.m1.1.1.3.2.3a.cmml" xref="S2.Ex1.m1.1.1.3.2.3"><mtext mathsize="70%" id="S2.Ex1.m1.1.1.3.2.3.cmml" xref="S2.Ex1.m1.1.1.3.2.3">TDT</mtext></ci></apply><apply id="S2.Ex1.m1.1.1.3.3.cmml" xref="S2.Ex1.m1.1.1.3.3"><times id="S2.Ex1.m1.1.1.3.3.1.cmml" xref="S2.Ex1.m1.1.1.3.3.1"></times><ci id="S2.Ex1.m1.1.1.3.3.2.cmml" xref="S2.Ex1.m1.1.1.3.3.2">𝜆</ci><apply id="S2.Ex1.m1.1.1.3.3.3.cmml" xref="S2.Ex1.m1.1.1.3.3.3"><csymbol cd="ambiguous" id="S2.Ex1.m1.1.1.3.3.3.1.cmml" xref="S2.Ex1.m1.1.1.3.3.3">subscript</csymbol><ci id="S2.Ex1.m1.1.1.3.3.3.2.cmml" xref="S2.Ex1.m1.1.1.3.3.3.2">ℒ</ci><ci id="S2.Ex1.m1.1.1.3.3.3.3a.cmml" xref="S2.Ex1.m1.1.1.3.3.3.3"><mtext mathsize="70%" id="S2.Ex1.m1.1.1.3.3.3.3.cmml" xref="S2.Ex1.m1.1.1.3.3.3.3">CTC</mtext></ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.1c">\mathcal{L}_{\text{final}}=\mathcal{L}_{\text{TDT}}+\lambda\mathcal{L}_{\text{CTC}}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.SSS1.p2.2" class="ltx_p">By this design, the CTC decoder and TDT model’s decoder and joint network are independently trained, while the encoder receives gradients from both objectives. This approach allows the CTC decoder to converge faster<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> while resulting in better time alignments for both the shared decoders<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite>.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Method</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">In this section we overview sentence-level and long audio training with punctuation and capitalization.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Sentence-Level Training with Punctuation and Capitalization (PnC)</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">Previous works, such as FastConformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, Conformer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, and Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>, have reported training on segments containing partial punctuations and capitalizations or lower-case ground truth text samples. Our proposed method advocates for concatenating partial segments to form complete sentences originating from the same utterance. ”Complete sentence” in this context refers to a sentence beginning with a capital letter and concluding with a punctuation mark (period, exclamation point, or question mark).</p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">We illustrate the application of our PnC method to segments from LibriSpeech-PC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> set, showcasing the combined sentences in figure <a href="#S3.F2" title="Figure 2 ‣ 3.1 Sentence-Level Training with Punctuation and Capitalization (PnC) ‣ 3 Method ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure">
+<p id="S3.F2.2" class="ltx_p ltx_align_center">
+<span id="S3.F2.2.1" class="ltx_inline-block ltx_minipage ltx_align_middle ltx_framed ltx_framed_rectangle" style="width:426.8pt;">
+<span id="S3.F2.2.1.1" class="ltx_p"><span id="S3.F2.2.1.1.1" class="ltx_text ltx_font_bold">Previous:</span></span>
+<span id="S3.F2.2.1.2" class="ltx_p"><span id="S3.F2.2.1.2.1" class="ltx_text ltx_font_typewriter">102-129232-0076</span>: <span id="S3.F2.2.1.2.2" class="ltx_text" style="color:#009900;"> What appears once in the atmosphere may appear often, and it was undoubtedly the archetype of that familiar ornament. I have seen in the sky a chain of summer lightning, 
+<br class="ltx_break"><span id="S3.F2.2.1.2.2.1" class="ltx_text" style="color:#000000;">
+<span id="S3.F2.2.1.2.2.1.1" class="ltx_text ltx_font_typewriter">102-129232-0077</span>: <span id="S3.F2.2.1.2.2.1.2" class="ltx_text" style="color:#7393C3;">which at once showed to me that the Greeks drew from nature when they painted the thunderbolt in the hand of Jove.</span> 
+<br class="ltx_break">
+<span id="S3.F2.2.1.2.2.1.3" class="ltx_text ltx_font_bold">After (Combined Sentence):</span></span></span></span>
+<span id="S3.F2.2.1.3" class="ltx_p"><span id="S3.F2.2.1.3.1" class="ltx_text ltx_font_typewriter" style="color:#000000;">102-129232-0076_0077<span id="S3.F2.2.1.3.1.1" class="ltx_text ltx_font_serif">: <span id="S3.F2.2.1.3.1.1.1" class="ltx_text" style="color:#009900;"> What appears once in the atmosphere may appear often, and it was undoubtedly the archetype of that familiar ornament. I have seen in the sky a chain of summer lightning, <span id="S3.F2.2.1.3.1.1.1.1" class="ltx_text" style="color:#7393C3;">which at once showed to me that the Greeks drew from nature when they painted the thunderbolt in the hand of Jove.</span></span></span></span></span>
+</span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F2.3.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>Method of concatenating partial punctuations and capitalizations segments from LibriSpeech-PC <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> set to form a complete sentence level segments.</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Training with Longer Context</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><span id="S3.SS2.p1.1.1" class="ltx_text" style="color:#000000;">As exemplified by the sentence formation process described above, the proposed method requires training on longer audio segments. To handle these extended utterances, the FastConformer architecture is employed due to its efficient conformer modules and downsampling module that reduces the input sequence size by a factor of 8, enabling efficient processing of longer sequences. These characteristics enable the model to be trained on 60-second audio segments on NVIDIA A100 80GB GPUs, compared to the 30 seconds or less limit observed in previous works </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.p1.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S3.SS2.p1.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S3.SS2.p1.1.4" class="ltx_text" style="color:#000000;">, leveraging the benefits of longer context for improved performance as demonstrated in the experiments section.</span></p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="color:#000000;">
+<span class="ltx_tag ltx_tag_section">4 </span>Datasets</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text" style="color:#000000;">This section details the datasets employed for training and evaluating the proposed methods.</span></p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Speech Recognition</h3>
+
+<section id="S4.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsubsection">4.1.1 </span>Training</h4>
+
+<div id="S4.SS1.SSS1.p1" class="ltx_para">
+<p id="S4.SS1.SSS1.p1.1" class="ltx_p"><span id="S4.SS1.SSS1.p1.1.1" class="ltx_text" style="color:#000000;">Due to the limited availability of large-scale PnC data, we leverage a combination of internally curated data and publicly available datasets consisting of samples from LibriSpeech-PC </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S4.SS1.SSS1.p1.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.4" class="ltx_text" style="color:#000000;">, Fisher </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.5.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib18" title="" class="ltx_ref">18</a><span id="S4.SS1.SSS1.p1.1.6.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.7" class="ltx_text" style="color:#000000;">, MCV-11 </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.8.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S4.SS1.SSS1.p1.1.9.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.10" class="ltx_text" style="color:#000000;">, MLS </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.11.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a><span id="S4.SS1.SSS1.p1.1.12.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.13" class="ltx_text" style="color:#000000;">, NSC Part1 </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.14.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib21" title="" class="ltx_ref">21</a><span id="S4.SS1.SSS1.p1.1.15.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.16" class="ltx_text" style="color:#000000;">, SPGI </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.17.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib22" title="" class="ltx_ref">22</a><span id="S4.SS1.SSS1.p1.1.18.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.19" class="ltx_text" style="color:#000000;">, VCTK </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.20.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib23" title="" class="ltx_ref">23</a><span id="S4.SS1.SSS1.p1.1.21.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.22" class="ltx_text" style="color:#000000;">, VoxPopuli </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS1.p1.1.23.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib24" title="" class="ltx_ref">24</a><span id="S4.SS1.SSS1.p1.1.24.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS1.p1.1.25" class="ltx_text" style="color:#000000;">. Dataset statistics for combined data are provided in Table </span><a href="#S4.T1" title="Table 1 ‣ 4.1.1 Training ‣ 4.1 Speech Recognition ‣ 4 Datasets ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S4.SS1.SSS1.p1.1.26" class="ltx_text" style="color:#000000;">. For experiments on segments consisting of partial punctuations and capitalizations, we employ full data from public datasets, and for experiments on complete sentence training that starts with an upper case letter and ends with punctuation (.!?), as illustrated in Figure </span><a href="#S3.F2" title="Figure 2 ‣ 3.1 Sentence-Level Training with Punctuation and Capitalization (PnC) ‣ 3 Method ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S4.SS1.SSS1.p1.1.27" class="ltx_text" style="color:#000000;">, we use only those segments from the datasets.</span></p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S4.T1.12.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Statistics of combined internal and public datasets with partial and improved punctuation and capitalizations sets. </figcaption>
+<div id="S4.T1.8" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:89.8pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-31.3pt,11.8pt) scale(0.791694278783024,0.791694278783024) ;">
+<table id="S4.T1.8.8" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T1.8.8.9.1" class="ltx_tr">
+<th id="S4.T1.8.8.9.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t">
+<table id="S4.T1.8.8.9.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T1.8.8.9.1.1.1.1" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Complete</span></td>
+</tr>
+<tr id="S4.T1.8.8.9.1.1.1.2" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Sentences</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T1.8.8.9.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t">
+<table id="S4.T1.8.8.9.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T1.8.8.9.1.2.1.1" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T1.8.8.9.1.2.1.2" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">Window (sec)</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T1.8.8.9.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S4.T1.8.8.9.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T1.8.8.9.1.3.1.1" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.3.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.3.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T1.8.8.9.1.3.1.2" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.3.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.3.1.2.1.1" class="ltx_text" style="color:#000000;">(hrs)</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T1.8.8.9.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S4.T1.8.8.9.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T1.8.8.9.1.4.1.1" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.4.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.4.1.1.1.1" class="ltx_text" style="color:#000000;">Avg Segment</span></td>
+</tr>
+<tr id="S4.T1.8.8.9.1.4.1.2" class="ltx_tr">
+<td id="S4.T1.8.8.9.1.4.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T1.8.8.9.1.4.1.2.1.1" class="ltx_text" style="color:#000000;">Duration (sec)</span></td>
+</tr>
+</table>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T1.2.2.2" class="ltx_tr">
+<th id="S4.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><math id="S4.T1.1.1.1.1.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S4.T1.1.1.1.1.m1.1a"><mo mathcolor="#000000" id="S4.T1.1.1.1.1.m1.1.1" xref="S4.T1.1.1.1.1.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S4.T1.1.1.1.1.m1.1b"><times id="S4.T1.1.1.1.1.m1.1.1.cmml" xref="S4.T1.1.1.1.1.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.1.1.1.1.m1.1c">\times</annotation></semantics></math></th>
+<th id="S4.T1.2.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><math id="S4.T1.2.2.2.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S4.T1.2.2.2.2.m1.1a"><mrow id="S4.T1.2.2.2.2.m1.1.1" xref="S4.T1.2.2.2.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T1.2.2.2.2.m1.1.1.2" xref="S4.T1.2.2.2.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T1.2.2.2.2.m1.1.1.1" xref="S4.T1.2.2.2.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T1.2.2.2.2.m1.1.1.3" xref="S4.T1.2.2.2.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T1.2.2.2.2.m1.1b"><apply id="S4.T1.2.2.2.2.m1.1.1.cmml" xref="S4.T1.2.2.2.2.m1.1.1"><minus id="S4.T1.2.2.2.2.m1.1.1.1.cmml" xref="S4.T1.2.2.2.2.m1.1.1.1"></minus><cn type="integer" id="S4.T1.2.2.2.2.m1.1.1.2.cmml" xref="S4.T1.2.2.2.2.m1.1.1.2">0</cn><cn type="integer" id="S4.T1.2.2.2.2.m1.1.1.3.cmml" xref="S4.T1.2.2.2.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.2.2.2.2.m1.1c">0-20</annotation></semantics></math></th>
+<td id="S4.T1.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T1.2.2.2.3.1" class="ltx_text" style="color:#000000;">18,784.31</span></td>
+<td id="S4.T1.2.2.2.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T1.2.2.2.4.1" class="ltx_text" style="color:#000000;">9.13</span></td>
+</tr>
+<tr id="S4.T1.4.4.4" class="ltx_tr">
+<th id="S4.T1.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T1.3.3.3.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S4.T1.3.3.3.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S4.T1.3.3.3.1.m1.1.1" xref="S4.T1.3.3.3.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S4.T1.3.3.3.1.m1.1b"><ci id="S4.T1.3.3.3.1.m1.1.1.cmml" xref="S4.T1.3.3.3.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.3.3.3.1.m1.1c">\checkmark</annotation></semantics></math></th>
+<th id="S4.T1.4.4.4.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T1.4.4.4.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S4.T1.4.4.4.2.m1.1a"><mrow id="S4.T1.4.4.4.2.m1.1.1" xref="S4.T1.4.4.4.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T1.4.4.4.2.m1.1.1.2" xref="S4.T1.4.4.4.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T1.4.4.4.2.m1.1.1.1" xref="S4.T1.4.4.4.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T1.4.4.4.2.m1.1.1.3" xref="S4.T1.4.4.4.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T1.4.4.4.2.m1.1b"><apply id="S4.T1.4.4.4.2.m1.1.1.cmml" xref="S4.T1.4.4.4.2.m1.1.1"><minus id="S4.T1.4.4.4.2.m1.1.1.1.cmml" xref="S4.T1.4.4.4.2.m1.1.1.1"></minus><cn type="integer" id="S4.T1.4.4.4.2.m1.1.1.2.cmml" xref="S4.T1.4.4.4.2.m1.1.1.2">0</cn><cn type="integer" id="S4.T1.4.4.4.2.m1.1.1.3.cmml" xref="S4.T1.4.4.4.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.4.4.4.2.m1.1c">0-20</annotation></semantics></math></th>
+<td id="S4.T1.4.4.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.4.4.4.3.1" class="ltx_text" style="color:#000000;">17,983.04</span></td>
+<td id="S4.T1.4.4.4.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.4.4.4.4.1" class="ltx_text" style="color:#000000;">11.03</span></td>
+</tr>
+<tr id="S4.T1.6.6.6" class="ltx_tr">
+<th id="S4.T1.5.5.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T1.5.5.5.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S4.T1.5.5.5.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S4.T1.5.5.5.1.m1.1.1" xref="S4.T1.5.5.5.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S4.T1.5.5.5.1.m1.1b"><ci id="S4.T1.5.5.5.1.m1.1.1.cmml" xref="S4.T1.5.5.5.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.5.5.5.1.m1.1c">\checkmark</annotation></semantics></math></th>
+<th id="S4.T1.6.6.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T1.6.6.6.2.m1.1" class="ltx_Math" alttext="20-40" display="inline"><semantics id="S4.T1.6.6.6.2.m1.1a"><mrow id="S4.T1.6.6.6.2.m1.1.1" xref="S4.T1.6.6.6.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T1.6.6.6.2.m1.1.1.2" xref="S4.T1.6.6.6.2.m1.1.1.2.cmml">20</mn><mo mathcolor="#000000" id="S4.T1.6.6.6.2.m1.1.1.1" xref="S4.T1.6.6.6.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T1.6.6.6.2.m1.1.1.3" xref="S4.T1.6.6.6.2.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T1.6.6.6.2.m1.1b"><apply id="S4.T1.6.6.6.2.m1.1.1.cmml" xref="S4.T1.6.6.6.2.m1.1.1"><minus id="S4.T1.6.6.6.2.m1.1.1.1.cmml" xref="S4.T1.6.6.6.2.m1.1.1.1"></minus><cn type="integer" id="S4.T1.6.6.6.2.m1.1.1.2.cmml" xref="S4.T1.6.6.6.2.m1.1.1.2">20</cn><cn type="integer" id="S4.T1.6.6.6.2.m1.1.1.3.cmml" xref="S4.T1.6.6.6.2.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.6.6.6.2.m1.1c">20-40</annotation></semantics></math></th>
+<td id="S4.T1.6.6.6.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T1.6.6.6.3.1" class="ltx_text" style="color:#000000;">7,123.28</span></td>
+<td id="S4.T1.6.6.6.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T1.6.6.6.4.1" class="ltx_text" style="color:#000000;">33.48</span></td>
+</tr>
+<tr id="S4.T1.8.8.8" class="ltx_tr">
+<th id="S4.T1.7.7.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><math id="S4.T1.7.7.7.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S4.T1.7.7.7.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S4.T1.7.7.7.1.m1.1.1" xref="S4.T1.7.7.7.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S4.T1.7.7.7.1.m1.1b"><ci id="S4.T1.7.7.7.1.m1.1.1.cmml" xref="S4.T1.7.7.7.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.7.7.7.1.m1.1c">\checkmark</annotation></semantics></math></th>
+<th id="S4.T1.8.8.8.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><math id="S4.T1.8.8.8.2.m1.1" class="ltx_Math" alttext="40-60" display="inline"><semantics id="S4.T1.8.8.8.2.m1.1a"><mrow id="S4.T1.8.8.8.2.m1.1.1" xref="S4.T1.8.8.8.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T1.8.8.8.2.m1.1.1.2" xref="S4.T1.8.8.8.2.m1.1.1.2.cmml">40</mn><mo mathcolor="#000000" id="S4.T1.8.8.8.2.m1.1.1.1" xref="S4.T1.8.8.8.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T1.8.8.8.2.m1.1.1.3" xref="S4.T1.8.8.8.2.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T1.8.8.8.2.m1.1b"><apply id="S4.T1.8.8.8.2.m1.1.1.cmml" xref="S4.T1.8.8.8.2.m1.1.1"><minus id="S4.T1.8.8.8.2.m1.1.1.1.cmml" xref="S4.T1.8.8.8.2.m1.1.1.1"></minus><cn type="integer" id="S4.T1.8.8.8.2.m1.1.1.2.cmml" xref="S4.T1.8.8.8.2.m1.1.1.2">40</cn><cn type="integer" id="S4.T1.8.8.8.2.m1.1.1.3.cmml" xref="S4.T1.8.8.8.2.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T1.8.8.8.2.m1.1c">40-60</annotation></semantics></math></th>
+<td id="S4.T1.8.8.8.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T1.8.8.8.3.1" class="ltx_text" style="color:#000000;">5,557.22</span></td>
+<td id="S4.T1.8.8.8.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S4.T1.8.8.8.4.1" class="ltx_text" style="color:#000000;">51.49</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S4.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsubsection">4.1.2 </span>Evaluation</h4>
+
+<div id="S4.SS1.SSS2.p1" class="ltx_para">
+<p id="S4.SS1.SSS2.p1.1" class="ltx_p"><span id="S4.SS1.SSS2.p1.1.1" class="ltx_text" style="color:#000000;">Prior research on PnC for ASR, such as LibriSpeech-PC, utilized evaluation sets derived from the LibriSpeech dev and test sets. However, these segments deviate from typical conversational speech as they are truncated and lack complete sentence structure as shown in Figure </span><a href="#S3.F2" title="Figure 2 ‣ 3.1 Sentence-Level Training with Punctuation and Capitalization (PnC) ‣ 3 Method ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S4.SS1.SSS2.p1.1.2" class="ltx_text" style="color:#000000;">. Therefore, we employ the Earnings-21 and Earnings-22 datasets for model evaluation.</span></p>
+</div>
+<div id="S4.SS1.SSS2.p2" class="ltx_para">
+<p id="S4.SS1.SSS2.p2.1" class="ltx_p"><span id="S4.SS1.SSS2.p2.1.1" class="ltx_text" style="color:#000000;">Earnings-21 and Earnings-22</span><span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://github.com/revdotcom/speech-datasets</span></span></span></span><span id="S4.SS1.SSS2.p2.1.2" class="ltx_text" style="color:#000000;"> are collections of earnings calls spanning various financial sectors. Earnings-21 comprises 39 hours of audio, while Earnings-22 offers 119 hours. Both datasets are commonly used to benchmark ASR systems for long-form audio transcription. Previous studies </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS2.p2.1.3.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S4.SS1.SSS2.p2.1.4.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS2.p2.1.5" class="ltx_text" style="color:#000000;"> evaluated these datasets with normalized text and lowercase letters. In contrast, we restore punctuations and capitalizations from reference files to assess model performance under more realistic conditions.</span></p>
+</div>
+<div id="S4.SS1.SSS2.p3" class="ltx_para">
+<p id="S4.SS1.SSS2.p3.1" class="ltx_p"><span id="S4.SS1.SSS2.p3.1.1" class="ltx_text" style="color:#000000;">Given the hour-long nature of utterances in Earnings-21 and Earnings-22, and the 22-minute inference limit of the FastConformer TDT XXL model</span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS2.p3.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S4.SS1.SSS2.p3.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS2.p3.1.4" class="ltx_text" style="color:#000000;"> with full self-attention module, we leverage the NeMo NFA</span><span id="footnotex5" class="ltx_note ltx_role_footnotemark"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_note_type">footnotemark: </span><span class="ltx_tag ltx_tag_note">1</span></span></span></span><span id="S4.SS1.SSS2.p3.1.5" class="ltx_text" style="color:#000000;"> tool with the FastConformer CTC XXL</span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS1.SSS2.p3.1.6.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S4.SS1.SSS2.p3.1.7.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS1.SSS2.p3.1.8" class="ltx_text" style="color:#000000;"> model to generate word-level timestamps. These timestamps, combined with punctuation, are then used to segment the audio files into 20-minute approximate chunks. We then use NeMo text normalization</span><span id="footnotex6" class="ltx_note ltx_role_footnotemark"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_note_type">footnotemark: </span><span class="ltx_tag ltx_tag_note">1</span></span></span></span><span id="S4.SS1.SSS2.p3.1.9" class="ltx_text" style="color:#000000;"> toolkit to convert numerical numbers to their corresponding text form. The resulting segmented data is used for evaluating the models and is summarized in the table </span><a href="#S4.T2" title="Table 2 ‣ 4.1.2 Evaluation ‣ 4.1 Speech Recognition ‣ 4 Datasets ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S4.SS1.SSS2.p3.1.10" class="ltx_text" style="color:#000000;">.</span></p>
+</div>
+<span id="footnotex7" class="ltx_note ltx_role_footnotetext"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_note_type">footnotetext: </span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self" style="color:#000000;">https://github.com/NVIDIA/NeMo</span></span></span></span>
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S4.T2.4.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span>Earnings-21/22 evaluation dataset statistics. </figcaption>
+<div id="S4.T2.5" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:79.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-24.6pt,8.2pt) scale(0.828992631029472,0.828992631029472) ;">
+<table id="S4.T2.5.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T2.5.1.1.1" class="ltx_tr">
+<th id="S4.T2.5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_t"><span id="S4.T2.5.1.1.1.1.1" class="ltx_text" style="color:#000000;">Dataset</span></th>
+<th id="S4.T2.5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_l ltx_border_r ltx_border_t"><span id="S4.T2.5.1.1.1.2.1" class="ltx_text" style="color:#000000;"># Segments</span></th>
+<th id="S4.T2.5.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S4.T2.5.1.1.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T2.5.1.1.1.3.1.1" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.3.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.3.1.1.1.1" class="ltx_text" style="color:#000000;">Mean segment</span></td>
+</tr>
+<tr id="S4.T2.5.1.1.1.3.1.2" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.3.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.3.1.2.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T2.5.1.1.1.3.1.3" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.3.1.3.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.3.1.3.1.1" class="ltx_text" style="color:#000000;">(mins)</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T2.5.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S4.T2.5.1.1.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T2.5.1.1.1.4.1.1" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.4.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.4.1.1.1.1" class="ltx_text" style="color:#000000;">Std of</span></td>
+</tr>
+<tr id="S4.T2.5.1.1.1.4.1.2" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.4.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.4.1.2.1.1" class="ltx_text" style="color:#000000;">durations</span></td>
+</tr>
+<tr id="S4.T2.5.1.1.1.4.1.3" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.4.1.3.1" class="ltx_td ltx_align_center"><span id="S4.T2.5.1.1.1.4.1.3.1.1" class="ltx_text" style="color:#000000;">(mins)</span></td>
+</tr>
+</table>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T2.5.1.2.1" class="ltx_tr">
+<th id="S4.T2.5.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T2.5.1.2.1.1.1" class="ltx_text" style="color:#000000;">Earnings-21</span></th>
+<th id="S4.T2.5.1.2.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T2.5.1.2.1.2.1" class="ltx_text" style="color:#000000;">138</span></th>
+<td id="S4.T2.5.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T2.5.1.2.1.3.1" class="ltx_text" style="color:#000000;">17.06</span></td>
+<td id="S4.T2.5.1.2.1.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T2.5.1.2.1.4.1" class="ltx_text" style="color:#000000;">5.46</span></td>
+</tr>
+<tr id="S4.T2.5.1.3.2" class="ltx_tr">
+<th id="S4.T2.5.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.5.1.3.2.1.1" class="ltx_text" style="color:#000000;">Earnings-22</span></th>
+<th id="S4.T2.5.1.3.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.5.1.3.2.2.1" class="ltx_text" style="color:#000000;">430</span></th>
+<td id="S4.T2.5.1.3.2.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T2.5.1.3.2.3.1" class="ltx_text" style="color:#000000;">16.72</span></td>
+<td id="S4.T2.5.1.3.2.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S4.T2.5.1.3.2.4.1" class="ltx_text" style="color:#000000;">6.08</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Speech Translation</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p"><span id="S4.SS2.p1.1.1" class="ltx_text" style="color:#000000;">Speech translation experiments leverage the German subset of the MuST-C dataset </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S4.SS2.p1.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a><span id="S4.SS2.p1.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S4.SS2.p1.1.4" class="ltx_text" style="color:#000000;">. This multilingual corpus features audio-aligned translations of TED Talks, offering diverse training samples ranging from one second to over a minute in duration. With multiple samples originating from the same talk, MuST-C allows for the concatenation of sequential samples to create longer audio sequences. This characteristic allows use of our previous method for the task of speech translation.</span></p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p"><span id="S4.SS2.p2.1.1" class="ltx_text" style="color:#000000;">We establish a baseline subset from the “original” dataset, containing only audio samples with durations ranging from 0 to 20 seconds. To evaluate the impact of “extended” context lengths, we produce additional partitions of the training set by greedily concatenating sequential audio samples up to a maximum target duration of 20, 40, and 60 seconds. Table </span><a href="#S4.T3" title="Table 3 ‣ 4.2 Speech Translation ‣ 4 Datasets ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S4.SS2.p2.1.2" class="ltx_text" style="color:#000000;"> summarizes the total average durations for each partition.</span></p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para">
+<p id="S4.SS2.p3.1" class="ltx_p"><span id="S4.SS2.p3.1.1" class="ltx_text" style="color:#000000;">For evaluation, we only create greedy partitions of the original development and test sets up to 60s in length. As both subsets only contain samples of maximum length </span><math id="S4.SS2.p3.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S4.SS2.p3.1.m1.1a"><mo mathcolor="#000000" id="S4.SS2.p3.1.m1.1.1" xref="S4.SS2.p3.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S4.SS2.p3.1.m1.1b"><csymbol cd="latexml" id="S4.SS2.p3.1.m1.1.1.cmml" xref="S4.SS2.p3.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p3.1.m1.1c">\sim</annotation></semantics></math><span id="S4.SS2.p3.1.2" class="ltx_text" style="color:#000000;">60s, these partitions effectively contain all audio from the original subsets.</span></p>
+</div>
+<figure id="S4.T3" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S4.T3.8.1.1" class="ltx_text ltx_font_bold">Table 3</span>: </span>Statistics of the MuST-C German translation training set: the number of hours in each duration window bucket.</figcaption>
+<div id="S4.T3.4" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:90.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-30.0pt,11.4pt) scale(0.798778632911678,0.798778632911678) ;">
+<table id="S4.T3.4.4" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.4.4.5.1" class="ltx_tr">
+<th id="S4.T3.4.4.5.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t">
+<table id="S4.T3.4.4.5.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T3.4.4.5.1.1.1.1" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T3.4.4.5.1.1.1.2" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Context</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T3.4.4.5.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t">
+<table id="S4.T3.4.4.5.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T3.4.4.5.1.2.1.1" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T3.4.4.5.1.2.1.2" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">Window (sec)</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T3.4.4.5.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S4.T3.4.4.5.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T3.4.4.5.1.3.1.1" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.3.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.3.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S4.T3.4.4.5.1.3.1.2" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.3.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.3.1.2.1.1" class="ltx_text" style="color:#000000;">(hrs)</span></td>
+</tr>
+</table>
+</th>
+<th id="S4.T3.4.4.5.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S4.T3.4.4.5.1.4.1" class="ltx_tabular ltx_align_middle">
+<tr id="S4.T3.4.4.5.1.4.1.1" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.4.1.1.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.4.1.1.1.1" class="ltx_text" style="color:#000000;">Avg. Segment</span></td>
+</tr>
+<tr id="S4.T3.4.4.5.1.4.1.2" class="ltx_tr">
+<td id="S4.T3.4.4.5.1.4.1.2.1" class="ltx_td ltx_align_center"><span id="S4.T3.4.4.5.1.4.1.2.1.1" class="ltx_text" style="color:#000000;">Duration (sec)</span></td>
+</tr>
+</table>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.1.1" class="ltx_tr">
+<th id="S4.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.2.1" class="ltx_text" style="color:#000000;">Original</span></th>
+<th id="S4.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt"><math id="S4.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S4.T3.1.1.1.1.m1.1a"><mrow id="S4.T3.1.1.1.1.m1.1.1" xref="S4.T3.1.1.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T3.1.1.1.1.m1.1.1.2" xref="S4.T3.1.1.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T3.1.1.1.1.m1.1.1.1" xref="S4.T3.1.1.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T3.1.1.1.1.m1.1.1.3" xref="S4.T3.1.1.1.1.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T3.1.1.1.1.m1.1b"><apply id="S4.T3.1.1.1.1.m1.1.1.cmml" xref="S4.T3.1.1.1.1.m1.1.1"><minus id="S4.T3.1.1.1.1.m1.1.1.1.cmml" xref="S4.T3.1.1.1.1.m1.1.1.1"></minus><cn type="integer" id="S4.T3.1.1.1.1.m1.1.1.2.cmml" xref="S4.T3.1.1.1.1.m1.1.1.2">0</cn><cn type="integer" id="S4.T3.1.1.1.1.m1.1.1.3.cmml" xref="S4.T3.1.1.1.1.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.1.1.1.1.m1.1c">0-20</annotation></semantics></math></th>
+<td id="S4.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S4.T3.1.1.1.3.1" class="ltx_text" style="color:#000000;">402.86</span></td>
+<td id="S4.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_border_tt"><span id="S4.T3.1.1.1.4.1" class="ltx_text" style="color:#000000;">5.58</span></td>
+</tr>
+<tr id="S4.T3.2.2.2" class="ltx_tr">
+<th id="S4.T3.2.2.2.2" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_t"></th>
+<th id="S4.T3.2.2.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T3.2.2.2.1.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S4.T3.2.2.2.1.m1.1a"><mrow id="S4.T3.2.2.2.1.m1.1.1" xref="S4.T3.2.2.2.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T3.2.2.2.1.m1.1.1.2" xref="S4.T3.2.2.2.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T3.2.2.2.1.m1.1.1.1" xref="S4.T3.2.2.2.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T3.2.2.2.1.m1.1.1.3" xref="S4.T3.2.2.2.1.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T3.2.2.2.1.m1.1b"><apply id="S4.T3.2.2.2.1.m1.1.1.cmml" xref="S4.T3.2.2.2.1.m1.1.1"><minus id="S4.T3.2.2.2.1.m1.1.1.1.cmml" xref="S4.T3.2.2.2.1.m1.1.1.1"></minus><cn type="integer" id="S4.T3.2.2.2.1.m1.1.1.2.cmml" xref="S4.T3.2.2.2.1.m1.1.1.2">0</cn><cn type="integer" id="S4.T3.2.2.2.1.m1.1.1.3.cmml" xref="S4.T3.2.2.2.1.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.2.2.2.1.m1.1c">0-20</annotation></semantics></math></th>
+<td id="S4.T3.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T3.2.2.2.3.1" class="ltx_text" style="color:#000000;">402.86</span></td>
+<td id="S4.T3.2.2.2.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.2.2.2.4.1" class="ltx_text" style="color:#000000;">5.79</span></td>
+</tr>
+<tr id="S4.T3.3.3.3" class="ltx_tr">
+<th id="S4.T3.3.3.3.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S4.T3.3.3.3.2.1" class="ltx_text" style="color:#000000;">Extended</span></th>
+<th id="S4.T3.3.3.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><math id="S4.T3.3.3.3.1.m1.1" class="ltx_Math" alttext="0-40" display="inline"><semantics id="S4.T3.3.3.3.1.m1.1a"><mrow id="S4.T3.3.3.3.1.m1.1.1" xref="S4.T3.3.3.3.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T3.3.3.3.1.m1.1.1.2" xref="S4.T3.3.3.3.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T3.3.3.3.1.m1.1.1.1" xref="S4.T3.3.3.3.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T3.3.3.3.1.m1.1.1.3" xref="S4.T3.3.3.3.1.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T3.3.3.3.1.m1.1b"><apply id="S4.T3.3.3.3.1.m1.1.1.cmml" xref="S4.T3.3.3.3.1.m1.1.1"><minus id="S4.T3.3.3.3.1.m1.1.1.1.cmml" xref="S4.T3.3.3.3.1.m1.1.1.1"></minus><cn type="integer" id="S4.T3.3.3.3.1.m1.1.1.2.cmml" xref="S4.T3.3.3.3.1.m1.1.1.2">0</cn><cn type="integer" id="S4.T3.3.3.3.1.m1.1.1.3.cmml" xref="S4.T3.3.3.3.1.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.3.3.3.1.m1.1c">0-40</annotation></semantics></math></th>
+<td id="S4.T3.3.3.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S4.T3.3.3.3.3.1" class="ltx_text" style="color:#000000;">430.13</span></td>
+<td id="S4.T3.3.3.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S4.T3.3.3.3.4.1" class="ltx_text" style="color:#000000;">6.11</span></td>
+</tr>
+<tr id="S4.T3.4.4.4" class="ltx_tr">
+<th id="S4.T3.4.4.4.2" class="ltx_td ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"></th>
+<th id="S4.T3.4.4.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><math id="S4.T3.4.4.4.1.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S4.T3.4.4.4.1.m1.1a"><mrow id="S4.T3.4.4.4.1.m1.1.1" xref="S4.T3.4.4.4.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S4.T3.4.4.4.1.m1.1.1.2" xref="S4.T3.4.4.4.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S4.T3.4.4.4.1.m1.1.1.1" xref="S4.T3.4.4.4.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S4.T3.4.4.4.1.m1.1.1.3" xref="S4.T3.4.4.4.1.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.T3.4.4.4.1.m1.1b"><apply id="S4.T3.4.4.4.1.m1.1.1.cmml" xref="S4.T3.4.4.4.1.m1.1.1"><minus id="S4.T3.4.4.4.1.m1.1.1.1.cmml" xref="S4.T3.4.4.4.1.m1.1.1.1"></minus><cn type="integer" id="S4.T3.4.4.4.1.m1.1.1.2.cmml" xref="S4.T3.4.4.4.1.m1.1.1.2">0</cn><cn type="integer" id="S4.T3.4.4.4.1.m1.1.1.3.cmml" xref="S4.T3.4.4.4.1.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T3.4.4.4.1.m1.1c">0-60</annotation></semantics></math></th>
+<td id="S4.T3.4.4.4.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S4.T3.4.4.4.3.1" class="ltx_text" style="color:#000000;">432.93</span></td>
+<td id="S4.T3.4.4.4.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S4.T3.4.4.4.4.1" class="ltx_text" style="color:#000000;">6.14</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="color:#000000;">
+<span class="ltx_tag ltx_tag_section">5 </span>Experiments &amp; Results</h2>
+
+<figure id="S5.T4" class="ltx_table">
+
+<figcaption class="ltx_caption ltx_centering" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S5.T4.18.1.1" class="ltx_text ltx_font_bold">Table 4</span>: </span>The performance of FastConformer XXL models on HF-ASR leaderboard test sets <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib27" title="" class="ltx_ref">27</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. The table illustrates the performance improvement (WER reduction) of models with complete sentence PnC data and longer context duration samples on non-PnC datasets. Evaluations were done with TDT decoder. Greedy WER (%) after whisper normalization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite>. </figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<div id="S5.T4.8" class="ltx_inline-block ltx_figure_panel ltx_align_center ltx_transformed_outer" style="width:506.5pt;height:73.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-136.7pt,19.9pt) scale(0.649421061549557,0.649421061549557) ;">
+<table id="S5.T4.8.8" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T4.8.8.9.1" class="ltx_tr">
+<th id="S5.T4.8.8.9.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S5.T4.8.8.9.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T4.8.8.9.1.1.1.1" class="ltx_tr">
+<td id="S5.T4.8.8.9.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T4.8.8.9.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Complete</span></td>
+</tr>
+<tr id="S5.T4.8.8.9.1.1.1.2" class="ltx_tr">
+<td id="S5.T4.8.8.9.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T4.8.8.9.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Sentences</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T4.8.8.9.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.2.1" class="ltx_text" style="color:#000000;">Duration window</span></th>
+<th id="S5.T4.8.8.9.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.3.1" class="ltx_text" style="color:#000000;">AMI</span></th>
+<th id="S5.T4.8.8.9.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.4.1" class="ltx_text" style="color:#000000;">Earnings-22</span></th>
+<th id="S5.T4.8.8.9.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.5.1" class="ltx_text" style="color:#000000;">Giga Speech</span></th>
+<th id="S5.T4.8.8.9.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.6.1" class="ltx_text" style="color:#000000;">LS clean</span></th>
+<th id="S5.T4.8.8.9.1.7" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.7.1" class="ltx_text" style="color:#000000;">LS other</span></th>
+<th id="S5.T4.8.8.9.1.8" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.8.1" class="ltx_text" style="color:#000000;">SPGI</span></th>
+<th id="S5.T4.8.8.9.1.9" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.9.1" class="ltx_text" style="color:#000000;">TEDLIUM-V3</span></th>
+<th id="S5.T4.8.8.9.1.10" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.10.1" class="ltx_text" style="color:#000000;">VoxPopuli</span></th>
+<th id="S5.T4.8.8.9.1.11" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T4.8.8.9.1.11.1" class="ltx_text" style="color:#000000;">MCV 8.0</span></th>
+<th id="S5.T4.8.8.9.1.12" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T4.8.8.9.1.12.1" class="ltx_text" style="color:#000000;">Avg WER</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T4.2.2.2" class="ltx_tr">
+<td id="S5.T4.1.1.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><math id="S5.T4.1.1.1.1.m1.1" class="ltx_Math" alttext="\mathbf{x}" display="inline"><semantics id="S5.T4.1.1.1.1.m1.1a"><mi mathcolor="#000000" id="S5.T4.1.1.1.1.m1.1.1" xref="S5.T4.1.1.1.1.m1.1.1.cmml">𝐱</mi><annotation-xml encoding="MathML-Content" id="S5.T4.1.1.1.1.m1.1b"><ci id="S5.T4.1.1.1.1.m1.1.1.cmml" xref="S5.T4.1.1.1.1.m1.1.1">𝐱</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.1.1.1.1.m1.1c">\mathbf{x}</annotation></semantics></math></td>
+<td id="S5.T4.2.2.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><math id="S5.T4.2.2.2.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T4.2.2.2.2.m1.1a"><mrow id="S5.T4.2.2.2.2.m1.1.1" xref="S5.T4.2.2.2.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T4.2.2.2.2.m1.1.1.2" xref="S5.T4.2.2.2.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T4.2.2.2.2.m1.1.1.1" xref="S5.T4.2.2.2.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T4.2.2.2.2.m1.1.1.3" xref="S5.T4.2.2.2.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T4.2.2.2.2.m1.1b"><apply id="S5.T4.2.2.2.2.m1.1.1.cmml" xref="S5.T4.2.2.2.2.m1.1.1"><minus id="S5.T4.2.2.2.2.m1.1.1.1.cmml" xref="S5.T4.2.2.2.2.m1.1.1.1"></minus><cn type="integer" id="S5.T4.2.2.2.2.m1.1.1.2.cmml" xref="S5.T4.2.2.2.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T4.2.2.2.2.m1.1.1.3.cmml" xref="S5.T4.2.2.2.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.2.2.2.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T4.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.3.1" class="ltx_text" style="color:#000000;">16.21</span></td>
+<td id="S5.T4.2.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.4.1" class="ltx_text" style="color:#000000;">11.78</span></td>
+<td id="S5.T4.2.2.2.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.5.1" class="ltx_text" style="color:#000000;">9.99</span></td>
+<td id="S5.T4.2.2.2.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.6.1" class="ltx_text" style="color:#000000;">1.62</span></td>
+<td id="S5.T4.2.2.2.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.7.1" class="ltx_text" style="color:#000000;">3.16</span></td>
+<td id="S5.T4.2.2.2.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.8.1" class="ltx_text" style="color:#000000;">1.92</span></td>
+<td id="S5.T4.2.2.2.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.9.1" class="ltx_text" style="color:#000000;">3.42</span></td>
+<td id="S5.T4.2.2.2.10" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.10.1" class="ltx_text" style="color:#000000;">5.98</span></td>
+<td id="S5.T4.2.2.2.11" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T4.2.2.2.11.1" class="ltx_text" style="color:#000000;">8.68</span></td>
+<td id="S5.T4.2.2.2.12" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T4.2.2.2.12.1" class="ltx_text" style="color:#000000;">6.95*</span></td>
+</tr>
+<tr id="S5.T4.4.4.4" class="ltx_tr">
+<td id="S5.T4.3.3.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T4.3.3.3.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T4.3.3.3.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T4.3.3.3.1.m1.1.1" xref="S5.T4.3.3.3.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T4.3.3.3.1.m1.1b"><ci id="S5.T4.3.3.3.1.m1.1.1.cmml" xref="S5.T4.3.3.3.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.3.3.3.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T4.4.4.4.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T4.4.4.4.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T4.4.4.4.2.m1.1a"><mrow id="S5.T4.4.4.4.2.m1.1.1" xref="S5.T4.4.4.4.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T4.4.4.4.2.m1.1.1.2" xref="S5.T4.4.4.4.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T4.4.4.4.2.m1.1.1.1" xref="S5.T4.4.4.4.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T4.4.4.4.2.m1.1.1.3" xref="S5.T4.4.4.4.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T4.4.4.4.2.m1.1b"><apply id="S5.T4.4.4.4.2.m1.1.1.cmml" xref="S5.T4.4.4.4.2.m1.1.1"><minus id="S5.T4.4.4.4.2.m1.1.1.1.cmml" xref="S5.T4.4.4.4.2.m1.1.1.1"></minus><cn type="integer" id="S5.T4.4.4.4.2.m1.1.1.2.cmml" xref="S5.T4.4.4.4.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T4.4.4.4.2.m1.1.1.3.cmml" xref="S5.T4.4.4.4.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.4.4.4.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T4.4.4.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.3.1" class="ltx_text" style="color:#000000;">15.62</span></td>
+<td id="S5.T4.4.4.4.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.4.1" class="ltx_text" style="color:#000000;">11.35</span></td>
+<td id="S5.T4.4.4.4.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.5.1" class="ltx_text" style="color:#000000;">10.05</span></td>
+<td id="S5.T4.4.4.4.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.6.1" class="ltx_text" style="color:#000000;">1.74</span></td>
+<td id="S5.T4.4.4.4.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.7.1" class="ltx_text" style="color:#000000;">3.1</span></td>
+<td id="S5.T4.4.4.4.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.8.1" class="ltx_text" style="color:#000000;">2.05</span></td>
+<td id="S5.T4.4.4.4.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.9.1" class="ltx_text" style="color:#000000;">3.9</span></td>
+<td id="S5.T4.4.4.4.10" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.10.1" class="ltx_text" style="color:#000000;">5.86</span></td>
+<td id="S5.T4.4.4.4.11" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.4.4.4.11.1" class="ltx_text" style="color:#000000;">7.71</span></td>
+<td id="S5.T4.4.4.4.12" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T4.4.4.4.12.1" class="ltx_text" style="color:#000000;">6.82</span></td>
+</tr>
+<tr id="S5.T4.6.6.6" class="ltx_tr">
+<td id="S5.T4.5.5.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T4.5.5.5.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T4.5.5.5.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T4.5.5.5.1.m1.1.1" xref="S5.T4.5.5.5.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T4.5.5.5.1.m1.1b"><ci id="S5.T4.5.5.5.1.m1.1.1.cmml" xref="S5.T4.5.5.5.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.5.5.5.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T4.6.6.6.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T4.6.6.6.2.m1.1" class="ltx_Math" alttext="0-40" display="inline"><semantics id="S5.T4.6.6.6.2.m1.1a"><mrow id="S5.T4.6.6.6.2.m1.1.1" xref="S5.T4.6.6.6.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T4.6.6.6.2.m1.1.1.2" xref="S5.T4.6.6.6.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T4.6.6.6.2.m1.1.1.1" xref="S5.T4.6.6.6.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T4.6.6.6.2.m1.1.1.3" xref="S5.T4.6.6.6.2.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T4.6.6.6.2.m1.1b"><apply id="S5.T4.6.6.6.2.m1.1.1.cmml" xref="S5.T4.6.6.6.2.m1.1.1"><minus id="S5.T4.6.6.6.2.m1.1.1.1.cmml" xref="S5.T4.6.6.6.2.m1.1.1.1"></minus><cn type="integer" id="S5.T4.6.6.6.2.m1.1.1.2.cmml" xref="S5.T4.6.6.6.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T4.6.6.6.2.m1.1.1.3.cmml" xref="S5.T4.6.6.6.2.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.6.6.6.2.m1.1c">0-40</annotation></semantics></math></td>
+<td id="S5.T4.6.6.6.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.3.1" class="ltx_text" style="color:#000000;">14.94</span></td>
+<td id="S5.T4.6.6.6.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.4.1" class="ltx_text" style="color:#000000;">11.49</span></td>
+<td id="S5.T4.6.6.6.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.5.1" class="ltx_text" style="color:#000000;">9.99</span></td>
+<td id="S5.T4.6.6.6.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.6.1" class="ltx_text" style="color:#000000;">1.69</span></td>
+<td id="S5.T4.6.6.6.7" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.7.1" class="ltx_text" style="color:#000000;">3.09</span></td>
+<td id="S5.T4.6.6.6.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.8.1" class="ltx_text" style="color:#000000;">2.05</span></td>
+<td id="S5.T4.6.6.6.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.9.1" class="ltx_text" style="color:#000000;">3.92</span></td>
+<td id="S5.T4.6.6.6.10" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.10.1" class="ltx_text" style="color:#000000;">5.93</span></td>
+<td id="S5.T4.6.6.6.11" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T4.6.6.6.11.1" class="ltx_text" style="color:#000000;">7.49</span></td>
+<td id="S5.T4.6.6.6.12" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T4.6.6.6.12.1" class="ltx_text ltx_font_bold" style="color:#000000;">6.73</span></td>
+</tr>
+<tr id="S5.T4.8.8.8" class="ltx_tr">
+<td id="S5.T4.7.7.7.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><math id="S5.T4.7.7.7.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T4.7.7.7.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T4.7.7.7.1.m1.1.1" xref="S5.T4.7.7.7.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T4.7.7.7.1.m1.1b"><ci id="S5.T4.7.7.7.1.m1.1.1.cmml" xref="S5.T4.7.7.7.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.7.7.7.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T4.8.8.8.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><math id="S5.T4.8.8.8.2.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T4.8.8.8.2.m1.1a"><mrow id="S5.T4.8.8.8.2.m1.1.1" xref="S5.T4.8.8.8.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T4.8.8.8.2.m1.1.1.2" xref="S5.T4.8.8.8.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T4.8.8.8.2.m1.1.1.1" xref="S5.T4.8.8.8.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T4.8.8.8.2.m1.1.1.3" xref="S5.T4.8.8.8.2.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T4.8.8.8.2.m1.1b"><apply id="S5.T4.8.8.8.2.m1.1.1.cmml" xref="S5.T4.8.8.8.2.m1.1.1"><minus id="S5.T4.8.8.8.2.m1.1.1.1.cmml" xref="S5.T4.8.8.8.2.m1.1.1.1"></minus><cn type="integer" id="S5.T4.8.8.8.2.m1.1.1.2.cmml" xref="S5.T4.8.8.8.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T4.8.8.8.2.m1.1.1.3.cmml" xref="S5.T4.8.8.8.2.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T4.8.8.8.2.m1.1c">0-60</annotation></semantics></math></td>
+<td id="S5.T4.8.8.8.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.3.1" class="ltx_text" style="color:#000000;">14.92</span></td>
+<td id="S5.T4.8.8.8.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.4.1" class="ltx_text" style="color:#000000;">11.58</span></td>
+<td id="S5.T4.8.8.8.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.5.1" class="ltx_text" style="color:#000000;">10.17</span></td>
+<td id="S5.T4.8.8.8.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.6.1" class="ltx_text" style="color:#000000;">1.79</span></td>
+<td id="S5.T4.8.8.8.7" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.7.1" class="ltx_text" style="color:#000000;">3.31</span></td>
+<td id="S5.T4.8.8.8.8" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.8.1" class="ltx_text" style="color:#000000;">2.14</span></td>
+<td id="S5.T4.8.8.8.9" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.9.1" class="ltx_text" style="color:#000000;">3.83</span></td>
+<td id="S5.T4.8.8.8.10" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.10.1" class="ltx_text" style="color:#000000;">6.01</span></td>
+<td id="S5.T4.8.8.8.11" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T4.8.8.8.11.1" class="ltx_text" style="color:#000000;">7.57</span></td>
+<td id="S5.T4.8.8.8.12" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T4.8.8.8.12.1" class="ltx_text" style="color:#000000;">6.81</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S5.T4.19" class="ltx_p ltx_figure_panel ltx_align_center"><span id="S5.T4.19.1" class="ltx_text" style="font-size:90%;color:#000000;">*current top of the leaderboard parakeet_tdt_1.1b model.</span></p>
+</div>
+</div>
+</figure>
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsection">5.1 </span>Speech Recognition</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p"><span id="S5.SS1.p1.1.1" class="ltx_text" style="color:#000000;">We investigate the impact of training with improved punctuation and capitalization training with complete sentence-level data and longer duration (context) length on ASR performance.</span></p>
+</div>
+<section id="S5.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsubsection">5.1.1 </span>Sentence-Level Training</h4>
+
+<div id="S5.SS1.SSS1.p1" class="ltx_para">
+<p id="S5.SS1.SSS1.p1.1" class="ltx_p"><span id="S5.SS1.SSS1.p1.1.1" class="ltx_text" style="color:#000000;">We fine-tuned the pre-trained FastConformer XXL model (1.1B parameters </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS1.p1.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S5.SS1.SSS1.p1.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS1.p1.1.4" class="ltx_text" style="color:#000000;">) with hybrid TDT-CTC decoder on the combined dataset.
+The CTC-hybrid architecture is chosen because it has been shown to have better convergence rates, and better time alignments since the CTC loss can help the Transducer learn alignment much faster during training </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS1.p1.1.5.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib29" title="" class="ltx_ref">29</a><span id="S5.SS1.SSS1.p1.1.6.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS1.p1.1.7" class="ltx_text" style="color:#000000;">; and TDT since it achieves similar accuracy but significantly faster inference than RNN-Transducers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS1.p1.1.8.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S5.SS1.SSS1.p1.1.9.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS1.p1.1.10" class="ltx_text" style="color:#000000;">.
+To evaluate the effectiveness of sentence-level training, we compared two subsets. The first subset contained short segments with partial punctuations and capitalizations, while the second subset comprised complete sentences. For both subsets, we limited the samples to 0-20 seconds during training. We selected only those utterances common to both subsets. While this approach may result in a different number of utterances, the total duration for both subsets remain equal. We finetuned both models for 25,000 steps with initial warmup of 5000 steps and max learning rate of 3e-4 using AdamW optimizer, Inverse Square Annealing scheduler, and hybrid TDT-CTC loss with CTC weight (</span><math id="S5.SS1.SSS1.p1.1.m1.1" class="ltx_Math" alttext="\lambda" display="inline"><semantics id="S5.SS1.SSS1.p1.1.m1.1a"><mi mathcolor="#000000" id="S5.SS1.SSS1.p1.1.m1.1.1" xref="S5.SS1.SSS1.p1.1.m1.1.1.cmml">λ</mi><annotation-xml encoding="MathML-Content" id="S5.SS1.SSS1.p1.1.m1.1b"><ci id="S5.SS1.SSS1.p1.1.m1.1.1.cmml" xref="S5.SS1.SSS1.p1.1.m1.1.1">𝜆</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.SS1.SSS1.p1.1.m1.1c">\lambda</annotation></semantics></math><span id="S5.SS1.SSS1.p1.1.11" class="ltx_text" style="color:#000000;">) of 0.3 before adding to TDT-loss. All experiments are carried on 8 nodes with each node consisting of 8 GPUs. We evaluated performance across four settings: presence/absence of punctuations and capitalizations on the Earnings-21 and Earnings-22 datasets as shown in Table </span><a href="#S5.T5" title="Table 5 ‣ 5.1.2 Context Length Extension ‣ 5.1 Speech Recognition ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">5</span></a><span id="S5.SS1.SSS1.p1.1.12" class="ltx_text" style="color:#000000;">.</span></p>
+</div>
+<div id="S5.SS1.SSS1.p2" class="ltx_para">
+<p id="S5.SS1.SSS1.p2.2" class="ltx_p"><span id="S5.SS1.SSS1.p2.2.1" class="ltx_text" style="color:#000000;">Results show a relative improvement of </span><math id="S5.SS1.SSS1.p2.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S5.SS1.SSS1.p2.1.m1.1a"><mo mathcolor="#000000" id="S5.SS1.SSS1.p2.1.m1.1.1" xref="S5.SS1.SSS1.p2.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S5.SS1.SSS1.p2.1.m1.1b"><csymbol cd="latexml" id="S5.SS1.SSS1.p2.1.m1.1.1.cmml" xref="S5.SS1.SSS1.p2.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.SS1.SSS1.p2.1.m1.1c">\sim</annotation></semantics></math><span id="S5.SS1.SSS1.p2.2.2" class="ltx_text" style="color:#000000;">20% on Earnings-21 set and </span><math id="S5.SS1.SSS1.p2.2.m2.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S5.SS1.SSS1.p2.2.m2.1a"><mo mathcolor="#000000" id="S5.SS1.SSS1.p2.2.m2.1.1" xref="S5.SS1.SSS1.p2.2.m2.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S5.SS1.SSS1.p2.2.m2.1b"><csymbol cd="latexml" id="S5.SS1.SSS1.p2.2.m2.1.1.cmml" xref="S5.SS1.SSS1.p2.2.m2.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.SS1.SSS1.p2.2.m2.1c">\sim</annotation></semantics></math><span id="S5.SS1.SSS1.p2.2.3" class="ltx_text" style="color:#000000;">22% on Earnings-22 solely from training with complete sentences for punctuation and capitalization evaluations. We also observe improvement on non-punctuated/non-capitalized evaluations. This suggests that training with complete sentences helps attention mechanisms learn sentence and language structure better than training with partial segments.</span></p>
+</div>
+</section>
+<section id="S5.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsubsection">5.1.2 </span>Context Length Extension</h4>
+
+<div id="S5.SS1.SSS2.p1" class="ltx_para">
+<p id="S5.SS1.SSS2.p1.1" class="ltx_p"><span id="S5.SS1.SSS2.p1.1.1" class="ltx_text" style="color:#000000;">We further investigated the impact of using longer sequences during training on the model’s learning capability. To do this, we included additional samples from the training datasets to prepare two more bins of 20-40 sec and 40-60 sec duration window segments. We then fine-tuned two models with these added duration bins from 0-40 sec and 0-60 sec, and evaluated their performance using the same settings as before. As with earlier models, we fine-tuned these models for 25,000 steps, using the same hyper-parameters as the previous experiment. In these runs, we were able to fit samples of 60 sec segment buckets with a batch size of 2, and 40 sec segment buckets with a batch size of 8 on NVIDIA A100 80GB GPU with a one billion parameter model.</span></p>
+</div>
+<div id="S5.SS1.SSS2.p2" class="ltx_para">
+<p id="S5.SS1.SSS2.p2.1" class="ltx_p"><span id="S5.SS1.SSS2.p2.1.1" class="ltx_text" style="color:#000000;">Consistent with prior work</span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS2.p2.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S5.SS1.SSS2.p2.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS2.p2.1.4" class="ltx_text" style="color:#000000;">, increasing the training segment length up to 40 sec improved performance by an additional 5% relative reduction in WER. Training with complete sentences with longer context resulted in an overall relative improvement of approximately 25% over partial segments with punctuations and capitalizations. However, when we trained with additional segments from 40-60 sec duration bins, we found the model accuracy plateaued with minor decrease in WER with PnC, while showing a slight increase in WER for remaining evaluation settings.</span></p>
+</div>
+<div id="S5.SS1.SSS2.p3" class="ltx_para">
+<p id="S5.SS1.SSS2.p3.1" class="ltx_p"><span id="S5.SS1.SSS2.p3.1.1" class="ltx_text" style="color:#000000;">To evaluate the impact of context length during training with our proposed data preparation method, and to determine whether it’s a model limitation or an effect of data preparation, we trained an additional model with complete (extended) sentences but without PnC using the same 0-60 sec extended duration windows (see table: </span><a href="#S5.T5" title="Table 5 ‣ 5.1.2 Context Length Extension ‣ 5.1 Speech Recognition ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">5</span></a><span id="S5.SS1.SSS2.p3.1.2" class="ltx_text" style="color:#000000;">). This model was trained identically to the previous one, with the same number of steps and optimizer. As shown in table </span><a href="#S5.T6" title="Table 6 ‣ 5.1.2 Context Length Extension ‣ 5.1 Speech Recognition ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">6</span></a><span id="S5.SS1.SSS2.p3.1.3" class="ltx_text" style="color:#000000;">, the model trained with PnC outperformed the model trained without PnC when evaluated on the Earnings 21 and Earnings 22 lower case sets inferring that PnC model training with complete sentences learns better with added semantic information. However, the slight performance difference suggests that training on longer segments with PnC on complete sentences can be beneficial, but the effectiveness is capped by the model’s ability to learn from extended segments. We hypothesize this may be due to the attention layers ability to attend to longer sequence lengths. We leave this for a future work on improving the architecture for effective training on very long sequences in speech domain.</span></p>
+</div>
+<div id="S5.SS1.SSS2.p4" class="ltx_para">
+<p id="S5.SS1.SSS2.p4.1" class="ltx_p"><span id="S5.SS1.SSS2.p4.1.1" class="ltx_text" style="color:#000000;">Furthermore, we evaluated our models on the HuggingFace ASR leaderboard </span><span id="footnotex8" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://huggingface.co/spaces/hf-audio/open_asr_leaderboard</span></span></span></span><span id="S5.SS1.SSS2.p4.1.2" class="ltx_text" style="color:#000000;"> benchmark sets. As shown in Table </span><a href="#S5.T4" title="Table 4 ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">4</span></a><span id="S5.SS1.SSS2.p4.1.3" class="ltx_text" style="color:#000000;">, the proposed data preparation techniques achieved SOTA results on lowercase evaluation sets, showcasing the model’s performance on all benchmark sets. These findings demonstrate the effectiveness of sentence-level training and longer context segments in improving ASR accuracy, even generalizing to unseen scenarios like non-punctuated/non-capitalized evaluations. As observed before, we can see that the best WER is achieved with model trained on durations up to 40 seconds.</span></p>
+</div>
+<figure id="S5.T5" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S5.T5.23.1.1" class="ltx_text ltx_font_bold">Table 5</span>: </span>Comparison of WER % (<math id="S5.T5.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S5.T5.2.m1.1b"><mo mathcolor="#000000" stretchy="false" id="S5.T5.2.m1.1.1" xref="S5.T5.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S5.T5.2.m1.1c"><ci id="S5.T5.2.m1.1.1.cmml" xref="S5.T5.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.2.m1.1d">\downarrow</annotation></semantics></math>) on Earnings-21/22 for models trained with and without punctuation and capitalization for various sequence durations, evaluated with the TDT decoder.</figcaption>
+<div id="S5.T5.18" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:157.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-48.2pt,31.9pt) scale(0.711617251991942,0.711617251991942) ;">
+<table id="S5.T5.18.16" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T5.18.16.17.1" class="ltx_tr">
+<th id="S5.T5.18.16.17.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S5.T5.18.16.17.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T5.18.16.17.1.1.1.1" class="ltx_tr">
+<td id="S5.T5.18.16.17.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T5.18.16.17.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Complete</span></td>
+</tr>
+<tr id="S5.T5.18.16.17.1.1.1.2" class="ltx_tr">
+<td id="S5.T5.18.16.17.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T5.18.16.17.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Sentences</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T5.18.16.17.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S5.T5.18.16.17.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T5.18.16.17.1.2.1.1" class="ltx_tr">
+<td id="S5.T5.18.16.17.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T5.18.16.17.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S5.T5.18.16.17.1.2.1.2" class="ltx_tr">
+<td id="S5.T5.18.16.17.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T5.18.16.17.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">Window (sec)</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T5.18.16.17.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T5.18.16.17.1.3.1" class="ltx_text" style="color:#000000;">PnC</span></th>
+<th id="S5.T5.18.16.17.1.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T5.18.16.17.1.4.1" class="ltx_text" style="color:#000000;">Only Cap</span></th>
+<th id="S5.T5.18.16.17.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T5.18.16.17.1.5.1" class="ltx_text" style="color:#000000;">Only Pun</span></th>
+<th id="S5.T5.18.16.17.1.6" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T5.18.16.17.1.6.1" class="ltx_text" style="color:#000000;">No PnC</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T5.18.16.18.1" class="ltx_tr">
+<td id="S5.T5.18.16.18.1.1" class="ltx_td ltx_nopad_r ltx_border_tt"></td>
+<td id="S5.T5.18.16.18.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_border_tt"></td>
+<td id="S5.T5.18.16.18.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_tt"><span id="S5.T5.18.16.18.1.3.1" class="ltx_text ltx_font_bold ltx_font_italic" style="color:#000000;">Earnings-21</span></td>
+<td id="S5.T5.18.16.18.1.4" class="ltx_td ltx_nopad_l ltx_border_tt"></td>
+<td id="S5.T5.18.16.18.1.5" class="ltx_td ltx_border_tt"></td>
+<td id="S5.T5.18.16.18.1.6" class="ltx_td ltx_border_tt"></td>
+</tr>
+<tr id="S5.T5.4.2.2" class="ltx_tr">
+<td id="S5.T5.3.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.3.1.1.1.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S5.T5.3.1.1.1.m1.1a"><mo mathcolor="#000000" id="S5.T5.3.1.1.1.m1.1.1" xref="S5.T5.3.1.1.1.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S5.T5.3.1.1.1.m1.1b"><times id="S5.T5.3.1.1.1.m1.1.1.cmml" xref="S5.T5.3.1.1.1.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.3.1.1.1.m1.1c">\times</annotation></semantics></math></td>
+<td id="S5.T5.4.2.2.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.4.2.2.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T5.4.2.2.2.m1.1a"><mrow id="S5.T5.4.2.2.2.m1.1.1" xref="S5.T5.4.2.2.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.4.2.2.2.m1.1.1.2" xref="S5.T5.4.2.2.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.4.2.2.2.m1.1.1.1" xref="S5.T5.4.2.2.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.4.2.2.2.m1.1.1.3" xref="S5.T5.4.2.2.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.4.2.2.2.m1.1b"><apply id="S5.T5.4.2.2.2.m1.1.1.cmml" xref="S5.T5.4.2.2.2.m1.1.1"><minus id="S5.T5.4.2.2.2.m1.1.1.1.cmml" xref="S5.T5.4.2.2.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.4.2.2.2.m1.1.1.2.cmml" xref="S5.T5.4.2.2.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.4.2.2.2.m1.1.1.3.cmml" xref="S5.T5.4.2.2.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.4.2.2.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T5.4.2.2.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.4.2.2.3.1" class="ltx_text" style="color:#000000;">24.86</span></td>
+<td id="S5.T5.4.2.2.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.4.2.2.4.1" class="ltx_text" style="color:#000000;">22.29</span></td>
+<td id="S5.T5.4.2.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.4.2.2.5.1" class="ltx_text" style="color:#000000;">15.49</span></td>
+<td id="S5.T5.4.2.2.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.4.2.2.6.1" class="ltx_text" style="color:#000000;">12.44</span></td>
+</tr>
+<tr id="S5.T5.6.4.4" class="ltx_tr">
+<td id="S5.T5.5.3.3.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.5.3.3.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.5.3.3.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.5.3.3.1.m1.1.1" xref="S5.T5.5.3.3.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.5.3.3.1.m1.1b"><ci id="S5.T5.5.3.3.1.m1.1.1.cmml" xref="S5.T5.5.3.3.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.5.3.3.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.6.4.4.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.6.4.4.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T5.6.4.4.2.m1.1a"><mrow id="S5.T5.6.4.4.2.m1.1.1" xref="S5.T5.6.4.4.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.6.4.4.2.m1.1.1.2" xref="S5.T5.6.4.4.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.6.4.4.2.m1.1.1.1" xref="S5.T5.6.4.4.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.6.4.4.2.m1.1.1.3" xref="S5.T5.6.4.4.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.6.4.4.2.m1.1b"><apply id="S5.T5.6.4.4.2.m1.1.1.cmml" xref="S5.T5.6.4.4.2.m1.1.1"><minus id="S5.T5.6.4.4.2.m1.1.1.1.cmml" xref="S5.T5.6.4.4.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.6.4.4.2.m1.1.1.2.cmml" xref="S5.T5.6.4.4.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.6.4.4.2.m1.1.1.3.cmml" xref="S5.T5.6.4.4.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.6.4.4.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T5.6.4.4.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.6.4.4.3.1" class="ltx_text" style="color:#000000;">19.96</span></td>
+<td id="S5.T5.6.4.4.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.6.4.4.4.1" class="ltx_text" style="color:#000000;">17.97</span></td>
+<td id="S5.T5.6.4.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.6.4.4.5.1" class="ltx_text" style="color:#000000;">14.28</span></td>
+<td id="S5.T5.6.4.4.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.6.4.4.6.1" class="ltx_text" style="color:#000000;">12.12</span></td>
+</tr>
+<tr id="S5.T5.8.6.6" class="ltx_tr">
+<td id="S5.T5.7.5.5.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.7.5.5.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.7.5.5.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.7.5.5.1.m1.1.1" xref="S5.T5.7.5.5.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.7.5.5.1.m1.1b"><ci id="S5.T5.7.5.5.1.m1.1.1.cmml" xref="S5.T5.7.5.5.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.7.5.5.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.8.6.6.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.8.6.6.2.m1.1" class="ltx_Math" alttext="0-40" display="inline"><semantics id="S5.T5.8.6.6.2.m1.1a"><mrow id="S5.T5.8.6.6.2.m1.1.1" xref="S5.T5.8.6.6.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.8.6.6.2.m1.1.1.2" xref="S5.T5.8.6.6.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.8.6.6.2.m1.1.1.1" xref="S5.T5.8.6.6.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.8.6.6.2.m1.1.1.3" xref="S5.T5.8.6.6.2.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.8.6.6.2.m1.1b"><apply id="S5.T5.8.6.6.2.m1.1.1.cmml" xref="S5.T5.8.6.6.2.m1.1.1"><minus id="S5.T5.8.6.6.2.m1.1.1.1.cmml" xref="S5.T5.8.6.6.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.8.6.6.2.m1.1.1.2.cmml" xref="S5.T5.8.6.6.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.8.6.6.2.m1.1.1.3.cmml" xref="S5.T5.8.6.6.2.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.8.6.6.2.m1.1c">0-40</annotation></semantics></math></td>
+<td id="S5.T5.8.6.6.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.8.6.6.3.1" class="ltx_text" style="color:#000000;">18.98</span></td>
+<td id="S5.T5.8.6.6.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.8.6.6.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">17.01</span></td>
+<td id="S5.T5.8.6.6.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.8.6.6.5.1" class="ltx_text ltx_font_bold" style="color:#000000;">13.64</span></td>
+<td id="S5.T5.8.6.6.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.8.6.6.6.1" class="ltx_text ltx_font_bold" style="color:#000000;">11.61</span></td>
+</tr>
+<tr id="S5.T5.10.8.8" class="ltx_tr">
+<td id="S5.T5.9.7.7.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.9.7.7.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.9.7.7.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.9.7.7.1.m1.1.1" xref="S5.T5.9.7.7.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.9.7.7.1.m1.1b"><ci id="S5.T5.9.7.7.1.m1.1.1.cmml" xref="S5.T5.9.7.7.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.9.7.7.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.10.8.8.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.10.8.8.2.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T5.10.8.8.2.m1.1a"><mrow id="S5.T5.10.8.8.2.m1.1.1" xref="S5.T5.10.8.8.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.10.8.8.2.m1.1.1.2" xref="S5.T5.10.8.8.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.10.8.8.2.m1.1.1.1" xref="S5.T5.10.8.8.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.10.8.8.2.m1.1.1.3" xref="S5.T5.10.8.8.2.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.10.8.8.2.m1.1b"><apply id="S5.T5.10.8.8.2.m1.1.1.cmml" xref="S5.T5.10.8.8.2.m1.1.1"><minus id="S5.T5.10.8.8.2.m1.1.1.1.cmml" xref="S5.T5.10.8.8.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.10.8.8.2.m1.1.1.2.cmml" xref="S5.T5.10.8.8.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.10.8.8.2.m1.1.1.3.cmml" xref="S5.T5.10.8.8.2.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.10.8.8.2.m1.1c">0-60</annotation></semantics></math></td>
+<td id="S5.T5.10.8.8.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.10.8.8.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">18.86</span></td>
+<td id="S5.T5.10.8.8.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.10.8.8.4.1" class="ltx_text" style="color:#000000;">17.09</span></td>
+<td id="S5.T5.10.8.8.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.10.8.8.5.1" class="ltx_text" style="color:#000000;">13.65</span></td>
+<td id="S5.T5.10.8.8.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.10.8.8.6.1" class="ltx_text" style="color:#000000;">11.63</span></td>
+</tr>
+<tr id="S5.T5.18.16.19.2" class="ltx_tr">
+<td id="S5.T5.18.16.19.2.1" class="ltx_td ltx_nopad_r ltx_border_t"></td>
+<td id="S5.T5.18.16.19.2.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_border_t"></td>
+<td id="S5.T5.18.16.19.2.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.18.16.19.2.3.1" class="ltx_text ltx_font_bold ltx_font_italic" style="color:#000000;">Earnings-22</span></td>
+<td id="S5.T5.18.16.19.2.4" class="ltx_td ltx_nopad_l ltx_border_t"></td>
+<td id="S5.T5.18.16.19.2.5" class="ltx_td ltx_border_t"></td>
+<td id="S5.T5.18.16.19.2.6" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T5.12.10.10" class="ltx_tr">
+<td id="S5.T5.11.9.9.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.11.9.9.1.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S5.T5.11.9.9.1.m1.1a"><mo mathcolor="#000000" id="S5.T5.11.9.9.1.m1.1.1" xref="S5.T5.11.9.9.1.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S5.T5.11.9.9.1.m1.1b"><times id="S5.T5.11.9.9.1.m1.1.1.cmml" xref="S5.T5.11.9.9.1.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.11.9.9.1.m1.1c">\times</annotation></semantics></math></td>
+<td id="S5.T5.12.10.10.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.12.10.10.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T5.12.10.10.2.m1.1a"><mrow id="S5.T5.12.10.10.2.m1.1.1" xref="S5.T5.12.10.10.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.12.10.10.2.m1.1.1.2" xref="S5.T5.12.10.10.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.12.10.10.2.m1.1.1.1" xref="S5.T5.12.10.10.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.12.10.10.2.m1.1.1.3" xref="S5.T5.12.10.10.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.12.10.10.2.m1.1b"><apply id="S5.T5.12.10.10.2.m1.1.1.cmml" xref="S5.T5.12.10.10.2.m1.1.1"><minus id="S5.T5.12.10.10.2.m1.1.1.1.cmml" xref="S5.T5.12.10.10.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.12.10.10.2.m1.1.1.2.cmml" xref="S5.T5.12.10.10.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.12.10.10.2.m1.1.1.3.cmml" xref="S5.T5.12.10.10.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.12.10.10.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T5.12.10.10.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.12.10.10.3.1" class="ltx_text" style="color:#000000;">30.19</span></td>
+<td id="S5.T5.12.10.10.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.12.10.10.4.1" class="ltx_text" style="color:#000000;">27.00</span></td>
+<td id="S5.T5.12.10.10.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.12.10.10.5.1" class="ltx_text" style="color:#000000;">19.41</span></td>
+<td id="S5.T5.12.10.10.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.12.10.10.6.1" class="ltx_text" style="color:#000000;">15.6</span></td>
+</tr>
+<tr id="S5.T5.14.12.12" class="ltx_tr">
+<td id="S5.T5.13.11.11.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.13.11.11.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.13.11.11.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.13.11.11.1.m1.1.1" xref="S5.T5.13.11.11.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.13.11.11.1.m1.1b"><ci id="S5.T5.13.11.11.1.m1.1.1.cmml" xref="S5.T5.13.11.11.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.13.11.11.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.14.12.12.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.14.12.12.2.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T5.14.12.12.2.m1.1a"><mrow id="S5.T5.14.12.12.2.m1.1.1" xref="S5.T5.14.12.12.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.14.12.12.2.m1.1.1.2" xref="S5.T5.14.12.12.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.14.12.12.2.m1.1.1.1" xref="S5.T5.14.12.12.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.14.12.12.2.m1.1.1.3" xref="S5.T5.14.12.12.2.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.14.12.12.2.m1.1b"><apply id="S5.T5.14.12.12.2.m1.1.1.cmml" xref="S5.T5.14.12.12.2.m1.1.1"><minus id="S5.T5.14.12.12.2.m1.1.1.1.cmml" xref="S5.T5.14.12.12.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.14.12.12.2.m1.1.1.2.cmml" xref="S5.T5.14.12.12.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.14.12.12.2.m1.1.1.3.cmml" xref="S5.T5.14.12.12.2.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.14.12.12.2.m1.1c">0-20</annotation></semantics></math></td>
+<td id="S5.T5.14.12.12.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.14.12.12.3.1" class="ltx_text" style="color:#000000;">23.58</span></td>
+<td id="S5.T5.14.12.12.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.14.12.12.4.1" class="ltx_text" style="color:#000000;">21.43</span></td>
+<td id="S5.T5.14.12.12.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.14.12.12.5.1" class="ltx_text" style="color:#000000;">17.06</span></td>
+<td id="S5.T5.14.12.12.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.14.12.12.6.1" class="ltx_text" style="color:#000000;">14.72</span></td>
+</tr>
+<tr id="S5.T5.16.14.14" class="ltx_tr">
+<td id="S5.T5.15.13.13.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.15.13.13.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.15.13.13.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.15.13.13.1.m1.1.1" xref="S5.T5.15.13.13.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.15.13.13.1.m1.1b"><ci id="S5.T5.15.13.13.1.m1.1.1.cmml" xref="S5.T5.15.13.13.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.15.13.13.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.16.14.14.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><math id="S5.T5.16.14.14.2.m1.1" class="ltx_Math" alttext="0-40" display="inline"><semantics id="S5.T5.16.14.14.2.m1.1a"><mrow id="S5.T5.16.14.14.2.m1.1.1" xref="S5.T5.16.14.14.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.16.14.14.2.m1.1.1.2" xref="S5.T5.16.14.14.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.16.14.14.2.m1.1.1.1" xref="S5.T5.16.14.14.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.16.14.14.2.m1.1.1.3" xref="S5.T5.16.14.14.2.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.16.14.14.2.m1.1b"><apply id="S5.T5.16.14.14.2.m1.1.1.cmml" xref="S5.T5.16.14.14.2.m1.1.1"><minus id="S5.T5.16.14.14.2.m1.1.1.1.cmml" xref="S5.T5.16.14.14.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.16.14.14.2.m1.1.1.2.cmml" xref="S5.T5.16.14.14.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.16.14.14.2.m1.1.1.3.cmml" xref="S5.T5.16.14.14.2.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.16.14.14.2.m1.1c">0-40</annotation></semantics></math></td>
+<td id="S5.T5.16.14.14.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T5.16.14.14.3.1" class="ltx_text" style="color:#000000;">22.62</span></td>
+<td id="S5.T5.16.14.14.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T5.16.14.14.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">20.35</span></td>
+<td id="S5.T5.16.14.14.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.16.14.14.5.1" class="ltx_text ltx_font_bold" style="color:#000000;">16.35</span></td>
+<td id="S5.T5.16.14.14.6" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T5.16.14.14.6.1" class="ltx_text ltx_font_bold" style="color:#000000;">14.13</span></td>
+</tr>
+<tr id="S5.T5.18.16.16" class="ltx_tr">
+<td id="S5.T5.17.15.15.1" class="ltx_td ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t"><math id="S5.T5.17.15.15.1.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T5.17.15.15.1.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T5.17.15.15.1.m1.1.1" xref="S5.T5.17.15.15.1.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T5.17.15.15.1.m1.1b"><ci id="S5.T5.17.15.15.1.m1.1.1.cmml" xref="S5.T5.17.15.15.1.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.17.15.15.1.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T5.18.16.16.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t"><math id="S5.T5.18.16.16.2.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T5.18.16.16.2.m1.1a"><mrow id="S5.T5.18.16.16.2.m1.1.1" xref="S5.T5.18.16.16.2.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T5.18.16.16.2.m1.1.1.2" xref="S5.T5.18.16.16.2.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T5.18.16.16.2.m1.1.1.1" xref="S5.T5.18.16.16.2.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T5.18.16.16.2.m1.1.1.3" xref="S5.T5.18.16.16.2.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T5.18.16.16.2.m1.1b"><apply id="S5.T5.18.16.16.2.m1.1.1.cmml" xref="S5.T5.18.16.16.2.m1.1.1"><minus id="S5.T5.18.16.16.2.m1.1.1.1.cmml" xref="S5.T5.18.16.16.2.m1.1.1.1"></minus><cn type="integer" id="S5.T5.18.16.16.2.m1.1.1.2.cmml" xref="S5.T5.18.16.16.2.m1.1.1.2">0</cn><cn type="integer" id="S5.T5.18.16.16.2.m1.1.1.3.cmml" xref="S5.T5.18.16.16.2.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T5.18.16.16.2.m1.1c">0-60</annotation></semantics></math></td>
+<td id="S5.T5.18.16.16.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T5.18.16.16.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">22.4</span></td>
+<td id="S5.T5.18.16.16.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T5.18.16.16.4.1" class="ltx_text" style="color:#000000;">20.54</span></td>
+<td id="S5.T5.18.16.16.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T5.18.16.16.5.1" class="ltx_text" style="color:#000000;">16.38</span></td>
+<td id="S5.T5.18.16.16.6" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T5.18.16.16.6.1" class="ltx_text" style="color:#000000;">14.15</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S5.T6" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S5.T6.13.1.1" class="ltx_text ltx_font_bold">Table 6</span>: </span>Comparison of WER % (<math id="S5.T6.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S5.T6.2.m1.1b"><mo mathcolor="#000000" stretchy="false" id="S5.T6.2.m1.1.1" xref="S5.T6.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S5.T6.2.m1.1c"><ci id="S5.T6.2.m1.1.1.cmml" xref="S5.T6.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.2.m1.1d">\downarrow</annotation></semantics></math>) for models trained with and without PnC using complete sentences on Earnings-21/22 lowercase text, evaluated with the TDT decoder.</figcaption>
+<div id="S5.T6.8" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:55.4pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-47.2pt,11.0pt) scale(0.716137065576005,0.716137065576005) ;">
+<table id="S5.T6.8.6" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.T6.8.6.7.1" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t">
+<table id="S5.T6.8.6.7.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T6.8.6.7.1.1.1.1" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S5.T6.8.6.7.1.1.1.2" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Window</span></td>
+</tr>
+</table>
+</td>
+<td id="S5.T6.8.6.7.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">
+<table id="S5.T6.8.6.7.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T6.8.6.7.1.2.1.1" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">Complete</span></td>
+</tr>
+<tr id="S5.T6.8.6.7.1.2.1.2" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">Sentences</span></td>
+</tr>
+</table>
+</td>
+<td id="S5.T6.8.6.7.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">
+<table id="S5.T6.8.6.7.1.3.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T6.8.6.7.1.3.1.1" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.3.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.3.1.1.1.1" class="ltx_text" style="color:#000000;">PnC during</span></td>
+</tr>
+<tr id="S5.T6.8.6.7.1.3.1.2" class="ltx_tr">
+<td id="S5.T6.8.6.7.1.3.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T6.8.6.7.1.3.1.2.1.1" class="ltx_text" style="color:#000000;">training</span></td>
+</tr>
+</table>
+</td>
+<td id="S5.T6.8.6.7.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T6.8.6.7.1.4.1" class="ltx_text" style="color:#000000;">Earnings 21</span></td>
+<td id="S5.T6.8.6.7.1.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T6.8.6.7.1.5.1" class="ltx_text" style="color:#000000;">Earnings 22</span></td>
+</tr>
+<tr id="S5.T6.5.3.3" class="ltx_tr">
+<td id="S5.T6.3.1.1.1" class="ltx_td ltx_align_center ltx_border_l ltx_border_r ltx_border_t"><math id="S5.T6.3.1.1.1.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T6.3.1.1.1.m1.1a"><mrow id="S5.T6.3.1.1.1.m1.1.1" xref="S5.T6.3.1.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T6.3.1.1.1.m1.1.1.2" xref="S5.T6.3.1.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T6.3.1.1.1.m1.1.1.1" xref="S5.T6.3.1.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T6.3.1.1.1.m1.1.1.3" xref="S5.T6.3.1.1.1.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T6.3.1.1.1.m1.1b"><apply id="S5.T6.3.1.1.1.m1.1.1.cmml" xref="S5.T6.3.1.1.1.m1.1.1"><minus id="S5.T6.3.1.1.1.m1.1.1.1.cmml" xref="S5.T6.3.1.1.1.m1.1.1.1"></minus><cn type="integer" id="S5.T6.3.1.1.1.m1.1.1.2.cmml" xref="S5.T6.3.1.1.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T6.3.1.1.1.m1.1.1.3.cmml" xref="S5.T6.3.1.1.1.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.3.1.1.1.m1.1c">0-60</annotation></semantics></math></td>
+<td id="S5.T6.4.2.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T6.4.2.2.2.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T6.4.2.2.2.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T6.4.2.2.2.m1.1.1" xref="S5.T6.4.2.2.2.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T6.4.2.2.2.m1.1b"><ci id="S5.T6.4.2.2.2.m1.1.1.cmml" xref="S5.T6.4.2.2.2.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.4.2.2.2.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T6.5.3.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><math id="S5.T6.5.3.3.3.m1.1" class="ltx_Math" alttext="{\checkmark}" display="inline"><semantics id="S5.T6.5.3.3.3.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T6.5.3.3.3.m1.1.1" xref="S5.T6.5.3.3.3.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T6.5.3.3.3.m1.1b"><ci id="S5.T6.5.3.3.3.m1.1.1.cmml" xref="S5.T6.5.3.3.3.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.5.3.3.3.m1.1c">{\checkmark}</annotation></semantics></math></td>
+<td id="S5.T6.5.3.3.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T6.5.3.3.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">11.63</span></td>
+<td id="S5.T6.5.3.3.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T6.5.3.3.5.1" class="ltx_text ltx_font_bold" style="color:#000000;">14.15</span></td>
+</tr>
+<tr id="S5.T6.8.6.6" class="ltx_tr">
+<td id="S5.T6.6.4.4.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_l ltx_border_r ltx_border_t"><math id="S5.T6.6.4.4.1.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T6.6.4.4.1.m1.1a"><mrow id="S5.T6.6.4.4.1.m1.1.1" xref="S5.T6.6.4.4.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T6.6.4.4.1.m1.1.1.2" xref="S5.T6.6.4.4.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T6.6.4.4.1.m1.1.1.1" xref="S5.T6.6.4.4.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T6.6.4.4.1.m1.1.1.3" xref="S5.T6.6.4.4.1.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T6.6.4.4.1.m1.1b"><apply id="S5.T6.6.4.4.1.m1.1.1.cmml" xref="S5.T6.6.4.4.1.m1.1.1"><minus id="S5.T6.6.4.4.1.m1.1.1.1.cmml" xref="S5.T6.6.4.4.1.m1.1.1.1"></minus><cn type="integer" id="S5.T6.6.4.4.1.m1.1.1.2.cmml" xref="S5.T6.6.4.4.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T6.6.4.4.1.m1.1.1.3.cmml" xref="S5.T6.6.4.4.1.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.6.4.4.1.m1.1c">0-60</annotation></semantics></math></td>
+<td id="S5.T6.7.5.5.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><math id="S5.T6.7.5.5.2.m1.1" class="ltx_Math" alttext="\checkmark" display="inline"><semantics id="S5.T6.7.5.5.2.m1.1a"><mi mathcolor="#000000" mathvariant="normal" id="S5.T6.7.5.5.2.m1.1.1" xref="S5.T6.7.5.5.2.m1.1.1.cmml">✓</mi><annotation-xml encoding="MathML-Content" id="S5.T6.7.5.5.2.m1.1b"><ci id="S5.T6.7.5.5.2.m1.1.1.cmml" xref="S5.T6.7.5.5.2.m1.1.1">✓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.7.5.5.2.m1.1c">\checkmark</annotation></semantics></math></td>
+<td id="S5.T6.8.6.6.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><math id="S5.T6.8.6.6.3.m1.1" class="ltx_Math" alttext="\times" display="inline"><semantics id="S5.T6.8.6.6.3.m1.1a"><mo mathcolor="#000000" id="S5.T6.8.6.6.3.m1.1.1" xref="S5.T6.8.6.6.3.m1.1.1.cmml">×</mo><annotation-xml encoding="MathML-Content" id="S5.T6.8.6.6.3.m1.1b"><times id="S5.T6.8.6.6.3.m1.1.1.cmml" xref="S5.T6.8.6.6.3.m1.1.1"></times></annotation-xml><annotation encoding="application/x-tex" id="S5.T6.8.6.6.3.m1.1c">\times</annotation></semantics></math></td>
+<td id="S5.T6.8.6.6.4" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T6.8.6.6.4.1" class="ltx_text" style="color:#000000;">11.71</span></td>
+<td id="S5.T6.8.6.6.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T6.8.6.6.5.1" class="ltx_text" style="color:#000000;">14.69</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S5.SS1.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsubsection">5.1.3 </span>Comparison with Cascaded Models</h4>
+
+<div id="S5.SS1.SSS3.p1" class="ltx_para">
+<p id="S5.SS1.SSS3.p1.1" class="ltx_p"><span id="S5.SS1.SSS3.p1.1.1" class="ltx_text" style="color:#000000;">To evaluate the effectiveness of training with punctuation and capitalization on complete sentences, we also assessed models trained with 0-60 seconds of complete sentences but without punctuation and capitalization, as described in subsection </span><a href="#S5.SS1.SSS2" title="5.1.2 Context Length Extension ‣ 5.1 Speech Recognition ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">5.1.2</span></a><span id="S5.SS1.SSS3.p1.1.2" class="ltx_text" style="color:#000000;">, and compared them with the proposed PnC training model. To obtain punctuation and capitalization from the lower-case predicted baseline model text, we used an open-source text-to-text PnC model based on a BERT encoder</span><span id="footnotex9" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/punctuation_en_bert</span></span></span></span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS3.p1.1.3.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib30" title="" class="ltx_ref">30</a><span id="S5.SS1.SSS3.p1.1.4.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS3.p1.1.5" class="ltx_text" style="color:#000000;"> trained on the Librispeech</span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS3.p1.1.6.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib27" title="" class="ltx_ref">27</a><span id="S5.SS1.SSS3.p1.1.7.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS3.p1.1.8" class="ltx_text" style="color:#000000;"> and Fisher text corpora</span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS1.SSS3.p1.1.9.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib18" title="" class="ltx_ref">18</a><span id="S5.SS1.SSS3.p1.1.10.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS1.SSS3.p1.1.11" class="ltx_text" style="color:#000000;">. As shown in Table </span><a href="#S5.T7" title="Table 7 ‣ 5.1.3 Comparison with Cascaded Models ‣ 5.1 Speech Recognition ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">7</span></a><span id="S5.SS1.SSS3.p1.1.12" class="ltx_text" style="color:#000000;">, the model trained with the proposed method performs better than the cascaded baselines on both the earnings 21 and earnings 22 evaluation sets. This result also highlights the necessity of end-to-end models for transcribing with punctuation and capitalization (PnC). Using an acoustic encoder allows the model to capture both the acoustic and semantic meanings of text, enabling the generation of correct punctuation and capitalization.</span></p>
+</div>
+<figure id="S5.T7" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S5.T7.7.1.1" class="ltx_text ltx_font_bold">Table 7</span>: </span>Comparison of WER % (<math id="S5.T7.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S5.T7.2.m1.1b"><mo mathcolor="#000000" stretchy="false" id="S5.T7.2.m1.1.1" xref="S5.T7.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S5.T7.2.m1.1c"><ci id="S5.T7.2.m1.1.1.cmml" xref="S5.T7.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T7.2.m1.1d">\downarrow</annotation></semantics></math>) on Earnings-21/22. The baseline model was trained with lower-case text, and punctuation and capitalization were later applied using a cascaded external text-to-text PnC BERT model. Evaluated with TDT decoder.</figcaption>
+<div id="S5.T7.8" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:238.0pt;height:114.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-73.5pt,35.4pt) scale(0.618185905570697,0.618185905570697) ;">
+<table id="S5.T7.8.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T7.8.1.1.1" class="ltx_tr">
+<th id="S5.T7.8.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t">
+<table id="S5.T7.8.1.1.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T7.8.1.1.1.1.1.1" class="ltx_tr">
+<td id="S5.T7.8.1.1.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T7.8.1.1.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Model</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T7.8.1.1.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t">
+<table id="S5.T7.8.1.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T7.8.1.1.1.2.1.1" class="ltx_tr">
+<td id="S5.T7.8.1.1.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T7.8.1.1.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">External Text</span></td>
+</tr>
+<tr id="S5.T7.8.1.1.1.2.1.2" class="ltx_tr">
+<td id="S5.T7.8.1.1.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T7.8.1.1.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">PnC</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T7.8.1.1.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T7.8.1.1.1.3.1" class="ltx_text" style="color:#000000;">PnC</span></th>
+<th id="S5.T7.8.1.1.1.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T7.8.1.1.1.4.1" class="ltx_text" style="color:#000000;">Only Cap</span></th>
+<th id="S5.T7.8.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T7.8.1.1.1.5.1" class="ltx_text" style="color:#000000;">Only Pun</span></th>
+<th id="S5.T7.8.1.1.1.6" class="ltx_td ltx_th ltx_th_column ltx_border_t"></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T7.8.1.2.1" class="ltx_tr">
+<th id="S5.T7.8.1.2.1.1" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_tt"></th>
+<td id="S5.T7.8.1.2.1.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_border_tt"></td>
+<td id="S5.T7.8.1.2.1.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_tt"><span id="S5.T7.8.1.2.1.3.1" class="ltx_text ltx_font_bold ltx_font_italic" style="color:#000000;">Earnings-21</span></td>
+<td id="S5.T7.8.1.2.1.4" class="ltx_td ltx_nopad_l ltx_border_tt"></td>
+<td id="S5.T7.8.1.2.1.5" class="ltx_td ltx_border_tt"></td>
+<td id="S5.T7.8.1.2.1.6" class="ltx_td ltx_border_tt"></td>
+</tr>
+<tr id="S5.T7.8.1.3.2" class="ltx_tr">
+<th id="S5.T7.8.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S5.T7.8.1.3.2.1.1" class="ltx_text" style="color:#000000;">FastConformer-XXL w/o PnC</span></th>
+<td id="S5.T7.8.1.3.2.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.3.2.2.1" class="ltx_text" style="color:#000000;">No</span></td>
+<td id="S5.T7.8.1.3.2.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.3.2.3.1" class="ltx_text" style="color:#000000;">29.43</span></td>
+<td id="S5.T7.8.1.3.2.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T7.8.1.3.2.4.1" class="ltx_text" style="color:#000000;">23.34</span></td>
+<td id="S5.T7.8.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T7.8.1.3.2.5.1" class="ltx_text" style="color:#000000;">19.36</span></td>
+<td id="S5.T7.8.1.3.2.6" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T7.8.1.4.3" class="ltx_tr">
+<td id="S5.T7.8.1.4.3.1" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.4.3.1.1" class="ltx_text" style="color:#000000;">Yes</span></td>
+<td id="S5.T7.8.1.4.3.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.4.3.2.1" class="ltx_text" style="color:#000000;">23.44</span></td>
+<td id="S5.T7.8.1.4.3.3" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T7.8.1.4.3.3.1" class="ltx_text" style="color:#000000;">19.60</span></td>
+<td id="S5.T7.8.1.4.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T7.8.1.4.3.4.1" class="ltx_text" style="color:#000000;">16.20</span></td>
+<td id="S5.T7.8.1.4.3.5" class="ltx_td"></td>
+</tr>
+<tr id="S5.T7.8.1.5.4" class="ltx_tr">
+<th id="S5.T7.8.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t"><span id="S5.T7.8.1.5.4.1.1" class="ltx_text" style="color:#000000;">FastConformer-XXL w/ PnC</span></th>
+<td id="S5.T7.8.1.5.4.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.5.4.2.1" class="ltx_text" style="color:#000000;">No</span></td>
+<td id="S5.T7.8.1.5.4.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.5.4.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">18.86</span></td>
+<td id="S5.T7.8.1.5.4.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T7.8.1.5.4.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">17.09</span></td>
+<td id="S5.T7.8.1.5.4.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T7.8.1.5.4.5.1" class="ltx_text ltx_font_bold" style="color:#000000;">13.65</span></td>
+<td id="S5.T7.8.1.5.4.6" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T7.8.1.6.5" class="ltx_tr">
+<th id="S5.T7.8.1.6.5.1" class="ltx_td ltx_th ltx_th_row ltx_border_r ltx_border_t"></th>
+<td id="S5.T7.8.1.6.5.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_border_t"></td>
+<td id="S5.T7.8.1.6.5.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.6.5.3.1" class="ltx_text ltx_font_bold ltx_font_italic" style="color:#000000;">Earnings-22</span></td>
+<td id="S5.T7.8.1.6.5.4" class="ltx_td ltx_nopad_l ltx_border_t"></td>
+<td id="S5.T7.8.1.6.5.5" class="ltx_td ltx_border_t"></td>
+<td id="S5.T7.8.1.6.5.6" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T7.8.1.7.6" class="ltx_tr">
+<th id="S5.T7.8.1.7.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="2"><span id="S5.T7.8.1.7.6.1.1" class="ltx_text" style="color:#000000;">FastConformer-XXL w/o PnC</span></th>
+<td id="S5.T7.8.1.7.6.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.7.6.2.1" class="ltx_text" style="color:#000000;">No</span></td>
+<td id="S5.T7.8.1.7.6.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.7.6.3.1" class="ltx_text" style="color:#000000;">32.41</span></td>
+<td id="S5.T7.8.1.7.6.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T7.8.1.7.6.4.1" class="ltx_text" style="color:#000000;">26.48</span></td>
+<td id="S5.T7.8.1.7.6.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T7.8.1.7.6.5.1" class="ltx_text" style="color:#000000;">21.65</span></td>
+<td id="S5.T7.8.1.7.6.6" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T7.8.1.8.7" class="ltx_tr">
+<td id="S5.T7.8.1.8.7.1" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.8.7.1.1" class="ltx_text" style="color:#000000;">Yes</span></td>
+<td id="S5.T7.8.1.8.7.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_t"><span id="S5.T7.8.1.8.7.2.1" class="ltx_text" style="color:#000000;">26.71</span></td>
+<td id="S5.T7.8.1.8.7.3" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_t"><span id="S5.T7.8.1.8.7.3.1" class="ltx_text" style="color:#000000;">22.76</span></td>
+<td id="S5.T7.8.1.8.7.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T7.8.1.8.7.4.1" class="ltx_text" style="color:#000000;">18.81</span></td>
+<td id="S5.T7.8.1.8.7.5" class="ltx_td"></td>
+</tr>
+<tr id="S5.T7.8.1.9.8" class="ltx_tr">
+<th id="S5.T7.8.1.9.8.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_b ltx_border_r ltx_border_t"><span id="S5.T7.8.1.9.8.1.1" class="ltx_text" style="color:#000000;">FastConformer-XXL w/ PnC</span></th>
+<td id="S5.T7.8.1.9.8.2" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T7.8.1.9.8.2.1" class="ltx_text" style="color:#000000;">No</span></td>
+<td id="S5.T7.8.1.9.8.3" class="ltx_td ltx_nopad_l ltx_nopad_r ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T7.8.1.9.8.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">22.4</span></td>
+<td id="S5.T7.8.1.9.8.4" class="ltx_td ltx_nopad_l ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T7.8.1.9.8.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">20.54</span></td>
+<td id="S5.T7.8.1.9.8.5" class="ltx_td ltx_align_center ltx_border_b ltx_border_t"><span id="S5.T7.8.1.9.8.5.1" class="ltx_text ltx_font_bold" style="color:#000000;">16.38</span></td>
+<td id="S5.T7.8.1.9.8.6" class="ltx_td ltx_border_b ltx_border_t"></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="color:#000000;">
+<span class="ltx_tag ltx_tag_subsection">5.2 </span>Speech Translation</h3>
+
+<div id="S5.SS2.p1" class="ltx_para">
+<p id="S5.SS2.p1.1" class="ltx_p"><span id="S5.SS2.p1.1.1" class="ltx_text" style="color:#000000;">We extend the prior investigation by analyzing the effect of increased context duration and also comparison of CTC and TDT decoders with hybrid models on speech translation performance. We employed the FastConformer Large model (120M parameters) for speech translation model training. The encoder weights were initialized from a FastConformer RNN-Transducer ASR model, following </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p1.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S5.SS2.p1.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS2.p1.1.4" class="ltx_text" style="color:#000000;">. Models were fine-tuned on the MuST-C training set for 200k steps using Adam optimizer with a learning rate of </span><math id="S5.SS2.p1.1.m1.1" class="ltx_Math" alttext="1e-3" display="inline"><semantics id="S5.SS2.p1.1.m1.1a"><mrow id="S5.SS2.p1.1.m1.1.1" xref="S5.SS2.p1.1.m1.1.1.cmml"><mrow id="S5.SS2.p1.1.m1.1.1.2" xref="S5.SS2.p1.1.m1.1.1.2.cmml"><mn mathcolor="#000000" id="S5.SS2.p1.1.m1.1.1.2.2" xref="S5.SS2.p1.1.m1.1.1.2.2.cmml">1</mn><mo lspace="0em" rspace="0em" id="S5.SS2.p1.1.m1.1.1.2.1" xref="S5.SS2.p1.1.m1.1.1.2.1.cmml">​</mo><mi mathcolor="#000000" id="S5.SS2.p1.1.m1.1.1.2.3" xref="S5.SS2.p1.1.m1.1.1.2.3.cmml">e</mi></mrow><mo mathcolor="#000000" id="S5.SS2.p1.1.m1.1.1.1" xref="S5.SS2.p1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.SS2.p1.1.m1.1.1.3" xref="S5.SS2.p1.1.m1.1.1.3.cmml">3</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.SS2.p1.1.m1.1b"><apply id="S5.SS2.p1.1.m1.1.1.cmml" xref="S5.SS2.p1.1.m1.1.1"><minus id="S5.SS2.p1.1.m1.1.1.1.cmml" xref="S5.SS2.p1.1.m1.1.1.1"></minus><apply id="S5.SS2.p1.1.m1.1.1.2.cmml" xref="S5.SS2.p1.1.m1.1.1.2"><times id="S5.SS2.p1.1.m1.1.1.2.1.cmml" xref="S5.SS2.p1.1.m1.1.1.2.1"></times><cn type="integer" id="S5.SS2.p1.1.m1.1.1.2.2.cmml" xref="S5.SS2.p1.1.m1.1.1.2.2">1</cn><ci id="S5.SS2.p1.1.m1.1.1.2.3.cmml" xref="S5.SS2.p1.1.m1.1.1.2.3">𝑒</ci></apply><cn type="integer" id="S5.SS2.p1.1.m1.1.1.3.cmml" xref="S5.SS2.p1.1.m1.1.1.3">3</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.p1.1.m1.1c">1e-3</annotation></semantics></math><span id="S5.SS2.p1.1.5" class="ltx_text" style="color:#000000;"> and inverse-square-root annealing (warm-up 2500 steps) on 16 NVIDIA A100 80GB GPUs. We use a vocabulary size of 16000 trained using unigram tokenization </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p1.1.6.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib31" title="" class="ltx_ref">31</a><span id="S5.SS2.p1.1.7.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS2.p1.1.8" class="ltx_text" style="color:#000000;"> over both the MuST-C German corpus and internal datasets.</span></p>
+</div>
+<div id="S5.SS2.p2" class="ltx_para">
+<p id="S5.SS2.p2.1" class="ltx_p"><span id="S5.SS2.p2.1.1" class="ltx_text" style="color:#000000;">To address varying speech lengths, data was segmented into 10-second intervals with corresponding batch size adjustments: 16 for [0,10), 8 for (10,20], (20,30], and (30,40], and 4 for (40,50] and (50,60]. Additionally, gradients were accumulated over two batches per training step. We evaluated performance on MuST-C </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S5.SS2.p2.1.2.1" class="ltx_text" style="color:#000000;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a><span id="S5.SS2.p2.1.3.2" class="ltx_text" style="color:#000000;">]</span></cite><span id="S5.SS2.p2.1.4" class="ltx_text" style="color:#000000;"> development and test sets using both CTC and TDT decoding modules.</span></p>
+</div>
+<div id="S5.SS2.p3" class="ltx_para">
+<p id="S5.SS2.p3.1" class="ltx_p"><span id="S5.SS2.p3.1.1" class="ltx_text" style="color:#000000;">These models are trained with PnC enabled for all experiments and similar to improvements in speech recognition WER, incorporating a longer context window led to enhanced translation quality in speech translation. However, as shown in Table </span><a href="#S5.T8" title="Table 8 ‣ 5.2 Speech Translation ‣ 5 Experiments &amp; Results ‣ Longer is (Not Necessarily) Stronger: Punctuated Long-Sequence Training for Enhanced Speech Recognition and Translation" class="ltx_ref" style="color:#000000;"><span class="ltx_text ltx_ref_tag">8</span></a><span id="S5.SS2.p3.1.2" class="ltx_text" style="color:#000000;">, a longer context window upto 40 seconds yielded superior performance compared to the baseline dataset across all subsets. While this improvement could be partially attributed to the increased dataset size for the 40-second and 60-second context window subsets, it is important to note that the 20-second context window subset utilized the same amount of duration hours as the baseline. Therefore, the observed performance gains can be directly ascribed to the extended context window. However, these gains diminish after a context window of 40 seconds, which is similar to our observation in speech recognition experiments as well.</span></p>
+</div>
+<figure id="S5.T8" class="ltx_table">
+<figcaption class="ltx_caption" style="color:#000000;"><span class="ltx_tag ltx_tag_table"><span id="S5.T8.11.1.1" class="ltx_text ltx_font_bold">Table 8</span>: </span>Comparison of BLEU (<math id="S5.T8.2.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S5.T8.2.m1.1b"><mo mathcolor="#000000" stretchy="false" id="S5.T8.2.m1.1.1" xref="S5.T8.2.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S5.T8.2.m1.1c"><ci id="S5.T8.2.m1.1.1.cmml" xref="S5.T8.2.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T8.2.m1.1d">\uparrow</annotation></semantics></math>) scores between models trained with longer context / durations and models trained with the original MUST-C sample durations.</figcaption>
+<div id="S5.T8.6" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:227.9pt;height:147pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-29.8pt,19.2pt) scale(0.792635265835078,0.792635265835078) ;">
+<table id="S5.T8.6.4" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T8.6.4.5.1" class="ltx_tr">
+<th id="S5.T8.6.4.5.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S5.T8.6.4.5.1.1.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T8.6.4.5.1.1.1.1" class="ltx_tr">
+<td id="S5.T8.6.4.5.1.1.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.5.1.1.1.1.1.1" class="ltx_text" style="color:#000000;">Context</span></td>
+</tr>
+<tr id="S5.T8.6.4.5.1.1.1.2" class="ltx_tr">
+<td id="S5.T8.6.4.5.1.1.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.5.1.1.1.2.1.1" class="ltx_text" style="color:#000000;">Length</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T8.6.4.5.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t">
+<table id="S5.T8.6.4.5.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S5.T8.6.4.5.1.2.1.1" class="ltx_tr">
+<td id="S5.T8.6.4.5.1.2.1.1.1" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.5.1.2.1.1.1.1" class="ltx_text" style="color:#000000;">Duration</span></td>
+</tr>
+<tr id="S5.T8.6.4.5.1.2.1.2" class="ltx_tr">
+<td id="S5.T8.6.4.5.1.2.1.2.1" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.5.1.2.1.2.1.1" class="ltx_text" style="color:#000000;">Window (sec)</span></td>
+</tr>
+</table>
+</th>
+<th id="S5.T8.6.4.5.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T8.6.4.5.1.3.1" class="ltx_text" style="color:#000000;">Decoding</span></th>
+<th id="S5.T8.6.4.5.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T8.6.4.5.1.4.1" class="ltx_text" style="color:#000000;">Validation</span></th>
+<th id="S5.T8.6.4.5.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T8.6.4.5.1.5.1" class="ltx_text" style="color:#000000;">Test</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T8.3.1.1" class="ltx_tr">
+<td id="S5.T8.3.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt" rowspan="2"><span id="S5.T8.3.1.1.2.1" class="ltx_text" style="color:#000000;">original</span></td>
+<td id="S5.T8.3.1.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt" rowspan="2"><span id="S5.T8.3.1.1.1.1" class="ltx_text" style="color:#000000;"><math id="S5.T8.3.1.1.1.1.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T8.3.1.1.1.1.m1.1a"><mrow id="S5.T8.3.1.1.1.1.m1.1.1" xref="S5.T8.3.1.1.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T8.3.1.1.1.1.m1.1.1.2" xref="S5.T8.3.1.1.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T8.3.1.1.1.1.m1.1.1.1" xref="S5.T8.3.1.1.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T8.3.1.1.1.1.m1.1.1.3" xref="S5.T8.3.1.1.1.1.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T8.3.1.1.1.1.m1.1b"><apply id="S5.T8.3.1.1.1.1.m1.1.1.cmml" xref="S5.T8.3.1.1.1.1.m1.1.1"><minus id="S5.T8.3.1.1.1.1.m1.1.1.1.cmml" xref="S5.T8.3.1.1.1.1.m1.1.1.1"></minus><cn type="integer" id="S5.T8.3.1.1.1.1.m1.1.1.2.cmml" xref="S5.T8.3.1.1.1.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T8.3.1.1.1.1.m1.1.1.3.cmml" xref="S5.T8.3.1.1.1.1.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T8.3.1.1.1.1.m1.1c">0-20</annotation></semantics></math></span></td>
+<td id="S5.T8.3.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T8.3.1.1.3.1" class="ltx_text" style="color:#000000;">CTC</span></td>
+<td id="S5.T8.3.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt"><span id="S5.T8.3.1.1.4.1" class="ltx_text" style="color:#000000;">20.17</span></td>
+<td id="S5.T8.3.1.1.5" class="ltx_td ltx_align_center ltx_border_tt"><span id="S5.T8.3.1.1.5.1" class="ltx_text" style="color:#000000;">18.92</span></td>
+</tr>
+<tr id="S5.T8.6.4.6.1" class="ltx_tr">
+<td id="S5.T8.6.4.6.1.1" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.6.1.1.1" class="ltx_text" style="color:#000000;">TDT</span></td>
+<td id="S5.T8.6.4.6.1.2" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.6.1.2.1" class="ltx_text" style="color:#000000;">22.1</span></td>
+<td id="S5.T8.6.4.6.1.3" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.6.1.3.1" class="ltx_text" style="color:#000000;">21.53</span></td>
+</tr>
+<tr id="S5.T8.4.2.2" class="ltx_tr">
+<td id="S5.T8.4.2.2.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t" rowspan="6"><span id="S5.T8.4.2.2.2.1" class="ltx_text" style="color:#000000;">extended</span></td>
+<td id="S5.T8.4.2.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="2"><span id="S5.T8.4.2.2.1.1" class="ltx_text" style="color:#000000;"><math id="S5.T8.4.2.2.1.1.m1.1" class="ltx_Math" alttext="0-20" display="inline"><semantics id="S5.T8.4.2.2.1.1.m1.1a"><mrow id="S5.T8.4.2.2.1.1.m1.1.1" xref="S5.T8.4.2.2.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T8.4.2.2.1.1.m1.1.1.2" xref="S5.T8.4.2.2.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T8.4.2.2.1.1.m1.1.1.1" xref="S5.T8.4.2.2.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T8.4.2.2.1.1.m1.1.1.3" xref="S5.T8.4.2.2.1.1.m1.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T8.4.2.2.1.1.m1.1b"><apply id="S5.T8.4.2.2.1.1.m1.1.1.cmml" xref="S5.T8.4.2.2.1.1.m1.1.1"><minus id="S5.T8.4.2.2.1.1.m1.1.1.1.cmml" xref="S5.T8.4.2.2.1.1.m1.1.1.1"></minus><cn type="integer" id="S5.T8.4.2.2.1.1.m1.1.1.2.cmml" xref="S5.T8.4.2.2.1.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T8.4.2.2.1.1.m1.1.1.3.cmml" xref="S5.T8.4.2.2.1.1.m1.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T8.4.2.2.1.1.m1.1c">0-20</annotation></semantics></math></span></td>
+<td id="S5.T8.4.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.4.2.2.3.1" class="ltx_text" style="color:#000000;">CTC</span></td>
+<td id="S5.T8.4.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.4.2.2.4.1" class="ltx_text" style="color:#000000;">21.23</span></td>
+<td id="S5.T8.4.2.2.5" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T8.4.2.2.5.1" class="ltx_text" style="color:#000000;">20.03</span></td>
+</tr>
+<tr id="S5.T8.6.4.7.2" class="ltx_tr">
+<td id="S5.T8.6.4.7.2.1" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.7.2.1.1" class="ltx_text" style="color:#000000;">TDT</span></td>
+<td id="S5.T8.6.4.7.2.2" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.7.2.2.1" class="ltx_text" style="color:#000000;">23.09</span></td>
+<td id="S5.T8.6.4.7.2.3" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.7.2.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">22.42</span></td>
+</tr>
+<tr id="S5.T8.5.3.3" class="ltx_tr">
+<td id="S5.T8.5.3.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" rowspan="2"><span id="S5.T8.5.3.3.1.1" class="ltx_text" style="color:#000000;"><math id="S5.T8.5.3.3.1.1.m1.1" class="ltx_Math" alttext="0-40" display="inline"><semantics id="S5.T8.5.3.3.1.1.m1.1a"><mrow id="S5.T8.5.3.3.1.1.m1.1.1" xref="S5.T8.5.3.3.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T8.5.3.3.1.1.m1.1.1.2" xref="S5.T8.5.3.3.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T8.5.3.3.1.1.m1.1.1.1" xref="S5.T8.5.3.3.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T8.5.3.3.1.1.m1.1.1.3" xref="S5.T8.5.3.3.1.1.m1.1.1.3.cmml">40</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T8.5.3.3.1.1.m1.1b"><apply id="S5.T8.5.3.3.1.1.m1.1.1.cmml" xref="S5.T8.5.3.3.1.1.m1.1.1"><minus id="S5.T8.5.3.3.1.1.m1.1.1.1.cmml" xref="S5.T8.5.3.3.1.1.m1.1.1.1"></minus><cn type="integer" id="S5.T8.5.3.3.1.1.m1.1.1.2.cmml" xref="S5.T8.5.3.3.1.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T8.5.3.3.1.1.m1.1.1.3.cmml" xref="S5.T8.5.3.3.1.1.m1.1.1.3">40</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T8.5.3.3.1.1.m1.1c">0-40</annotation></semantics></math></span></td>
+<td id="S5.T8.5.3.3.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.5.3.3.2.1" class="ltx_text" style="color:#000000;">CTC</span></td>
+<td id="S5.T8.5.3.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.5.3.3.3.1" class="ltx_text ltx_font_bold" style="color:#000000;">21.26</span></td>
+<td id="S5.T8.5.3.3.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T8.5.3.3.4.1" class="ltx_text ltx_font_bold" style="color:#000000;">20.45</span></td>
+</tr>
+<tr id="S5.T8.6.4.8.3" class="ltx_tr">
+<td id="S5.T8.6.4.8.3.1" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.8.3.1.1" class="ltx_text" style="color:#000000;">TDT</span></td>
+<td id="S5.T8.6.4.8.3.2" class="ltx_td ltx_align_center ltx_border_r"><span id="S5.T8.6.4.8.3.2.1" class="ltx_text ltx_font_bold" style="color:#000000;">23.12</span></td>
+<td id="S5.T8.6.4.8.3.3" class="ltx_td ltx_align_center"><span id="S5.T8.6.4.8.3.3.1" class="ltx_text" style="color:#000000;">22.23</span></td>
+</tr>
+<tr id="S5.T8.6.4.4" class="ltx_tr">
+<td id="S5.T8.6.4.4.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t" rowspan="2"><span id="S5.T8.6.4.4.1.1" class="ltx_text" style="color:#000000;"><math id="S5.T8.6.4.4.1.1.m1.1" class="ltx_Math" alttext="0-60" display="inline"><semantics id="S5.T8.6.4.4.1.1.m1.1a"><mrow id="S5.T8.6.4.4.1.1.m1.1.1" xref="S5.T8.6.4.4.1.1.m1.1.1.cmml"><mn mathcolor="#000000" id="S5.T8.6.4.4.1.1.m1.1.1.2" xref="S5.T8.6.4.4.1.1.m1.1.1.2.cmml">0</mn><mo mathcolor="#000000" id="S5.T8.6.4.4.1.1.m1.1.1.1" xref="S5.T8.6.4.4.1.1.m1.1.1.1.cmml">−</mo><mn mathcolor="#000000" id="S5.T8.6.4.4.1.1.m1.1.1.3" xref="S5.T8.6.4.4.1.1.m1.1.1.3.cmml">60</mn></mrow><annotation-xml encoding="MathML-Content" id="S5.T8.6.4.4.1.1.m1.1b"><apply id="S5.T8.6.4.4.1.1.m1.1.1.cmml" xref="S5.T8.6.4.4.1.1.m1.1.1"><minus id="S5.T8.6.4.4.1.1.m1.1.1.1.cmml" xref="S5.T8.6.4.4.1.1.m1.1.1.1"></minus><cn type="integer" id="S5.T8.6.4.4.1.1.m1.1.1.2.cmml" xref="S5.T8.6.4.4.1.1.m1.1.1.2">0</cn><cn type="integer" id="S5.T8.6.4.4.1.1.m1.1.1.3.cmml" xref="S5.T8.6.4.4.1.1.m1.1.1.3">60</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.T8.6.4.4.1.1.m1.1c">0-60</annotation></semantics></math></span></td>
+<td id="S5.T8.6.4.4.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.6.4.4.2.1" class="ltx_text" style="color:#000000;">CTC</span></td>
+<td id="S5.T8.6.4.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t"><span id="S5.T8.6.4.4.3.1" class="ltx_text" style="color:#000000;">20.88</span></td>
+<td id="S5.T8.6.4.4.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S5.T8.6.4.4.4.1" class="ltx_text" style="color:#000000;">19.90</span></td>
+</tr>
+<tr id="S5.T8.6.4.9.4" class="ltx_tr">
+<td id="S5.T8.6.4.9.4.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span id="S5.T8.6.4.9.4.1.1" class="ltx_text" style="color:#000000;">TDT</span></td>
+<td id="S5.T8.6.4.9.4.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r"><span id="S5.T8.6.4.9.4.2.1" class="ltx_text" style="color:#000000;">22.5</span></td>
+<td id="S5.T8.6.4.9.4.3" class="ltx_td ltx_align_center ltx_border_b"><span id="S5.T8.6.4.9.4.3.1" class="ltx_text" style="color:#000000;">21.92</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="color:#000000;">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusions</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p"><span id="S6.p1.1.1" class="ltx_text" style="color:#000000;">In this paper, we introduce a novel approach to training punctuation and capitalization models using complete sentences. By utilizing the FastConformer architecture and extending training segment durations from 20 seconds to 60 seconds, we present the first study demonstrating the feasibility of training on segments upto 60 seconds long. In this work, to ensure faster convergence we employed a hybrid TDT-CTC loss. Our method achieved a significant relative improvement of 25% on the Earnings-21/22 evaluation datasets and additionally, it enhanced performance on short-duration, lower-case benchmarks. This method, when applied to speech translation, yielded a 15% relative BLEU score improvement on the MuST-C test set. While our findings highlight the general benefits of longer context training, we observed diminishing returns for segments exceeding 40 seconds when evaluated on shorter duration benchmarks in both speech recognition and translation tasks. In future work, we plan to explore effective training on very long sequences with an improved architecture. We believe this research paves the way for training on longer audio sequence lengths in other large seq2seq models, including those used for speaker diarization and music applications.</span></p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="color:#000000;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="color:#000000;">
+Dima Rekesh, Nithin Rao Koluguri, Samuel Kriman, Somshubra Majumdar, Vahid Noroozi, He Huang, Oleksii Hrinchuk, Krishna Puvvada, Ankur Kumar, Jagadeesh Balam, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.2.1" class="ltx_text" style="color:#000000;">“Fast Conformer with linearly scalable attention for efficient speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib1.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Automatic Speech Recognition and Understanding Workshop (ASRU)</span><span id="bib.bib1.5.3" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="color:#000000;">
+Yu Zhang, James Qin, Daniel S Park, Wei Han, Chung-Cheng Chiu, Ruoming Pang, Quoc V Le, and Yonghui Wu,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.2.1" class="ltx_text" style="color:#000000;">“Pushing the limits of semi-supervised learning for automatic speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2010.10504</span><span id="bib.bib2.4.2" class="ltx_text" style="color:#000000;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="color:#000000;">
+Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.2.1" class="ltx_text" style="color:#000000;">“Robust speech recognition via large-scale weak supervision,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib3.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">ICML</span><span id="bib.bib3.5.3" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="color:#000000;">
+Piotr Żelasko, Piotr Szymański, Jan Mizgajski, Adrian Szymczak, Yishay Carmiel, and Najim Dehak,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.2.1" class="ltx_text" style="color:#000000;">“Punctuation prediction model for conversational speech,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:1807.00543</span><span id="bib.bib4.4.2" class="ltx_text" style="color:#000000;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="color:#000000;">
+Raghavendra Pappagari, Piotr Żelasko, Agnieszka Mikołajczyk, Piotr Pezik, and Najim Dehak,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.2.1" class="ltx_text" style="color:#000000;">“Joint prediction of truecasing and punctuation for conversational speech in low-resource scenarios,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib5.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Automatic Speech Recognition and Understanding Workshop (ASRU)</span><span id="bib.bib5.5.3" class="ltx_text" style="color:#000000;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="color:#000000;">
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, </span><span id="bib.bib6.2.2" class="ltx_text ltx_font_caligraphic" style="color:#000000;">L</span><span id="bib.bib6.3.3" class="ltx_text" style="color:#000000;">ukasz Kaiser, and Illia Polosukhin,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.4.1" class="ltx_text" style="color:#000000;">“Attention is all you need,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.5.1" class="ltx_text ltx_font_italic" style="color:#000000;">NeuRIPS</span><span id="bib.bib6.6.2" class="ltx_text" style="color:#000000;">, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="color:#000000;">
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zhengdong Zhang, Yonghui Wu, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.2.1" class="ltx_text" style="color:#000000;">“Conformer: Convolution-augmented transformer for speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2005.08100</span><span id="bib.bib7.4.2" class="ltx_text" style="color:#000000;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="color:#000000;">
+Chenxin An, Fei Huang, Jun Zhang, Shansan Gong, Xipeng Qiu, Chang Zhou, and Lingpeng Kong,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.2.1" class="ltx_text" style="color:#000000;">“Training-free long-context scaling of large language models,” 2024.
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="color:#000000;">
+Nithin Rao Koluguri, Samuel Kriman, Georgy Zelenfroind, Somshubra Majumdar, Dima Rekesh, Vahid Noroozi, Jagadeesh Balam, and Boris Ginsburg,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.2.1" class="ltx_text" style="color:#000000;">“Investigating end-to-end asr architectures for long form audio transcription,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2309.09950</span><span id="bib.bib9.4.2" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="color:#000000;">
+Miguel Del Rio, Natalie Delworth, Ryan Westerman, Michelle Huang, Nishchal Bhandari, Joseph Palakapilly, Quinten McNamara, Joshua Dong, Piotr Zelasko, and Miguel Jetté,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.2.1" class="ltx_text" style="color:#000000;">“Earnings-21: A practical benchmark for ASR in the wild,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2104.11348</span><span id="bib.bib10.4.2" class="ltx_text" style="color:#000000;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="color:#000000;">
+Miguel Del Rio, Peter Ha, Quinten McNamara, Corey Miller, and Shipra Chandra,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.2.1" class="ltx_text" style="color:#000000;">“Earnings-22: A practical benchmark for accents in the wild,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv preprint arXiv:2203.15591</span><span id="bib.bib11.4.2" class="ltx_text" style="color:#000000;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="color:#000000;">
+Mattia A Di Gangi, Roldano Cattoni, Luisa Bentivogli, Matteo Negri, and Marco Turchi,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.2.1" class="ltx_text" style="color:#000000;">“Must-c: a multilingual speech translation corpus,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib12.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)</span><span id="bib.bib12.5.3" class="ltx_text" style="color:#000000;">. Association for Computational Linguistics, 2019, pp. 2012–2017.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="color:#000000;">
+Hainan Xu, Fei Jia, Somshubra Majumdar, He Huang, Shinji Watanabe, and Boris Ginsburg,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.2.1" class="ltx_text" style="color:#000000;">“Efficient sequence transduction by jointly predicting tokens and durations,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2304.06795</span><span id="bib.bib13.4.2" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="color:#000000;">
+Vahid Noroozi, Somshubra Majumdar, Ankur Kumar, Jagadeesh Balam, and Boris Ginsburg,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.2.1" class="ltx_text" style="color:#000000;">“Stateful fastconformer with cache-based inference for streaming automatic speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2312.17279</span><span id="bib.bib14.4.2" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="color:#000000;">
+Yui Sudo, Muhammad Shakeel, Yosuke Fukumoto, Brian Yan, Jiatong Shi, Yifan Peng, and Shinji Watanabe,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.2.1" class="ltx_text" style="color:#000000;">“4d asr: Joint beam search integrating ctc, attention, transducer, and mask predict decoders,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv preprint arXiv:2406.02950</span><span id="bib.bib15.4.2" class="ltx_text" style="color:#000000;">, 2024.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="color:#000000;">
+Aleksandr Meister, Matvei Novikov, Nikolay Karpov, Evelina Bakhturina, Vitaly Lavrukhin, and Boris Ginsburg,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.2.1" class="ltx_text" style="color:#000000;">“Librispeech-pc: Benchmark for evaluation of punctuation and capitalization capabilities of end-to-end asr models,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib16.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Automatic Speech Recognition and Understanding Workshop (ASRU)</span><span id="bib.bib16.5.3" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="color:#000000;">
+Jennifer Drexler Fox, Desh Raj, Natalie Delworth, Quinn McNamara, Corey Miller, and Migüel Jetté,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.2.1" class="ltx_text" style="color:#000000;">“Updated corpora and benchmarks for long-form speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2309.15013</span><span id="bib.bib17.4.2" class="ltx_text" style="color:#000000;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="color:#000000;">
+Christopher Cieri, David Graff, Owen Kimball, Dave Miller, and Kevin Walker,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.2.1" class="ltx_text" style="color:#000000;">“Fisher english training speech part 1 transcripts,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">Philadelphia: Linguistic Data Consortium</span><span id="bib.bib18.4.2" class="ltx_text" style="color:#000000;">, 2004.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="color:#000000;">
+Rosana Ardila, Megan Branson, Kelly Davis, Michael Henretty, Michael Kohler, Josh Meyer, Reuben Morais, Lindsay Saunders, Francis M Tyers, and Gregor Weber,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.2.1" class="ltx_text" style="color:#000000;">“Common voice: A massively-multilingual speech corpus,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:1912.06670</span><span id="bib.bib19.4.2" class="ltx_text" style="color:#000000;">, 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="color:#000000;">
+Vineel Pratap, Qiantong Xu, Anuroop Sriram, Gabriel Synnaeve, and Ronan Collobert,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.2.1" class="ltx_text" style="color:#000000;">“Mls: A large-scale multilingual dataset for speech research,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2012.03411</span><span id="bib.bib20.4.2" class="ltx_text" style="color:#000000;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="color:#000000;">
+Ying-Ying Tan,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.2.1" class="ltx_text" style="color:#000000;">“Spontaneous speech elicitation for large speech corpus in multilingual singapore,” .
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="color:#000000;">
+Patrick K O’Neill, Vitaly Lavrukhin, Somshubra Majumdar, Vahid Noroozi, Yuekai Zhang, Oleksii Kuchaiev, Jagadeesh Balam, Yuliya Dovzhenko, Keenan Freyberg, Michael D Shulman, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.2.1" class="ltx_text" style="color:#000000;">“Spgispeech: 5,000 hours of transcribed financial audio for fully formatted end-to-end speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2104.02014</span><span id="bib.bib22.4.2" class="ltx_text" style="color:#000000;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text" style="color:#000000;">
+Christophe Veaux, Junichi Yamagishi, Kirsten MacDonald, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.2.1" class="ltx_text" style="color:#000000;">“Cstr vctk corpus: English multi-speaker corpus for cstr voice cloning toolkit,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">University of Edinburgh. The Centre for Speech Technology Research (CSTR)</span><span id="bib.bib23.4.2" class="ltx_text" style="color:#000000;">, vol. 6, pp. 15, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text" style="color:#000000;">
+Changhan Wang, Morgane Riviere, Ann Lee, Anne Wu, Chaitanya Talnikar, Daniel Haziza, Mary Williamson, Juan Pino, and Emmanuel Dupoux,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.2.1" class="ltx_text" style="color:#000000;">“Voxpopuli: A large-scale multilingual speech corpus for representation learning, semi-supervised learning and interpretation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2101.00390</span><span id="bib.bib24.4.2" class="ltx_text" style="color:#000000;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text" style="color:#000000;">
+Iain Mccowan, J Carletta, Wessel Kraaij, Simone Ashby, S Bourban, M Flynn, M Guillemot, Thomas Hain, J Kadlec, V Karaiskos, M Kronenthal, Guillaume Lathoud, Mike Lincoln, Agnes Lisowska Masson, Wilfried Post, Dennis Reidsma, and P Wellner,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.2.1" class="ltx_text" style="color:#000000;">“The ami meeting corpus,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">Int’l. Conf. on Methods and Techniques in Behavioral Research</span><span id="bib.bib25.4.2" class="ltx_text" style="color:#000000;">, 01 2005.
+</span>
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text" style="color:#000000;">
+Guoguo Chen, Shuzhou Chai, Guanbo Wang, Jiayu Du, Wei-Qiang Zhang, Chao Weng, Dan Su, Daniel Povey, Jan Trmal, Junbo Zhang, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.2.1" class="ltx_text" style="color:#000000;">“Gigaspeech: An evolving, multi-domain asr corpus with 10,000 hours of transcribed audio,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv preprint arXiv:2106.06909</span><span id="bib.bib26.4.2" class="ltx_text" style="color:#000000;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text" style="color:#000000;">
+Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.2.1" class="ltx_text" style="color:#000000;">“Librispeech: an asr corpus based on public domain audio books,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib27.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">2015 IEEE international conference on acoustics, speech and signal processing (ICASSP)</span><span id="bib.bib27.5.3" class="ltx_text" style="color:#000000;">. IEEE, 2015, pp. 5206–5210.
+</span>
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text" style="color:#000000;">
+François Hernandez, Vincent Nguyen, Sahar Ghannay, Natalia Tomashenko, and Yannick Esteve,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.2.1" class="ltx_text" style="color:#000000;">“Ted-lium 3: Twice as much data and corpus repartition for experiments on speaker adaptation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib28.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Speech and Computer: 20th International Conference, SPECOM 2018, Leipzig, Germany, September 18–22, 2018, Proceedings 20</span><span id="bib.bib28.5.3" class="ltx_text" style="color:#000000;">. Springer, 2018, pp. 198–208.
+</span>
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock"><span id="bib.bib29.1.1" class="ltx_text" style="color:#000000;">
+Brian Yan, Siddharth Dalmia, Yosuke Higuchi, Graham Neubig, Florian Metze, Alan W Black, and Shinji Watanabe,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib29.2.1" class="ltx_text" style="color:#000000;">“Ctc alignments improve autoregressive translation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib29.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv:2210.05200</span><span id="bib.bib29.4.2" class="ltx_text" style="color:#000000;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock"><span id="bib.bib30.1.1" class="ltx_text" style="color:#000000;">
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib30.2.1" class="ltx_text" style="color:#000000;">“Bert: Pre-training of deep bidirectional transformers for language understanding,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib30.3.1" class="ltx_text ltx_font_italic" style="color:#000000;">arXiv preprint arXiv:1810.04805</span><span id="bib.bib30.4.2" class="ltx_text" style="color:#000000;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock"><span id="bib.bib31.1.1" class="ltx_text" style="color:#000000;">
+Taku Kudo,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib31.2.1" class="ltx_text" style="color:#000000;">“Subword regularization: Improving neural network translation models with multiple subword candidates,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib31.3.1" class="ltx_text" style="color:#000000;">in </span><span id="bib.bib31.4.2" class="ltx_text ltx_font_italic" style="color:#000000;">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</span><span id="bib.bib31.5.3" class="ltx_text" style="color:#000000;">. Association for Computational Linguistics, 2018.
+</span>
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2409.05600" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2409.05601" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2409.05601">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2409.05601" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2409.05602" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sun Oct  6 00:44:50 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

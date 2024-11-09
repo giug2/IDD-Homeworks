@@ -1,0 +1,981 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.17235] Task-Agnostic Federated Learning with Imbalanced Data</title><meta property="og:description" content="In the realm of medical imaging, leveraging large-scale datasets from various institutions is crucial for developing precise deep learning models, yet privacy concerns frequently impede data sharing. Federated learning…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Task-Agnostic Federated Learning with Imbalanced Data">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Task-Agnostic Federated Learning with Imbalanced Data">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.17235">
+
+<!--Generated on Sat Jul  6 00:29:43 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="keywords" lang="en" content="
+federated learning,  self-supervised learning,  image classification,  task agnostic,  vision transformer
+">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document"> Task-Agnostic Federated Learning with Imbalanced Data
+</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+
+Zhengtao Yao12, Hong Nguyen12, 
+Ajitesh Srivastava2 
+
+
+</span><span class="ltx_author_notes">1 Corresponding authors
+<span class="ltx_contact ltx_role_affiliation">
+2 University of Southern California, Los Angeles, CA 90089
+<br class="ltx_break">hongn@usc.edu
+
+</span></span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">In the realm of medical imaging, leveraging large-scale datasets from various institutions is crucial for developing precise deep learning models, yet privacy concerns frequently impede data sharing. Federated learning (FL) emerges as a prominent solution for preserving privacy while facilitating collaborative learning.
+However, its application in real-world scenarios faces several obstacles, such as task &amp; data heterogeneity, label scarcity, non-identically distributed (non-IID) data, computational variation, etc. In real-world, medical institutions may not want to disclose their tasks to FL server and generalization challenge of out-of-network institutions with un-seen task want to join the on-going federated system. This study addresses task-agnostic and generalization problem on unseen tasks by adapting self-supervised FL framework. Utilizing Vision Transformer (ViT) as consensus feature encoder for self-supervised pre-training, no initial labels required, the framework enables effective representation learning across diverse datasets and tasks. Our extensive evaluations, using various real-world non-IID medical imaging datasets, validate the approach’s efficiency. The proposed model retains 90% of F1 accuracy of centralized approaches for classification task, and outperforms it for segmentation task, which exhibits adaptability to out-of-distribution data. The result indicates that federated learning architecture can be a potential approach toward multi-task foundation modeling.</p>
+</div>
+<div class="ltx_keywords">
+<h6 class="ltx_title ltx_title_keywords">Index Terms: </h6>
+federated learning, self-supervised learning, image classification, task agnostic, vision transformer
+
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">I </span><span id="S1.1.1" class="ltx_text ltx_font_smallcaps">Introduction</span>
+</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Federated learning (FL) enables model training using data dispersed across multiple locations without direct data sharing. In comparison to models trained at individual sites, federated models can utilize a significantly broader and larger dataset, potentially leading to enhanced performance and greater generalizability. As a result, this training method has found widespread adoption in crucial medical applications such as brain tumor detection and COVID-19 diagnosis, and has been utilized across various data types.
+However,
+In conventional FL system, the center model has to know what task each sites want to achieve, e.g., predict brain ages, detect tumor, classify Diabetic retinopathy, brain regional segmentation, etc. Thus, the task-agnosticity limits the generalization of FL system.
+</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2406.17235/assets/pics/system2.png" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="400" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Federated Learning system where clients’ tasks are anonymous between each others and hidden from the server. <math id="S1.F1.5.m1.1" class="ltx_Math" alttext="E_{i}" display="inline"><semantics id="S1.F1.5.m1.1b"><msub id="S1.F1.5.m1.1.1" xref="S1.F1.5.m1.1.1.cmml"><mi id="S1.F1.5.m1.1.1.2" xref="S1.F1.5.m1.1.1.2.cmml">E</mi><mi id="S1.F1.5.m1.1.1.3" xref="S1.F1.5.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S1.F1.5.m1.1c"><apply id="S1.F1.5.m1.1.1.cmml" xref="S1.F1.5.m1.1.1"><csymbol cd="ambiguous" id="S1.F1.5.m1.1.1.1.cmml" xref="S1.F1.5.m1.1.1">subscript</csymbol><ci id="S1.F1.5.m1.1.1.2.cmml" xref="S1.F1.5.m1.1.1.2">𝐸</ci><ci id="S1.F1.5.m1.1.1.3.cmml" xref="S1.F1.5.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.F1.5.m1.1d">E_{i}</annotation></semantics></math> is the <math id="S1.F1.6.m2.1" class="ltx_Math" alttext="i_{th}" display="inline"><semantics id="S1.F1.6.m2.1b"><msub id="S1.F1.6.m2.1.1" xref="S1.F1.6.m2.1.1.cmml"><mi id="S1.F1.6.m2.1.1.2" xref="S1.F1.6.m2.1.1.2.cmml">i</mi><mrow id="S1.F1.6.m2.1.1.3" xref="S1.F1.6.m2.1.1.3.cmml"><mi id="S1.F1.6.m2.1.1.3.2" xref="S1.F1.6.m2.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S1.F1.6.m2.1.1.3.1" xref="S1.F1.6.m2.1.1.3.1.cmml">​</mo><mi id="S1.F1.6.m2.1.1.3.3" xref="S1.F1.6.m2.1.1.3.3.cmml">h</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S1.F1.6.m2.1c"><apply id="S1.F1.6.m2.1.1.cmml" xref="S1.F1.6.m2.1.1"><csymbol cd="ambiguous" id="S1.F1.6.m2.1.1.1.cmml" xref="S1.F1.6.m2.1.1">subscript</csymbol><ci id="S1.F1.6.m2.1.1.2.cmml" xref="S1.F1.6.m2.1.1.2">𝑖</ci><apply id="S1.F1.6.m2.1.1.3.cmml" xref="S1.F1.6.m2.1.1.3"><times id="S1.F1.6.m2.1.1.3.1.cmml" xref="S1.F1.6.m2.1.1.3.1"></times><ci id="S1.F1.6.m2.1.1.3.2.cmml" xref="S1.F1.6.m2.1.1.3.2">𝑡</ci><ci id="S1.F1.6.m2.1.1.3.3.cmml" xref="S1.F1.6.m2.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.F1.6.m2.1d">i_{th}</annotation></semantics></math> feature encoder and <math id="S1.F1.7.m3.1" class="ltx_Math" alttext="D_{i}" display="inline"><semantics id="S1.F1.7.m3.1b"><msub id="S1.F1.7.m3.1.1" xref="S1.F1.7.m3.1.1.cmml"><mi id="S1.F1.7.m3.1.1.2" xref="S1.F1.7.m3.1.1.2.cmml">D</mi><mi id="S1.F1.7.m3.1.1.3" xref="S1.F1.7.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S1.F1.7.m3.1c"><apply id="S1.F1.7.m3.1.1.cmml" xref="S1.F1.7.m3.1.1"><csymbol cd="ambiguous" id="S1.F1.7.m3.1.1.1.cmml" xref="S1.F1.7.m3.1.1">subscript</csymbol><ci id="S1.F1.7.m3.1.1.2.cmml" xref="S1.F1.7.m3.1.1.2">𝐷</ci><ci id="S1.F1.7.m3.1.1.3.cmml" xref="S1.F1.7.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.F1.7.m3.1d">D_{i}</annotation></semantics></math> is the <math id="S1.F1.8.m4.1" class="ltx_Math" alttext="i_{th}" display="inline"><semantics id="S1.F1.8.m4.1b"><msub id="S1.F1.8.m4.1.1" xref="S1.F1.8.m4.1.1.cmml"><mi id="S1.F1.8.m4.1.1.2" xref="S1.F1.8.m4.1.1.2.cmml">i</mi><mrow id="S1.F1.8.m4.1.1.3" xref="S1.F1.8.m4.1.1.3.cmml"><mi id="S1.F1.8.m4.1.1.3.2" xref="S1.F1.8.m4.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S1.F1.8.m4.1.1.3.1" xref="S1.F1.8.m4.1.1.3.1.cmml">​</mo><mi id="S1.F1.8.m4.1.1.3.3" xref="S1.F1.8.m4.1.1.3.3.cmml">h</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S1.F1.8.m4.1c"><apply id="S1.F1.8.m4.1.1.cmml" xref="S1.F1.8.m4.1.1"><csymbol cd="ambiguous" id="S1.F1.8.m4.1.1.1.cmml" xref="S1.F1.8.m4.1.1">subscript</csymbol><ci id="S1.F1.8.m4.1.1.2.cmml" xref="S1.F1.8.m4.1.1.2">𝑖</ci><apply id="S1.F1.8.m4.1.1.3.cmml" xref="S1.F1.8.m4.1.1.3"><times id="S1.F1.8.m4.1.1.3.1.cmml" xref="S1.F1.8.m4.1.1.3.1"></times><ci id="S1.F1.8.m4.1.1.3.2.cmml" xref="S1.F1.8.m4.1.1.3.2">𝑡</ci><ci id="S1.F1.8.m4.1.1.3.3.cmml" xref="S1.F1.8.m4.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.F1.8.m4.1d">i_{th}</annotation></semantics></math> decoder.</figcaption>
+</figure>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Recently, advantage in unsupervised and self-supervised learning narrows the gap in understanding medical images’ context, modality without knowing the tasks. Self-supervised pre-training learns the intrinsic features of images in local clients without labels, embodying less label-specific inductive bias and thus, less susceptible to label distribution skewness. The proposed method learns visual representations more effectively across non-IID clients, even when data are limited at some clients. No task was reveal to server and still, pretrained model learn semantic information of domain knowledge which can be used for few-shot learning at each FL sites.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">To the best of authors’ knowledge, many related works assume that the center model knows all, or at least some tasks and possible labels of local clients<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite><cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>. We address the challenges of data heterogeneity and tasks anonymous by proposing a novel SSL-FL framework, following the unsupervised federated learning setting in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>. It tackles the non-iid data issue using vision mamba to employ masked image modeling as the self-supervised task, which are efficient in processing long sequences non-iid data because of its convolutional and near-linear computation. The proposed pre-training scheme significantly advances the capability of federated models over
+highly heterogeneous data partitions. We also propose a novel client-specific fine tuning framework using low rank adaptation, enabling the existing client to achieve high prediction performance by fintuning only 2% of the pretrained model.
+Moreover, We show that our framework is robust to merging new institutes as well as new task.
+Our main contribution are summarized as follows:
+</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">We define a new problem setting in federated learning involving task-agnostic between clients and server. Along with that, we proposed a simple yet powerful approach to address task-agnostic challenges at FL clients using self-supervised pretraining. After the pretraining, we are able to transfer the knowledge to the target tasks by a efficient fine-tuning implementation.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">Using real-world datasets, we show that the combined framework robust to multiple tasks as it achieves up 90% of SSL central training performance in term of F1 and accuracy with only their own data and outperforms the central model in segmentation tasks. It is found in the experiments that tasks with less data benefits more from federated pretraining.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">II </span><span id="S2.1.1" class="ltx_text ltx_font_smallcaps">Related Works</span>
+</h2>
+
+<div id="S2.p1" class="ltx_para ltx_noindent">
+<p id="S2.p1.1" class="ltx_p"><span id="S2.p1.1.1" class="ltx_text ltx_font_bold">Client-Heterogeneity in Federated Learning.</span> As a decentralized approach, FL suffers from performance degradation due to client heterogeneity <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>.
+While several research efforts <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> have
+been devoted to addressing the challenges caused by data
+heterogeneity, task heterogeneity have not been well investigated in literature.
+Moreover, the success of such models largely relies on supervised ImageNet pre-training, which could suffer from domain discrepancy when fine-tuning with medical images and can be further improved by self-supervised pre-training on a centrally shared large-scale in-domain medical dataset <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>.
+However, such centrally shared datasets rarely exist in the medical domain due to privacy and ownership concerns. Therefore, it is desired to build a self-supervised FL framework that collaboratively learns a global model by leveraging all available unlabeled data without sharing data among institutions.</p>
+</div>
+<div id="S2.p2" class="ltx_para ltx_noindent">
+<p id="S2.p2.1" class="ltx_p"><span id="S2.p2.1.1" class="ltx_text ltx_font_bold">Vision Foundation model and fine-tuning</span> Understand medical images without labels is a long-standing problem. At current state, label deficiency is a common challenge in medical imaging.
+To address this issue, various approaches such as semi-supervised and self-supervised learning methods <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib37" title="" class="ltx_ref">37</a>]</cite><cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib38" title="" class="ltx_ref">38</a>]</cite><cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib39" title="" class="ltx_ref">39</a>]</cite><cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib40" title="" class="ltx_ref">40</a>]</cite> have been proposed to allow models to learn from partially labeled or unlabeled data. This work make use of advantage in SSL on FL systems for task-agnostic settings.</p>
+</div>
+<div id="S2.p3" class="ltx_para">
+<p id="S2.p3.1" class="ltx_p">Specifically, large model fine-tuning and the use of adapters are evolving learning methods and pivotal strategies in the field of large language model<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, vision model<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, and vision language model<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>. These approaches are designed to tailor pre-trained models to specific tasks or datasets with relatively minimal computational cost and data requirements.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">III </span><span id="S3.1.1" class="ltx_text ltx_font_smallcaps">Problem Statement</span>
+</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.4" class="ltx_p">Suppose there are <math id="S3.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{N}" display="inline"><semantics id="S3.p1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S3.p1.1.m1.1.1" xref="S3.p1.1.m1.1.1.cmml">𝒩</mi><annotation-xml encoding="MathML-Content" id="S3.p1.1.m1.1b"><ci id="S3.p1.1.m1.1.1.cmml" xref="S3.p1.1.m1.1.1">𝒩</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.1.m1.1c">\mathcal{N}</annotation></semantics></math> distributed clients and one centralized server in a federated system. Each client has a private dataset <math id="S3.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{D}" display="inline"><semantics id="S3.p1.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S3.p1.2.m2.1.1" xref="S3.p1.2.m2.1.1.cmml">𝒟</mi><annotation-xml encoding="MathML-Content" id="S3.p1.2.m2.1b"><ci id="S3.p1.2.m2.1.1.cmml" xref="S3.p1.2.m2.1.1">𝒟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.2.m2.1c">\mathcal{D}</annotation></semantics></math> and performs multiple private tasks <math id="S3.p1.3.m3.2" class="ltx_Math" alttext="\mathcal{T}=\{\mathcal{T}_{1},...\mathcal{T}_{k}\}" display="inline"><semantics id="S3.p1.3.m3.2a"><mrow id="S3.p1.3.m3.2.2" xref="S3.p1.3.m3.2.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S3.p1.3.m3.2.2.4" xref="S3.p1.3.m3.2.2.4.cmml">𝒯</mi><mo id="S3.p1.3.m3.2.2.3" xref="S3.p1.3.m3.2.2.3.cmml">=</mo><mrow id="S3.p1.3.m3.2.2.2.2" xref="S3.p1.3.m3.2.2.2.3.cmml"><mo stretchy="false" id="S3.p1.3.m3.2.2.2.2.3" xref="S3.p1.3.m3.2.2.2.3.cmml">{</mo><msub id="S3.p1.3.m3.1.1.1.1.1" xref="S3.p1.3.m3.1.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S3.p1.3.m3.1.1.1.1.1.2" xref="S3.p1.3.m3.1.1.1.1.1.2.cmml">𝒯</mi><mn id="S3.p1.3.m3.1.1.1.1.1.3" xref="S3.p1.3.m3.1.1.1.1.1.3.cmml">1</mn></msub><mo id="S3.p1.3.m3.2.2.2.2.4" xref="S3.p1.3.m3.2.2.2.3.cmml">,</mo><mrow id="S3.p1.3.m3.2.2.2.2.2" xref="S3.p1.3.m3.2.2.2.2.2.cmml"><mi mathvariant="normal" id="S3.p1.3.m3.2.2.2.2.2.2" xref="S3.p1.3.m3.2.2.2.2.2.2.cmml">…</mi><mo lspace="0em" rspace="0em" id="S3.p1.3.m3.2.2.2.2.2.1" xref="S3.p1.3.m3.2.2.2.2.2.1.cmml">​</mo><msub id="S3.p1.3.m3.2.2.2.2.2.3" xref="S3.p1.3.m3.2.2.2.2.2.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S3.p1.3.m3.2.2.2.2.2.3.2" xref="S3.p1.3.m3.2.2.2.2.2.3.2.cmml">𝒯</mi><mi id="S3.p1.3.m3.2.2.2.2.2.3.3" xref="S3.p1.3.m3.2.2.2.2.2.3.3.cmml">k</mi></msub></mrow><mo stretchy="false" id="S3.p1.3.m3.2.2.2.2.5" xref="S3.p1.3.m3.2.2.2.3.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.p1.3.m3.2b"><apply id="S3.p1.3.m3.2.2.cmml" xref="S3.p1.3.m3.2.2"><eq id="S3.p1.3.m3.2.2.3.cmml" xref="S3.p1.3.m3.2.2.3"></eq><ci id="S3.p1.3.m3.2.2.4.cmml" xref="S3.p1.3.m3.2.2.4">𝒯</ci><set id="S3.p1.3.m3.2.2.2.3.cmml" xref="S3.p1.3.m3.2.2.2.2"><apply id="S3.p1.3.m3.1.1.1.1.1.cmml" xref="S3.p1.3.m3.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.p1.3.m3.1.1.1.1.1.1.cmml" xref="S3.p1.3.m3.1.1.1.1.1">subscript</csymbol><ci id="S3.p1.3.m3.1.1.1.1.1.2.cmml" xref="S3.p1.3.m3.1.1.1.1.1.2">𝒯</ci><cn type="integer" id="S3.p1.3.m3.1.1.1.1.1.3.cmml" xref="S3.p1.3.m3.1.1.1.1.1.3">1</cn></apply><apply id="S3.p1.3.m3.2.2.2.2.2.cmml" xref="S3.p1.3.m3.2.2.2.2.2"><times id="S3.p1.3.m3.2.2.2.2.2.1.cmml" xref="S3.p1.3.m3.2.2.2.2.2.1"></times><ci id="S3.p1.3.m3.2.2.2.2.2.2.cmml" xref="S3.p1.3.m3.2.2.2.2.2.2">…</ci><apply id="S3.p1.3.m3.2.2.2.2.2.3.cmml" xref="S3.p1.3.m3.2.2.2.2.2.3"><csymbol cd="ambiguous" id="S3.p1.3.m3.2.2.2.2.2.3.1.cmml" xref="S3.p1.3.m3.2.2.2.2.2.3">subscript</csymbol><ci id="S3.p1.3.m3.2.2.2.2.2.3.2.cmml" xref="S3.p1.3.m3.2.2.2.2.2.3.2">𝒯</ci><ci id="S3.p1.3.m3.2.2.2.2.2.3.3.cmml" xref="S3.p1.3.m3.2.2.2.2.2.3.3">𝑘</ci></apply></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.3.m3.2c">\mathcal{T}=\{\mathcal{T}_{1},...\mathcal{T}_{k}\}</annotation></semantics></math> with the dataset they have. The server neither have access to <math id="S3.p1.4.m4.1" class="ltx_Math" alttext="\mathcal{D}" display="inline"><semantics id="S3.p1.4.m4.1a"><mi class="ltx_font_mathcaligraphic" id="S3.p1.4.m4.1.1" xref="S3.p1.4.m4.1.1.cmml">𝒟</mi><annotation-xml encoding="MathML-Content" id="S3.p1.4.m4.1b"><ci id="S3.p1.4.m4.1.1.cmml" xref="S3.p1.4.m4.1.1">𝒟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.4.m4.1c">\mathcal{D}</annotation></semantics></math> nor knows the underlining tasks. Take advantage of un-labeled data from multi-modality and anonymous tasks at clients, we want to boost the performance of each clients compare with local supervision.
+There are similar works on multi-task federated learning that aggregate observed tasks but the server must know beforehand every possible tasks of clients.
+With identical SSL-FL architecture, address non-IID and data heterogeneity problem, on a single task.
+Unlike any previous works, we introduce a strictly constrained problem involved task-related leakage concerns at federated server.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">To address this problem, we assume that there is a unified block that is compromised among clients and server, which have to be feature encoder. In this work, we pre-trained the feature encoder at clients and aggregate it on server to generalize the feature space with out-of-distribution data and tasks.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">IV </span><span id="S4.1.1" class="ltx_text ltx_font_smallcaps">Methodology</span>
+</h2>
+
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS1.4.1.1" class="ltx_text">IV-A</span> </span><span id="S4.SS1.5.2" class="ltx_text ltx_font_italic">SSL-FL Pre-training</span>
+</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.3" class="ltx_p">During the pre-training phase, each local model, indexed by <math id="S4.SS1.p1.1.m1.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S4.SS1.p1.1.m1.1a"><mi id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.1b"><ci id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.1c">i</annotation></semantics></math>, functions as an autoencoder with an encoder <math id="S4.SS1.p1.2.m2.1" class="ltx_Math" alttext="E_{i}" display="inline"><semantics id="S4.SS1.p1.2.m2.1a"><msub id="S4.SS1.p1.2.m2.1.1" xref="S4.SS1.p1.2.m2.1.1.cmml"><mi id="S4.SS1.p1.2.m2.1.1.2" xref="S4.SS1.p1.2.m2.1.1.2.cmml">E</mi><mi id="S4.SS1.p1.2.m2.1.1.3" xref="S4.SS1.p1.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.2.m2.1b"><apply id="S4.SS1.p1.2.m2.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.2.m2.1.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1">subscript</csymbol><ci id="S4.SS1.p1.2.m2.1.1.2.cmml" xref="S4.SS1.p1.2.m2.1.1.2">𝐸</ci><ci id="S4.SS1.p1.2.m2.1.1.3.cmml" xref="S4.SS1.p1.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.2.m2.1c">E_{i}</annotation></semantics></math> and a decoder <math id="S4.SS1.p1.3.m3.1" class="ltx_Math" alttext="D_{i}" display="inline"><semantics id="S4.SS1.p1.3.m3.1a"><msub id="S4.SS1.p1.3.m3.1.1" xref="S4.SS1.p1.3.m3.1.1.cmml"><mi id="S4.SS1.p1.3.m3.1.1.2" xref="S4.SS1.p1.3.m3.1.1.2.cmml">D</mi><mi id="S4.SS1.p1.3.m3.1.1.3" xref="S4.SS1.p1.3.m3.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.3.m3.1b"><apply id="S4.SS1.p1.3.m3.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS1.p1.3.m3.1.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1">subscript</csymbol><ci id="S4.SS1.p1.3.m3.1.1.2.cmml" xref="S4.SS1.p1.3.m3.1.1.2">𝐷</ci><ci id="S4.SS1.p1.3.m3.1.1.3.cmml" xref="S4.SS1.p1.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.3.m3.1c">D_{i}</annotation></semantics></math>. This involves masked image modeling, where some image patches are masked and the original signals in these patches are reconstructed <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>. The encoder in a Vision Transformer processes image patches using multiple layers of self-attention and feed-forward networks to encode complex features and contextual relationships. The decoder reconstructs the original image from these encoded features, utilizing similar layers to generate predictions.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para">
+<p id="S4.SS1.p2.6" class="ltx_p">Each local encoder <math id="S4.SS1.p2.1.m1.1" class="ltx_Math" alttext="E_{i}" display="inline"><semantics id="S4.SS1.p2.1.m1.1a"><msub id="S4.SS1.p2.1.m1.1.1" xref="S4.SS1.p2.1.m1.1.1.cmml"><mi id="S4.SS1.p2.1.m1.1.1.2" xref="S4.SS1.p2.1.m1.1.1.2.cmml">E</mi><mi id="S4.SS1.p2.1.m1.1.1.3" xref="S4.SS1.p2.1.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.1.m1.1b"><apply id="S4.SS1.p2.1.m1.1.1.cmml" xref="S4.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p2.1.m1.1.1.1.cmml" xref="S4.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S4.SS1.p2.1.m1.1.1.2.cmml" xref="S4.SS1.p2.1.m1.1.1.2">𝐸</ci><ci id="S4.SS1.p2.1.m1.1.1.3.cmml" xref="S4.SS1.p2.1.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.1.m1.1c">E_{i}</annotation></semantics></math> and decoder <math id="S4.SS1.p2.2.m2.1" class="ltx_Math" alttext="D_{i}" display="inline"><semantics id="S4.SS1.p2.2.m2.1a"><msub id="S4.SS1.p2.2.m2.1.1" xref="S4.SS1.p2.2.m2.1.1.cmml"><mi id="S4.SS1.p2.2.m2.1.1.2" xref="S4.SS1.p2.2.m2.1.1.2.cmml">D</mi><mi id="S4.SS1.p2.2.m2.1.1.3" xref="S4.SS1.p2.2.m2.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.2.m2.1b"><apply id="S4.SS1.p2.2.m2.1.1.cmml" xref="S4.SS1.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p2.2.m2.1.1.1.cmml" xref="S4.SS1.p2.2.m2.1.1">subscript</csymbol><ci id="S4.SS1.p2.2.m2.1.1.2.cmml" xref="S4.SS1.p2.2.m2.1.1.2">𝐷</ci><ci id="S4.SS1.p2.2.m2.1.1.3.cmml" xref="S4.SS1.p2.2.m2.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.2.m2.1c">D_{i}</annotation></semantics></math> are trained with local data <math id="S4.SS1.p2.3.m3.1" class="ltx_Math" alttext="D^{i}" display="inline"><semantics id="S4.SS1.p2.3.m3.1a"><msup id="S4.SS1.p2.3.m3.1.1" xref="S4.SS1.p2.3.m3.1.1.cmml"><mi id="S4.SS1.p2.3.m3.1.1.2" xref="S4.SS1.p2.3.m3.1.1.2.cmml">D</mi><mi id="S4.SS1.p2.3.m3.1.1.3" xref="S4.SS1.p2.3.m3.1.1.3.cmml">i</mi></msup><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.3.m3.1b"><apply id="S4.SS1.p2.3.m3.1.1.cmml" xref="S4.SS1.p2.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS1.p2.3.m3.1.1.1.cmml" xref="S4.SS1.p2.3.m3.1.1">superscript</csymbol><ci id="S4.SS1.p2.3.m3.1.1.2.cmml" xref="S4.SS1.p2.3.m3.1.1.2">𝐷</ci><ci id="S4.SS1.p2.3.m3.1.1.3.cmml" xref="S4.SS1.p2.3.m3.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.3.m3.1c">D^{i}</annotation></semantics></math> to minimize the local objective function <math id="S4.SS1.p2.4.m4.4" class="ltx_Math" alttext="L_{i}(w)=\mathbb{E}_{x\sim\mathcal{X}^{i}}\big{[}l_{k}\big{(}w;\boldsymbol{x}\big{)}\big{]}" display="inline"><semantics id="S4.SS1.p2.4.m4.4a"><mrow id="S4.SS1.p2.4.m4.4.4" xref="S4.SS1.p2.4.m4.4.4.cmml"><mrow id="S4.SS1.p2.4.m4.4.4.3" xref="S4.SS1.p2.4.m4.4.4.3.cmml"><msub id="S4.SS1.p2.4.m4.4.4.3.2" xref="S4.SS1.p2.4.m4.4.4.3.2.cmml"><mi id="S4.SS1.p2.4.m4.4.4.3.2.2" xref="S4.SS1.p2.4.m4.4.4.3.2.2.cmml">L</mi><mi id="S4.SS1.p2.4.m4.4.4.3.2.3" xref="S4.SS1.p2.4.m4.4.4.3.2.3.cmml">i</mi></msub><mo lspace="0em" rspace="0em" id="S4.SS1.p2.4.m4.4.4.3.1" xref="S4.SS1.p2.4.m4.4.4.3.1.cmml">​</mo><mrow id="S4.SS1.p2.4.m4.4.4.3.3.2" xref="S4.SS1.p2.4.m4.4.4.3.cmml"><mo stretchy="false" id="S4.SS1.p2.4.m4.4.4.3.3.2.1" xref="S4.SS1.p2.4.m4.4.4.3.cmml">(</mo><mi id="S4.SS1.p2.4.m4.1.1" xref="S4.SS1.p2.4.m4.1.1.cmml">w</mi><mo stretchy="false" id="S4.SS1.p2.4.m4.4.4.3.3.2.2" xref="S4.SS1.p2.4.m4.4.4.3.cmml">)</mo></mrow></mrow><mo id="S4.SS1.p2.4.m4.4.4.2" xref="S4.SS1.p2.4.m4.4.4.2.cmml">=</mo><mrow id="S4.SS1.p2.4.m4.4.4.1" xref="S4.SS1.p2.4.m4.4.4.1.cmml"><msub id="S4.SS1.p2.4.m4.4.4.1.3" xref="S4.SS1.p2.4.m4.4.4.1.3.cmml"><mi id="S4.SS1.p2.4.m4.4.4.1.3.2" xref="S4.SS1.p2.4.m4.4.4.1.3.2.cmml">𝔼</mi><mrow id="S4.SS1.p2.4.m4.4.4.1.3.3" xref="S4.SS1.p2.4.m4.4.4.1.3.3.cmml"><mi id="S4.SS1.p2.4.m4.4.4.1.3.3.2" xref="S4.SS1.p2.4.m4.4.4.1.3.3.2.cmml">x</mi><mo id="S4.SS1.p2.4.m4.4.4.1.3.3.1" xref="S4.SS1.p2.4.m4.4.4.1.3.3.1.cmml">∼</mo><msup id="S4.SS1.p2.4.m4.4.4.1.3.3.3" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS1.p2.4.m4.4.4.1.3.3.3.2" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3.2.cmml">𝒳</mi><mi id="S4.SS1.p2.4.m4.4.4.1.3.3.3.3" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3.3.cmml">i</mi></msup></mrow></msub><mo lspace="0em" rspace="0em" id="S4.SS1.p2.4.m4.4.4.1.2" xref="S4.SS1.p2.4.m4.4.4.1.2.cmml">​</mo><mrow id="S4.SS1.p2.4.m4.4.4.1.1.1" xref="S4.SS1.p2.4.m4.4.4.1.1.2.cmml"><mo maxsize="120%" minsize="120%" id="S4.SS1.p2.4.m4.4.4.1.1.1.2" xref="S4.SS1.p2.4.m4.4.4.1.1.2.1.cmml">[</mo><mrow id="S4.SS1.p2.4.m4.4.4.1.1.1.1" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.cmml"><msub id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.cmml"><mi id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.2" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.2.cmml">l</mi><mi id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.3" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S4.SS1.p2.4.m4.4.4.1.1.1.1.1" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.1.cmml">​</mo><mrow id="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.2" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.1.cmml"><mo maxsize="120%" minsize="120%" id="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.2.1" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.1.cmml">(</mo><mi id="S4.SS1.p2.4.m4.2.2" xref="S4.SS1.p2.4.m4.2.2.cmml">w</mi><mo id="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.2.2" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.1.cmml">;</mo><mi id="S4.SS1.p2.4.m4.3.3" xref="S4.SS1.p2.4.m4.3.3.cmml">𝒙</mi><mo maxsize="120%" minsize="120%" id="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.2.3" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.1.cmml">)</mo></mrow></mrow><mo maxsize="120%" minsize="120%" id="S4.SS1.p2.4.m4.4.4.1.1.1.3" xref="S4.SS1.p2.4.m4.4.4.1.1.2.1.cmml">]</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.4.m4.4b"><apply id="S4.SS1.p2.4.m4.4.4.cmml" xref="S4.SS1.p2.4.m4.4.4"><eq id="S4.SS1.p2.4.m4.4.4.2.cmml" xref="S4.SS1.p2.4.m4.4.4.2"></eq><apply id="S4.SS1.p2.4.m4.4.4.3.cmml" xref="S4.SS1.p2.4.m4.4.4.3"><times id="S4.SS1.p2.4.m4.4.4.3.1.cmml" xref="S4.SS1.p2.4.m4.4.4.3.1"></times><apply id="S4.SS1.p2.4.m4.4.4.3.2.cmml" xref="S4.SS1.p2.4.m4.4.4.3.2"><csymbol cd="ambiguous" id="S4.SS1.p2.4.m4.4.4.3.2.1.cmml" xref="S4.SS1.p2.4.m4.4.4.3.2">subscript</csymbol><ci id="S4.SS1.p2.4.m4.4.4.3.2.2.cmml" xref="S4.SS1.p2.4.m4.4.4.3.2.2">𝐿</ci><ci id="S4.SS1.p2.4.m4.4.4.3.2.3.cmml" xref="S4.SS1.p2.4.m4.4.4.3.2.3">𝑖</ci></apply><ci id="S4.SS1.p2.4.m4.1.1.cmml" xref="S4.SS1.p2.4.m4.1.1">𝑤</ci></apply><apply id="S4.SS1.p2.4.m4.4.4.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1"><times id="S4.SS1.p2.4.m4.4.4.1.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.2"></times><apply id="S4.SS1.p2.4.m4.4.4.1.3.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3"><csymbol cd="ambiguous" id="S4.SS1.p2.4.m4.4.4.1.3.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3">subscript</csymbol><ci id="S4.SS1.p2.4.m4.4.4.1.3.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.2">𝔼</ci><apply id="S4.SS1.p2.4.m4.4.4.1.3.3.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3"><csymbol cd="latexml" id="S4.SS1.p2.4.m4.4.4.1.3.3.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.1">similar-to</csymbol><ci id="S4.SS1.p2.4.m4.4.4.1.3.3.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.2">𝑥</ci><apply id="S4.SS1.p2.4.m4.4.4.1.3.3.3.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3"><csymbol cd="ambiguous" id="S4.SS1.p2.4.m4.4.4.1.3.3.3.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3">superscript</csymbol><ci id="S4.SS1.p2.4.m4.4.4.1.3.3.3.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3.2">𝒳</ci><ci id="S4.SS1.p2.4.m4.4.4.1.3.3.3.3.cmml" xref="S4.SS1.p2.4.m4.4.4.1.3.3.3.3">𝑖</ci></apply></apply></apply><apply id="S4.SS1.p2.4.m4.4.4.1.1.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1"><csymbol cd="latexml" id="S4.SS1.p2.4.m4.4.4.1.1.2.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.2">delimited-[]</csymbol><apply id="S4.SS1.p2.4.m4.4.4.1.1.1.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1"><times id="S4.SS1.p2.4.m4.4.4.1.1.1.1.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.1"></times><apply id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2"><csymbol cd="ambiguous" id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2">subscript</csymbol><ci id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.2.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.2">𝑙</ci><ci id="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.3.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.2.3">𝑘</ci></apply><list id="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.1.cmml" xref="S4.SS1.p2.4.m4.4.4.1.1.1.1.3.2"><ci id="S4.SS1.p2.4.m4.2.2.cmml" xref="S4.SS1.p2.4.m4.2.2">𝑤</ci><ci id="S4.SS1.p2.4.m4.3.3.cmml" xref="S4.SS1.p2.4.m4.3.3">𝒙</ci></list></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.4.m4.4c">L_{i}(w)=\mathbb{E}_{x\sim\mathcal{X}^{i}}\big{[}l_{k}\big{(}w;\boldsymbol{x}\big{)}\big{]}</annotation></semantics></math>, where <math id="S4.SS1.p2.5.m5.1" class="ltx_Math" alttext="l_{i}" display="inline"><semantics id="S4.SS1.p2.5.m5.1a"><msub id="S4.SS1.p2.5.m5.1.1" xref="S4.SS1.p2.5.m5.1.1.cmml"><mi id="S4.SS1.p2.5.m5.1.1.2" xref="S4.SS1.p2.5.m5.1.1.2.cmml">l</mi><mi id="S4.SS1.p2.5.m5.1.1.3" xref="S4.SS1.p2.5.m5.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.5.m5.1b"><apply id="S4.SS1.p2.5.m5.1.1.cmml" xref="S4.SS1.p2.5.m5.1.1"><csymbol cd="ambiguous" id="S4.SS1.p2.5.m5.1.1.1.cmml" xref="S4.SS1.p2.5.m5.1.1">subscript</csymbol><ci id="S4.SS1.p2.5.m5.1.1.2.cmml" xref="S4.SS1.p2.5.m5.1.1.2">𝑙</ci><ci id="S4.SS1.p2.5.m5.1.1.3.cmml" xref="S4.SS1.p2.5.m5.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.5.m5.1c">l_{i}</annotation></semantics></math> is the mean squared error of the predicted pixel values of the masked patches. The local loss function <math id="S4.SS1.p2.6.m6.1" class="ltx_Math" alttext="l_{k}" display="inline"><semantics id="S4.SS1.p2.6.m6.1a"><msub id="S4.SS1.p2.6.m6.1.1" xref="S4.SS1.p2.6.m6.1.1.cmml"><mi id="S4.SS1.p2.6.m6.1.1.2" xref="S4.SS1.p2.6.m6.1.1.2.cmml">l</mi><mi id="S4.SS1.p2.6.m6.1.1.3" xref="S4.SS1.p2.6.m6.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.6.m6.1b"><apply id="S4.SS1.p2.6.m6.1.1.cmml" xref="S4.SS1.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S4.SS1.p2.6.m6.1.1.1.cmml" xref="S4.SS1.p2.6.m6.1.1">subscript</csymbol><ci id="S4.SS1.p2.6.m6.1.1.2.cmml" xref="S4.SS1.p2.6.m6.1.1.2">𝑙</ci><ci id="S4.SS1.p2.6.m6.1.1.3.cmml" xref="S4.SS1.p2.6.m6.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.6.m6.1c">l_{k}</annotation></semantics></math> is given by:</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para">
+<table id="S4.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex1.m1.3" class="ltx_Math" alttext="l_{k}=\sum_{j\in\mathcal{P}}\frac{1}{|\mathcal{P}|}((\boldsymbol{x}_{p}^{j}-\hat{\boldsymbol{x}}_{p}^{j})^{2};w)" display="block"><semantics id="S4.Ex1.m1.3a"><mrow id="S4.Ex1.m1.3.3" xref="S4.Ex1.m1.3.3.cmml"><msub id="S4.Ex1.m1.3.3.3" xref="S4.Ex1.m1.3.3.3.cmml"><mi id="S4.Ex1.m1.3.3.3.2" xref="S4.Ex1.m1.3.3.3.2.cmml">l</mi><mi id="S4.Ex1.m1.3.3.3.3" xref="S4.Ex1.m1.3.3.3.3.cmml">k</mi></msub><mo rspace="0.111em" id="S4.Ex1.m1.3.3.2" xref="S4.Ex1.m1.3.3.2.cmml">=</mo><mrow id="S4.Ex1.m1.3.3.1" xref="S4.Ex1.m1.3.3.1.cmml"><munder id="S4.Ex1.m1.3.3.1.2" xref="S4.Ex1.m1.3.3.1.2.cmml"><mo movablelimits="false" id="S4.Ex1.m1.3.3.1.2.2" xref="S4.Ex1.m1.3.3.1.2.2.cmml">∑</mo><mrow id="S4.Ex1.m1.3.3.1.2.3" xref="S4.Ex1.m1.3.3.1.2.3.cmml"><mi id="S4.Ex1.m1.3.3.1.2.3.2" xref="S4.Ex1.m1.3.3.1.2.3.2.cmml">j</mi><mo id="S4.Ex1.m1.3.3.1.2.3.1" xref="S4.Ex1.m1.3.3.1.2.3.1.cmml">∈</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex1.m1.3.3.1.2.3.3" xref="S4.Ex1.m1.3.3.1.2.3.3.cmml">𝒫</mi></mrow></munder><mrow id="S4.Ex1.m1.3.3.1.1" xref="S4.Ex1.m1.3.3.1.1.cmml"><mfrac id="S4.Ex1.m1.1.1" xref="S4.Ex1.m1.1.1.cmml"><mn id="S4.Ex1.m1.1.1.3" xref="S4.Ex1.m1.1.1.3.cmml">1</mn><mrow id="S4.Ex1.m1.1.1.1.3" xref="S4.Ex1.m1.1.1.1.2.cmml"><mo stretchy="false" id="S4.Ex1.m1.1.1.1.3.1" xref="S4.Ex1.m1.1.1.1.2.1.cmml">|</mo><mi class="ltx_font_mathcaligraphic" id="S4.Ex1.m1.1.1.1.1" xref="S4.Ex1.m1.1.1.1.1.cmml">𝒫</mi><mo stretchy="false" id="S4.Ex1.m1.1.1.1.3.2" xref="S4.Ex1.m1.1.1.1.2.1.cmml">|</mo></mrow></mfrac><mo lspace="0em" rspace="0em" id="S4.Ex1.m1.3.3.1.1.2" xref="S4.Ex1.m1.3.3.1.1.2.cmml">​</mo><mrow id="S4.Ex1.m1.3.3.1.1.1.1" xref="S4.Ex1.m1.3.3.1.1.1.2.cmml"><mo stretchy="false" id="S4.Ex1.m1.3.3.1.1.1.1.2" xref="S4.Ex1.m1.3.3.1.1.1.2.cmml">(</mo><msup id="S4.Ex1.m1.3.3.1.1.1.1.1" xref="S4.Ex1.m1.3.3.1.1.1.1.1.cmml"><mrow id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.2" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.cmml"><msubsup id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.cmml"><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2.cmml">𝒙</mi><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.cmml">p</mi><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.3.cmml">j</mi></msubsup><mo id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.1" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.1.cmml">−</mo><msubsup id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.cmml"><mover accent="true" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.cmml"><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.2" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.2.cmml">𝒙</mi><mo id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.1" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.1.cmml">^</mo></mover><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.3.cmml">p</mi><mi id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.3.cmml">j</mi></msubsup></mrow><mo stretchy="false" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.cmml">)</mo></mrow><mn id="S4.Ex1.m1.3.3.1.1.1.1.1.3" xref="S4.Ex1.m1.3.3.1.1.1.1.1.3.cmml">2</mn></msup><mo id="S4.Ex1.m1.3.3.1.1.1.1.3" xref="S4.Ex1.m1.3.3.1.1.1.2.cmml">;</mo><mi id="S4.Ex1.m1.2.2" xref="S4.Ex1.m1.2.2.cmml">w</mi><mo stretchy="false" id="S4.Ex1.m1.3.3.1.1.1.1.4" xref="S4.Ex1.m1.3.3.1.1.1.2.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex1.m1.3b"><apply id="S4.Ex1.m1.3.3.cmml" xref="S4.Ex1.m1.3.3"><eq id="S4.Ex1.m1.3.3.2.cmml" xref="S4.Ex1.m1.3.3.2"></eq><apply id="S4.Ex1.m1.3.3.3.cmml" xref="S4.Ex1.m1.3.3.3"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.3.1.cmml" xref="S4.Ex1.m1.3.3.3">subscript</csymbol><ci id="S4.Ex1.m1.3.3.3.2.cmml" xref="S4.Ex1.m1.3.3.3.2">𝑙</ci><ci id="S4.Ex1.m1.3.3.3.3.cmml" xref="S4.Ex1.m1.3.3.3.3">𝑘</ci></apply><apply id="S4.Ex1.m1.3.3.1.cmml" xref="S4.Ex1.m1.3.3.1"><apply id="S4.Ex1.m1.3.3.1.2.cmml" xref="S4.Ex1.m1.3.3.1.2"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.2.1.cmml" xref="S4.Ex1.m1.3.3.1.2">subscript</csymbol><sum id="S4.Ex1.m1.3.3.1.2.2.cmml" xref="S4.Ex1.m1.3.3.1.2.2"></sum><apply id="S4.Ex1.m1.3.3.1.2.3.cmml" xref="S4.Ex1.m1.3.3.1.2.3"><in id="S4.Ex1.m1.3.3.1.2.3.1.cmml" xref="S4.Ex1.m1.3.3.1.2.3.1"></in><ci id="S4.Ex1.m1.3.3.1.2.3.2.cmml" xref="S4.Ex1.m1.3.3.1.2.3.2">𝑗</ci><ci id="S4.Ex1.m1.3.3.1.2.3.3.cmml" xref="S4.Ex1.m1.3.3.1.2.3.3">𝒫</ci></apply></apply><apply id="S4.Ex1.m1.3.3.1.1.cmml" xref="S4.Ex1.m1.3.3.1.1"><times id="S4.Ex1.m1.3.3.1.1.2.cmml" xref="S4.Ex1.m1.3.3.1.1.2"></times><apply id="S4.Ex1.m1.1.1.cmml" xref="S4.Ex1.m1.1.1"><divide id="S4.Ex1.m1.1.1.2.cmml" xref="S4.Ex1.m1.1.1"></divide><cn type="integer" id="S4.Ex1.m1.1.1.3.cmml" xref="S4.Ex1.m1.1.1.3">1</cn><apply id="S4.Ex1.m1.1.1.1.2.cmml" xref="S4.Ex1.m1.1.1.1.3"><abs id="S4.Ex1.m1.1.1.1.2.1.cmml" xref="S4.Ex1.m1.1.1.1.3.1"></abs><ci id="S4.Ex1.m1.1.1.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1">𝒫</ci></apply></apply><list id="S4.Ex1.m1.3.3.1.1.1.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1"><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.1.1.1.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1">superscript</csymbol><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1"><minus id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.1"></minus><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2">superscript</csymbol><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2">subscript</csymbol><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2">𝒙</ci><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3">𝑝</ci></apply><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.2.3">𝑗</ci></apply><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3">superscript</csymbol><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3">subscript</csymbol><apply id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2"><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.1.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.1">^</ci><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.2.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.2.2">𝒙</ci></apply><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.2.3">𝑝</ci></apply><ci id="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.1.1.1.3.3">𝑗</ci></apply></apply><cn type="integer" id="S4.Ex1.m1.3.3.1.1.1.1.1.3.cmml" xref="S4.Ex1.m1.3.3.1.1.1.1.1.3">2</cn></apply><ci id="S4.Ex1.m1.2.2.cmml" xref="S4.Ex1.m1.2.2">𝑤</ci></list></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex1.m1.3c">l_{k}=\sum_{j\in\mathcal{P}}\frac{1}{|\mathcal{P}|}((\boldsymbol{x}_{p}^{j}-\hat{\boldsymbol{x}}_{p}^{j})^{2};w)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS1.p4" class="ltx_para">
+<p id="S4.SS1.p4.7" class="ltx_p">For pre-training, each local client update its local model <math id="S4.SS1.p4.1.m1.1" class="ltx_Math" alttext="E_{k}" display="inline"><semantics id="S4.SS1.p4.1.m1.1a"><msub id="S4.SS1.p4.1.m1.1.1" xref="S4.SS1.p4.1.m1.1.1.cmml"><mi id="S4.SS1.p4.1.m1.1.1.2" xref="S4.SS1.p4.1.m1.1.1.2.cmml">E</mi><mi id="S4.SS1.p4.1.m1.1.1.3" xref="S4.SS1.p4.1.m1.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.1.m1.1b"><apply id="S4.SS1.p4.1.m1.1.1.cmml" xref="S4.SS1.p4.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.1.m1.1.1.1.cmml" xref="S4.SS1.p4.1.m1.1.1">subscript</csymbol><ci id="S4.SS1.p4.1.m1.1.1.2.cmml" xref="S4.SS1.p4.1.m1.1.1.2">𝐸</ci><ci id="S4.SS1.p4.1.m1.1.1.3.cmml" xref="S4.SS1.p4.1.m1.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.1.m1.1c">E_{k}</annotation></semantics></math> and <math id="S4.SS1.p4.2.m2.1" class="ltx_Math" alttext="D_{k}" display="inline"><semantics id="S4.SS1.p4.2.m2.1a"><msub id="S4.SS1.p4.2.m2.1.1" xref="S4.SS1.p4.2.m2.1.1.cmml"><mi id="S4.SS1.p4.2.m2.1.1.2" xref="S4.SS1.p4.2.m2.1.1.2.cmml">D</mi><mi id="S4.SS1.p4.2.m2.1.1.3" xref="S4.SS1.p4.2.m2.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.2.m2.1b"><apply id="S4.SS1.p4.2.m2.1.1.cmml" xref="S4.SS1.p4.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.2.m2.1.1.1.cmml" xref="S4.SS1.p4.2.m2.1.1">subscript</csymbol><ci id="S4.SS1.p4.2.m2.1.1.2.cmml" xref="S4.SS1.p4.2.m2.1.1.2">𝐷</ci><ci id="S4.SS1.p4.2.m2.1.1.3.cmml" xref="S4.SS1.p4.2.m2.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.2.m2.1c">D_{k}</annotation></semantics></math> by minimizing its own loss <math id="S4.SS1.p4.3.m3.1" class="ltx_Math" alttext="L_{k}" display="inline"><semantics id="S4.SS1.p4.3.m3.1a"><msub id="S4.SS1.p4.3.m3.1.1" xref="S4.SS1.p4.3.m3.1.1.cmml"><mi id="S4.SS1.p4.3.m3.1.1.2" xref="S4.SS1.p4.3.m3.1.1.2.cmml">L</mi><mi id="S4.SS1.p4.3.m3.1.1.3" xref="S4.SS1.p4.3.m3.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.3.m3.1b"><apply id="S4.SS1.p4.3.m3.1.1.cmml" xref="S4.SS1.p4.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.3.m3.1.1.1.cmml" xref="S4.SS1.p4.3.m3.1.1">subscript</csymbol><ci id="S4.SS1.p4.3.m3.1.1.2.cmml" xref="S4.SS1.p4.3.m3.1.1.2">𝐿</ci><ci id="S4.SS1.p4.3.m3.1.1.3.cmml" xref="S4.SS1.p4.3.m3.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.3.m3.1c">L_{k}</annotation></semantics></math> on data <math id="S4.SS1.p4.4.m4.1" class="ltx_Math" alttext="\mathcal{X}^{k}." display="inline"><semantics id="S4.SS1.p4.4.m4.1a"><mrow id="S4.SS1.p4.4.m4.1.1.1" xref="S4.SS1.p4.4.m4.1.1.1.1.cmml"><msup id="S4.SS1.p4.4.m4.1.1.1.1" xref="S4.SS1.p4.4.m4.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS1.p4.4.m4.1.1.1.1.2" xref="S4.SS1.p4.4.m4.1.1.1.1.2.cmml">𝒳</mi><mi id="S4.SS1.p4.4.m4.1.1.1.1.3" xref="S4.SS1.p4.4.m4.1.1.1.1.3.cmml">k</mi></msup><mo lspace="0em" id="S4.SS1.p4.4.m4.1.1.1.2" xref="S4.SS1.p4.4.m4.1.1.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.4.m4.1b"><apply id="S4.SS1.p4.4.m4.1.1.1.1.cmml" xref="S4.SS1.p4.4.m4.1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.4.m4.1.1.1.1.1.cmml" xref="S4.SS1.p4.4.m4.1.1.1">superscript</csymbol><ci id="S4.SS1.p4.4.m4.1.1.1.1.2.cmml" xref="S4.SS1.p4.4.m4.1.1.1.1.2">𝒳</ci><ci id="S4.SS1.p4.4.m4.1.1.1.1.3.cmml" xref="S4.SS1.p4.4.m4.1.1.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.4.m4.1c">\mathcal{X}^{k}.</annotation></semantics></math> Then, the server takes a weighted average of all the resulting local models to update the global model <math id="S4.SS1.p4.5.m5.1" class="ltx_Math" alttext="E_{a}" display="inline"><semantics id="S4.SS1.p4.5.m5.1a"><msub id="S4.SS1.p4.5.m5.1.1" xref="S4.SS1.p4.5.m5.1.1.cmml"><mi id="S4.SS1.p4.5.m5.1.1.2" xref="S4.SS1.p4.5.m5.1.1.2.cmml">E</mi><mi id="S4.SS1.p4.5.m5.1.1.3" xref="S4.SS1.p4.5.m5.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.5.m5.1b"><apply id="S4.SS1.p4.5.m5.1.1.cmml" xref="S4.SS1.p4.5.m5.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.5.m5.1.1.1.cmml" xref="S4.SS1.p4.5.m5.1.1">subscript</csymbol><ci id="S4.SS1.p4.5.m5.1.1.2.cmml" xref="S4.SS1.p4.5.m5.1.1.2">𝐸</ci><ci id="S4.SS1.p4.5.m5.1.1.3.cmml" xref="S4.SS1.p4.5.m5.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.5.m5.1c">E_{a}</annotation></semantics></math> and <math id="S4.SS1.p4.6.m6.1" class="ltx_Math" alttext="D_{a}" display="inline"><semantics id="S4.SS1.p4.6.m6.1a"><msub id="S4.SS1.p4.6.m6.1.1" xref="S4.SS1.p4.6.m6.1.1.cmml"><mi id="S4.SS1.p4.6.m6.1.1.2" xref="S4.SS1.p4.6.m6.1.1.2.cmml">D</mi><mi id="S4.SS1.p4.6.m6.1.1.3" xref="S4.SS1.p4.6.m6.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.6.m6.1b"><apply id="S4.SS1.p4.6.m6.1.1.cmml" xref="S4.SS1.p4.6.m6.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.6.m6.1.1.1.cmml" xref="S4.SS1.p4.6.m6.1.1">subscript</csymbol><ci id="S4.SS1.p4.6.m6.1.1.2.cmml" xref="S4.SS1.p4.6.m6.1.1.2">𝐷</ci><ci id="S4.SS1.p4.6.m6.1.1.3.cmml" xref="S4.SS1.p4.6.m6.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.6.m6.1c">D_{a}</annotation></semantics></math>,which is further sent back to the local clients for the next training iteration.
+Once pre-training is complete, the final pre-trained global encoder <math id="S4.SS1.p4.7.m7.1" class="ltx_Math" alttext="(E_{a}^{*})" display="inline"><semantics id="S4.SS1.p4.7.m7.1a"><mrow id="S4.SS1.p4.7.m7.1.1.1" xref="S4.SS1.p4.7.m7.1.1.1.1.cmml"><mo stretchy="false" id="S4.SS1.p4.7.m7.1.1.1.2" xref="S4.SS1.p4.7.m7.1.1.1.1.cmml">(</mo><msubsup id="S4.SS1.p4.7.m7.1.1.1.1" xref="S4.SS1.p4.7.m7.1.1.1.1.cmml"><mi id="S4.SS1.p4.7.m7.1.1.1.1.2.2" xref="S4.SS1.p4.7.m7.1.1.1.1.2.2.cmml">E</mi><mi id="S4.SS1.p4.7.m7.1.1.1.1.2.3" xref="S4.SS1.p4.7.m7.1.1.1.1.2.3.cmml">a</mi><mo id="S4.SS1.p4.7.m7.1.1.1.1.3" xref="S4.SS1.p4.7.m7.1.1.1.1.3.cmml">∗</mo></msubsup><mo stretchy="false" id="S4.SS1.p4.7.m7.1.1.1.3" xref="S4.SS1.p4.7.m7.1.1.1.1.cmml">)</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p4.7.m7.1b"><apply id="S4.SS1.p4.7.m7.1.1.1.1.cmml" xref="S4.SS1.p4.7.m7.1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.7.m7.1.1.1.1.1.cmml" xref="S4.SS1.p4.7.m7.1.1.1">superscript</csymbol><apply id="S4.SS1.p4.7.m7.1.1.1.1.2.cmml" xref="S4.SS1.p4.7.m7.1.1.1"><csymbol cd="ambiguous" id="S4.SS1.p4.7.m7.1.1.1.1.2.1.cmml" xref="S4.SS1.p4.7.m7.1.1.1">subscript</csymbol><ci id="S4.SS1.p4.7.m7.1.1.1.1.2.2.cmml" xref="S4.SS1.p4.7.m7.1.1.1.1.2.2">𝐸</ci><ci id="S4.SS1.p4.7.m7.1.1.1.1.2.3.cmml" xref="S4.SS1.p4.7.m7.1.1.1.1.2.3">𝑎</ci></apply><times id="S4.SS1.p4.7.m7.1.1.1.1.3.cmml" xref="S4.SS1.p4.7.m7.1.1.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p4.7.m7.1c">(E_{a}^{*})</annotation></semantics></math> is saved.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S4.SS2.4.1.1" class="ltx_text">IV-B</span> </span><span id="S4.SS2.5.2" class="ltx_text ltx_font_italic">Downstream fine-tuning</span>
+</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.3" class="ltx_p">During the federated fine-tuning phase, depicted in Figure 2, we initialize the local encoder
+<math id="S4.SS2.p1.1.m1.1" class="ltx_Math" alttext="E_{k}" display="inline"><semantics id="S4.SS2.p1.1.m1.1a"><msub id="S4.SS2.p1.1.m1.1.1" xref="S4.SS2.p1.1.m1.1.1.cmml"><mi id="S4.SS2.p1.1.m1.1.1.2" xref="S4.SS2.p1.1.m1.1.1.2.cmml">E</mi><mi id="S4.SS2.p1.1.m1.1.1.3" xref="S4.SS2.p1.1.m1.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.1.m1.1b"><apply id="S4.SS2.p1.1.m1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.1.m1.1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1">subscript</csymbol><ci id="S4.SS2.p1.1.m1.1.1.2.cmml" xref="S4.SS2.p1.1.m1.1.1.2">𝐸</ci><ci id="S4.SS2.p1.1.m1.1.1.3.cmml" xref="S4.SS2.p1.1.m1.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.1.m1.1c">E_{k}</annotation></semantics></math>
+of the
+<math id="S4.SS2.p1.2.m2.1" class="ltx_Math" alttext="k_{th}" display="inline"><semantics id="S4.SS2.p1.2.m2.1a"><msub id="S4.SS2.p1.2.m2.1.1" xref="S4.SS2.p1.2.m2.1.1.cmml"><mi id="S4.SS2.p1.2.m2.1.1.2" xref="S4.SS2.p1.2.m2.1.1.2.cmml">k</mi><mrow id="S4.SS2.p1.2.m2.1.1.3" xref="S4.SS2.p1.2.m2.1.1.3.cmml"><mi id="S4.SS2.p1.2.m2.1.1.3.2" xref="S4.SS2.p1.2.m2.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.2.m2.1.1.3.1" xref="S4.SS2.p1.2.m2.1.1.3.1.cmml">​</mo><mi id="S4.SS2.p1.2.m2.1.1.3.3" xref="S4.SS2.p1.2.m2.1.1.3.3.cmml">h</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.2.m2.1b"><apply id="S4.SS2.p1.2.m2.1.1.cmml" xref="S4.SS2.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.2.m2.1.1.1.cmml" xref="S4.SS2.p1.2.m2.1.1">subscript</csymbol><ci id="S4.SS2.p1.2.m2.1.1.2.cmml" xref="S4.SS2.p1.2.m2.1.1.2">𝑘</ci><apply id="S4.SS2.p1.2.m2.1.1.3.cmml" xref="S4.SS2.p1.2.m2.1.1.3"><times id="S4.SS2.p1.2.m2.1.1.3.1.cmml" xref="S4.SS2.p1.2.m2.1.1.3.1"></times><ci id="S4.SS2.p1.2.m2.1.1.3.2.cmml" xref="S4.SS2.p1.2.m2.1.1.3.2">𝑡</ci><ci id="S4.SS2.p1.2.m2.1.1.3.3.cmml" xref="S4.SS2.p1.2.m2.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.2.m2.1c">k_{th}</annotation></semantics></math>
+client with the pretrained global encoder
+<math id="S4.SS2.p1.3.m3.1" class="ltx_Math" alttext="E_{a}" display="inline"><semantics id="S4.SS2.p1.3.m3.1a"><msub id="S4.SS2.p1.3.m3.1.1" xref="S4.SS2.p1.3.m3.1.1.cmml"><mi id="S4.SS2.p1.3.m3.1.1.2" xref="S4.SS2.p1.3.m3.1.1.2.cmml">E</mi><mi id="S4.SS2.p1.3.m3.1.1.3" xref="S4.SS2.p1.3.m3.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.3.m3.1b"><apply id="S4.SS2.p1.3.m3.1.1.cmml" xref="S4.SS2.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.3.m3.1.1.1.cmml" xref="S4.SS2.p1.3.m3.1.1">subscript</csymbol><ci id="S4.SS2.p1.3.m3.1.1.2.cmml" xref="S4.SS2.p1.3.m3.1.1.2">𝐸</ci><ci id="S4.SS2.p1.3.m3.1.1.3.cmml" xref="S4.SS2.p1.3.m3.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.3.m3.1c">E_{a}</annotation></semantics></math>
+acquired from the initial stage. Subsequently, we augment the encoder with a linear downstream task head. The complete model is then fine-tuned using the local labeled data.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p2.1" class="ltx_p"><span id="S4.SS2.p2.1.1" class="ltx_text ltx_font_bold">Classification Task</span> We freeze the weight of pre-trained VIT and add a trainable LoRA adapter, as well as a fully-connected layer, which put on top of pre-trained VIT, for specific classification tasks - Multilabel classification task, Multiclass classification task and binary classification task.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p3.1" class="ltx_p"><span id="S4.SS2.p3.1.1" class="ltx_text ltx_font_bold">Segmentation Task</span> The same pre-trained VIT is applied here for segmentation task. We use of unetr framework<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib42" title="" class="ltx_ref">42</a>]</cite> for our evaluation since unet-family allow pre-trained encoder injected.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">V </span><span id="S5.1.1" class="ltx_text ltx_font_smallcaps">Experiments Implementaion</span>
+</h2>
+
+<section id="S5.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS1.4.1.1" class="ltx_text">V-A</span> </span><span id="S5.SS1.5.2" class="ltx_text ltx_font_italic">Datasets</span>
+</h3>
+
+<div id="S5.SS1.p1" class="ltx_para">
+<p id="S5.SS1.p1.1" class="ltx_p">In this work, we use six public fundus dataset in which the first four datasets are used for in-distribution pretraining and task evaluation. The last twos, LACDHS and JSIEC, act as out-of-distribution (ID) test dataset. These two play a role as out-of-network (OOD) new clients joining federated system. We want to evaluate how well own approach generalize to unseen task and OOD data.</p>
+</div>
+<figure id="S5.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">TABLE I: </span>Statistics of six fundus-image datasets.</figcaption>
+<table id="S5.T1.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T1.1.1.1" class="ltx_tr">
+<th id="S5.T1.1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T1.1.1.1.1.1" class="ltx_text ltx_font_bold">Dataset</span></th>
+<th id="S5.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T1.1.1.1.2.1" class="ltx_text ltx_font_bold">Train</span></th>
+<th id="S5.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S5.T1.1.1.1.3.1" class="ltx_text ltx_font_bold">Test</span></th>
+<th id="S5.T1.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_t"><span id="S5.T1.1.1.1.4.1" class="ltx_text ltx_font_bold">Task</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T1.1.2.1" class="ltx_tr">
+<td id="S5.T1.1.2.1.1" class="ltx_td ltx_align_left ltx_border_r ltx_border_t">RFMiD</td>
+<td id="S5.T1.1.2.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">1920</td>
+<td id="S5.T1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">640</td>
+<td id="S5.T1.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">Multi-label Classification</td>
+</tr>
+<tr id="S5.T1.1.3.2" class="ltx_tr">
+<td id="S5.T1.1.3.2.1" class="ltx_td ltx_align_left ltx_border_r">DR</td>
+<td id="S5.T1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r">29600</td>
+<td id="S5.T1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r">6800</td>
+<td id="S5.T1.1.3.2.4" class="ltx_td ltx_align_center">Severity Rating</td>
+</tr>
+<tr id="S5.T1.1.4.3" class="ltx_tr">
+<td id="S5.T1.1.4.3.1" class="ltx_td ltx_align_left ltx_border_r">EYEPACS</td>
+<td id="S5.T1.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r">8000</td>
+<td id="S5.T1.1.4.3.3" class="ltx_td ltx_align_center ltx_border_r">770</td>
+<td id="S5.T1.1.4.3.4" class="ltx_td ltx_align_center">Bianry Classification</td>
+</tr>
+<tr id="S5.T1.1.5.4" class="ltx_tr">
+<td id="S5.T1.1.5.4.1" class="ltx_td ltx_align_left ltx_border_r">REFUGE2</td>
+<td id="S5.T1.1.5.4.2" class="ltx_td ltx_align_center ltx_border_r">400</td>
+<td id="S5.T1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r">400</td>
+<td id="S5.T1.1.5.4.4" class="ltx_td ltx_align_center">Optic Disc Segmentation</td>
+</tr>
+<tr id="S5.T1.1.6.5" class="ltx_tr">
+<td id="S5.T1.1.6.5.1" class="ltx_td ltx_align_left ltx_border_r">LACDHS</td>
+<td id="S5.T1.1.6.5.2" class="ltx_td ltx_align_center ltx_border_r">80</td>
+<td id="S5.T1.1.6.5.3" class="ltx_td ltx_align_center ltx_border_r">20</td>
+<td id="S5.T1.1.6.5.4" class="ltx_td ltx_align_center">Vessel Segmentation</td>
+</tr>
+<tr id="S5.T1.1.7.6" class="ltx_tr">
+<td id="S5.T1.1.7.6.1" class="ltx_td ltx_align_left ltx_border_b ltx_border_r">JSIEC</td>
+<td id="S5.T1.1.7.6.2" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">800</td>
+<td id="S5.T1.1.7.6.3" class="ltx_td ltx_align_center ltx_border_b ltx_border_r">200</td>
+<td id="S5.T1.1.7.6.4" class="ltx_td ltx_align_center ltx_border_b">Multi-class classification</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="S5.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">TABLE II: </span>Results on classification tasks</figcaption>
+<table id="S5.T2.51" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S5.T2.3.3" class="ltx_tr">
+<th id="S5.T2.3.3.4" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">Methods</th>
+<td id="S5.T2.1.1.1" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">Accuracy <math id="S5.T2.1.1.1.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S5.T2.1.1.1.m1.1a"><mo stretchy="false" id="S5.T2.1.1.1.m1.1.1" xref="S5.T2.1.1.1.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S5.T2.1.1.1.m1.1b"><ci id="S5.T2.1.1.1.m1.1.1.cmml" xref="S5.T2.1.1.1.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.1.1.1.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S5.T2.2.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">Precision <math id="S5.T2.2.2.2.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S5.T2.2.2.2.m1.1a"><mo stretchy="false" id="S5.T2.2.2.2.m1.1.1" xref="S5.T2.2.2.2.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S5.T2.2.2.2.m1.1b"><ci id="S5.T2.2.2.2.m1.1.1.cmml" xref="S5.T2.2.2.2.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.2.2.2.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+<td id="S5.T2.3.3.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">Macro F1 <math id="S5.T2.3.3.3.m1.1" class="ltx_Math" alttext="\uparrow" display="inline"><semantics id="S5.T2.3.3.3.m1.1a"><mo stretchy="false" id="S5.T2.3.3.3.m1.1.1" xref="S5.T2.3.3.3.m1.1.1.cmml">↑</mo><annotation-xml encoding="MathML-Content" id="S5.T2.3.3.3.m1.1b"><ci id="S5.T2.3.3.3.m1.1.1.cmml" xref="S5.T2.3.3.3.m1.1.1">↑</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.3.3.3.m1.1c">\uparrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S5.T2.4.4" class="ltx_tr">
+<th id="S5.T2.4.4.1" class="ltx_td ltx_nopad_r ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;" colspan="3">
+<math id="S5.T2.4.4.1.m1.1" class="ltx_Math" alttext="\mathrlap{\textit{Multilabel classification task:}}" display="inline"><semantics id="S5.T2.4.4.1.m1.1a"><mpadded width="0pt" id="S5.T2.4.4.1.m1.1.1" xref="S5.T2.4.4.1.m1.1.1b.cmml"><mtext class="ltx_mathvariant_italic" id="S5.T2.4.4.1.m1.1.1a" xref="S5.T2.4.4.1.m1.1.1b.cmml">Multilabel classification task:</mtext></mpadded><annotation-xml encoding="MathML-Content" id="S5.T2.4.4.1.m1.1b"><ci id="S5.T2.4.4.1.m1.1.1b.cmml" xref="S5.T2.4.4.1.m1.1.1"><mpadded width="0pt" id="S5.T2.4.4.1.m1.1.1.cmml" xref="S5.T2.4.4.1.m1.1.1"><mtext class="ltx_mathvariant_italic" id="S5.T2.4.4.1.m1.1.1a.cmml" xref="S5.T2.4.4.1.m1.1.1">Multilabel classification task:</mtext></mpadded></ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.4.4.1.m1.1c">\mathrlap{\textit{Multilabel classification task:}}</annotation></semantics></math>    <span class="ltx_rule" style="width:0.0pt;height:8.6pt;background:black;display:inline-block;"></span>
+</th>
+<td id="S5.T2.4.4.2" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+</tr>
+<tr id="S5.T2.7.7" class="ltx_tr">
+<th id="S5.T2.7.7.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 1)</th>
+<td id="S5.T2.5.5.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">57.5 <math id="S5.T2.5.5.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.5.5.1.m1.1a"><mo id="S5.T2.5.5.1.m1.1.1" xref="S5.T2.5.5.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.5.5.1.m1.1b"><csymbol cd="latexml" id="S5.T2.5.5.1.m1.1.1.cmml" xref="S5.T2.5.5.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.5.5.1.m1.1c">\pm</annotation></semantics></math> 0.6</td>
+<td id="S5.T2.6.6.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">13.9 <math id="S5.T2.6.6.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.6.6.2.m1.1a"><mo id="S5.T2.6.6.2.m1.1.1" xref="S5.T2.6.6.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.6.6.2.m1.1b"><csymbol cd="latexml" id="S5.T2.6.6.2.m1.1.1.cmml" xref="S5.T2.6.6.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.6.6.2.m1.1c">\pm</annotation></semantics></math> 0.4</td>
+<td id="S5.T2.7.7.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">15.7 <math id="S5.T2.7.7.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.7.7.3.m1.1a"><mo id="S5.T2.7.7.3.m1.1.1" xref="S5.T2.7.7.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.7.7.3.m1.1b"><csymbol cd="latexml" id="S5.T2.7.7.3.m1.1.1.cmml" xref="S5.T2.7.7.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.7.7.3.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+</tr>
+<tr id="S5.T2.10.10" class="ltx_tr">
+<th id="S5.T2.10.10.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 2)</th>
+<td id="S5.T2.8.8.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">59.7 <math id="S5.T2.8.8.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.8.8.1.m1.1a"><mo id="S5.T2.8.8.1.m1.1.1" xref="S5.T2.8.8.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.8.8.1.m1.1b"><csymbol cd="latexml" id="S5.T2.8.8.1.m1.1.1.cmml" xref="S5.T2.8.8.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.8.8.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.9.9.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">15.3 <math id="S5.T2.9.9.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.9.9.2.m1.1a"><mo id="S5.T2.9.9.2.m1.1.1" xref="S5.T2.9.9.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.9.9.2.m1.1b"><csymbol cd="latexml" id="S5.T2.9.9.2.m1.1.1.cmml" xref="S5.T2.9.9.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.9.9.2.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+<td id="S5.T2.10.10.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">15.9 <math id="S5.T2.10.10.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.10.10.3.m1.1a"><mo id="S5.T2.10.10.3.m1.1.1" xref="S5.T2.10.10.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.10.10.3.m1.1b"><csymbol cd="latexml" id="S5.T2.10.10.3.m1.1.1.cmml" xref="S5.T2.10.10.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.10.10.3.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+</tr>
+<tr id="S5.T2.13.13" class="ltx_tr">
+<th id="S5.T2.13.13.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Centralized SSL (No FL)</th>
+<td id="S5.T2.11.11.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">63.3 <math id="S5.T2.11.11.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.11.11.1.m1.1a"><mo id="S5.T2.11.11.1.m1.1.1" xref="S5.T2.11.11.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.11.11.1.m1.1b"><csymbol cd="latexml" id="S5.T2.11.11.1.m1.1.1.cmml" xref="S5.T2.11.11.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.11.11.1.m1.1c">\pm</annotation></semantics></math> 0.5</td>
+<td id="S5.T2.12.12.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">16.9 <math id="S5.T2.12.12.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.12.12.2.m1.1a"><mo id="S5.T2.12.12.2.m1.1.1" xref="S5.T2.12.12.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.12.12.2.m1.1b"><csymbol cd="latexml" id="S5.T2.12.12.2.m1.1.1.cmml" xref="S5.T2.12.12.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.12.12.2.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.13.13.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">17.3 <math id="S5.T2.13.13.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.13.13.3.m1.1a"><mo id="S5.T2.13.13.3.m1.1.1" xref="S5.T2.13.13.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.13.13.3.m1.1b"><csymbol cd="latexml" id="S5.T2.13.13.3.m1.1.1.cmml" xref="S5.T2.13.13.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.13.13.3.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+</tr>
+<tr id="S5.T2.16.16" class="ltx_tr">
+<th id="S5.T2.16.16.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 1)</th>
+<td id="S5.T2.14.14.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">58.9 <math id="S5.T2.14.14.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.14.14.1.m1.1a"><mo id="S5.T2.14.14.1.m1.1.1" xref="S5.T2.14.14.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.14.14.1.m1.1b"><csymbol cd="latexml" id="S5.T2.14.14.1.m1.1.1.cmml" xref="S5.T2.14.14.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.14.14.1.m1.1c">\pm</annotation></semantics></math> 0.6</td>
+<td id="S5.T2.15.15.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">14.3 <math id="S5.T2.15.15.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.15.15.2.m1.1a"><mo id="S5.T2.15.15.2.m1.1.1" xref="S5.T2.15.15.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.15.15.2.m1.1b"><csymbol cd="latexml" id="S5.T2.15.15.2.m1.1.1.cmml" xref="S5.T2.15.15.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.15.15.2.m1.1c">\pm</annotation></semantics></math> 0.5</td>
+<td id="S5.T2.16.16.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">14.8 <math id="S5.T2.16.16.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.16.16.3.m1.1a"><mo id="S5.T2.16.16.3.m1.1.1" xref="S5.T2.16.16.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.16.16.3.m1.1b"><csymbol cd="latexml" id="S5.T2.16.16.3.m1.1.1.cmml" xref="S5.T2.16.16.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.16.16.3.m1.1c">\pm</annotation></semantics></math> 0.5</td>
+</tr>
+<tr id="S5.T2.19.19" class="ltx_tr">
+<th id="S5.T2.19.19.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 2)</th>
+<td id="S5.T2.17.17.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">60.9 <math id="S5.T2.17.17.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.17.17.1.m1.1a"><mo id="S5.T2.17.17.1.m1.1.1" xref="S5.T2.17.17.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.17.17.1.m1.1b"><csymbol cd="latexml" id="S5.T2.17.17.1.m1.1.1.cmml" xref="S5.T2.17.17.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.17.17.1.m1.1c">\pm</annotation></semantics></math> 0.6</td>
+<td id="S5.T2.18.18.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">15.3 <math id="S5.T2.18.18.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.18.18.2.m1.1a"><mo id="S5.T2.18.18.2.m1.1.1" xref="S5.T2.18.18.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.18.18.2.m1.1b"><csymbol cd="latexml" id="S5.T2.18.18.2.m1.1.1.cmml" xref="S5.T2.18.18.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.18.18.2.m1.1c">\pm</annotation></semantics></math> 0.4</td>
+<td id="S5.T2.19.19.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">16.3 <math id="S5.T2.19.19.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.19.19.3.m1.1a"><mo id="S5.T2.19.19.3.m1.1.1" xref="S5.T2.19.19.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.19.19.3.m1.1b"><csymbol cd="latexml" id="S5.T2.19.19.3.m1.1.1.cmml" xref="S5.T2.19.19.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.19.19.3.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+</tr>
+<tr id="S5.T2.20.20" class="ltx_tr">
+<th id="S5.T2.20.20.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">
+<math id="S5.T2.20.20.1.m1.1" class="ltx_Math" alttext="\mathrlap{\textit{Binary classification task:}}" display="inline"><semantics id="S5.T2.20.20.1.m1.1a"><mpadded width="0pt" id="S5.T2.20.20.1.m1.1.1" xref="S5.T2.20.20.1.m1.1.1b.cmml"><mtext class="ltx_mathvariant_italic" id="S5.T2.20.20.1.m1.1.1a" xref="S5.T2.20.20.1.m1.1.1b.cmml">Binary classification task:</mtext></mpadded><annotation-xml encoding="MathML-Content" id="S5.T2.20.20.1.m1.1b"><ci id="S5.T2.20.20.1.m1.1.1b.cmml" xref="S5.T2.20.20.1.m1.1.1"><mpadded width="0pt" id="S5.T2.20.20.1.m1.1.1.cmml" xref="S5.T2.20.20.1.m1.1.1"><mtext class="ltx_mathvariant_italic" id="S5.T2.20.20.1.m1.1.1a.cmml" xref="S5.T2.20.20.1.m1.1.1">Binary classification task:</mtext></mpadded></ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.20.20.1.m1.1c">\mathrlap{\textit{Binary classification task:}}</annotation></semantics></math> <span class="ltx_rule" style="width:0.0pt;height:8.6pt;background:black;display:inline-block;"></span>
+</th>
+<td id="S5.T2.20.20.2" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+<td id="S5.T2.20.20.3" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+<td id="S5.T2.20.20.4" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+</tr>
+<tr id="S5.T2.23.23" class="ltx_tr">
+<th id="S5.T2.23.23.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 1)</th>
+<td id="S5.T2.21.21.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">58.9 <math id="S5.T2.21.21.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.21.21.1.m1.1a"><mo id="S5.T2.21.21.1.m1.1.1" xref="S5.T2.21.21.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.21.21.1.m1.1b"><csymbol cd="latexml" id="S5.T2.21.21.1.m1.1.1.cmml" xref="S5.T2.21.21.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.21.21.1.m1.1c">\pm</annotation></semantics></math> 0.4</td>
+<td id="S5.T2.22.22.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">55.3 <math id="S5.T2.22.22.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.22.22.2.m1.1a"><mo id="S5.T2.22.22.2.m1.1.1" xref="S5.T2.22.22.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.22.22.2.m1.1b"><csymbol cd="latexml" id="S5.T2.22.22.2.m1.1.1.cmml" xref="S5.T2.22.22.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.22.22.2.m1.1c">\pm</annotation></semantics></math>0.2</td>
+<td id="S5.T2.23.23.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">52.1 <math id="S5.T2.23.23.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.23.23.3.m1.1a"><mo id="S5.T2.23.23.3.m1.1.1" xref="S5.T2.23.23.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.23.23.3.m1.1b"><csymbol cd="latexml" id="S5.T2.23.23.3.m1.1.1.cmml" xref="S5.T2.23.23.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.23.23.3.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+</tr>
+<tr id="S5.T2.26.26" class="ltx_tr">
+<th id="S5.T2.26.26.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 2)</th>
+<td id="S5.T2.24.24.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">60.4 <math id="S5.T2.24.24.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.24.24.1.m1.1a"><mo id="S5.T2.24.24.1.m1.1.1" xref="S5.T2.24.24.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.24.24.1.m1.1b"><csymbol cd="latexml" id="S5.T2.24.24.1.m1.1.1.cmml" xref="S5.T2.24.24.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.24.24.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.25.25.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">54.9 <math id="S5.T2.25.25.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.25.25.2.m1.1a"><mo id="S5.T2.25.25.2.m1.1.1" xref="S5.T2.25.25.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.25.25.2.m1.1b"><csymbol cd="latexml" id="S5.T2.25.25.2.m1.1.1.cmml" xref="S5.T2.25.25.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.25.25.2.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.26.26.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">55.4 <math id="S5.T2.26.26.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.26.26.3.m1.1a"><mo id="S5.T2.26.26.3.m1.1.1" xref="S5.T2.26.26.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.26.26.3.m1.1b"><csymbol cd="latexml" id="S5.T2.26.26.3.m1.1.1.cmml" xref="S5.T2.26.26.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.26.26.3.m1.1c">\pm</annotation></semantics></math> 0.4</td>
+</tr>
+<tr id="S5.T2.29.29" class="ltx_tr">
+<th id="S5.T2.29.29.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Centralized SSL (No FL)</th>
+<td id="S5.T2.27.27.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">62.7 <math id="S5.T2.27.27.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.27.27.1.m1.1a"><mo id="S5.T2.27.27.1.m1.1.1" xref="S5.T2.27.27.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.27.27.1.m1.1b"><csymbol cd="latexml" id="S5.T2.27.27.1.m1.1.1.cmml" xref="S5.T2.27.27.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.27.27.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.28.28.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">58.7 <math id="S5.T2.28.28.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.28.28.2.m1.1a"><mo id="S5.T2.28.28.2.m1.1.1" xref="S5.T2.28.28.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.28.28.2.m1.1b"><csymbol cd="latexml" id="S5.T2.28.28.2.m1.1.1.cmml" xref="S5.T2.28.28.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.28.28.2.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.29.29.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">56.9 <math id="S5.T2.29.29.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.29.29.3.m1.1a"><mo id="S5.T2.29.29.3.m1.1.1" xref="S5.T2.29.29.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.29.29.3.m1.1b"><csymbol cd="latexml" id="S5.T2.29.29.3.m1.1.1.cmml" xref="S5.T2.29.29.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.29.29.3.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+</tr>
+<tr id="S5.T2.32.32" class="ltx_tr">
+<th id="S5.T2.32.32.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 1)</th>
+<td id="S5.T2.30.30.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">59.8 <math id="S5.T2.30.30.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.30.30.1.m1.1a"><mo id="S5.T2.30.30.1.m1.1.1" xref="S5.T2.30.30.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.30.30.1.m1.1b"><csymbol cd="latexml" id="S5.T2.30.30.1.m1.1.1.cmml" xref="S5.T2.30.30.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.30.30.1.m1.1c">\pm</annotation></semantics></math> 0.6</td>
+<td id="S5.T2.31.31.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">56.4 <math id="S5.T2.31.31.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.31.31.2.m1.1a"><mo id="S5.T2.31.31.2.m1.1.1" xref="S5.T2.31.31.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.31.31.2.m1.1b"><csymbol cd="latexml" id="S5.T2.31.31.2.m1.1.1.cmml" xref="S5.T2.31.31.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.31.31.2.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.32.32.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">54.2 <math id="S5.T2.32.32.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.32.32.3.m1.1a"><mo id="S5.T2.32.32.3.m1.1.1" xref="S5.T2.32.32.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.32.32.3.m1.1b"><csymbol cd="latexml" id="S5.T2.32.32.3.m1.1.1.cmml" xref="S5.T2.32.32.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.32.32.3.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+</tr>
+<tr id="S5.T2.35.35" class="ltx_tr">
+<th id="S5.T2.35.35.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 2)</th>
+<td id="S5.T2.33.33.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">61.1 <math id="S5.T2.33.33.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.33.33.1.m1.1a"><mo id="S5.T2.33.33.1.m1.1.1" xref="S5.T2.33.33.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.33.33.1.m1.1b"><csymbol cd="latexml" id="S5.T2.33.33.1.m1.1.1.cmml" xref="S5.T2.33.33.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.33.33.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.34.34.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">57.1 <math id="S5.T2.34.34.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.34.34.2.m1.1a"><mo id="S5.T2.34.34.2.m1.1.1" xref="S5.T2.34.34.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.34.34.2.m1.1b"><csymbol cd="latexml" id="S5.T2.34.34.2.m1.1.1.cmml" xref="S5.T2.34.34.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.34.34.2.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+<td id="S5.T2.35.35.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">53.2 <math id="S5.T2.35.35.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.35.35.3.m1.1a"><mo id="S5.T2.35.35.3.m1.1.1" xref="S5.T2.35.35.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.35.35.3.m1.1b"><csymbol cd="latexml" id="S5.T2.35.35.3.m1.1.1.cmml" xref="S5.T2.35.35.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.35.35.3.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+</tr>
+<tr id="S5.T2.36.36" class="ltx_tr">
+<th id="S5.T2.36.36.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;">
+<math id="S5.T2.36.36.1.m1.1" class="ltx_Math" alttext="\mathrlap{\textit{Severity rating task:}}" display="inline"><semantics id="S5.T2.36.36.1.m1.1a"><mpadded width="0pt" id="S5.T2.36.36.1.m1.1.1" xref="S5.T2.36.36.1.m1.1.1b.cmml"><mtext class="ltx_mathvariant_italic" id="S5.T2.36.36.1.m1.1.1a" xref="S5.T2.36.36.1.m1.1.1b.cmml">Severity rating task:</mtext></mpadded><annotation-xml encoding="MathML-Content" id="S5.T2.36.36.1.m1.1b"><ci id="S5.T2.36.36.1.m1.1.1b.cmml" xref="S5.T2.36.36.1.m1.1.1"><mpadded width="0pt" id="S5.T2.36.36.1.m1.1.1.cmml" xref="S5.T2.36.36.1.m1.1.1"><mtext class="ltx_mathvariant_italic" id="S5.T2.36.36.1.m1.1.1a.cmml" xref="S5.T2.36.36.1.m1.1.1">Severity rating task:</mtext></mpadded></ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.36.36.1.m1.1c">\mathrlap{\textit{Severity rating task:}}</annotation></semantics></math> <span class="ltx_rule" style="width:0.0pt;height:8.6pt;background:black;display:inline-block;"></span>
+</th>
+<td id="S5.T2.36.36.2" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+<td id="S5.T2.36.36.3" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+<td id="S5.T2.36.36.4" class="ltx_td ltx_border_t" style="padding-left:4.0pt;padding-right:4.0pt;"></td>
+</tr>
+<tr id="S5.T2.39.39" class="ltx_tr">
+<th id="S5.T2.39.39.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 1)</th>
+<td id="S5.T2.37.37.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">71.6 <math id="S5.T2.37.37.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.37.37.1.m1.1a"><mo id="S5.T2.37.37.1.m1.1.1" xref="S5.T2.37.37.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.37.37.1.m1.1b"><csymbol cd="latexml" id="S5.T2.37.37.1.m1.1.1.cmml" xref="S5.T2.37.37.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.37.37.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.38.38.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">17.2 <math id="S5.T2.38.38.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.38.38.2.m1.1a"><mo id="S5.T2.38.38.2.m1.1.1" xref="S5.T2.38.38.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.38.38.2.m1.1b"><csymbol cd="latexml" id="S5.T2.38.38.2.m1.1.1.cmml" xref="S5.T2.38.38.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.38.38.2.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+<td id="S5.T2.39.39.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">17.0 <math id="S5.T2.39.39.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.39.39.3.m1.1a"><mo id="S5.T2.39.39.3.m1.1.1" xref="S5.T2.39.39.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.39.39.3.m1.1b"><csymbol cd="latexml" id="S5.T2.39.39.3.m1.1.1.cmml" xref="S5.T2.39.39.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.39.39.3.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+</tr>
+<tr id="S5.T2.42.42" class="ltx_tr">
+<th id="S5.T2.42.42.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Local Supervision (Split 2)</th>
+<td id="S5.T2.40.40.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">73.3 <math id="S5.T2.40.40.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.40.40.1.m1.1a"><mo id="S5.T2.40.40.1.m1.1.1" xref="S5.T2.40.40.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.40.40.1.m1.1b"><csymbol cd="latexml" id="S5.T2.40.40.1.m1.1.1.cmml" xref="S5.T2.40.40.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.40.40.1.m1.1c">\pm</annotation></semantics></math> 0.1</td>
+<td id="S5.T2.41.41.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">18.7 <math id="S5.T2.41.41.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.41.41.2.m1.1a"><mo id="S5.T2.41.41.2.m1.1.1" xref="S5.T2.41.41.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.41.41.2.m1.1b"><csymbol cd="latexml" id="S5.T2.41.41.2.m1.1.1.cmml" xref="S5.T2.41.41.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.41.41.2.m1.1c">\pm</annotation></semantics></math> 0.0</td>
+<td id="S5.T2.42.42.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">18.5 <math id="S5.T2.42.42.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.42.42.3.m1.1a"><mo id="S5.T2.42.42.3.m1.1.1" xref="S5.T2.42.42.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.42.42.3.m1.1b"><csymbol cd="latexml" id="S5.T2.42.42.3.m1.1.1.cmml" xref="S5.T2.42.42.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.42.42.3.m1.1c">\pm</annotation></semantics></math> 0.0</td>
+</tr>
+<tr id="S5.T2.45.45" class="ltx_tr">
+<th id="S5.T2.45.45.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">Centralized SSL (No FL)</th>
+<td id="S5.T2.43.43.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">73.3 <math id="S5.T2.43.43.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.43.43.1.m1.1a"><mo id="S5.T2.43.43.1.m1.1.1" xref="S5.T2.43.43.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.43.43.1.m1.1b"><csymbol cd="latexml" id="S5.T2.43.43.1.m1.1.1.cmml" xref="S5.T2.43.43.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.43.43.1.m1.1c">\pm</annotation></semantics></math> 0.1</td>
+<td id="S5.T2.44.44.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">18.3 <math id="S5.T2.44.44.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.44.44.2.m1.1a"><mo id="S5.T2.44.44.2.m1.1.1" xref="S5.T2.44.44.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.44.44.2.m1.1b"><csymbol cd="latexml" id="S5.T2.44.44.2.m1.1.1.cmml" xref="S5.T2.44.44.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.44.44.2.m1.1c">\pm</annotation></semantics></math> 0.0</td>
+<td id="S5.T2.45.45.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">17.9 <math id="S5.T2.45.45.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.45.45.3.m1.1a"><mo id="S5.T2.45.45.3.m1.1.1" xref="S5.T2.45.45.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.45.45.3.m1.1b"><csymbol cd="latexml" id="S5.T2.45.45.3.m1.1.1.cmml" xref="S5.T2.45.45.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.45.45.3.m1.1c">\pm</annotation></semantics></math> 0.0</td>
+</tr>
+<tr id="S5.T2.48.48" class="ltx_tr">
+<th id="S5.T2.48.48.4" class="ltx_td ltx_align_left ltx_th ltx_th_row" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 1)</th>
+<td id="S5.T2.46.46.1" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">71.5 <math id="S5.T2.46.46.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.46.46.1.m1.1a"><mo id="S5.T2.46.46.1.m1.1.1" xref="S5.T2.46.46.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.46.46.1.m1.1b"><csymbol cd="latexml" id="S5.T2.46.46.1.m1.1.1.cmml" xref="S5.T2.46.46.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.46.46.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.47.47.2" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">16.9 <math id="S5.T2.47.47.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.47.47.2.m1.1a"><mo id="S5.T2.47.47.2.m1.1.1" xref="S5.T2.47.47.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.47.47.2.m1.1b"><csymbol cd="latexml" id="S5.T2.47.47.2.m1.1.1.cmml" xref="S5.T2.47.47.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.47.47.2.m1.1c">\pm</annotation></semantics></math> 0.1</td>
+<td id="S5.T2.48.48.3" class="ltx_td ltx_align_center" style="padding-left:4.0pt;padding-right:4.0pt;">17.2 <math id="S5.T2.48.48.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.48.48.3.m1.1a"><mo id="S5.T2.48.48.3.m1.1.1" xref="S5.T2.48.48.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.48.48.3.m1.1b"><csymbol cd="latexml" id="S5.T2.48.48.3.m1.1.1.cmml" xref="S5.T2.48.48.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.48.48.3.m1.1c">\pm</annotation></semantics></math> 0.2</td>
+</tr>
+<tr id="S5.T2.51.51" class="ltx_tr">
+<th id="S5.T2.51.51.4" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b" style="padding-left:4.0pt;padding-right:4.0pt;">SSL-FL (Split 2)</th>
+<td id="S5.T2.49.49.1" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.0pt;padding-right:4.0pt;">73.0 <math id="S5.T2.49.49.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.49.49.1.m1.1a"><mo id="S5.T2.49.49.1.m1.1.1" xref="S5.T2.49.49.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.49.49.1.m1.1b"><csymbol cd="latexml" id="S5.T2.49.49.1.m1.1.1.cmml" xref="S5.T2.49.49.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.49.49.1.m1.1c">\pm</annotation></semantics></math> 0.3</td>
+<td id="S5.T2.50.50.2" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.0pt;padding-right:4.0pt;">18.4 <math id="S5.T2.50.50.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.50.50.2.m1.1a"><mo id="S5.T2.50.50.2.m1.1.1" xref="S5.T2.50.50.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.50.50.2.m1.1b"><csymbol cd="latexml" id="S5.T2.50.50.2.m1.1.1.cmml" xref="S5.T2.50.50.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.50.50.2.m1.1c">\pm</annotation></semantics></math> 0.1</td>
+<td id="S5.T2.51.51.3" class="ltx_td ltx_align_center ltx_border_b" style="padding-left:4.0pt;padding-right:4.0pt;">18.4 <math id="S5.T2.51.51.3.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T2.51.51.3.m1.1a"><mo id="S5.T2.51.51.3.m1.1.1" xref="S5.T2.51.51.3.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T2.51.51.3.m1.1b"><csymbol cd="latexml" id="S5.T2.51.51.3.m1.1.1.cmml" xref="S5.T2.51.51.3.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T2.51.51.3.m1.1c">\pm</annotation></semantics></math> 0.1</td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="S5.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">TABLE III: </span>Results on segmentation tasks (the lower the better)</figcaption>
+<table id="S5.T3.20" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S5.T3.2.2" class="ltx_tr">
+<th id="S5.T3.2.2.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row">Methods</th>
+<th id="S5.T3.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column">Dice Loss <math id="S5.T3.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S5.T3.1.1.1.m1.1a"><mo stretchy="false" id="S5.T3.1.1.1.m1.1.1" xref="S5.T3.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S5.T3.1.1.1.m1.1b"><ci id="S5.T3.1.1.1.m1.1.1.cmml" xref="S5.T3.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</th>
+<th id="S5.T3.2.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_column">Dice Focal <math id="S5.T3.2.2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S5.T3.2.2.2.m1.1a"><mo stretchy="false" id="S5.T3.2.2.2.m1.1.1" xref="S5.T3.2.2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S5.T3.2.2.2.m1.1b"><ci id="S5.T3.2.2.2.m1.1.1.cmml" xref="S5.T3.2.2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.2.2.2.m1.1c">\downarrow</annotation></semantics></math>
+</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S5.T3.3.3" class="ltx_tr">
+<th id="S5.T3.3.3.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">
+<math id="S5.T3.3.3.1.m1.1" class="ltx_Math" alttext="\mathrlap{\textit{Optic disc segmentation task on REFUGE dataset:}}" display="inline"><semantics id="S5.T3.3.3.1.m1.1a"><mpadded width="0pt" id="S5.T3.3.3.1.m1.1.1" xref="S5.T3.3.3.1.m1.1.1b.cmml"><mtext class="ltx_mathvariant_italic" id="S5.T3.3.3.1.m1.1.1a" xref="S5.T3.3.3.1.m1.1.1b.cmml">Optic disc segmentation task on REFUGE dataset:</mtext></mpadded><annotation-xml encoding="MathML-Content" id="S5.T3.3.3.1.m1.1b"><ci id="S5.T3.3.3.1.m1.1.1b.cmml" xref="S5.T3.3.3.1.m1.1.1"><mpadded width="0pt" id="S5.T3.3.3.1.m1.1.1.cmml" xref="S5.T3.3.3.1.m1.1.1"><mtext class="ltx_mathvariant_italic" id="S5.T3.3.3.1.m1.1.1a.cmml" xref="S5.T3.3.3.1.m1.1.1">Optic disc segmentation task on REFUGE dataset:</mtext></mpadded></ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.3.3.1.m1.1c">\mathrlap{\textit{Optic disc segmentation task on REFUGE dataset:}}</annotation></semantics></math> <span class="ltx_rule" style="width:0.0pt;height:8.6pt;background:black;display:inline-block;"></span>
+</th>
+<td id="S5.T3.3.3.2" class="ltx_td ltx_border_t"></td>
+<td id="S5.T3.3.3.3" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T3.5.5" class="ltx_tr">
+<th id="S5.T3.5.5.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Local Supervision (Scratch)</th>
+<td id="S5.T3.4.4.1" class="ltx_td ltx_align_center">94.9 <math id="S5.T3.4.4.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.4.4.1.m1.1a"><mo id="S5.T3.4.4.1.m1.1.1" xref="S5.T3.4.4.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.4.4.1.m1.1b"><csymbol cd="latexml" id="S5.T3.4.4.1.m1.1.1.cmml" xref="S5.T3.4.4.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.4.4.1.m1.1c">\pm</annotation></semantics></math> 0.8</td>
+<td id="S5.T3.5.5.2" class="ltx_td ltx_align_center">76.0 <math id="S5.T3.5.5.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.5.5.2.m1.1a"><mo id="S5.T3.5.5.2.m1.1.1" xref="S5.T3.5.5.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.5.5.2.m1.1b"><csymbol cd="latexml" id="S5.T3.5.5.2.m1.1.1.cmml" xref="S5.T3.5.5.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.5.5.2.m1.1c">\pm</annotation></semantics></math> 0.5</td>
+</tr>
+<tr id="S5.T3.7.7" class="ltx_tr">
+<th id="S5.T3.7.7.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Centralized SSL (No FL)</th>
+<td id="S5.T3.6.6.1" class="ltx_td ltx_align_center">92.4 <math id="S5.T3.6.6.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.6.6.1.m1.1a"><mo id="S5.T3.6.6.1.m1.1.1" xref="S5.T3.6.6.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.6.6.1.m1.1b"><csymbol cd="latexml" id="S5.T3.6.6.1.m1.1.1.cmml" xref="S5.T3.6.6.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.6.6.1.m1.1c">\pm</annotation></semantics></math> 0.7</td>
+<td id="S5.T3.7.7.2" class="ltx_td ltx_align_center">73.9 <math id="S5.T3.7.7.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.7.7.2.m1.1a"><mo id="S5.T3.7.7.2.m1.1.1" xref="S5.T3.7.7.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.7.7.2.m1.1b"><csymbol cd="latexml" id="S5.T3.7.7.2.m1.1.1.cmml" xref="S5.T3.7.7.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.7.7.2.m1.1c">\pm</annotation></semantics></math> 1.2</td>
+</tr>
+<tr id="S5.T3.9.9" class="ltx_tr">
+<th id="S5.T3.9.9.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">SSL-FL (Split 1)</th>
+<td id="S5.T3.8.8.1" class="ltx_td ltx_align_center">93.7 <math id="S5.T3.8.8.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.8.8.1.m1.1a"><mo id="S5.T3.8.8.1.m1.1.1" xref="S5.T3.8.8.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.8.8.1.m1.1b"><csymbol cd="latexml" id="S5.T3.8.8.1.m1.1.1.cmml" xref="S5.T3.8.8.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.8.8.1.m1.1c">\pm</annotation></semantics></math> 1.1</td>
+<td id="S5.T3.9.9.2" class="ltx_td ltx_align_center"><span id="S5.T3.9.9.2.1" class="ltx_text ltx_font_bold">69.4 <math id="S5.T3.9.9.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.9.9.2.1.m1.1a"><mo id="S5.T3.9.9.2.1.m1.1.1" xref="S5.T3.9.9.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.9.9.2.1.m1.1b"><csymbol cd="latexml" id="S5.T3.9.9.2.1.m1.1.1.cmml" xref="S5.T3.9.9.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.9.9.2.1.m1.1c">\pm</annotation></semantics></math> 0.8</span></td>
+</tr>
+<tr id="S5.T3.11.11" class="ltx_tr">
+<th id="S5.T3.11.11.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">SSL-FL (Split 2)</th>
+<td id="S5.T3.10.10.1" class="ltx_td ltx_align_center"><span id="S5.T3.10.10.1.1" class="ltx_text ltx_font_bold">91.1 <math id="S5.T3.10.10.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.10.10.1.1.m1.1a"><mo id="S5.T3.10.10.1.1.m1.1.1" xref="S5.T3.10.10.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.10.10.1.1.m1.1b"><csymbol cd="latexml" id="S5.T3.10.10.1.1.m1.1.1.cmml" xref="S5.T3.10.10.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.10.10.1.1.m1.1c">\pm</annotation></semantics></math> 1.1</span></td>
+<td id="S5.T3.11.11.2" class="ltx_td ltx_align_center">74.5 <math id="S5.T3.11.11.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.11.11.2.m1.1a"><mo id="S5.T3.11.11.2.m1.1.1" xref="S5.T3.11.11.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.11.11.2.m1.1b"><csymbol cd="latexml" id="S5.T3.11.11.2.m1.1.1.cmml" xref="S5.T3.11.11.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.11.11.2.m1.1c">\pm</annotation></semantics></math> 2.3</td>
+</tr>
+<tr id="S5.T3.12.12" class="ltx_tr">
+<th id="S5.T3.12.12.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t">
+<math id="S5.T3.12.12.1.m1.1" class="ltx_Math" alttext="\mathrlap{\textit{Vessel segmentation task on JSIEC dataset:}}" display="inline"><semantics id="S5.T3.12.12.1.m1.1a"><mpadded width="0pt" id="S5.T3.12.12.1.m1.1.1" xref="S5.T3.12.12.1.m1.1.1b.cmml"><mtext class="ltx_mathvariant_italic" id="S5.T3.12.12.1.m1.1.1a" xref="S5.T3.12.12.1.m1.1.1b.cmml">Vessel segmentation task on JSIEC dataset:</mtext></mpadded><annotation-xml encoding="MathML-Content" id="S5.T3.12.12.1.m1.1b"><ci id="S5.T3.12.12.1.m1.1.1b.cmml" xref="S5.T3.12.12.1.m1.1.1"><mpadded width="0pt" id="S5.T3.12.12.1.m1.1.1.cmml" xref="S5.T3.12.12.1.m1.1.1"><mtext class="ltx_mathvariant_italic" id="S5.T3.12.12.1.m1.1.1a.cmml" xref="S5.T3.12.12.1.m1.1.1">Vessel segmentation task on JSIEC dataset:</mtext></mpadded></ci></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.12.12.1.m1.1c">\mathrlap{\textit{Vessel segmentation task on JSIEC dataset:}}</annotation></semantics></math> <span class="ltx_rule" style="width:0.0pt;height:8.6pt;background:black;display:inline-block;"></span>
+</th>
+<td id="S5.T3.12.12.2" class="ltx_td ltx_border_t"></td>
+<td id="S5.T3.12.12.3" class="ltx_td ltx_border_t"></td>
+</tr>
+<tr id="S5.T3.14.14" class="ltx_tr">
+<th id="S5.T3.14.14.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Local Supervision (Scratch)</th>
+<td id="S5.T3.13.13.1" class="ltx_td ltx_align_center"><span id="S5.T3.13.13.1.1" class="ltx_text ltx_font_bold">43.9 <math id="S5.T3.13.13.1.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.13.13.1.1.m1.1a"><mo id="S5.T3.13.13.1.1.m1.1.1" xref="S5.T3.13.13.1.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.13.13.1.1.m1.1b"><csymbol cd="latexml" id="S5.T3.13.13.1.1.m1.1.1.cmml" xref="S5.T3.13.13.1.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.13.13.1.1.m1.1c">\pm</annotation></semantics></math> 0.9</span></td>
+<td id="S5.T3.14.14.2" class="ltx_td ltx_align_center">64.1 <math id="S5.T3.14.14.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.14.14.2.m1.1a"><mo id="S5.T3.14.14.2.m1.1.1" xref="S5.T3.14.14.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.14.14.2.m1.1b"><csymbol cd="latexml" id="S5.T3.14.14.2.m1.1.1.cmml" xref="S5.T3.14.14.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.14.14.2.m1.1c">\pm</annotation></semantics></math> 3.2</td>
+</tr>
+<tr id="S5.T3.16.16" class="ltx_tr">
+<th id="S5.T3.16.16.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">Centralized SSL (No FL)</th>
+<td id="S5.T3.15.15.1" class="ltx_td ltx_align_center">44.3 <math id="S5.T3.15.15.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.15.15.1.m1.1a"><mo id="S5.T3.15.15.1.m1.1.1" xref="S5.T3.15.15.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.15.15.1.m1.1b"><csymbol cd="latexml" id="S5.T3.15.15.1.m1.1.1.cmml" xref="S5.T3.15.15.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.15.15.1.m1.1c">\pm</annotation></semantics></math> 1.8</td>
+<td id="S5.T3.16.16.2" class="ltx_td ltx_align_center">66.4 <math id="S5.T3.16.16.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.16.16.2.m1.1a"><mo id="S5.T3.16.16.2.m1.1.1" xref="S5.T3.16.16.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.16.16.2.m1.1b"><csymbol cd="latexml" id="S5.T3.16.16.2.m1.1.1.cmml" xref="S5.T3.16.16.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.16.16.2.m1.1c">\pm</annotation></semantics></math> 7.2</td>
+</tr>
+<tr id="S5.T3.18.18" class="ltx_tr">
+<th id="S5.T3.18.18.3" class="ltx_td ltx_align_left ltx_th ltx_th_row">SSL-FL (Split 1)</th>
+<td id="S5.T3.17.17.1" class="ltx_td ltx_align_center">45.2 <math id="S5.T3.17.17.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.17.17.1.m1.1a"><mo id="S5.T3.17.17.1.m1.1.1" xref="S5.T3.17.17.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.17.17.1.m1.1b"><csymbol cd="latexml" id="S5.T3.17.17.1.m1.1.1.cmml" xref="S5.T3.17.17.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.17.17.1.m1.1c">\pm</annotation></semantics></math> 1.7</td>
+<td id="S5.T3.18.18.2" class="ltx_td ltx_align_center">61.4 <math id="S5.T3.18.18.2.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.18.18.2.m1.1a"><mo id="S5.T3.18.18.2.m1.1.1" xref="S5.T3.18.18.2.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.18.18.2.m1.1b"><csymbol cd="latexml" id="S5.T3.18.18.2.m1.1.1.cmml" xref="S5.T3.18.18.2.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.18.18.2.m1.1c">\pm</annotation></semantics></math> 1.4</td>
+</tr>
+<tr id="S5.T3.20.20" class="ltx_tr">
+<th id="S5.T3.20.20.3" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_b">SSL-FL (Split 2)</th>
+<td id="S5.T3.19.19.1" class="ltx_td ltx_align_center ltx_border_b">44.7 <math id="S5.T3.19.19.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.19.19.1.m1.1a"><mo id="S5.T3.19.19.1.m1.1.1" xref="S5.T3.19.19.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.19.19.1.m1.1b"><csymbol cd="latexml" id="S5.T3.19.19.1.m1.1.1.cmml" xref="S5.T3.19.19.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.19.19.1.m1.1c">\pm</annotation></semantics></math> 1.1</td>
+<td id="S5.T3.20.20.2" class="ltx_td ltx_align_center ltx_border_b"><span id="S5.T3.20.20.2.1" class="ltx_text ltx_font_bold">60.7 <math id="S5.T3.20.20.2.1.m1.1" class="ltx_Math" alttext="\pm" display="inline"><semantics id="S5.T3.20.20.2.1.m1.1a"><mo id="S5.T3.20.20.2.1.m1.1.1" xref="S5.T3.20.20.2.1.m1.1.1.cmml">±</mo><annotation-xml encoding="MathML-Content" id="S5.T3.20.20.2.1.m1.1b"><csymbol cd="latexml" id="S5.T3.20.20.2.1.m1.1.1.cmml" xref="S5.T3.20.20.2.1.m1.1.1">plus-or-minus</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S5.T3.20.20.2.1.m1.1c">\pm</annotation></semantics></math> 1.6</span></td>
+</tr>
+</tbody>
+</table>
+</figure>
+<figure id="S5.F2" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.17235/assets/pics/split1.png" id="S5.F2.sf1.g1" class="ltx_graphics ltx_img_square" width="252" height="247" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(a) </span>Split 1</figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S5.F2.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.17235/assets/pics/split2.png" id="S5.F2.sf2.g1" class="ltx_graphics ltx_img_landscape" width="335" height="250" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(b) </span>Split 2</figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Data distribution of two split settings. In (a) clients have different tasks and different datasets (modality) while clients in (b) share the same amount of data from each datasets and do the same tasks for such portion of dataset. </figcaption>
+</figure>
+<div id="S5.SS1.p2" class="ltx_para">
+<ul id="S5.I1" class="ltx_itemize">
+<li id="S5.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i1.p1" class="ltx_para">
+<p id="S5.I1.i1.p1.1" class="ltx_p"><span id="S5.I1.i1.p1.1.1" class="ltx_text ltx_font_italic">JSIEC Fundus dataset</span> 1000 fundus images which belong to 39 classes are come from the Joint Shantou International Eye Centre (JSIEC), Shantou city, Guangdong province, China.
+The copyright of these images belongs to JSIEC.</p>
+</div>
+</li>
+<li id="S5.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i2.p1" class="ltx_para">
+<p id="S5.I1.i2.p1.1" class="ltx_p"><span id="S5.I1.i2.p1.1.1" class="ltx_text ltx_font_italic">RFMiD Small Dataset</span> consists of 2560 fundus images captured using three different fundus cameras with 46 conditions annotated through adjudicated consensus of two senior retinal experts.</p>
+</div>
+</li>
+<li id="S5.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i3.p1" class="ltx_para">
+<p id="S5.I1.i3.p1.1" class="ltx_p"><span id="S5.I1.i3.p1.1.1" class="ltx_text ltx_font_italic">EyePACS</span> The complete Rotterdam EyePACS AIROGS dataset, encompassing both training and testing sets, comprises 8000 color fundus images sourced from subjects across roughly 500 diverse sites with varying ethnic backgrounds.</p>
+</div>
+</li>
+<li id="S5.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i4.p1" class="ltx_para">
+<p id="S5.I1.i4.p1.1" class="ltx_p"><span id="S5.I1.i4.p1.1.1" class="ltx_text ltx_font_italic">REFUSE2</span> The Retinal Fundus Glaucoma Challenge 2nd Edition (REFUGE2) dataset comprises 800 color fundus images accompanied by annotations for glaucoma classification, optic disc/cup segmentation, and fovea localization.</p>
+</div>
+</li>
+<li id="S5.I1.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i5.p1" class="ltx_para">
+<p id="S5.I1.i5.p1.1" class="ltx_p"><span id="S5.I1.i5.p1.1.1" class="ltx_text ltx_font_italic">DR Dataset</span> Each image within the Diabetic retinopathy dataset
+is assessed by a clinician who assigned a rating on a scale of 0 to 4, corresponding to the absence of diabetic retinopathy (No DR), mild, moderate, severe, and proliferative stages.</p>
+</div>
+</li>
+<li id="S5.I1.i6" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S5.I1.i6.p1" class="ltx_para">
+<p id="S5.I1.i6.p1.1" class="ltx_p"><span id="S5.I1.i6.p1.1.1" class="ltx_text ltx_font_italic">LACDHS Dataset</span> The dataset comprises 100 fundus digital images of the retina sourced from the Armed Forces Institute of Ophthalmology (AFIO) in Rawalpindi, Pakistan.
+Included within the dataset are annotations detailing the retinal blood vessel network, segmented artery/vein networks utilized for calculating the Arteriovenous Ratio (AVR), as well as annotations of the Optic Nerve Head (ONH).</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S5.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S5.SS2.4.1.1" class="ltx_text">V-B</span> </span><span id="S5.SS2.5.2" class="ltx_text ltx_font_italic">Experimental Settings</span>
+</h3>
+
+<section id="S5.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS2.SSS1.4.1.1" class="ltx_text">V-B</span>1 </span>Baseline</h4>
+
+<div id="S5.SS2.SSS1.p1" class="ltx_para">
+<p id="S5.SS2.SSS1.p1.1" class="ltx_p">Since we derive a new problem setting, there are no other methods yield to solve it. We used supervised learning on local labels as lower bound for comparison. We assume that in best scenario, data will be visible from all site so that we train a self-supervised encoder from all data and fine-tune it on each tasks to get upper bound performance.</p>
+</div>
+</section>
+<section id="S5.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS2.SSS2.4.1.1" class="ltx_text">V-B</span>2 </span>Task and Data Heterogeneity Setup</h4>
+
+<div id="S5.SS2.SSS2.p1" class="ltx_para">
+<p id="S5.SS2.SSS2.p1.1" class="ltx_p">We model Task imbalance (Split 1, data split by the dataset) and Task balance (Split 2, data split by drawing same number of data from each dataset ) data distributions of the six datasets, as is shown in <a href="#S5.F2" title="Figure 2 ‣ V-A Datasets ‣ V Experiments Implementaion ‣ Task-Agnostic Federated Learning with Imbalanced Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. Centralized task is the model pretrained on the six dataset together without aggregation. Local supervision task represents pretraining and finetuning on its own task dataset but not federatedly learn the data from other clients.
+Simulated data partitions and task partitions allow for a more flexible and thorough investigation of the model behavior, as they can be easily manipulated to test data and task heterogeneity. All the different tasks are finetuned on their own downstream task and the corresponding dataset.</p>
+</div>
+</section>
+<section id="S5.SS2.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection"><span id="S5.SS2.SSS3.4.1.1" class="ltx_text">V-B</span>3 </span>Self-supervised FL Pre-training and Supervised FL Fine-tuning and Evaluation Metrics</h4>
+
+<div id="S5.SS2.SSS3.p1" class="ltx_para">
+<p id="S5.SS2.SSS3.p1.1" class="ltx_p">Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite>,
+ViT-B <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite> is chosen as the backbone for the proposed models.
+Following the setup in MAE<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>, the input
+is split into 16 × 16 patches for MAE. In our
+main experiment, we randomly mask at most 60% of total
+image patches for MAE.
+The downstream model is initialized using the pretrained encoder and fine-tuned with a base learning rate starting at <math id="S5.SS2.SSS3.p1.1.m1.1" class="ltx_Math" alttext="3e^{-3}" display="inline"><semantics id="S5.SS2.SSS3.p1.1.m1.1a"><mrow id="S5.SS2.SSS3.p1.1.m1.1.1" xref="S5.SS2.SSS3.p1.1.m1.1.1.cmml"><mn id="S5.SS2.SSS3.p1.1.m1.1.1.2" xref="S5.SS2.SSS3.p1.1.m1.1.1.2.cmml">3</mn><mo lspace="0em" rspace="0em" id="S5.SS2.SSS3.p1.1.m1.1.1.1" xref="S5.SS2.SSS3.p1.1.m1.1.1.1.cmml">​</mo><msup id="S5.SS2.SSS3.p1.1.m1.1.1.3" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.cmml"><mi id="S5.SS2.SSS3.p1.1.m1.1.1.3.2" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.2.cmml">e</mi><mrow id="S5.SS2.SSS3.p1.1.m1.1.1.3.3" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3.cmml"><mo id="S5.SS2.SSS3.p1.1.m1.1.1.3.3a" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3.cmml">−</mo><mn id="S5.SS2.SSS3.p1.1.m1.1.1.3.3.2" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3.2.cmml">3</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S5.SS2.SSS3.p1.1.m1.1b"><apply id="S5.SS2.SSS3.p1.1.m1.1.1.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1"><times id="S5.SS2.SSS3.p1.1.m1.1.1.1.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.1"></times><cn type="integer" id="S5.SS2.SSS3.p1.1.m1.1.1.2.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.2">3</cn><apply id="S5.SS2.SSS3.p1.1.m1.1.1.3.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S5.SS2.SSS3.p1.1.m1.1.1.3.1.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3">superscript</csymbol><ci id="S5.SS2.SSS3.p1.1.m1.1.1.3.2.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.2">𝑒</ci><apply id="S5.SS2.SSS3.p1.1.m1.1.1.3.3.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3"><minus id="S5.SS2.SSS3.p1.1.m1.1.1.3.3.1.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3"></minus><cn type="integer" id="S5.SS2.SSS3.p1.1.m1.1.1.3.3.2.cmml" xref="S5.SS2.SSS3.p1.1.m1.1.1.3.3.2">3</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S5.SS2.SSS3.p1.1.m1.1c">3e^{-3}</annotation></semantics></math> for all tasks. We use accuracy, precision and F1 score as the evaluation metric for classification on all the datasets.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">VI </span><span id="S6.1.1" class="ltx_text ltx_font_smallcaps">results and discussion</span>
+</h2>
+
+<section id="S6.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S6.SS1.4.1.1" class="ltx_text">VI-A</span> </span><span id="S6.SS1.5.2" class="ltx_text ltx_font_italic">Results for Classification</span>
+</h3>
+
+<div id="S6.SS1.p1" class="ltx_para">
+<p id="S6.SS1.p1.1" class="ltx_p">Table <a href="#S5.T2" title="TABLE II ‣ V-A Datasets ‣ V Experiments Implementaion ‣ Task-Agnostic Federated Learning with Imbalanced Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">II</span></a> shows the results from different training methodologies across three classification tasks: multilabel classification, binary classification, and severity rating.
+In all these classification tasks, the Centralized SSL (No FL) method consistently delivers superior performance, suggesting the advantage for federated learning with lack of data and data communication. The federated learning part shows interesting results. In the multilabel classification task, while SSL-FL (Split 1) shows a decrease in performance compared to centralized SSL, SSL-FL (Split 2) regains some ground, suggesting that the balanced nature of Split 2 may help mitigate some challenges associated with federated settings. In the binary classification task, it is worth to note that both federated learning approaches perform better than local supervision alone, but not much for Split 2, which might due to the great amount of training data for local supervisions in this case, leading to strong representation of the encoder and bringing in information of other dataset does not help much. Still Split 1 with unbalanced data scenarios poses specific challenges that affect performance negatively compared to centralized approaches and Split 2. The severity rating task results reveal a similar pattern where Centralized SSL (No FL) achieves the best overall results. We can see again Split 2 shows improved performance over Split 1, which echoes the trend observed in the multilabel task. Also federated learning does not help much when data is enough for local training. Overall, Centralized SSL provides the best outcomes across all tasks and metrics. The performance differences between SSL-FL splits emphasize the importance of data balancing in federated settings, reducing disparities in model learning and generalization and shows that clients with less data may benefit more from the federated training.
+</p>
+</div>
+</section>
+<section id="S6.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection"><span id="S6.SS2.4.1.1" class="ltx_text">VI-B</span> </span><span id="S6.SS2.5.2" class="ltx_text ltx_font_italic">Results for Segmentation and OOD Tasks</span>
+</h3>
+
+<figure id="S6.F3" class="ltx_figure"><img src="/html/2406.17235/assets/pics/segret.png" id="S6.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="538" height="381" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Example of segmentation results given by SSL-FL framework and local supervision.</figcaption>
+</figure>
+<div id="S6.SS2.p1" class="ltx_para">
+<p id="S6.SS2.p1.1" class="ltx_p">Table <a href="#S5.T3" title="TABLE III ‣ V-A Datasets ‣ V Experiments Implementaion ‣ Task-Agnostic Federated Learning with Imbalanced Data" class="ltx_ref"><span class="ltx_text ltx_ref_tag">III</span></a> presents the results of various methods applied to two different tasks in medical image analysis: optic disc segmentation on the REFUGE dataset and vessel segmentation on the JSIEC dataset.
+For the optic disc segmentation task on the REFUGE dataset,
+the results show that Local Supervision achieves the lowest performance with 94.9% Dice coefficient for optic disc segmentation and 76.0% for cup segmentation. Centralized SSL without FL follows closely behind with slightly higher performance. However, when SSL is combined with Federated Learning (SSL-FL), there’s a increase in performance, especially noticeable in the cup segmentation metric, with Split 1 achieving the highest scores.
+Moving to the vessel segmentation task on the JSIEC dataset, similar trends are observed. Local Supervision achieves the highest Dice coefficients for vessel and background segmentation, with Centralized SSL without FL trailing slightly behind. However, when SSL is coupled with Federated Learning (SSL-FL), there’s again a increse in performance, particularly evident in vessel segmentation for Split 2 because of task balance between clients. These results suggest that while SSL can enhance segmentation performance, the introduction of federated learning in this context might not consistently improve results.
+The choice of data split also influences the effectiveness of SSL with Federated Learning.
+</p>
+</div>
+</section>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_font_smallcaps ltx_title_section">Conclusion</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">In this paper, we propose a privacy-preserving and federated
+self-supervised learning framework that collaboratively trains
+models on decentralized data using masked image modeling as the heterogeneous self-supervised tasks, in which Low Rank Adaptation(LoRA) is used in the fine tuning part. Our framework is robust to non-IID data distribution across clients, and performs well under severe task heterogeneity and data imbalance settings across diverse medical datasets. Experiments show that while tasks(clients) with less data benefits more from federated pretraining, all with different downstream task will perform better than its local supervision.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"> J. Clerk Maxwell, A Treatise on Electricity and Magnetism, 3rd ed., vol. 2. Oxford: Clarendon, 1892, pp.68–73.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"> I. S. Jacobs and C. P. Bean, “Fine particles, thin films and exchange anisotropy,” in Magnetism, vol. III, G. T. Rado and H. Suhl, Eds. New York: Academic, 1963, pp. 271–350.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"> K. Elissa, “Title of paper if known,” unpublished.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"> R. Nicole, “Title of paper with only first word capitalized,” J. Name Stand. Abbrev., in press.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"> Y. Yorozu, M. Hirano, K. Oka, and Y. Tagawa, “Electron spectroscopy studies on magneto-optical media and plastic substrate interface,” IEEE Transl. J. Magn. Japan, vol. 2, pp. 740–741, August 1987 [Digests 9th Annual Conf. Magnetics Japan, p. 301, 1982].
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"> M. Young, The Technical Writer’s Handbook. Mill Valley, CA: University Science, 1989.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"> Rudolph Emil Kalman. A new approach to linear filtering and prediction problems. 1960
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"> Albert Gu and Tri Dao. Mamba: Linear-time sequence
+modeling with selective state spaces. arXiv preprint
+arXiv:2312.00752, 2023.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"> Albert Gu, Karan Goel, and Christopher Re. Efficiently ´
+modeling long sequences with structured state spaces. arXiv
+preprint arXiv:2111.00396, 2021.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"> Albert Gu, Isys Johnson, Karan Goel, Khaled Saab, Tri
+Dao, Atri Rudra, and Christopher Re. Combining recurrent, ´
+convolutional, and continuous-time models with linear state
+space layers. In NeurIPS, 2021.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"> Albert Gu, Karan Goel, Ankit Gupta, and Christopher Re.´
+On the parameterization and initialization of diagonal state
+space models. In NeurIPS, 2022.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"> Ankit Gupta, Albert Gu, and Jonathan Berant. Diagonal state
+spaces are as effective as structured state spaces. In NeurIPS,
+2022.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"> Zhu, L., Liao, B., Zhang, Q., Wang, X., Liu, W., Wang, X.: Vision mamba: Efficient visual representation learning with bidirectional state space model. arXiv preprint arXiv:2401.09417
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"> Yan, Rui, et al. ”Label-efficient self-supervised federated learning for tackling data heterogeneity in medical imaging.” IEEE Transactions on Medical Imaging (2023).
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"> Mao, Y.; Mathias, L.; Hou, R.; Almahairi, A.; Ma, H.; Han,
+J.; Yih, W.-t.; and Khabsa, M. 2021. Unipelt: A unified
+framework for parameter-efficient language model tuning.
+arXiv preprint arXiv:2110.07577.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"> Mosbach, M.; Andriushchenko, M.; and Klakow, D. 2020.
+On the Stability of Fine-tuning BERT: Misconceptions, Explanations, and Strong Baselines. In ICLR.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"> Mostafa, H.; and Wang, X. 2019. Parameter efficient
+training of deep convolutional neural networks by dynamic
+sparse reparameterization. In ICML.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"> He, Xuehai, Chunyuan Li, Pengchuan Zhang, Jianwei Yang, and Xin Eric Wang. ”Parameter-efficient fine-tuning for vision transformers.” arXiv preprint arXiv:2203.16329 3 (2022).
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"> Sun, Jingchen, Jiayu Qin, Zihao Lin, and Changyou Chen. ”Prompt tuning based adapter for vision-language model adaption.” arXiv preprint arXiv:2303.15234 (2023).
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"> Yu, Tao, Zhihe Lu, Xin Jin, Zhibo Chen, and Xinchao Wang. ”Task residual for tuning vision-language models.” In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 10899-10909. 2023.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">Hu, Edward J., Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. ”Lora: Low-rank adaptation of large language models.” arXiv preprint arXiv:2106.09685 (2021
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin de Laroussilhe,
+Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly. Parameter-Efficient Transfer Learning for NLP. arXiv:1902.00751 [cs, stat], June 2019.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">Guo, Yunhui, Honghui Shi, Abhishek Kumar, Kristen Grauman, Tajana Rosing, and Rogerio Feris. ”Spottune: transfer learning through adaptive fine-tuning.” In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 4805-4814. 2019.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">Brian Lester, Rami Al-Rfou, and Noah Constant. The Power of Scale for Parameter-Efficient Prompt
+Tuning. arXiv:2104.08691 [cs], April 2021.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">Jia, Menglin, Luming Tang, Bor-Chun Chen, Claire Cardie, Serge Belongie, Bharath Hariharan, and Ser-Nam Lim. ”Visual prompt tuning.” In European Conference on Computer Vision, pp. 709-727. Cham: Springer Nature Switzerland, 2022.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">Guo, Ziyu, Renrui Zhang, Longtian Qiu, Xianzheng Ma, Xupeng Miao, Xuming He, and Bin Cui. ”Calip: Zero-shot enhancement of clip with parameter-free attention.” In Proceedings of the AAAI Conference on Artificial Intelligence, vol. 37, no. 1, pp. 746-754. 2023.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">Cui, Baiyun, Yingming Li, Ming Chen, and Zhongfei Zhang. ”Fine-tune BERT with sparse self-attention mechanism.” In Proceedings of the 2019 conference on empirical methods in natural language processing and the 9th international joint conference on natural language processing (EMNLP-IJCNLP), pp. 3548-3553. 2019
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">Finn, Chelsea, Pieter Abbeel, and Sergey Levine. ”Model-agnostic meta-learning for fast adaptation of deep networks.” In International conference on machine learning, pp. 1126-1135. PMLR, 2017.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">Snell, Jake, Kevin Swersky, and Richard Zemel. ”Prototypical networks for few-shot learning.” Advances in neural information processing systems 30 (2017).
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">Nichol, Alex, and John Schulman. ”Reptile: a scalable metalearning algorithm.” arXiv preprint arXiv:1803.02999 2, no. 3 (2018): 4.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock"> Itahara, Sohei, Takayuki Nishio, Yusuke Koda, Masahiro Morikura, and Koji Yamamoto. ”Distillation-based semi-supervised federated learning for communication-efficient collaborative training with non-iid private data.” IEEE Transactions on Mobile Computing 22, no. 1 (2021): 191-205.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock"> Lin, Haowen, Jian Lou, Li Xiong, and Cyrus Shahabi. ”Semifed: Semi-supervised federated learning with consistency and pseudo-labeling.” arXiv preprint arXiv:2108.09412 (2021).
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock"> He, Kaiming, et al. ”Masked autoencoders are scalable vision learners.” Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 2022
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock"> Yan, Rui, et al. ”Label-efficient self-supervised federated learning for tackling data heterogeneity in medical imaging.” IEEE Transactions on Medical Imaging 42.7 (2023): 1932-1943.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock"> Dosovitskiy, Alexey, et al. ”An image is worth 16x16 words: Transformers for image recognition at scale.” arXiv preprint arXiv:2010.11929 (2020).
+
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock"> Mitra, Aritra, et al. ”Linear convergence in federated learning: Tackling client heterogeneity and sparse gradients.” Advances in Neural Information Processing Systems 34 (2021): 14606-14619.
+
+</span>
+</li>
+<li id="bib.bib37" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[37]</span>
+<span class="ltx_bibblock">Atito, Sara, Muhammad Awais, and Josef Kittler. ”Sit: Self-supervised vision transformer.” arXiv preprint arXiv:2104.03602 (2021).
+
+</span>
+</li>
+<li id="bib.bib38" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[38]</span>
+<span class="ltx_bibblock">Baevski, Alexei, et al. ”Data2vec: A general framework for self-supervised learning in speech, vision and language.” International Conference on Machine Learning. PMLR, 2022.
+
+</span>
+</li>
+<li id="bib.bib39" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[39]</span>
+<span class="ltx_bibblock">Weng, Zejia, et al. ”Semi-supervised vision transformers.” European conference on computer vision. Cham: Springer Nature Switzerland, 2022.
+
+</span>
+</li>
+<li id="bib.bib40" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[40]</span>
+<span class="ltx_bibblock">Zhai, Xiaohua, et al. ”S4l: Self-supervised semi-supervised learning.” Proceedings of the IEEE/CVF international conference on computer vision. 2019.
+
+</span>
+</li>
+<li id="bib.bib41" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[41]</span>
+<span class="ltx_bibblock">Smith, Virginia, et al. ”Federated multi-task learning.” Advances in neural information processing systems 30 (2017).
+
+</span>
+</li>
+<li id="bib.bib42" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[42]</span>
+<span class="ltx_bibblock">Hatamizadeh, Ali, et al. ”Unetr: Transformers for 3d medical image segmentation.” Proceedings of the IEEE/CVF winter conference on applications of computer vision. 2022.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.17234" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.17235" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.17235">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.17235" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.17236" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Jul  6 00:29:43 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

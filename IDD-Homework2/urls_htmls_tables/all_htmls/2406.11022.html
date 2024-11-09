@@ -1,0 +1,1210 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.11022] Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models</title><meta property="og:description" content="This paper explores the improvement of post-training quantization (PTQ) after knowledge distillation in the Whisper speech foundation model family.
+We address the challenge of outliers in weights and activation tensors…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.11022">
+
+<!--Generated on Fri Jul  5 17:47:43 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">[affiliation=1]DominikWagner
+<span id="p1.3.1" class="ltx_ERROR undefined">\name</span>[affiliation=1]IljaBaumann
+<span id="p1.3.2" class="ltx_ERROR undefined">\name</span>[affiliation=1]KorbinianRiedhammer
+<span id="p1.3.3" class="ltx_ERROR undefined">\name</span>[affiliation=1,2]TobiasBocklet
+
+
+
+
+
+
+
+
+</p>
+</div>
+<h1 class="ltx_title ltx_title_document">Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id5.id1" class="ltx_p">This paper explores the improvement of post-training quantization (PTQ) after knowledge distillation in the Whisper speech foundation model family.
+We address the challenge of outliers in weights and activation tensors, known to impede quantization quality in transformer-based language and vision models.
+Extending this observation to Whisper, we demonstrate that these outliers are also present when transformer-based models are trained to perform automatic speech recognition, necessitating mitigation strategies for PTQ.
+We show that outliers can be reduced by a recently proposed gating mechanism in the attention blocks of the student model, enabling effective 8-bit quantization, and lower word error rates compared to student models without the gating mechanism in place.
+</p>
+</div>
+<div class="ltx_classification">
+<h6 class="ltx_title ltx_title_classification">keywords: </h6>post-training quantization, Whisper, gated attention, outliers
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Foundation models are deep neural networks trained on extensive and diverse datasets, capable of addressing a wide range of downstream tasks with minimal or no adaptation required.
+Speech foundation models (SFMs) like wav2vec 2.0 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, HuBERT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>, and Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> have demonstrated remarkable performance across various speech-related tasks.
+However, improved performance also led to a notable increase in both the number of parameters and computational complexity.
+The increased demand for computational resources not only results in higher energy consumption but also limits the accessibility of SFM-based applications on resource-constrained devices.
+Consequently, there is a growing focus on enhancing the efficiency of SFMs <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Common approaches to reduce the size of automatic speech recognition (ASR) systems include knowledge distillation (KD) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>, model quantization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, weight pruning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite>, or combinations thereof <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>.
+Two widely used quantization techniques are quantization-aware training (QAT) and post-training quantization (PTQ), with the later being the focus of this study.
+QAT involves simulating quantization operations during model training.
+PTQ methods are typically easier to apply, as they either require no direct interaction with the model or involve passing only a small calibration dataset through the model to determine the optimal quantization parameters.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Prior research has shown that weight quantization has minimal effect on the accuracy of transformer-based systems <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, whereas activation tensors exhibit significantly wider value ranges <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>, <a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>, making them more difficult to quantize.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">Several efforts have been made to reduce the size of the Whisper SFM, a model also utilized in this study.
+These approaches either focus exclusively on KD <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite>, QAT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite>, or apply PTQ to calibrate personalized quantization schemes for particular speakers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Analyzing the intricacies of SFMs is crucial for optimizing their performance, especially in resource-constrained environments.
+By understanding why models perform less effectively after quantization, we may gain insights into the determinants of their limitations.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">Investigations into the behavior of transformer-based language models indicate that these models learn outliers within their weights and activation tensors <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib27" title="" class="ltx_ref">27</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>.
+Outliers typically appear within a limited, fixed set of hidden dimensions but materialize across various layers irrespective of the input sequence.
+Moreover, these outliers influence the quality of the model's predictions, and attempts to mitigate their impact, e.g., by dropping the corresponding values, can result in a significant degradation of the model's performance <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>.
+The presence of outliers within hidden dimensions also poses challenges for model quantization due to the trade-off between rounding errors and clipping errors <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>.
+Previous works argue that these anomalies stem from specific behaviors exhibited by attention heads attempting to either learn a null operation or a partial update of the residuals <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>.
+To obtain the zero values necessary for a non-update scenario in the attention matrix, the softmax input undergoes continual amplification during training, resulting in outliers in other network components.
+</p>
+</div>
+<div id="S1.p7" class="ltx_para">
+<p id="S1.p7.1" class="ltx_p">So far, investigations into outliers have been focused on transformer-based language and vision models.
+In this work, we show that the observations made in the text and image domain also translate to the speech domain and that quantizing both weight and activation tensors to 8-bit benefits from outlier mitigation.
+In particular, we employ the gating mechanism for attention blocks introduced in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, and demonstrate that Whisper-based models distilled with this gating mechanism in place learn smaller outliers and exhibit less performance degradation after quantization.</p>
+</div>
+<div id="S1.p8" class="ltx_para">
+<p id="S1.p8.1" class="ltx_p">Knowledge distillation provides a robust framework for leveraging the knowledge encapsulated within the pretrained Whisper model, while also providing freedom in the choice of the student architecture.
+Given the unavailability of the original training data and the significant computational resources required for Whisper pretraining, we opt for student-teacher training using a diverse dataset of <math id="S1.p8.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S1.p8.1.m1.1a"><mo id="S1.p8.1.m1.1.1" xref="S1.p8.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S1.p8.1.m1.1b"><csymbol cd="latexml" id="S1.p8.1.m1.1.1.cmml" xref="S1.p8.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S1.p8.1.m1.1c">\sim</annotation></semantics></math>16k hours of English speech collected from various publicly available sources comprising a large number of speakers and speaking styles to transfer knowledge to the student.
+Our focus is on analyzing outliers and evaluating the effectiveness of gated attention in mitigating them, along with improving ASR performance after PTQ.
+
+<br class="ltx_break">
+<br class="ltx_break">Our main contributions are:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">Identification of outlier behavior in Whisper, mirroring findings in transformer-based language and vision models</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">Application of a gated attention mechanism to effectively address outliers in hidden dimensions of SFMs</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">Creation of several smaller distilled versions of Whisper using student-teacher training to reduce the size of both encoder and decoder</p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i4.p1" class="ltx_para">
+<p id="S1.I1.i4.p1.1" class="ltx_p">Demonstration of a practical framework for post-training quantization of SFMs to INT8, enhancing ASR efficiency and deployability</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Method</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Knowledge distillation</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.3" class="ltx_p">Knowledge distillation (KD) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> is a learning framework that entails training a more compact student model to emulate the performance of a larger teacher model.
+KD involves training by aligning the student's predictions with those of the teacher.
+Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite>, we utilize a linear combination of cross-entropy loss across a set of <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mi id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><ci id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">N</annotation></semantics></math> target labels <math id="S2.SS1.p1.2.m2.2" class="ltx_Math" alttext="\bm{y}_{1:N}=\{y_{1}\ldots,y_{N}\}" display="inline"><semantics id="S2.SS1.p1.2.m2.2a"><mrow id="S2.SS1.p1.2.m2.2.2" xref="S2.SS1.p1.2.m2.2.2.cmml"><msub id="S2.SS1.p1.2.m2.2.2.4" xref="S2.SS1.p1.2.m2.2.2.4.cmml"><mi id="S2.SS1.p1.2.m2.2.2.4.2" xref="S2.SS1.p1.2.m2.2.2.4.2.cmml">𝒚</mi><mrow id="S2.SS1.p1.2.m2.2.2.4.3" xref="S2.SS1.p1.2.m2.2.2.4.3.cmml"><mn id="S2.SS1.p1.2.m2.2.2.4.3.2" xref="S2.SS1.p1.2.m2.2.2.4.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.2.m2.2.2.4.3.1" xref="S2.SS1.p1.2.m2.2.2.4.3.1.cmml">:</mo><mi id="S2.SS1.p1.2.m2.2.2.4.3.3" xref="S2.SS1.p1.2.m2.2.2.4.3.3.cmml">N</mi></mrow></msub><mo id="S2.SS1.p1.2.m2.2.2.3" xref="S2.SS1.p1.2.m2.2.2.3.cmml">=</mo><mrow id="S2.SS1.p1.2.m2.2.2.2.2" xref="S2.SS1.p1.2.m2.2.2.2.3.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.2.2.2.2.3" xref="S2.SS1.p1.2.m2.2.2.2.3.cmml">{</mo><mrow id="S2.SS1.p1.2.m2.1.1.1.1.1" xref="S2.SS1.p1.2.m2.1.1.1.1.1.cmml"><msub id="S2.SS1.p1.2.m2.1.1.1.1.1.2" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2.cmml"><mi id="S2.SS1.p1.2.m2.1.1.1.1.1.2.2" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2.2.cmml">y</mi><mn id="S2.SS1.p1.2.m2.1.1.1.1.1.2.3" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2.3.cmml">1</mn></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p1.2.m2.1.1.1.1.1.1" xref="S2.SS1.p1.2.m2.1.1.1.1.1.1.cmml">​</mo><mi mathvariant="normal" id="S2.SS1.p1.2.m2.1.1.1.1.1.3" xref="S2.SS1.p1.2.m2.1.1.1.1.1.3.cmml">…</mi></mrow><mo id="S2.SS1.p1.2.m2.2.2.2.2.4" xref="S2.SS1.p1.2.m2.2.2.2.3.cmml">,</mo><msub id="S2.SS1.p1.2.m2.2.2.2.2.2" xref="S2.SS1.p1.2.m2.2.2.2.2.2.cmml"><mi id="S2.SS1.p1.2.m2.2.2.2.2.2.2" xref="S2.SS1.p1.2.m2.2.2.2.2.2.2.cmml">y</mi><mi id="S2.SS1.p1.2.m2.2.2.2.2.2.3" xref="S2.SS1.p1.2.m2.2.2.2.2.2.3.cmml">N</mi></msub><mo stretchy="false" id="S2.SS1.p1.2.m2.2.2.2.2.5" xref="S2.SS1.p1.2.m2.2.2.2.3.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.2b"><apply id="S2.SS1.p1.2.m2.2.2.cmml" xref="S2.SS1.p1.2.m2.2.2"><eq id="S2.SS1.p1.2.m2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.2.2.3"></eq><apply id="S2.SS1.p1.2.m2.2.2.4.cmml" xref="S2.SS1.p1.2.m2.2.2.4"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.2.2.4.1.cmml" xref="S2.SS1.p1.2.m2.2.2.4">subscript</csymbol><ci id="S2.SS1.p1.2.m2.2.2.4.2.cmml" xref="S2.SS1.p1.2.m2.2.2.4.2">𝒚</ci><apply id="S2.SS1.p1.2.m2.2.2.4.3.cmml" xref="S2.SS1.p1.2.m2.2.2.4.3"><ci id="S2.SS1.p1.2.m2.2.2.4.3.1.cmml" xref="S2.SS1.p1.2.m2.2.2.4.3.1">:</ci><cn type="integer" id="S2.SS1.p1.2.m2.2.2.4.3.2.cmml" xref="S2.SS1.p1.2.m2.2.2.4.3.2">1</cn><ci id="S2.SS1.p1.2.m2.2.2.4.3.3.cmml" xref="S2.SS1.p1.2.m2.2.2.4.3.3">𝑁</ci></apply></apply><set id="S2.SS1.p1.2.m2.2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.2.2.2.2"><apply id="S2.SS1.p1.2.m2.1.1.1.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1"><times id="S2.SS1.p1.2.m2.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.1"></times><apply id="S2.SS1.p1.2.m2.1.1.1.1.1.2.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.1.1.1.1.1.2.1.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2">subscript</csymbol><ci id="S2.SS1.p1.2.m2.1.1.1.1.1.2.2.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2.2">𝑦</ci><cn type="integer" id="S2.SS1.p1.2.m2.1.1.1.1.1.2.3.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.2.3">1</cn></apply><ci id="S2.SS1.p1.2.m2.1.1.1.1.1.3.cmml" xref="S2.SS1.p1.2.m2.1.1.1.1.1.3">…</ci></apply><apply id="S2.SS1.p1.2.m2.2.2.2.2.2.cmml" xref="S2.SS1.p1.2.m2.2.2.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.2.2.2.2.2.1.cmml" xref="S2.SS1.p1.2.m2.2.2.2.2.2">subscript</csymbol><ci id="S2.SS1.p1.2.m2.2.2.2.2.2.2.cmml" xref="S2.SS1.p1.2.m2.2.2.2.2.2.2">𝑦</ci><ci id="S2.SS1.p1.2.m2.2.2.2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.2.2.2.2.2.3">𝑁</ci></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.2c">\bm{y}_{1:N}=\{y_{1}\ldots,y_{N}\}</annotation></semantics></math> and the Kullback-Leibler (<math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="KL" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><mrow id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml"><mi id="S2.SS1.p1.3.m3.1.1.2" xref="S2.SS1.p1.3.m3.1.1.2.cmml">K</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.3.m3.1.1.1" xref="S2.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi id="S2.SS1.p1.3.m3.1.1.3" xref="S2.SS1.p1.3.m3.1.1.3.cmml">L</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><apply id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1"><times id="S2.SS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1.1"></times><ci id="S2.SS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2">𝐾</ci><ci id="S2.SS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3">𝐿</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">KL</annotation></semantics></math>) divergence <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite> to optimize the student:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.3" class="ltx_Math" alttext="\mathcal{L}=\alpha_{\text{CE}}\left(-\sum_{i=1}^{N}p(y_{i}\mid\bm{y}_{&lt;i},\bm{H}_{1:M})\right)+\alpha_{\text{KL}}\left(KL\left(\mathbf{S},\mathbf{T}\right)\right)," display="block"><semantics id="S2.E1.m1.3a"><mrow id="S2.E1.m1.3.3.1" xref="S2.E1.m1.3.3.1.1.cmml"><mrow id="S2.E1.m1.3.3.1.1" xref="S2.E1.m1.3.3.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.3.3.1.1.4" xref="S2.E1.m1.3.3.1.1.4.cmml">ℒ</mi><mo id="S2.E1.m1.3.3.1.1.3" xref="S2.E1.m1.3.3.1.1.3.cmml">=</mo><mrow id="S2.E1.m1.3.3.1.1.2" xref="S2.E1.m1.3.3.1.1.2.cmml"><mrow id="S2.E1.m1.3.3.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.cmml"><msub id="S2.E1.m1.3.3.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.3.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.3.2" xref="S2.E1.m1.3.3.1.1.1.1.3.2.cmml">α</mi><mtext id="S2.E1.m1.3.3.1.1.1.1.3.3" xref="S2.E1.m1.3.3.1.1.1.1.3.3a.cmml">CE</mtext></msub><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml"><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml"><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1a" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml">−</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.cmml"><munderover id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.cmml"><mo movablelimits="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2.cmml">∑</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.2.cmml">i</mi><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.1.cmml">=</mo><mn id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.3.cmml">1</mn></mrow><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.3.cmml">N</mi></munderover><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.2.cmml">y</mi><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.3.cmml">i</mi></msub><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml">∣</mo><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.3.cmml"><msub id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">𝒚</mi><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml"></mi><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml">&lt;</mo><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml">i</mi></mrow></msub><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.3.cmml">,</mo><msub id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.cmml"><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.2.cmml">𝑯</mi><mrow id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.cmml"><mn id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.2" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.1" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.1.cmml">:</mo><mi id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.3.cmml">M</mi></mrow></msub></mrow></mrow><mo stretchy="false" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><mo id="S2.E1.m1.3.3.1.1.1.1.1.1.3" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo id="S2.E1.m1.3.3.1.1.2.3" xref="S2.E1.m1.3.3.1.1.2.3.cmml">+</mo><mrow id="S2.E1.m1.3.3.1.1.2.2" xref="S2.E1.m1.3.3.1.1.2.2.cmml"><msub id="S2.E1.m1.3.3.1.1.2.2.3" xref="S2.E1.m1.3.3.1.1.2.2.3.cmml"><mi id="S2.E1.m1.3.3.1.1.2.2.3.2" xref="S2.E1.m1.3.3.1.1.2.2.3.2.cmml">α</mi><mtext id="S2.E1.m1.3.3.1.1.2.2.3.3" xref="S2.E1.m1.3.3.1.1.2.2.3.3a.cmml">KL</mtext></msub><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.2.2.2" xref="S2.E1.m1.3.3.1.1.2.2.2.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.2.2.1.1" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.cmml"><mo id="S2.E1.m1.3.3.1.1.2.2.1.1.2" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.3.3.1.1.2.2.1.1.1" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.cmml"><mi id="S2.E1.m1.3.3.1.1.2.2.1.1.1.2" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.2.cmml">K</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.2.2.1.1.1.1" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.1.cmml">​</mo><mi id="S2.E1.m1.3.3.1.1.2.2.1.1.1.3" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.3.cmml">L</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.3.3.1.1.2.2.1.1.1.1a" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.1.cmml">​</mo><mrow id="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.2" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.1.cmml"><mo id="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.2.1" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.1.cmml">(</mo><mi id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml">𝐒</mi><mo id="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.2.2" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.1.cmml">,</mo><mi id="S2.E1.m1.2.2" xref="S2.E1.m1.2.2.cmml">𝐓</mi><mo id="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.2.3" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.1.cmml">)</mo></mrow></mrow><mo id="S2.E1.m1.3.3.1.1.2.2.1.1.3" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><mo id="S2.E1.m1.3.3.1.2" xref="S2.E1.m1.3.3.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.3b"><apply id="S2.E1.m1.3.3.1.1.cmml" xref="S2.E1.m1.3.3.1"><eq id="S2.E1.m1.3.3.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.3"></eq><ci id="S2.E1.m1.3.3.1.1.4.cmml" xref="S2.E1.m1.3.3.1.1.4">ℒ</ci><apply id="S2.E1.m1.3.3.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.2"><plus id="S2.E1.m1.3.3.1.1.2.3.cmml" xref="S2.E1.m1.3.3.1.1.2.3"></plus><apply id="S2.E1.m1.3.3.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1"><times id="S2.E1.m1.3.3.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.2"></times><apply id="S2.E1.m1.3.3.1.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.3.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.3">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.3.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.3.2">𝛼</ci><ci id="S2.E1.m1.3.3.1.1.1.1.3.3a.cmml" xref="S2.E1.m1.3.3.1.1.1.1.3.3"><mtext mathsize="70%" id="S2.E1.m1.3.3.1.1.1.1.3.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.3.3">CE</mtext></ci></apply><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1"><minus id="S2.E1.m1.3.3.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1"></minus><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1"><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2">superscript</csymbol><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2">subscript</csymbol><sum id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.2"></sum><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3"><eq id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.1"></eq><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.2">𝑖</ci><cn type="integer" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.2.3.3">1</cn></apply></apply><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.2.3">𝑁</ci></apply><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1"><times id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.2"></times><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.3">𝑝</ci><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.3">conditional</csymbol><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.2">𝑦</ci><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.4.3">𝑖</ci></apply><list id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2"><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2">𝒚</ci><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3"><lt id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.1"></lt><csymbol cd="latexml" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.2">absent</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.3">𝑖</ci></apply></apply><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.2">𝑯</ci><apply id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3"><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.1.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.1">:</ci><cn type="integer" id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.2.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.2">1</cn><ci id="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.3.cmml" xref="S2.E1.m1.3.3.1.1.1.1.1.1.1.1.1.1.1.1.2.2.2.3.3">𝑀</ci></apply></apply></list></apply></apply></apply></apply></apply><apply id="S2.E1.m1.3.3.1.1.2.2.cmml" xref="S2.E1.m1.3.3.1.1.2.2"><times id="S2.E1.m1.3.3.1.1.2.2.2.cmml" xref="S2.E1.m1.3.3.1.1.2.2.2"></times><apply id="S2.E1.m1.3.3.1.1.2.2.3.cmml" xref="S2.E1.m1.3.3.1.1.2.2.3"><csymbol cd="ambiguous" id="S2.E1.m1.3.3.1.1.2.2.3.1.cmml" xref="S2.E1.m1.3.3.1.1.2.2.3">subscript</csymbol><ci id="S2.E1.m1.3.3.1.1.2.2.3.2.cmml" xref="S2.E1.m1.3.3.1.1.2.2.3.2">𝛼</ci><ci id="S2.E1.m1.3.3.1.1.2.2.3.3a.cmml" xref="S2.E1.m1.3.3.1.1.2.2.3.3"><mtext mathsize="70%" id="S2.E1.m1.3.3.1.1.2.2.3.3.cmml" xref="S2.E1.m1.3.3.1.1.2.2.3.3">KL</mtext></ci></apply><apply id="S2.E1.m1.3.3.1.1.2.2.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.2.2.1.1"><times id="S2.E1.m1.3.3.1.1.2.2.1.1.1.1.cmml" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.1"></times><ci id="S2.E1.m1.3.3.1.1.2.2.1.1.1.2.cmml" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.2">𝐾</ci><ci id="S2.E1.m1.3.3.1.1.2.2.1.1.1.3.cmml" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.3">𝐿</ci><interval closure="open" id="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.1.cmml" xref="S2.E1.m1.3.3.1.1.2.2.1.1.1.4.2"><ci id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1">𝐒</ci><ci id="S2.E1.m1.2.2.cmml" xref="S2.E1.m1.2.2">𝐓</ci></interval></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.3c">\mathcal{L}=\alpha_{\text{CE}}\left(-\sum_{i=1}^{N}p(y_{i}\mid\bm{y}_{&lt;i},\bm{H}_{1:M})\right)+\alpha_{\text{KL}}\left(KL\left(\mathbf{S},\mathbf{T}\right)\right),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS1.p1.7" class="ltx_p">where <math id="S2.SS1.p1.4.m1.1" class="ltx_Math" alttext="\mathbf{S}" display="inline"><semantics id="S2.SS1.p1.4.m1.1a"><mi id="S2.SS1.p1.4.m1.1.1" xref="S2.SS1.p1.4.m1.1.1.cmml">𝐒</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m1.1b"><ci id="S2.SS1.p1.4.m1.1.1.cmml" xref="S2.SS1.p1.4.m1.1.1">𝐒</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m1.1c">\mathbf{S}</annotation></semantics></math> and <math id="S2.SS1.p1.5.m2.1" class="ltx_Math" alttext="\mathbf{T}" display="inline"><semantics id="S2.SS1.p1.5.m2.1a"><mi id="S2.SS1.p1.5.m2.1.1" xref="S2.SS1.p1.5.m2.1.1.cmml">𝐓</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m2.1b"><ci id="S2.SS1.p1.5.m2.1.1.cmml" xref="S2.SS1.p1.5.m2.1.1">𝐓</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m2.1c">\mathbf{T}</annotation></semantics></math> denote the output probability distribution of the student and the teacher model, respectively.
+The constant weighting factors are set to <math id="S2.SS1.p1.6.m3.1" class="ltx_Math" alttext="\alpha_{\text{CE}}=1" display="inline"><semantics id="S2.SS1.p1.6.m3.1a"><mrow id="S2.SS1.p1.6.m3.1.1" xref="S2.SS1.p1.6.m3.1.1.cmml"><msub id="S2.SS1.p1.6.m3.1.1.2" xref="S2.SS1.p1.6.m3.1.1.2.cmml"><mi id="S2.SS1.p1.6.m3.1.1.2.2" xref="S2.SS1.p1.6.m3.1.1.2.2.cmml">α</mi><mtext id="S2.SS1.p1.6.m3.1.1.2.3" xref="S2.SS1.p1.6.m3.1.1.2.3a.cmml">CE</mtext></msub><mo id="S2.SS1.p1.6.m3.1.1.1" xref="S2.SS1.p1.6.m3.1.1.1.cmml">=</mo><mn id="S2.SS1.p1.6.m3.1.1.3" xref="S2.SS1.p1.6.m3.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m3.1b"><apply id="S2.SS1.p1.6.m3.1.1.cmml" xref="S2.SS1.p1.6.m3.1.1"><eq id="S2.SS1.p1.6.m3.1.1.1.cmml" xref="S2.SS1.p1.6.m3.1.1.1"></eq><apply id="S2.SS1.p1.6.m3.1.1.2.cmml" xref="S2.SS1.p1.6.m3.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.6.m3.1.1.2.1.cmml" xref="S2.SS1.p1.6.m3.1.1.2">subscript</csymbol><ci id="S2.SS1.p1.6.m3.1.1.2.2.cmml" xref="S2.SS1.p1.6.m3.1.1.2.2">𝛼</ci><ci id="S2.SS1.p1.6.m3.1.1.2.3a.cmml" xref="S2.SS1.p1.6.m3.1.1.2.3"><mtext mathsize="70%" id="S2.SS1.p1.6.m3.1.1.2.3.cmml" xref="S2.SS1.p1.6.m3.1.1.2.3">CE</mtext></ci></apply><cn type="integer" id="S2.SS1.p1.6.m3.1.1.3.cmml" xref="S2.SS1.p1.6.m3.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m3.1c">\alpha_{\text{CE}}=1</annotation></semantics></math> and <math id="S2.SS1.p1.7.m4.1" class="ltx_Math" alttext="\alpha_{\text{KL}}=0.8" display="inline"><semantics id="S2.SS1.p1.7.m4.1a"><mrow id="S2.SS1.p1.7.m4.1.1" xref="S2.SS1.p1.7.m4.1.1.cmml"><msub id="S2.SS1.p1.7.m4.1.1.2" xref="S2.SS1.p1.7.m4.1.1.2.cmml"><mi id="S2.SS1.p1.7.m4.1.1.2.2" xref="S2.SS1.p1.7.m4.1.1.2.2.cmml">α</mi><mtext id="S2.SS1.p1.7.m4.1.1.2.3" xref="S2.SS1.p1.7.m4.1.1.2.3a.cmml">KL</mtext></msub><mo id="S2.SS1.p1.7.m4.1.1.1" xref="S2.SS1.p1.7.m4.1.1.1.cmml">=</mo><mn id="S2.SS1.p1.7.m4.1.1.3" xref="S2.SS1.p1.7.m4.1.1.3.cmml">0.8</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m4.1b"><apply id="S2.SS1.p1.7.m4.1.1.cmml" xref="S2.SS1.p1.7.m4.1.1"><eq id="S2.SS1.p1.7.m4.1.1.1.cmml" xref="S2.SS1.p1.7.m4.1.1.1"></eq><apply id="S2.SS1.p1.7.m4.1.1.2.cmml" xref="S2.SS1.p1.7.m4.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.7.m4.1.1.2.1.cmml" xref="S2.SS1.p1.7.m4.1.1.2">subscript</csymbol><ci id="S2.SS1.p1.7.m4.1.1.2.2.cmml" xref="S2.SS1.p1.7.m4.1.1.2.2">𝛼</ci><ci id="S2.SS1.p1.7.m4.1.1.2.3a.cmml" xref="S2.SS1.p1.7.m4.1.1.2.3"><mtext mathsize="70%" id="S2.SS1.p1.7.m4.1.1.2.3.cmml" xref="S2.SS1.p1.7.m4.1.1.2.3">KL</mtext></ci></apply><cn type="float" id="S2.SS1.p1.7.m4.1.1.3.cmml" xref="S2.SS1.p1.7.m4.1.1.3">0.8</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m4.1c">\alpha_{\text{KL}}=0.8</annotation></semantics></math> based on <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Post-training quantization</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.2" class="ltx_p">We consider post-training quantization (PTQ), where a trained full precision (FP32) model is converted into an 8-bit (INT8) fixed-point model directly without any additional training.
+Quantization is the process of mapping the values of a tensor <math id="S2.SS2.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{x}\in\mathbb{R}" display="inline"><semantics id="S2.SS2.p1.1.m1.1a"><mrow id="S2.SS2.p1.1.m1.1.1" xref="S2.SS2.p1.1.m1.1.1.cmml"><mi id="S2.SS2.p1.1.m1.1.1.2" xref="S2.SS2.p1.1.m1.1.1.2.cmml">𝐱</mi><mo id="S2.SS2.p1.1.m1.1.1.1" xref="S2.SS2.p1.1.m1.1.1.1.cmml">∈</mo><mi id="S2.SS2.p1.1.m1.1.1.3" xref="S2.SS2.p1.1.m1.1.1.3.cmml">ℝ</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.1.m1.1b"><apply id="S2.SS2.p1.1.m1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1"><in id="S2.SS2.p1.1.m1.1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1.1"></in><ci id="S2.SS2.p1.1.m1.1.1.2.cmml" xref="S2.SS2.p1.1.m1.1.1.2">𝐱</ci><ci id="S2.SS2.p1.1.m1.1.1.3.cmml" xref="S2.SS2.p1.1.m1.1.1.3">ℝ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.1.m1.1c">\mathbf{x}\in\mathbb{R}</annotation></semantics></math> to corresponding values on an integer grid <math id="S2.SS2.p1.2.m2.1" class="ltx_Math" alttext="\mathbf{x}_{q}\in\mathbb{Z}" display="inline"><semantics id="S2.SS2.p1.2.m2.1a"><mrow id="S2.SS2.p1.2.m2.1.1" xref="S2.SS2.p1.2.m2.1.1.cmml"><msub id="S2.SS2.p1.2.m2.1.1.2" xref="S2.SS2.p1.2.m2.1.1.2.cmml"><mi id="S2.SS2.p1.2.m2.1.1.2.2" xref="S2.SS2.p1.2.m2.1.1.2.2.cmml">𝐱</mi><mi id="S2.SS2.p1.2.m2.1.1.2.3" xref="S2.SS2.p1.2.m2.1.1.2.3.cmml">q</mi></msub><mo id="S2.SS2.p1.2.m2.1.1.1" xref="S2.SS2.p1.2.m2.1.1.1.cmml">∈</mo><mi id="S2.SS2.p1.2.m2.1.1.3" xref="S2.SS2.p1.2.m2.1.1.3.cmml">ℤ</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.2.m2.1b"><apply id="S2.SS2.p1.2.m2.1.1.cmml" xref="S2.SS2.p1.2.m2.1.1"><in id="S2.SS2.p1.2.m2.1.1.1.cmml" xref="S2.SS2.p1.2.m2.1.1.1"></in><apply id="S2.SS2.p1.2.m2.1.1.2.cmml" xref="S2.SS2.p1.2.m2.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p1.2.m2.1.1.2.1.cmml" xref="S2.SS2.p1.2.m2.1.1.2">subscript</csymbol><ci id="S2.SS2.p1.2.m2.1.1.2.2.cmml" xref="S2.SS2.p1.2.m2.1.1.2.2">𝐱</ci><ci id="S2.SS2.p1.2.m2.1.1.2.3.cmml" xref="S2.SS2.p1.2.m2.1.1.2.3">𝑞</ci></apply><ci id="S2.SS2.p1.2.m2.1.1.3.cmml" xref="S2.SS2.p1.2.m2.1.1.3">ℤ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.2.m2.1c">\mathbf{x}_{q}\in\mathbb{Z}</annotation></semantics></math>.
+Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, we emulate the quantization process according to <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite>:</p>
+<table id="S2.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E2.m1.1" class="ltx_math_unparsed" alttext="\mathbf{x}_{q}=s\cdot\left(\operatorname{min}\left(\operatorname{max}\left(\left\lfloor\frac{\mathbf{x}}{s}\right\rceil+z,0\right),2^{b}-1\right)-z\right)," display="block"><semantics id="S2.E2.m1.1a"><mrow id="S2.E2.m1.1b"><msub id="S2.E2.m1.1.1"><mi id="S2.E2.m1.1.1.2">𝐱</mi><mi id="S2.E2.m1.1.1.3">q</mi></msub><mo id="S2.E2.m1.1.2">=</mo><mi id="S2.E2.m1.1.3">s</mi><mo lspace="0.222em" rspace="0.222em" id="S2.E2.m1.1.4">⋅</mo><mrow id="S2.E2.m1.1.5"><mo id="S2.E2.m1.1.5.1">(</mo><mi id="S2.E2.m1.1.5.2">min</mi><mrow id="S2.E2.m1.1.5.3"><mo id="S2.E2.m1.1.5.3.1">(</mo><mi id="S2.E2.m1.1.5.3.2">max</mi><mrow id="S2.E2.m1.1.5.3.3"><mo id="S2.E2.m1.1.5.3.3.1">(</mo><mrow id="S2.E2.m1.1.5.3.3.2"><mo id="S2.E2.m1.1.5.3.3.2.1">⌊</mo><mfrac id="S2.E2.m1.1.5.3.3.2.2"><mi id="S2.E2.m1.1.5.3.3.2.2.2">𝐱</mi><mi id="S2.E2.m1.1.5.3.3.2.2.3">s</mi></mfrac><mo id="S2.E2.m1.1.5.3.3.2.3">⌉</mo></mrow><mo id="S2.E2.m1.1.5.3.3.3">+</mo><mi id="S2.E2.m1.1.5.3.3.4">z</mi><mo id="S2.E2.m1.1.5.3.3.5">,</mo><mn id="S2.E2.m1.1.5.3.3.6">0</mn><mo id="S2.E2.m1.1.5.3.3.7">)</mo></mrow><mo id="S2.E2.m1.1.5.3.4">,</mo><msup id="S2.E2.m1.1.5.3.5"><mn id="S2.E2.m1.1.5.3.5.2">2</mn><mi id="S2.E2.m1.1.5.3.5.3">b</mi></msup><mo id="S2.E2.m1.1.5.3.6">−</mo><mn id="S2.E2.m1.1.5.3.7">1</mn><mo id="S2.E2.m1.1.5.3.8">)</mo></mrow><mo id="S2.E2.m1.1.5.4">−</mo><mi id="S2.E2.m1.1.5.5">z</mi><mo id="S2.E2.m1.1.5.6">)</mo></mrow><mo id="S2.E2.m1.1.6">,</mo></mrow><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\mathbf{x}_{q}=s\cdot\left(\operatorname{min}\left(\operatorname{max}\left(\left\lfloor\frac{\mathbf{x}}{s}\right\rceil+z,0\right),2^{b}-1\right)-z\right),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p1.7" class="ltx_p">where <math id="S2.SS2.p1.3.m1.1" class="ltx_Math" alttext="\mathbf{x}" display="inline"><semantics id="S2.SS2.p1.3.m1.1a"><mi id="S2.SS2.p1.3.m1.1.1" xref="S2.SS2.p1.3.m1.1.1.cmml">𝐱</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.3.m1.1b"><ci id="S2.SS2.p1.3.m1.1.1.cmml" xref="S2.SS2.p1.3.m1.1.1">𝐱</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.3.m1.1c">\mathbf{x}</annotation></semantics></math> represents either model weights or activation tensors, <math id="S2.SS2.p1.4.m2.1" class="ltx_Math" alttext="s\in\mathbb{R}_{+}" display="inline"><semantics id="S2.SS2.p1.4.m2.1a"><mrow id="S2.SS2.p1.4.m2.1.1" xref="S2.SS2.p1.4.m2.1.1.cmml"><mi id="S2.SS2.p1.4.m2.1.1.2" xref="S2.SS2.p1.4.m2.1.1.2.cmml">s</mi><mo id="S2.SS2.p1.4.m2.1.1.1" xref="S2.SS2.p1.4.m2.1.1.1.cmml">∈</mo><msub id="S2.SS2.p1.4.m2.1.1.3" xref="S2.SS2.p1.4.m2.1.1.3.cmml"><mi id="S2.SS2.p1.4.m2.1.1.3.2" xref="S2.SS2.p1.4.m2.1.1.3.2.cmml">ℝ</mi><mo id="S2.SS2.p1.4.m2.1.1.3.3" xref="S2.SS2.p1.4.m2.1.1.3.3.cmml">+</mo></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.4.m2.1b"><apply id="S2.SS2.p1.4.m2.1.1.cmml" xref="S2.SS2.p1.4.m2.1.1"><in id="S2.SS2.p1.4.m2.1.1.1.cmml" xref="S2.SS2.p1.4.m2.1.1.1"></in><ci id="S2.SS2.p1.4.m2.1.1.2.cmml" xref="S2.SS2.p1.4.m2.1.1.2">𝑠</ci><apply id="S2.SS2.p1.4.m2.1.1.3.cmml" xref="S2.SS2.p1.4.m2.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p1.4.m2.1.1.3.1.cmml" xref="S2.SS2.p1.4.m2.1.1.3">subscript</csymbol><ci id="S2.SS2.p1.4.m2.1.1.3.2.cmml" xref="S2.SS2.p1.4.m2.1.1.3.2">ℝ</ci><plus id="S2.SS2.p1.4.m2.1.1.3.3.cmml" xref="S2.SS2.p1.4.m2.1.1.3.3"></plus></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.4.m2.1c">s\in\mathbb{R}_{+}</annotation></semantics></math> is a scaling factor specifying the quantization step size, <math id="S2.SS2.p1.5.m3.1" class="ltx_Math" alttext="b\in\mathbb{N}" display="inline"><semantics id="S2.SS2.p1.5.m3.1a"><mrow id="S2.SS2.p1.5.m3.1.1" xref="S2.SS2.p1.5.m3.1.1.cmml"><mi id="S2.SS2.p1.5.m3.1.1.2" xref="S2.SS2.p1.5.m3.1.1.2.cmml">b</mi><mo id="S2.SS2.p1.5.m3.1.1.1" xref="S2.SS2.p1.5.m3.1.1.1.cmml">∈</mo><mi id="S2.SS2.p1.5.m3.1.1.3" xref="S2.SS2.p1.5.m3.1.1.3.cmml">ℕ</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.5.m3.1b"><apply id="S2.SS2.p1.5.m3.1.1.cmml" xref="S2.SS2.p1.5.m3.1.1"><in id="S2.SS2.p1.5.m3.1.1.1.cmml" xref="S2.SS2.p1.5.m3.1.1.1"></in><ci id="S2.SS2.p1.5.m3.1.1.2.cmml" xref="S2.SS2.p1.5.m3.1.1.2">𝑏</ci><ci id="S2.SS2.p1.5.m3.1.1.3.cmml" xref="S2.SS2.p1.5.m3.1.1.3">ℕ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.5.m3.1c">b\in\mathbb{N}</annotation></semantics></math> is the target bitwidth, <math id="S2.SS2.p1.6.m4.1" class="ltx_Math" alttext="z\in\mathbb{Z}" display="inline"><semantics id="S2.SS2.p1.6.m4.1a"><mrow id="S2.SS2.p1.6.m4.1.1" xref="S2.SS2.p1.6.m4.1.1.cmml"><mi id="S2.SS2.p1.6.m4.1.1.2" xref="S2.SS2.p1.6.m4.1.1.2.cmml">z</mi><mo id="S2.SS2.p1.6.m4.1.1.1" xref="S2.SS2.p1.6.m4.1.1.1.cmml">∈</mo><mi id="S2.SS2.p1.6.m4.1.1.3" xref="S2.SS2.p1.6.m4.1.1.3.cmml">ℤ</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.6.m4.1b"><apply id="S2.SS2.p1.6.m4.1.1.cmml" xref="S2.SS2.p1.6.m4.1.1"><in id="S2.SS2.p1.6.m4.1.1.1.cmml" xref="S2.SS2.p1.6.m4.1.1.1"></in><ci id="S2.SS2.p1.6.m4.1.1.2.cmml" xref="S2.SS2.p1.6.m4.1.1.2">𝑧</ci><ci id="S2.SS2.p1.6.m4.1.1.3.cmml" xref="S2.SS2.p1.6.m4.1.1.3">ℤ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.6.m4.1c">z\in\mathbb{Z}</annotation></semantics></math> is the zero-point, and <math id="S2.SS2.p1.7.m5.1" class="ltx_Math" alttext="\lfloor\cdot\rceil" display="inline"><semantics id="S2.SS2.p1.7.m5.1a"><mrow id="S2.SS2.p1.7.m5.1.2.2" xref="S2.SS2.p1.7.m5.1.2.1.cmml"><mo stretchy="false" id="S2.SS2.p1.7.m5.1.2.2.1" xref="S2.SS2.p1.7.m5.1.2.1.1.cmml">⌊</mo><mo lspace="0em" rspace="0em" id="S2.SS2.p1.7.m5.1.1" xref="S2.SS2.p1.7.m5.1.1.cmml">⋅</mo><mo stretchy="false" id="S2.SS2.p1.7.m5.1.2.2.2" xref="S2.SS2.p1.7.m5.1.2.1.1.cmml">⌉</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.7.m5.1b"><apply id="S2.SS2.p1.7.m5.1.2.1.cmml" xref="S2.SS2.p1.7.m5.1.2.2"><csymbol cd="latexml" id="S2.SS2.p1.7.m5.1.2.1.1.cmml" xref="S2.SS2.p1.7.m5.1.2.2.1">delimited-⌊⌉</csymbol><ci id="S2.SS2.p1.7.m5.1.1.cmml" xref="S2.SS2.p1.7.m5.1.1">⋅</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.7.m5.1c">\lfloor\cdot\rceil</annotation></semantics></math> indicates rounding to the nearest integer.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">The quantization procedure in our experiments encompasses both weight and activation quantization to INT8.
+Since activations are dependent on the input data, a critical aspect of the PTQ process for activation tensors involves identifying appropriate minimum and maximum values for each quantizer (i.e., the scaling factor <math id="S2.SS2.p2.1.m1.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S2.SS2.p2.1.m1.1a"><mi id="S2.SS2.p2.1.m1.1.1" xref="S2.SS2.p2.1.m1.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.1.m1.1b"><ci id="S2.SS2.p2.1.m1.1.1.cmml" xref="S2.SS2.p2.1.m1.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.1.m1.1c">s</annotation></semantics></math> applied to the full-precision values).
+Several methods are available for establishing the boundaries of the interval.
+We employ a static approach, which estimates the quantization range based on 16 batches from the validation set utilizing an exponential moving average of the minimum and maximum values across those batches <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite>.
+For weight quantization, we use the full range of the weight tensors.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">All weights in every layer of the student's encoder and decoder blocks are quantized.
+Despite the presence of gating mechanisms in each encoder layer, we found that the last encoder layer retains a relatively large dynamic range, resulting in imprecise INT8 representation and consequently higher word error rates.
+Therefore, for activation quantization, all layers of the student model, except for the final output projection in the last encoder layer along with the final layer norm, are quantized.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Gated attention</h3>
+
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2406.11022/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="138" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Behavior of the self-attention mechanism in the pretrained Whisper model (<span id="S2.F1.8.1" class="ltx_text ltx_font_typewriter">whisper-large-v2</span>) computed for the first example of the LibriSpeech test-clean set. The left matrix shows the attention probabilities <math id="S2.F1.4.m1.1" class="ltx_Math" alttext="\mathbf{P}" display="inline"><semantics id="S2.F1.4.m1.1b"><mi id="S2.F1.4.m1.1.1" xref="S2.F1.4.m1.1.1.cmml">𝐏</mi><annotation-xml encoding="MathML-Content" id="S2.F1.4.m1.1c"><ci id="S2.F1.4.m1.1.1.cmml" xref="S2.F1.4.m1.1.1">𝐏</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.4.m1.1d">\mathbf{P}</annotation></semantics></math>, where <math id="S2.F1.5.m2.1" class="ltx_Math" alttext="d=64" display="inline"><semantics id="S2.F1.5.m2.1b"><mrow id="S2.F1.5.m2.1.1" xref="S2.F1.5.m2.1.1.cmml"><mi id="S2.F1.5.m2.1.1.2" xref="S2.F1.5.m2.1.1.2.cmml">d</mi><mo id="S2.F1.5.m2.1.1.1" xref="S2.F1.5.m2.1.1.1.cmml">=</mo><mn id="S2.F1.5.m2.1.1.3" xref="S2.F1.5.m2.1.1.3.cmml">64</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.F1.5.m2.1c"><apply id="S2.F1.5.m2.1.1.cmml" xref="S2.F1.5.m2.1.1"><eq id="S2.F1.5.m2.1.1.1.cmml" xref="S2.F1.5.m2.1.1.1"></eq><ci id="S2.F1.5.m2.1.1.2.cmml" xref="S2.F1.5.m2.1.1.2">𝑑</ci><cn type="integer" id="S2.F1.5.m2.1.1.3.cmml" xref="S2.F1.5.m2.1.1.3">64</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.5.m2.1d">d=64</annotation></semantics></math> is the dimensionality of the attention head. The middle matrix are the values <math id="S2.F1.6.m3.1" class="ltx_Math" alttext="\mathbf{V}" display="inline"><semantics id="S2.F1.6.m3.1b"><mi id="S2.F1.6.m3.1.1" xref="S2.F1.6.m3.1.1.cmml">𝐕</mi><annotation-xml encoding="MathML-Content" id="S2.F1.6.m3.1c"><ci id="S2.F1.6.m3.1.1.cmml" xref="S2.F1.6.m3.1.1">𝐕</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.F1.6.m3.1d">\mathbf{V}</annotation></semantics></math> in the twelfth attention head. The right matrix is the product of the two.</figcaption>
+</figure>
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">A recently proposed conditional gating method that helps controlling the update process of hidden representations has been shown to be effective for reducing outliers in transformer-based language and vision models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>.
+This approach allows the model to selectively retain or nullify updates to the representation of specific tokens, independent of the attention probabilities and values.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.2" class="ltx_p">In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, a gating function <math id="S2.SS3.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{G}" display="inline"><semantics id="S2.SS3.p2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS3.p2.1.m1.1.1" xref="S2.SS3.p2.1.m1.1.1.cmml">𝒢</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.1.m1.1b"><ci id="S2.SS3.p2.1.m1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1">𝒢</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.1.m1.1c">\mathcal{G}</annotation></semantics></math> is activated through a sigmoid nonlinearity <math id="S2.SS3.p2.2.m2.1" class="ltx_Math" alttext="\sigma" display="inline"><semantics id="S2.SS3.p2.2.m2.1a"><mi id="S2.SS3.p2.2.m2.1.1" xref="S2.SS3.p2.2.m2.1.1.cmml">σ</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.2.m2.1b"><ci id="S2.SS3.p2.2.m2.1.1.cmml" xref="S2.SS3.p2.2.m2.1.1">𝜎</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.2.m2.1c">\sigma</annotation></semantics></math> and subsequently multiplied with the attention outputs using the Hadamard product:</p>
+<table id="S2.E3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E3.m1.5" class="ltx_Math" alttext="\mathcal{A}(\mathbf{x}):=\operatorname{softmax}\left(\frac{\bm{Q}(\mathbf{x})\bm{K}(\mathbf{x})^{T}}{\sqrt{d}}\right)\bm{V}(\mathbf{x})" display="block"><semantics id="S2.E3.m1.5a"><mrow id="S2.E3.m1.5.6" xref="S2.E3.m1.5.6.cmml"><mrow id="S2.E3.m1.5.6.2" xref="S2.E3.m1.5.6.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E3.m1.5.6.2.2" xref="S2.E3.m1.5.6.2.2.cmml">𝒜</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.5.6.2.1" xref="S2.E3.m1.5.6.2.1.cmml">​</mo><mrow id="S2.E3.m1.5.6.2.3.2" xref="S2.E3.m1.5.6.2.cmml"><mo stretchy="false" id="S2.E3.m1.5.6.2.3.2.1" xref="S2.E3.m1.5.6.2.cmml">(</mo><mi id="S2.E3.m1.3.3" xref="S2.E3.m1.3.3.cmml">𝐱</mi><mo rspace="0.278em" stretchy="false" id="S2.E3.m1.5.6.2.3.2.2" xref="S2.E3.m1.5.6.2.cmml">)</mo></mrow></mrow><mo rspace="0.278em" id="S2.E3.m1.5.6.1" xref="S2.E3.m1.5.6.1.cmml">:=</mo><mrow id="S2.E3.m1.5.6.3" xref="S2.E3.m1.5.6.3.cmml"><mrow id="S2.E3.m1.5.6.3.2.2" xref="S2.E3.m1.5.6.3.2.1.cmml"><mi id="S2.E3.m1.4.4" xref="S2.E3.m1.4.4.cmml">softmax</mi><mo id="S2.E3.m1.5.6.3.2.2a" xref="S2.E3.m1.5.6.3.2.1.cmml">⁡</mo><mrow id="S2.E3.m1.5.6.3.2.2.1" xref="S2.E3.m1.5.6.3.2.1.cmml"><mo id="S2.E3.m1.5.6.3.2.2.1.1" xref="S2.E3.m1.5.6.3.2.1.cmml">(</mo><mfrac id="S2.E3.m1.2.2" xref="S2.E3.m1.2.2.cmml"><mrow id="S2.E3.m1.2.2.2" xref="S2.E3.m1.2.2.2.cmml"><mi id="S2.E3.m1.2.2.2.4" xref="S2.E3.m1.2.2.2.4.cmml">𝑸</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.3" xref="S2.E3.m1.2.2.2.3.cmml">​</mo><mrow id="S2.E3.m1.2.2.2.5.2" xref="S2.E3.m1.2.2.2.cmml"><mo stretchy="false" id="S2.E3.m1.2.2.2.5.2.1" xref="S2.E3.m1.2.2.2.cmml">(</mo><mi id="S2.E3.m1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.cmml">𝐱</mi><mo stretchy="false" id="S2.E3.m1.2.2.2.5.2.2" xref="S2.E3.m1.2.2.2.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.3a" xref="S2.E3.m1.2.2.2.3.cmml">​</mo><mi id="S2.E3.m1.2.2.2.6" xref="S2.E3.m1.2.2.2.6.cmml">𝑲</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.2.2.2.3b" xref="S2.E3.m1.2.2.2.3.cmml">​</mo><msup id="S2.E3.m1.2.2.2.7" xref="S2.E3.m1.2.2.2.7.cmml"><mrow id="S2.E3.m1.2.2.2.7.2.2" xref="S2.E3.m1.2.2.2.7.cmml"><mo stretchy="false" id="S2.E3.m1.2.2.2.7.2.2.1" xref="S2.E3.m1.2.2.2.7.cmml">(</mo><mi id="S2.E3.m1.2.2.2.2" xref="S2.E3.m1.2.2.2.2.cmml">𝐱</mi><mo stretchy="false" id="S2.E3.m1.2.2.2.7.2.2.2" xref="S2.E3.m1.2.2.2.7.cmml">)</mo></mrow><mi id="S2.E3.m1.2.2.2.7.3" xref="S2.E3.m1.2.2.2.7.3.cmml">T</mi></msup></mrow><msqrt id="S2.E3.m1.2.2.4" xref="S2.E3.m1.2.2.4.cmml"><mi id="S2.E3.m1.2.2.4.2" xref="S2.E3.m1.2.2.4.2.cmml">d</mi></msqrt></mfrac><mo id="S2.E3.m1.5.6.3.2.2.1.2" xref="S2.E3.m1.5.6.3.2.1.cmml">)</mo></mrow></mrow><mo lspace="0em" rspace="0em" id="S2.E3.m1.5.6.3.1" xref="S2.E3.m1.5.6.3.1.cmml">​</mo><mi id="S2.E3.m1.5.6.3.3" xref="S2.E3.m1.5.6.3.3.cmml">𝑽</mi><mo lspace="0em" rspace="0em" id="S2.E3.m1.5.6.3.1a" xref="S2.E3.m1.5.6.3.1.cmml">​</mo><mrow id="S2.E3.m1.5.6.3.4.2" xref="S2.E3.m1.5.6.3.cmml"><mo stretchy="false" id="S2.E3.m1.5.6.3.4.2.1" xref="S2.E3.m1.5.6.3.cmml">(</mo><mi id="S2.E3.m1.5.5" xref="S2.E3.m1.5.5.cmml">𝐱</mi><mo stretchy="false" id="S2.E3.m1.5.6.3.4.2.2" xref="S2.E3.m1.5.6.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m1.5b"><apply id="S2.E3.m1.5.6.cmml" xref="S2.E3.m1.5.6"><csymbol cd="latexml" id="S2.E3.m1.5.6.1.cmml" xref="S2.E3.m1.5.6.1">assign</csymbol><apply id="S2.E3.m1.5.6.2.cmml" xref="S2.E3.m1.5.6.2"><times id="S2.E3.m1.5.6.2.1.cmml" xref="S2.E3.m1.5.6.2.1"></times><ci id="S2.E3.m1.5.6.2.2.cmml" xref="S2.E3.m1.5.6.2.2">𝒜</ci><ci id="S2.E3.m1.3.3.cmml" xref="S2.E3.m1.3.3">𝐱</ci></apply><apply id="S2.E3.m1.5.6.3.cmml" xref="S2.E3.m1.5.6.3"><times id="S2.E3.m1.5.6.3.1.cmml" xref="S2.E3.m1.5.6.3.1"></times><apply id="S2.E3.m1.5.6.3.2.1.cmml" xref="S2.E3.m1.5.6.3.2.2"><ci id="S2.E3.m1.4.4.cmml" xref="S2.E3.m1.4.4">softmax</ci><apply id="S2.E3.m1.2.2.cmml" xref="S2.E3.m1.2.2"><divide id="S2.E3.m1.2.2.3.cmml" xref="S2.E3.m1.2.2"></divide><apply id="S2.E3.m1.2.2.2.cmml" xref="S2.E3.m1.2.2.2"><times id="S2.E3.m1.2.2.2.3.cmml" xref="S2.E3.m1.2.2.2.3"></times><ci id="S2.E3.m1.2.2.2.4.cmml" xref="S2.E3.m1.2.2.2.4">𝑸</ci><ci id="S2.E3.m1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1">𝐱</ci><ci id="S2.E3.m1.2.2.2.6.cmml" xref="S2.E3.m1.2.2.2.6">𝑲</ci><apply id="S2.E3.m1.2.2.2.7.cmml" xref="S2.E3.m1.2.2.2.7"><csymbol cd="ambiguous" id="S2.E3.m1.2.2.2.7.1.cmml" xref="S2.E3.m1.2.2.2.7">superscript</csymbol><ci id="S2.E3.m1.2.2.2.2.cmml" xref="S2.E3.m1.2.2.2.2">𝐱</ci><ci id="S2.E3.m1.2.2.2.7.3.cmml" xref="S2.E3.m1.2.2.2.7.3">𝑇</ci></apply></apply><apply id="S2.E3.m1.2.2.4.cmml" xref="S2.E3.m1.2.2.4"><root id="S2.E3.m1.2.2.4a.cmml" xref="S2.E3.m1.2.2.4"></root><ci id="S2.E3.m1.2.2.4.2.cmml" xref="S2.E3.m1.2.2.4.2">𝑑</ci></apply></apply></apply><ci id="S2.E3.m1.5.6.3.3.cmml" xref="S2.E3.m1.5.6.3.3">𝑽</ci><ci id="S2.E3.m1.5.5.cmml" xref="S2.E3.m1.5.5">𝐱</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.5c">\mathcal{A}(\mathbf{x}):=\operatorname{softmax}\left(\frac{\bm{Q}(\mathbf{x})\bm{K}(\mathbf{x})^{T}}{\sqrt{d}}\right)\bm{V}(\mathbf{x})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+<table id="S2.E4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E4.m1.5" class="ltx_Math" alttext="\operatorname{gated\_att}(\mathbf{x}):=\sigma(\mathcal{G}(\mathbf{x}))\odot\mathcal{A}(\mathbf{x})" display="block"><semantics id="S2.E4.m1.5a"><mrow id="S2.E4.m1.5.5" xref="S2.E4.m1.5.5.cmml"><mrow id="S2.E4.m1.5.5.3.2" xref="S2.E4.m1.5.5.3.1.cmml"><mrow id="S2.E4.m1.1.1" xref="S2.E4.m1.1.1.cmml"><mi id="S2.E4.m1.1.1.2" xref="S2.E4.m1.1.1.2.cmml">gated</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.1.1" xref="S2.E4.m1.1.1.1.cmml">​</mo><mi mathvariant="normal" id="S2.E4.m1.1.1.3" xref="S2.E4.m1.1.1.3.cmml">_</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.1.1a" xref="S2.E4.m1.1.1.1.cmml">​</mo><mi id="S2.E4.m1.1.1.4" xref="S2.E4.m1.1.1.4.cmml">att</mi></mrow><mo id="S2.E4.m1.5.5.3.2a" xref="S2.E4.m1.5.5.3.1.cmml">⁡</mo><mrow id="S2.E4.m1.5.5.3.2.1" xref="S2.E4.m1.5.5.3.1.cmml"><mo stretchy="false" id="S2.E4.m1.5.5.3.2.1.1" xref="S2.E4.m1.5.5.3.1.cmml">(</mo><mi id="S2.E4.m1.2.2" xref="S2.E4.m1.2.2.cmml">𝐱</mi><mo rspace="0.278em" stretchy="false" id="S2.E4.m1.5.5.3.2.1.2" xref="S2.E4.m1.5.5.3.1.cmml">)</mo></mrow></mrow><mo rspace="0.278em" id="S2.E4.m1.5.5.2" xref="S2.E4.m1.5.5.2.cmml">:=</mo><mrow id="S2.E4.m1.5.5.1" xref="S2.E4.m1.5.5.1.cmml"><mrow id="S2.E4.m1.5.5.1.1" xref="S2.E4.m1.5.5.1.1.cmml"><mrow id="S2.E4.m1.5.5.1.1.1" xref="S2.E4.m1.5.5.1.1.1.cmml"><mi id="S2.E4.m1.5.5.1.1.1.3" xref="S2.E4.m1.5.5.1.1.1.3.cmml">σ</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.5.5.1.1.1.2" xref="S2.E4.m1.5.5.1.1.1.2.cmml">​</mo><mrow id="S2.E4.m1.5.5.1.1.1.1.1" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E4.m1.5.5.1.1.1.1.1.2" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E4.m1.5.5.1.1.1.1.1.1" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E4.m1.5.5.1.1.1.1.1.1.2" xref="S2.E4.m1.5.5.1.1.1.1.1.1.2.cmml">𝒢</mi><mo lspace="0em" rspace="0em" id="S2.E4.m1.5.5.1.1.1.1.1.1.1" xref="S2.E4.m1.5.5.1.1.1.1.1.1.1.cmml">​</mo><mrow id="S2.E4.m1.5.5.1.1.1.1.1.1.3.2" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E4.m1.5.5.1.1.1.1.1.1.3.2.1" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml">(</mo><mi id="S2.E4.m1.3.3" xref="S2.E4.m1.3.3.cmml">𝐱</mi><mo stretchy="false" id="S2.E4.m1.5.5.1.1.1.1.1.1.3.2.2" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.055em" stretchy="false" id="S2.E4.m1.5.5.1.1.1.1.1.3" xref="S2.E4.m1.5.5.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo rspace="0.222em" id="S2.E4.m1.5.5.1.1.2" xref="S2.E4.m1.5.5.1.1.2.cmml">⊙</mo><mi class="ltx_font_mathcaligraphic" id="S2.E4.m1.5.5.1.1.3" xref="S2.E4.m1.5.5.1.1.3.cmml">𝒜</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E4.m1.5.5.1.2" xref="S2.E4.m1.5.5.1.2.cmml">​</mo><mrow id="S2.E4.m1.5.5.1.3.2" xref="S2.E4.m1.5.5.1.cmml"><mo stretchy="false" id="S2.E4.m1.5.5.1.3.2.1" xref="S2.E4.m1.5.5.1.cmml">(</mo><mi id="S2.E4.m1.4.4" xref="S2.E4.m1.4.4.cmml">𝐱</mi><mo stretchy="false" id="S2.E4.m1.5.5.1.3.2.2" xref="S2.E4.m1.5.5.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E4.m1.5b"><apply id="S2.E4.m1.5.5.cmml" xref="S2.E4.m1.5.5"><csymbol cd="latexml" id="S2.E4.m1.5.5.2.cmml" xref="S2.E4.m1.5.5.2">assign</csymbol><apply id="S2.E4.m1.5.5.3.1.cmml" xref="S2.E4.m1.5.5.3.2"><apply id="S2.E4.m1.1.1.cmml" xref="S2.E4.m1.1.1"><times id="S2.E4.m1.1.1.1.cmml" xref="S2.E4.m1.1.1.1"></times><ci id="S2.E4.m1.1.1.2.cmml" xref="S2.E4.m1.1.1.2">gated</ci><ci id="S2.E4.m1.1.1.3.cmml" xref="S2.E4.m1.1.1.3">_</ci><ci id="S2.E4.m1.1.1.4.cmml" xref="S2.E4.m1.1.1.4">att</ci></apply><ci id="S2.E4.m1.2.2.cmml" xref="S2.E4.m1.2.2">𝐱</ci></apply><apply id="S2.E4.m1.5.5.1.cmml" xref="S2.E4.m1.5.5.1"><times id="S2.E4.m1.5.5.1.2.cmml" xref="S2.E4.m1.5.5.1.2"></times><apply id="S2.E4.m1.5.5.1.1.cmml" xref="S2.E4.m1.5.5.1.1"><csymbol cd="latexml" id="S2.E4.m1.5.5.1.1.2.cmml" xref="S2.E4.m1.5.5.1.1.2">direct-product</csymbol><apply id="S2.E4.m1.5.5.1.1.1.cmml" xref="S2.E4.m1.5.5.1.1.1"><times id="S2.E4.m1.5.5.1.1.1.2.cmml" xref="S2.E4.m1.5.5.1.1.1.2"></times><ci id="S2.E4.m1.5.5.1.1.1.3.cmml" xref="S2.E4.m1.5.5.1.1.1.3">𝜎</ci><apply id="S2.E4.m1.5.5.1.1.1.1.1.1.cmml" xref="S2.E4.m1.5.5.1.1.1.1.1"><times id="S2.E4.m1.5.5.1.1.1.1.1.1.1.cmml" xref="S2.E4.m1.5.5.1.1.1.1.1.1.1"></times><ci id="S2.E4.m1.5.5.1.1.1.1.1.1.2.cmml" xref="S2.E4.m1.5.5.1.1.1.1.1.1.2">𝒢</ci><ci id="S2.E4.m1.3.3.cmml" xref="S2.E4.m1.3.3">𝐱</ci></apply></apply><ci id="S2.E4.m1.5.5.1.1.3.cmml" xref="S2.E4.m1.5.5.1.1.3">𝒜</ci></apply><ci id="S2.E4.m1.4.4.cmml" xref="S2.E4.m1.4.4">𝐱</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E4.m1.5c">\operatorname{gated\_att}(\mathbf{x}):=\sigma(\mathcal{G}(\mathbf{x}))\odot\mathcal{A}(\mathbf{x})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS3.p2.12" class="ltx_p"><math id="S2.SS3.p2.3.m1.1" class="ltx_Math" alttext="\mathcal{A}(\mathbf{x})" display="inline"><semantics id="S2.SS3.p2.3.m1.1a"><mrow id="S2.SS3.p2.3.m1.1.2" xref="S2.SS3.p2.3.m1.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.SS3.p2.3.m1.1.2.2" xref="S2.SS3.p2.3.m1.1.2.2.cmml">𝒜</mi><mo lspace="0em" rspace="0em" id="S2.SS3.p2.3.m1.1.2.1" xref="S2.SS3.p2.3.m1.1.2.1.cmml">​</mo><mrow id="S2.SS3.p2.3.m1.1.2.3.2" xref="S2.SS3.p2.3.m1.1.2.cmml"><mo stretchy="false" id="S2.SS3.p2.3.m1.1.2.3.2.1" xref="S2.SS3.p2.3.m1.1.2.cmml">(</mo><mi id="S2.SS3.p2.3.m1.1.1" xref="S2.SS3.p2.3.m1.1.1.cmml">𝐱</mi><mo stretchy="false" id="S2.SS3.p2.3.m1.1.2.3.2.2" xref="S2.SS3.p2.3.m1.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.3.m1.1b"><apply id="S2.SS3.p2.3.m1.1.2.cmml" xref="S2.SS3.p2.3.m1.1.2"><times id="S2.SS3.p2.3.m1.1.2.1.cmml" xref="S2.SS3.p2.3.m1.1.2.1"></times><ci id="S2.SS3.p2.3.m1.1.2.2.cmml" xref="S2.SS3.p2.3.m1.1.2.2">𝒜</ci><ci id="S2.SS3.p2.3.m1.1.1.cmml" xref="S2.SS3.p2.3.m1.1.1">𝐱</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.3.m1.1c">\mathcal{A}(\mathbf{x})</annotation></semantics></math> is the self-attention mechanism defined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite> with the trainable linear projections <math id="S2.SS3.p2.4.m2.1" class="ltx_Math" alttext="\bm{Q}" display="inline"><semantics id="S2.SS3.p2.4.m2.1a"><mi id="S2.SS3.p2.4.m2.1.1" xref="S2.SS3.p2.4.m2.1.1.cmml">𝑸</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.4.m2.1b"><ci id="S2.SS3.p2.4.m2.1.1.cmml" xref="S2.SS3.p2.4.m2.1.1">𝑸</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.4.m2.1c">\bm{Q}</annotation></semantics></math>, <math id="S2.SS3.p2.5.m3.1" class="ltx_Math" alttext="\bm{K}" display="inline"><semantics id="S2.SS3.p2.5.m3.1a"><mi id="S2.SS3.p2.5.m3.1.1" xref="S2.SS3.p2.5.m3.1.1.cmml">𝑲</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.5.m3.1b"><ci id="S2.SS3.p2.5.m3.1.1.cmml" xref="S2.SS3.p2.5.m3.1.1">𝑲</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.5.m3.1c">\bm{K}</annotation></semantics></math> and <math id="S2.SS3.p2.6.m4.1" class="ltx_Math" alttext="\bm{V}" display="inline"><semantics id="S2.SS3.p2.6.m4.1a"><mi id="S2.SS3.p2.6.m4.1.1" xref="S2.SS3.p2.6.m4.1.1.cmml">𝑽</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.6.m4.1b"><ci id="S2.SS3.p2.6.m4.1.1.cmml" xref="S2.SS3.p2.6.m4.1.1">𝑽</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.6.m4.1c">\bm{V}</annotation></semantics></math>, as well as an input <math id="S2.SS3.p2.7.m5.1" class="ltx_Math" alttext="\mathbf{x}" display="inline"><semantics id="S2.SS3.p2.7.m5.1a"><mi id="S2.SS3.p2.7.m5.1.1" xref="S2.SS3.p2.7.m5.1.1.cmml">𝐱</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.7.m5.1b"><ci id="S2.SS3.p2.7.m5.1.1.cmml" xref="S2.SS3.p2.7.m5.1.1">𝐱</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.7.m5.1c">\mathbf{x}</annotation></semantics></math>.
+Whisper employs multi-headed self-attention, in which the feature representations are divided into <math id="S2.SS3.p2.8.m6.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS3.p2.8.m6.1a"><mi id="S2.SS3.p2.8.m6.1.1" xref="S2.SS3.p2.8.m6.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.8.m6.1b"><ci id="S2.SS3.p2.8.m6.1.1.cmml" xref="S2.SS3.p2.8.m6.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.8.m6.1c">n</annotation></semantics></math> parts of dimensionality <math id="S2.SS3.p2.9.m7.1" class="ltx_Math" alttext="d" display="inline"><semantics id="S2.SS3.p2.9.m7.1a"><mi id="S2.SS3.p2.9.m7.1.1" xref="S2.SS3.p2.9.m7.1.1.cmml">d</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.9.m7.1b"><ci id="S2.SS3.p2.9.m7.1.1.cmml" xref="S2.SS3.p2.9.m7.1.1">𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.9.m7.1c">d</annotation></semantics></math>.
+The attention mechanism is applied to each <math id="S2.SS3.p2.10.m8.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS3.p2.10.m8.1a"><mi id="S2.SS3.p2.10.m8.1.1" xref="S2.SS3.p2.10.m8.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.10.m8.1b"><ci id="S2.SS3.p2.10.m8.1.1.cmml" xref="S2.SS3.p2.10.m8.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.10.m8.1c">n</annotation></semantics></math> and concatenated to the final output.
+<math id="S2.SS3.p2.11.m9.1" class="ltx_Math" alttext="\mathcal{G}" display="inline"><semantics id="S2.SS3.p2.11.m9.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS3.p2.11.m9.1.1" xref="S2.SS3.p2.11.m9.1.1.cmml">𝒢</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.11.m9.1b"><ci id="S2.SS3.p2.11.m9.1.1.cmml" xref="S2.SS3.p2.11.m9.1.1">𝒢</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.11.m9.1c">\mathcal{G}</annotation></semantics></math> is a neural network with a single linear layer, trained along with the rest of the model.
+We substitute Equation <a href="#S2.E3" title="In 2.3 Gated attention ‣ 2 Method ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> with Equation <a href="#S2.E4" title="In 2.3 Gated attention ‣ 2 Method ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> across all encoder and decoder layers of the student model and use a single <math id="S2.SS3.p2.12.m10.1" class="ltx_Math" alttext="\mathcal{G}" display="inline"><semantics id="S2.SS3.p2.12.m10.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS3.p2.12.m10.1.1" xref="S2.SS3.p2.12.m10.1.1.cmml">𝒢</mi><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.12.m10.1b"><ci id="S2.SS3.p2.12.m10.1.1.cmml" xref="S2.SS3.p2.12.m10.1.1">𝒢</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.12.m10.1c">\mathcal{G}</annotation></semantics></math> that is shared across different attention heads but not across different token positions.
+The authors of <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> use one gating function per attention head that is shared across different token position in their main experiments.
+They also proposed an additional method for outlier mitigation called clipped softmax.
+We also tried these methods in preliminary investigations but found that the gated attention mechanism was more effective than clipped softmax and gating on a per-head basis did perform worse than sharing the gate across attention heads.</p>
+</div>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Whisper</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p">Whisper <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> is a family of transformer-based sequence-to-sequence <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite> SFMs trained to perform multiple tasks such as multilingual ASR, language identification, and speech translation.
+The models are trained on <math id="S2.SS4.p1.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S2.SS4.p1.1.m1.1a"><mo id="S2.SS4.p1.1.m1.1.1" xref="S2.SS4.p1.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S2.SS4.p1.1.m1.1b"><csymbol cd="latexml" id="S2.SS4.p1.1.m1.1.1.cmml" xref="S2.SS4.p1.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p1.1.m1.1c">\sim</annotation></semantics></math>680k hours of proprietary data retrieved from the world wide web and are available in five sizes ranging from 39M parameters to 1.55B parameters.
+All Whisper SFMs utilize an encoder-decoder structure but differ in parameters such as the number of transformer blocks, the number of attention heads, and hidden layer dimensions.</p>
+</div>
+<div id="S2.SS4.p2" class="ltx_para">
+<p id="S2.SS4.p2.7" class="ltx_p">The Whisper encoder <math id="S2.SS4.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{E}" display="inline"><semantics id="S2.SS4.p2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S2.SS4.p2.1.m1.1.1" xref="S2.SS4.p2.1.m1.1.1.cmml">ℰ</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.1.m1.1b"><ci id="S2.SS4.p2.1.m1.1.1.cmml" xref="S2.SS4.p2.1.m1.1.1">ℰ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.1.m1.1c">\mathcal{E}</annotation></semantics></math> maps a sequence of <math id="S2.SS4.p2.2.m2.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS4.p2.2.m2.1a"><mi id="S2.SS4.p2.2.m2.1.1" xref="S2.SS4.p2.2.m2.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.2.m2.1b"><ci id="S2.SS4.p2.2.m2.1.1.cmml" xref="S2.SS4.p2.2.m2.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.2.m2.1c">L</annotation></semantics></math> log-Mel spectrogram features <math id="S2.SS4.p2.3.m3.1" class="ltx_Math" alttext="\bm{F}" display="inline"><semantics id="S2.SS4.p2.3.m3.1a"><mi id="S2.SS4.p2.3.m3.1.1" xref="S2.SS4.p2.3.m3.1.1.cmml">𝑭</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.3.m3.1b"><ci id="S2.SS4.p2.3.m3.1.1.cmml" xref="S2.SS4.p2.3.m3.1.1">𝑭</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.3.m3.1c">\bm{F}</annotation></semantics></math> obtained from the raw audio waveform <math id="S2.SS4.p2.4.m4.1" class="ltx_Math" alttext="\bm{A}" display="inline"><semantics id="S2.SS4.p2.4.m4.1a"><mi id="S2.SS4.p2.4.m4.1.1" xref="S2.SS4.p2.4.m4.1.1.cmml">𝑨</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.4.m4.1b"><ci id="S2.SS4.p2.4.m4.1.1.cmml" xref="S2.SS4.p2.4.m4.1.1">𝑨</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.4.m4.1c">\bm{A}</annotation></semantics></math>: <math id="S2.SS4.p2.5.m5.4" class="ltx_Math" alttext="\bm{F}(\bm{A})_{1:L}=\{\bm{f}_{1},\ldots,\bm{f}_{L}\}" display="inline"><semantics id="S2.SS4.p2.5.m5.4a"><mrow id="S2.SS4.p2.5.m5.4.4" xref="S2.SS4.p2.5.m5.4.4.cmml"><mrow id="S2.SS4.p2.5.m5.4.4.4" xref="S2.SS4.p2.5.m5.4.4.4.cmml"><mi id="S2.SS4.p2.5.m5.4.4.4.2" xref="S2.SS4.p2.5.m5.4.4.4.2.cmml">𝑭</mi><mo lspace="0em" rspace="0em" id="S2.SS4.p2.5.m5.4.4.4.1" xref="S2.SS4.p2.5.m5.4.4.4.1.cmml">​</mo><msub id="S2.SS4.p2.5.m5.4.4.4.3" xref="S2.SS4.p2.5.m5.4.4.4.3.cmml"><mrow id="S2.SS4.p2.5.m5.4.4.4.3.2.2" xref="S2.SS4.p2.5.m5.4.4.4.3.cmml"><mo stretchy="false" id="S2.SS4.p2.5.m5.4.4.4.3.2.2.1" xref="S2.SS4.p2.5.m5.4.4.4.3.cmml">(</mo><mi id="S2.SS4.p2.5.m5.1.1" xref="S2.SS4.p2.5.m5.1.1.cmml">𝑨</mi><mo stretchy="false" id="S2.SS4.p2.5.m5.4.4.4.3.2.2.2" xref="S2.SS4.p2.5.m5.4.4.4.3.cmml">)</mo></mrow><mrow id="S2.SS4.p2.5.m5.4.4.4.3.3" xref="S2.SS4.p2.5.m5.4.4.4.3.3.cmml"><mn id="S2.SS4.p2.5.m5.4.4.4.3.3.2" xref="S2.SS4.p2.5.m5.4.4.4.3.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS4.p2.5.m5.4.4.4.3.3.1" xref="S2.SS4.p2.5.m5.4.4.4.3.3.1.cmml">:</mo><mi id="S2.SS4.p2.5.m5.4.4.4.3.3.3" xref="S2.SS4.p2.5.m5.4.4.4.3.3.3.cmml">L</mi></mrow></msub></mrow><mo id="S2.SS4.p2.5.m5.4.4.3" xref="S2.SS4.p2.5.m5.4.4.3.cmml">=</mo><mrow id="S2.SS4.p2.5.m5.4.4.2.2" xref="S2.SS4.p2.5.m5.4.4.2.3.cmml"><mo stretchy="false" id="S2.SS4.p2.5.m5.4.4.2.2.3" xref="S2.SS4.p2.5.m5.4.4.2.3.cmml">{</mo><msub id="S2.SS4.p2.5.m5.3.3.1.1.1" xref="S2.SS4.p2.5.m5.3.3.1.1.1.cmml"><mi id="S2.SS4.p2.5.m5.3.3.1.1.1.2" xref="S2.SS4.p2.5.m5.3.3.1.1.1.2.cmml">𝒇</mi><mn id="S2.SS4.p2.5.m5.3.3.1.1.1.3" xref="S2.SS4.p2.5.m5.3.3.1.1.1.3.cmml">1</mn></msub><mo id="S2.SS4.p2.5.m5.4.4.2.2.4" xref="S2.SS4.p2.5.m5.4.4.2.3.cmml">,</mo><mi mathvariant="normal" id="S2.SS4.p2.5.m5.2.2" xref="S2.SS4.p2.5.m5.2.2.cmml">…</mi><mo id="S2.SS4.p2.5.m5.4.4.2.2.5" xref="S2.SS4.p2.5.m5.4.4.2.3.cmml">,</mo><msub id="S2.SS4.p2.5.m5.4.4.2.2.2" xref="S2.SS4.p2.5.m5.4.4.2.2.2.cmml"><mi id="S2.SS4.p2.5.m5.4.4.2.2.2.2" xref="S2.SS4.p2.5.m5.4.4.2.2.2.2.cmml">𝒇</mi><mi id="S2.SS4.p2.5.m5.4.4.2.2.2.3" xref="S2.SS4.p2.5.m5.4.4.2.2.2.3.cmml">L</mi></msub><mo stretchy="false" id="S2.SS4.p2.5.m5.4.4.2.2.6" xref="S2.SS4.p2.5.m5.4.4.2.3.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.5.m5.4b"><apply id="S2.SS4.p2.5.m5.4.4.cmml" xref="S2.SS4.p2.5.m5.4.4"><eq id="S2.SS4.p2.5.m5.4.4.3.cmml" xref="S2.SS4.p2.5.m5.4.4.3"></eq><apply id="S2.SS4.p2.5.m5.4.4.4.cmml" xref="S2.SS4.p2.5.m5.4.4.4"><times id="S2.SS4.p2.5.m5.4.4.4.1.cmml" xref="S2.SS4.p2.5.m5.4.4.4.1"></times><ci id="S2.SS4.p2.5.m5.4.4.4.2.cmml" xref="S2.SS4.p2.5.m5.4.4.4.2">𝑭</ci><apply id="S2.SS4.p2.5.m5.4.4.4.3.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3"><csymbol cd="ambiguous" id="S2.SS4.p2.5.m5.4.4.4.3.1.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3">subscript</csymbol><ci id="S2.SS4.p2.5.m5.1.1.cmml" xref="S2.SS4.p2.5.m5.1.1">𝑨</ci><apply id="S2.SS4.p2.5.m5.4.4.4.3.3.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3.3"><ci id="S2.SS4.p2.5.m5.4.4.4.3.3.1.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3.3.1">:</ci><cn type="integer" id="S2.SS4.p2.5.m5.4.4.4.3.3.2.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3.3.2">1</cn><ci id="S2.SS4.p2.5.m5.4.4.4.3.3.3.cmml" xref="S2.SS4.p2.5.m5.4.4.4.3.3.3">𝐿</ci></apply></apply></apply><set id="S2.SS4.p2.5.m5.4.4.2.3.cmml" xref="S2.SS4.p2.5.m5.4.4.2.2"><apply id="S2.SS4.p2.5.m5.3.3.1.1.1.cmml" xref="S2.SS4.p2.5.m5.3.3.1.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.5.m5.3.3.1.1.1.1.cmml" xref="S2.SS4.p2.5.m5.3.3.1.1.1">subscript</csymbol><ci id="S2.SS4.p2.5.m5.3.3.1.1.1.2.cmml" xref="S2.SS4.p2.5.m5.3.3.1.1.1.2">𝒇</ci><cn type="integer" id="S2.SS4.p2.5.m5.3.3.1.1.1.3.cmml" xref="S2.SS4.p2.5.m5.3.3.1.1.1.3">1</cn></apply><ci id="S2.SS4.p2.5.m5.2.2.cmml" xref="S2.SS4.p2.5.m5.2.2">…</ci><apply id="S2.SS4.p2.5.m5.4.4.2.2.2.cmml" xref="S2.SS4.p2.5.m5.4.4.2.2.2"><csymbol cd="ambiguous" id="S2.SS4.p2.5.m5.4.4.2.2.2.1.cmml" xref="S2.SS4.p2.5.m5.4.4.2.2.2">subscript</csymbol><ci id="S2.SS4.p2.5.m5.4.4.2.2.2.2.cmml" xref="S2.SS4.p2.5.m5.4.4.2.2.2.2">𝒇</ci><ci id="S2.SS4.p2.5.m5.4.4.2.2.2.3.cmml" xref="S2.SS4.p2.5.m5.4.4.2.2.2.3">𝐿</ci></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.5.m5.4c">\bm{F}(\bm{A})_{1:L}=\{\bm{f}_{1},\ldots,\bm{f}_{L}\}</annotation></semantics></math> to a sequence of <math id="S2.SS4.p2.6.m6.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S2.SS4.p2.6.m6.1a"><mi id="S2.SS4.p2.6.m6.1.1" xref="S2.SS4.p2.6.m6.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.6.m6.1b"><ci id="S2.SS4.p2.6.m6.1.1.cmml" xref="S2.SS4.p2.6.m6.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.6.m6.1c">M</annotation></semantics></math> hidden representations <math id="S2.SS4.p2.7.m7.1" class="ltx_Math" alttext="\bm{H}_{1:M}" display="inline"><semantics id="S2.SS4.p2.7.m7.1a"><msub id="S2.SS4.p2.7.m7.1.1" xref="S2.SS4.p2.7.m7.1.1.cmml"><mi id="S2.SS4.p2.7.m7.1.1.2" xref="S2.SS4.p2.7.m7.1.1.2.cmml">𝑯</mi><mrow id="S2.SS4.p2.7.m7.1.1.3" xref="S2.SS4.p2.7.m7.1.1.3.cmml"><mn id="S2.SS4.p2.7.m7.1.1.3.2" xref="S2.SS4.p2.7.m7.1.1.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS4.p2.7.m7.1.1.3.1" xref="S2.SS4.p2.7.m7.1.1.3.1.cmml">:</mo><mi id="S2.SS4.p2.7.m7.1.1.3.3" xref="S2.SS4.p2.7.m7.1.1.3.3.cmml">M</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.7.m7.1b"><apply id="S2.SS4.p2.7.m7.1.1.cmml" xref="S2.SS4.p2.7.m7.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.7.m7.1.1.1.cmml" xref="S2.SS4.p2.7.m7.1.1">subscript</csymbol><ci id="S2.SS4.p2.7.m7.1.1.2.cmml" xref="S2.SS4.p2.7.m7.1.1.2">𝑯</ci><apply id="S2.SS4.p2.7.m7.1.1.3.cmml" xref="S2.SS4.p2.7.m7.1.1.3"><ci id="S2.SS4.p2.7.m7.1.1.3.1.cmml" xref="S2.SS4.p2.7.m7.1.1.3.1">:</ci><cn type="integer" id="S2.SS4.p2.7.m7.1.1.3.2.cmml" xref="S2.SS4.p2.7.m7.1.1.3.2">1</cn><ci id="S2.SS4.p2.7.m7.1.1.3.3.cmml" xref="S2.SS4.p2.7.m7.1.1.3.3">𝑀</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.7.m7.1c">\bm{H}_{1:M}</annotation></semantics></math>:</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.2" class="ltx_Math" alttext="\mathcal{E}:\bm{F}(\bm{A})_{1:L}\mapsto\bm{H}_{1:M}." display="block"><semantics id="S2.Ex1.m1.2a"><mrow id="S2.Ex1.m1.2.2.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><mrow id="S2.Ex1.m1.2.2.1.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.Ex1.m1.2.2.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.cmml">ℰ</mi><mo lspace="0.278em" rspace="0.278em" id="S2.Ex1.m1.2.2.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.cmml">:</mo><mrow id="S2.Ex1.m1.2.2.1.1.3" xref="S2.Ex1.m1.2.2.1.1.3.cmml"><mrow id="S2.Ex1.m1.2.2.1.1.3.2" xref="S2.Ex1.m1.2.2.1.1.3.2.cmml"><mi id="S2.Ex1.m1.2.2.1.1.3.2.2" xref="S2.Ex1.m1.2.2.1.1.3.2.2.cmml">𝑭</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.3.2.1" xref="S2.Ex1.m1.2.2.1.1.3.2.1.cmml">​</mo><msub id="S2.Ex1.m1.2.2.1.1.3.2.3" xref="S2.Ex1.m1.2.2.1.1.3.2.3.cmml"><mrow id="S2.Ex1.m1.2.2.1.1.3.2.3.2.2" xref="S2.Ex1.m1.2.2.1.1.3.2.3.cmml"><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.3.2.3.2.2.1" xref="S2.Ex1.m1.2.2.1.1.3.2.3.cmml">(</mo><mi id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml">𝑨</mi><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.3.2.3.2.2.2" xref="S2.Ex1.m1.2.2.1.1.3.2.3.cmml">)</mo></mrow><mrow id="S2.Ex1.m1.2.2.1.1.3.2.3.3" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.cmml"><mn id="S2.Ex1.m1.2.2.1.1.3.2.3.3.2" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.Ex1.m1.2.2.1.1.3.2.3.3.1" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.1.cmml">:</mo><mi id="S2.Ex1.m1.2.2.1.1.3.2.3.3.3" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.3.cmml">L</mi></mrow></msub></mrow><mo stretchy="false" id="S2.Ex1.m1.2.2.1.1.3.1" xref="S2.Ex1.m1.2.2.1.1.3.1.cmml">↦</mo><msub id="S2.Ex1.m1.2.2.1.1.3.3" xref="S2.Ex1.m1.2.2.1.1.3.3.cmml"><mi id="S2.Ex1.m1.2.2.1.1.3.3.2" xref="S2.Ex1.m1.2.2.1.1.3.3.2.cmml">𝑯</mi><mrow id="S2.Ex1.m1.2.2.1.1.3.3.3" xref="S2.Ex1.m1.2.2.1.1.3.3.3.cmml"><mn id="S2.Ex1.m1.2.2.1.1.3.3.3.2" xref="S2.Ex1.m1.2.2.1.1.3.3.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.Ex1.m1.2.2.1.1.3.3.3.1" xref="S2.Ex1.m1.2.2.1.1.3.3.3.1.cmml">:</mo><mi id="S2.Ex1.m1.2.2.1.1.3.3.3.3" xref="S2.Ex1.m1.2.2.1.1.3.3.3.3.cmml">M</mi></mrow></msub></mrow></mrow><mo lspace="0em" id="S2.Ex1.m1.2.2.1.2" xref="S2.Ex1.m1.2.2.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.2b"><apply id="S2.Ex1.m1.2.2.1.1.cmml" xref="S2.Ex1.m1.2.2.1"><ci id="S2.Ex1.m1.2.2.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1">:</ci><ci id="S2.Ex1.m1.2.2.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2">ℰ</ci><apply id="S2.Ex1.m1.2.2.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3"><csymbol cd="latexml" id="S2.Ex1.m1.2.2.1.1.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.1">maps-to</csymbol><apply id="S2.Ex1.m1.2.2.1.1.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2"><times id="S2.Ex1.m1.2.2.1.1.3.2.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.1"></times><ci id="S2.Ex1.m1.2.2.1.1.3.2.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.2">𝑭</ci><apply id="S2.Ex1.m1.2.2.1.1.3.2.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3"><csymbol cd="ambiguous" id="S2.Ex1.m1.2.2.1.1.3.2.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3">subscript</csymbol><ci id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1">𝑨</ci><apply id="S2.Ex1.m1.2.2.1.1.3.2.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3"><ci id="S2.Ex1.m1.2.2.1.1.3.2.3.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.1">:</ci><cn type="integer" id="S2.Ex1.m1.2.2.1.1.3.2.3.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.2">1</cn><ci id="S2.Ex1.m1.2.2.1.1.3.2.3.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2.3.3.3">𝐿</ci></apply></apply></apply><apply id="S2.Ex1.m1.2.2.1.1.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3"><csymbol cd="ambiguous" id="S2.Ex1.m1.2.2.1.1.3.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3">subscript</csymbol><ci id="S2.Ex1.m1.2.2.1.1.3.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3.2">𝑯</ci><apply id="S2.Ex1.m1.2.2.1.1.3.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3.3"><ci id="S2.Ex1.m1.2.2.1.1.3.3.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3.3.1">:</ci><cn type="integer" id="S2.Ex1.m1.2.2.1.1.3.3.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3.3.2">1</cn><ci id="S2.Ex1.m1.2.2.1.1.3.3.3.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3.3.3.3">𝑀</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.2c">\mathcal{E}:\bm{F}(\bm{A})_{1:L}\mapsto\bm{H}_{1:M}.</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS4.p2.11" class="ltx_p">The decoder predicts the probabilities for the next token <math id="S2.SS4.p2.8.m1.1" class="ltx_Math" alttext="y_{i}" display="inline"><semantics id="S2.SS4.p2.8.m1.1a"><msub id="S2.SS4.p2.8.m1.1.1" xref="S2.SS4.p2.8.m1.1.1.cmml"><mi id="S2.SS4.p2.8.m1.1.1.2" xref="S2.SS4.p2.8.m1.1.1.2.cmml">y</mi><mi id="S2.SS4.p2.8.m1.1.1.3" xref="S2.SS4.p2.8.m1.1.1.3.cmml">i</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.8.m1.1b"><apply id="S2.SS4.p2.8.m1.1.1.cmml" xref="S2.SS4.p2.8.m1.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.8.m1.1.1.1.cmml" xref="S2.SS4.p2.8.m1.1.1">subscript</csymbol><ci id="S2.SS4.p2.8.m1.1.1.2.cmml" xref="S2.SS4.p2.8.m1.1.1.2">𝑦</ci><ci id="S2.SS4.p2.8.m1.1.1.3.cmml" xref="S2.SS4.p2.8.m1.1.1.3">𝑖</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.8.m1.1c">y_{i}</annotation></semantics></math>, based on the preceding tokens tokens <math id="S2.SS4.p2.9.m2.1" class="ltx_Math" alttext="\bm{y}_{&lt;i}" display="inline"><semantics id="S2.SS4.p2.9.m2.1a"><msub id="S2.SS4.p2.9.m2.1.1" xref="S2.SS4.p2.9.m2.1.1.cmml"><mi id="S2.SS4.p2.9.m2.1.1.2" xref="S2.SS4.p2.9.m2.1.1.2.cmml">𝒚</mi><mrow id="S2.SS4.p2.9.m2.1.1.3" xref="S2.SS4.p2.9.m2.1.1.3.cmml"><mi id="S2.SS4.p2.9.m2.1.1.3.2" xref="S2.SS4.p2.9.m2.1.1.3.2.cmml"></mi><mo id="S2.SS4.p2.9.m2.1.1.3.1" xref="S2.SS4.p2.9.m2.1.1.3.1.cmml">&lt;</mo><mi id="S2.SS4.p2.9.m2.1.1.3.3" xref="S2.SS4.p2.9.m2.1.1.3.3.cmml">i</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.9.m2.1b"><apply id="S2.SS4.p2.9.m2.1.1.cmml" xref="S2.SS4.p2.9.m2.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.9.m2.1.1.1.cmml" xref="S2.SS4.p2.9.m2.1.1">subscript</csymbol><ci id="S2.SS4.p2.9.m2.1.1.2.cmml" xref="S2.SS4.p2.9.m2.1.1.2">𝒚</ci><apply id="S2.SS4.p2.9.m2.1.1.3.cmml" xref="S2.SS4.p2.9.m2.1.1.3"><lt id="S2.SS4.p2.9.m2.1.1.3.1.cmml" xref="S2.SS4.p2.9.m2.1.1.3.1"></lt><csymbol cd="latexml" id="S2.SS4.p2.9.m2.1.1.3.2.cmml" xref="S2.SS4.p2.9.m2.1.1.3.2">absent</csymbol><ci id="S2.SS4.p2.9.m2.1.1.3.3.cmml" xref="S2.SS4.p2.9.m2.1.1.3.3">𝑖</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.9.m2.1c">\bm{y}_{&lt;i}</annotation></semantics></math> and the hidden representations <math id="S2.SS4.p2.10.m3.1" class="ltx_Math" alttext="\bm{H}_{1:M}" display="inline"><semantics id="S2.SS4.p2.10.m3.1a"><msub id="S2.SS4.p2.10.m3.1.1" xref="S2.SS4.p2.10.m3.1.1.cmml"><mi id="S2.SS4.p2.10.m3.1.1.2" xref="S2.SS4.p2.10.m3.1.1.2.cmml">𝑯</mi><mrow id="S2.SS4.p2.10.m3.1.1.3" xref="S2.SS4.p2.10.m3.1.1.3.cmml"><mn id="S2.SS4.p2.10.m3.1.1.3.2" xref="S2.SS4.p2.10.m3.1.1.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS4.p2.10.m3.1.1.3.1" xref="S2.SS4.p2.10.m3.1.1.3.1.cmml">:</mo><mi id="S2.SS4.p2.10.m3.1.1.3.3" xref="S2.SS4.p2.10.m3.1.1.3.3.cmml">M</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.10.m3.1b"><apply id="S2.SS4.p2.10.m3.1.1.cmml" xref="S2.SS4.p2.10.m3.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.10.m3.1.1.1.cmml" xref="S2.SS4.p2.10.m3.1.1">subscript</csymbol><ci id="S2.SS4.p2.10.m3.1.1.2.cmml" xref="S2.SS4.p2.10.m3.1.1.2">𝑯</ci><apply id="S2.SS4.p2.10.m3.1.1.3.cmml" xref="S2.SS4.p2.10.m3.1.1.3"><ci id="S2.SS4.p2.10.m3.1.1.3.1.cmml" xref="S2.SS4.p2.10.m3.1.1.3.1">:</ci><cn type="integer" id="S2.SS4.p2.10.m3.1.1.3.2.cmml" xref="S2.SS4.p2.10.m3.1.1.3.2">1</cn><ci id="S2.SS4.p2.10.m3.1.1.3.3.cmml" xref="S2.SS4.p2.10.m3.1.1.3.3">𝑀</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.10.m3.1c">\bm{H}_{1:M}</annotation></semantics></math>: <math id="S2.SS4.p2.11.m4.1" class="ltx_Math" alttext="p(y_{i}\mid\bm{y}_{&lt;i},\bm{H}_{1:M})" display="inline"><semantics id="S2.SS4.p2.11.m4.1a"><mrow id="S2.SS4.p2.11.m4.1.1" xref="S2.SS4.p2.11.m4.1.1.cmml"><mi id="S2.SS4.p2.11.m4.1.1.3" xref="S2.SS4.p2.11.m4.1.1.3.cmml">p</mi><mo lspace="0em" rspace="0em" id="S2.SS4.p2.11.m4.1.1.2" xref="S2.SS4.p2.11.m4.1.1.2.cmml">​</mo><mrow id="S2.SS4.p2.11.m4.1.1.1.1" xref="S2.SS4.p2.11.m4.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS4.p2.11.m4.1.1.1.1.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS4.p2.11.m4.1.1.1.1.1" xref="S2.SS4.p2.11.m4.1.1.1.1.1.cmml"><msub id="S2.SS4.p2.11.m4.1.1.1.1.1.4" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4.cmml"><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.4.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4.2.cmml">y</mi><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.4.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4.3.cmml">i</mi></msub><mo id="S2.SS4.p2.11.m4.1.1.1.1.1.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.3.cmml">∣</mo><mrow id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.3.cmml"><msub id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.cmml"><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.2.cmml">𝒚</mi><mrow id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.cmml"><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.2.cmml"></mi><mo id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.1" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.1.cmml">&lt;</mo><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.3.cmml">i</mi></mrow></msub><mo id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.3.cmml">,</mo><msub id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.cmml"><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.2.cmml">𝑯</mi><mrow id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.cmml"><mn id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.2" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.2.cmml">1</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.1" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.1.cmml">:</mo><mi id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.3.cmml">M</mi></mrow></msub></mrow></mrow><mo stretchy="false" id="S2.SS4.p2.11.m4.1.1.1.1.3" xref="S2.SS4.p2.11.m4.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.11.m4.1b"><apply id="S2.SS4.p2.11.m4.1.1.cmml" xref="S2.SS4.p2.11.m4.1.1"><times id="S2.SS4.p2.11.m4.1.1.2.cmml" xref="S2.SS4.p2.11.m4.1.1.2"></times><ci id="S2.SS4.p2.11.m4.1.1.3.cmml" xref="S2.SS4.p2.11.m4.1.1.3">𝑝</ci><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1"><csymbol cd="latexml" id="S2.SS4.p2.11.m4.1.1.1.1.1.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.3">conditional</csymbol><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.4.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4"><csymbol cd="ambiguous" id="S2.SS4.p2.11.m4.1.1.1.1.1.4.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4">subscript</csymbol><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.4.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4.2">𝑦</ci><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.4.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.4.3">𝑖</ci></apply><list id="S2.SS4.p2.11.m4.1.1.1.1.1.2.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2"><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.2">𝒚</ci><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3"><lt id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.1"></lt><csymbol cd="latexml" id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.2">absent</csymbol><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.1.1.1.3.3">𝑖</ci></apply></apply><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2"><csymbol cd="ambiguous" id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2">subscript</csymbol><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.2">𝑯</ci><apply id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3"><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.1.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.1">:</ci><cn type="integer" id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.2.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.2">1</cn><ci id="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.3.cmml" xref="S2.SS4.p2.11.m4.1.1.1.1.1.2.2.2.3.3">𝑀</ci></apply></apply></list></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.11.m4.1c">p(y_{i}\mid\bm{y}_{&lt;i},\bm{H}_{1:M})</annotation></semantics></math>.
+The model is trained on pairs of log-Mel
+spectrogram features and target transcriptions, using the cross-entropy objective.</p>
+</div>
+<div id="S2.SS4.p3" class="ltx_para">
+<p id="S2.SS4.p3.1" class="ltx_p">We distill the 1.55B parameter version of Whisper (<span id="S2.SS4.p3.1.1" class="ltx_text ltx_font_typewriter">whisper-large-v2</span>) into three variants using either 8, 16 or 24 encoder layers instead of the original 32 layers.
+Based on findings that drastically reducing or even eliminating the Whisper decoder does not significantly compromise performance, we reduce its size to 2 layers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>.
+The total number of trainable parameters for the resulting student model variants are 283M, 440M, and 598M parameters, respectively.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments and Results</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Data</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">We used a combination of four publicly available English datasets as our training corpus: People's Speech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>, CommonVoice (version 16) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib37" title="" class="ltx_ref">37</a>]</cite>, LibriSpeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib38" title="" class="ltx_ref">38</a>]</cite>, and Voxpopuli <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib39" title="" class="ltx_ref">39</a>]</cite>.
+The combined training data comprises approximately <math id="S3.SS1.p1.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S3.SS1.p1.1.m1.1a"><mo id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.1b"><csymbol cd="latexml" id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.1c">\sim</annotation></semantics></math>16k hours of speech sourced from diverse domains such as audiobooks, political speeches, interviews, and narrated Wikipedia articles.
+In addition to evaluating ASR performance on in-distribution (ID) data comprised of the test portions of the training corpora, we employed three out-of-distribution (OOD) test sets to further asses the robustness of the gated attention approach towards PTQ: TED-LIUM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib40" title="" class="ltx_ref">40</a>]</cite>, Fleurs <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib41" title="" class="ltx_ref">41</a>]</cite>, and Gigaspeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib42" title="" class="ltx_ref">42</a>]</cite>.
+These datasets encompass diverse speech characteristics and additional domains such as podcasts and talks.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Evaluation metrics</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">To assess ASR performance, we examined word error rates (WERs) across both ID and OOD test sets.
+We evaluated ASR performance for differently sized student models with and without INT8 quantization on weights and activations using either coventional attention or the gating mechanism.
+Following <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, we also analyzed outliers measured by kurtosis and infinity norm <math id="S3.SS2.p1.1.m1.1" class="ltx_Math" alttext="\left\lVert\cdot\right\rVert_{\infty}" display="inline"><semantics id="S3.SS2.p1.1.m1.1a"><msub id="S3.SS2.p1.1.m1.1.2" xref="S3.SS2.p1.1.m1.1.2.cmml"><mrow id="S3.SS2.p1.1.m1.1.2.2.2" xref="S3.SS2.p1.1.m1.1.2.2.1.cmml"><mo fence="true" rspace="0em" stretchy="true" id="S3.SS2.p1.1.m1.1.2.2.2.1" xref="S3.SS2.p1.1.m1.1.2.2.1.1.cmml">∥</mo><mo lspace="0em" rspace="0em" id="S3.SS2.p1.1.m1.1.1" xref="S3.SS2.p1.1.m1.1.1.cmml">⋅</mo><mo fence="true" lspace="0em" stretchy="true" id="S3.SS2.p1.1.m1.1.2.2.2.2" xref="S3.SS2.p1.1.m1.1.2.2.1.1.cmml">∥</mo></mrow><mi mathvariant="normal" id="S3.SS2.p1.1.m1.1.2.3" xref="S3.SS2.p1.1.m1.1.2.3.cmml">∞</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS2.p1.1.m1.1b"><apply id="S3.SS2.p1.1.m1.1.2.cmml" xref="S3.SS2.p1.1.m1.1.2"><csymbol cd="ambiguous" id="S3.SS2.p1.1.m1.1.2.1.cmml" xref="S3.SS2.p1.1.m1.1.2">subscript</csymbol><apply id="S3.SS2.p1.1.m1.1.2.2.1.cmml" xref="S3.SS2.p1.1.m1.1.2.2.2"><csymbol cd="latexml" id="S3.SS2.p1.1.m1.1.2.2.1.1.cmml" xref="S3.SS2.p1.1.m1.1.2.2.2.1">delimited-∥∥</csymbol><ci id="S3.SS2.p1.1.m1.1.1.cmml" xref="S3.SS2.p1.1.m1.1.1">⋅</ci></apply><infinity id="S3.SS2.p1.1.m1.1.2.3.cmml" xref="S3.SS2.p1.1.m1.1.2.3"></infinity></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS2.p1.1.m1.1c">\left\lVert\cdot\right\rVert_{\infty}</annotation></semantics></math>, exploring the impact of gated attention across different model sizes.
+Kurtosis was averaged across the outputs of all attention layers.
+Based on <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite>, we count values that exceed six standard
+deviations from the mean of the activation tensor as outliers.</p>
+</div>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Modeling and architecture details</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">Leveraging the shared dimensionality of hidden layers between teacher and student networks, we initialized each student using the pre-trained weights of the teacher <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib43" title="" class="ltx_ref">43</a>, <a href="#bib.bib44" title="" class="ltx_ref">44</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>.
+In particular, we selectively copied the weights of 8, 16 or 24 layers from the teacher encoder.
+For example, when the number of layers in the encoder was reduced by a factor of 4 (i.e., 8 layers instead of 32), we copied every <span id="S3.SS3.p1.1.1" class="ltx_ERROR undefined">\nth</span>4 weight matrix from the teacher starting with the first one.
+In the student decoder, we copied the weights from the initial and final layers of the teacher.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.6" class="ltx_p">Each model was trained for <math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="2\times 10^{5}" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mrow id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml"><mn id="S3.SS3.p2.1.m1.1.1.2" xref="S3.SS3.p2.1.m1.1.1.2.cmml">2</mn><mo lspace="0.222em" rspace="0.222em" id="S3.SS3.p2.1.m1.1.1.1" xref="S3.SS3.p2.1.m1.1.1.1.cmml">×</mo><msup id="S3.SS3.p2.1.m1.1.1.3" xref="S3.SS3.p2.1.m1.1.1.3.cmml"><mn id="S3.SS3.p2.1.m1.1.1.3.2" xref="S3.SS3.p2.1.m1.1.1.3.2.cmml">10</mn><mn id="S3.SS3.p2.1.m1.1.1.3.3" xref="S3.SS3.p2.1.m1.1.1.3.3.cmml">5</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><apply id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1"><times id="S3.SS3.p2.1.m1.1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1.1"></times><cn type="integer" id="S3.SS3.p2.1.m1.1.1.2.cmml" xref="S3.SS3.p2.1.m1.1.1.2">2</cn><apply id="S3.SS3.p2.1.m1.1.1.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.1.m1.1.1.3.1.cmml" xref="S3.SS3.p2.1.m1.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.1.m1.1.1.3.2.cmml" xref="S3.SS3.p2.1.m1.1.1.3.2">10</cn><cn type="integer" id="S3.SS3.p2.1.m1.1.1.3.3.cmml" xref="S3.SS3.p2.1.m1.1.1.3.3">5</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">2\times 10^{5}</annotation></semantics></math> steps with an effective batch size of 64, which amounts to two training epochs.
+We used the AdamW optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib45" title="" class="ltx_ref">45</a>]</cite> (<math id="S3.SS3.p2.2.m2.1" class="ltx_Math" alttext="\lambda=10^{-4}" display="inline"><semantics id="S3.SS3.p2.2.m2.1a"><mrow id="S3.SS3.p2.2.m2.1.1" xref="S3.SS3.p2.2.m2.1.1.cmml"><mi id="S3.SS3.p2.2.m2.1.1.2" xref="S3.SS3.p2.2.m2.1.1.2.cmml">λ</mi><mo id="S3.SS3.p2.2.m2.1.1.1" xref="S3.SS3.p2.2.m2.1.1.1.cmml">=</mo><msup id="S3.SS3.p2.2.m2.1.1.3" xref="S3.SS3.p2.2.m2.1.1.3.cmml"><mn id="S3.SS3.p2.2.m2.1.1.3.2" xref="S3.SS3.p2.2.m2.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.2.m2.1.1.3.3" xref="S3.SS3.p2.2.m2.1.1.3.3.cmml"><mo id="S3.SS3.p2.2.m2.1.1.3.3a" xref="S3.SS3.p2.2.m2.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.2.m2.1.1.3.3.2" xref="S3.SS3.p2.2.m2.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.2.m2.1b"><apply id="S3.SS3.p2.2.m2.1.1.cmml" xref="S3.SS3.p2.2.m2.1.1"><eq id="S3.SS3.p2.2.m2.1.1.1.cmml" xref="S3.SS3.p2.2.m2.1.1.1"></eq><ci id="S3.SS3.p2.2.m2.1.1.2.cmml" xref="S3.SS3.p2.2.m2.1.1.2">𝜆</ci><apply id="S3.SS3.p2.2.m2.1.1.3.cmml" xref="S3.SS3.p2.2.m2.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.2.m2.1.1.3.1.cmml" xref="S3.SS3.p2.2.m2.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.2.m2.1.1.3.2.cmml" xref="S3.SS3.p2.2.m2.1.1.3.2">10</cn><apply id="S3.SS3.p2.2.m2.1.1.3.3.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3"><minus id="S3.SS3.p2.2.m2.1.1.3.3.1.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.2.m2.1.1.3.3.2.cmml" xref="S3.SS3.p2.2.m2.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.2.m2.1c">\lambda=10^{-4}</annotation></semantics></math>, <math id="S3.SS3.p2.3.m3.1" class="ltx_Math" alttext="\epsilon=10^{-8}" display="inline"><semantics id="S3.SS3.p2.3.m3.1a"><mrow id="S3.SS3.p2.3.m3.1.1" xref="S3.SS3.p2.3.m3.1.1.cmml"><mi id="S3.SS3.p2.3.m3.1.1.2" xref="S3.SS3.p2.3.m3.1.1.2.cmml">ϵ</mi><mo id="S3.SS3.p2.3.m3.1.1.1" xref="S3.SS3.p2.3.m3.1.1.1.cmml">=</mo><msup id="S3.SS3.p2.3.m3.1.1.3" xref="S3.SS3.p2.3.m3.1.1.3.cmml"><mn id="S3.SS3.p2.3.m3.1.1.3.2" xref="S3.SS3.p2.3.m3.1.1.3.2.cmml">10</mn><mrow id="S3.SS3.p2.3.m3.1.1.3.3" xref="S3.SS3.p2.3.m3.1.1.3.3.cmml"><mo id="S3.SS3.p2.3.m3.1.1.3.3a" xref="S3.SS3.p2.3.m3.1.1.3.3.cmml">−</mo><mn id="S3.SS3.p2.3.m3.1.1.3.3.2" xref="S3.SS3.p2.3.m3.1.1.3.3.2.cmml">8</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.3.m3.1b"><apply id="S3.SS3.p2.3.m3.1.1.cmml" xref="S3.SS3.p2.3.m3.1.1"><eq id="S3.SS3.p2.3.m3.1.1.1.cmml" xref="S3.SS3.p2.3.m3.1.1.1"></eq><ci id="S3.SS3.p2.3.m3.1.1.2.cmml" xref="S3.SS3.p2.3.m3.1.1.2">italic-ϵ</ci><apply id="S3.SS3.p2.3.m3.1.1.3.cmml" xref="S3.SS3.p2.3.m3.1.1.3"><csymbol cd="ambiguous" id="S3.SS3.p2.3.m3.1.1.3.1.cmml" xref="S3.SS3.p2.3.m3.1.1.3">superscript</csymbol><cn type="integer" id="S3.SS3.p2.3.m3.1.1.3.2.cmml" xref="S3.SS3.p2.3.m3.1.1.3.2">10</cn><apply id="S3.SS3.p2.3.m3.1.1.3.3.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3"><minus id="S3.SS3.p2.3.m3.1.1.3.3.1.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3"></minus><cn type="integer" id="S3.SS3.p2.3.m3.1.1.3.3.2.cmml" xref="S3.SS3.p2.3.m3.1.1.3.3.2">8</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.3.m3.1c">\epsilon=10^{-8}</annotation></semantics></math>, <math id="S3.SS3.p2.4.m4.1" class="ltx_Math" alttext="\beta_{1}=0.99" display="inline"><semantics id="S3.SS3.p2.4.m4.1a"><mrow id="S3.SS3.p2.4.m4.1.1" xref="S3.SS3.p2.4.m4.1.1.cmml"><msub id="S3.SS3.p2.4.m4.1.1.2" xref="S3.SS3.p2.4.m4.1.1.2.cmml"><mi id="S3.SS3.p2.4.m4.1.1.2.2" xref="S3.SS3.p2.4.m4.1.1.2.2.cmml">β</mi><mn id="S3.SS3.p2.4.m4.1.1.2.3" xref="S3.SS3.p2.4.m4.1.1.2.3.cmml">1</mn></msub><mo id="S3.SS3.p2.4.m4.1.1.1" xref="S3.SS3.p2.4.m4.1.1.1.cmml">=</mo><mn id="S3.SS3.p2.4.m4.1.1.3" xref="S3.SS3.p2.4.m4.1.1.3.cmml">0.99</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.4.m4.1b"><apply id="S3.SS3.p2.4.m4.1.1.cmml" xref="S3.SS3.p2.4.m4.1.1"><eq id="S3.SS3.p2.4.m4.1.1.1.cmml" xref="S3.SS3.p2.4.m4.1.1.1"></eq><apply id="S3.SS3.p2.4.m4.1.1.2.cmml" xref="S3.SS3.p2.4.m4.1.1.2"><csymbol cd="ambiguous" id="S3.SS3.p2.4.m4.1.1.2.1.cmml" xref="S3.SS3.p2.4.m4.1.1.2">subscript</csymbol><ci id="S3.SS3.p2.4.m4.1.1.2.2.cmml" xref="S3.SS3.p2.4.m4.1.1.2.2">𝛽</ci><cn type="integer" id="S3.SS3.p2.4.m4.1.1.2.3.cmml" xref="S3.SS3.p2.4.m4.1.1.2.3">1</cn></apply><cn type="float" id="S3.SS3.p2.4.m4.1.1.3.cmml" xref="S3.SS3.p2.4.m4.1.1.3">0.99</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.4.m4.1c">\beta_{1}=0.99</annotation></semantics></math>, <math id="S3.SS3.p2.5.m5.1" class="ltx_Math" alttext="\beta_{2}=0.999" display="inline"><semantics id="S3.SS3.p2.5.m5.1a"><mrow id="S3.SS3.p2.5.m5.1.1" xref="S3.SS3.p2.5.m5.1.1.cmml"><msub id="S3.SS3.p2.5.m5.1.1.2" xref="S3.SS3.p2.5.m5.1.1.2.cmml"><mi id="S3.SS3.p2.5.m5.1.1.2.2" xref="S3.SS3.p2.5.m5.1.1.2.2.cmml">β</mi><mn id="S3.SS3.p2.5.m5.1.1.2.3" xref="S3.SS3.p2.5.m5.1.1.2.3.cmml">2</mn></msub><mo id="S3.SS3.p2.5.m5.1.1.1" xref="S3.SS3.p2.5.m5.1.1.1.cmml">=</mo><mn id="S3.SS3.p2.5.m5.1.1.3" xref="S3.SS3.p2.5.m5.1.1.3.cmml">0.999</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.5.m5.1b"><apply id="S3.SS3.p2.5.m5.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1"><eq id="S3.SS3.p2.5.m5.1.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1.1"></eq><apply id="S3.SS3.p2.5.m5.1.1.2.cmml" xref="S3.SS3.p2.5.m5.1.1.2"><csymbol cd="ambiguous" id="S3.SS3.p2.5.m5.1.1.2.1.cmml" xref="S3.SS3.p2.5.m5.1.1.2">subscript</csymbol><ci id="S3.SS3.p2.5.m5.1.1.2.2.cmml" xref="S3.SS3.p2.5.m5.1.1.2.2">𝛽</ci><cn type="integer" id="S3.SS3.p2.5.m5.1.1.2.3.cmml" xref="S3.SS3.p2.5.m5.1.1.2.3">2</cn></apply><cn type="float" id="S3.SS3.p2.5.m5.1.1.3.cmml" xref="S3.SS3.p2.5.m5.1.1.3">0.999</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.5.m5.1c">\beta_{2}=0.999</annotation></semantics></math>) with an initial learning rate of <math id="S3.SS3.p2.6.m6.1" class="ltx_Math" alttext="10^{-4}" display="inline"><semantics id="S3.SS3.p2.6.m6.1a"><msup id="S3.SS3.p2.6.m6.1.1" xref="S3.SS3.p2.6.m6.1.1.cmml"><mn id="S3.SS3.p2.6.m6.1.1.2" xref="S3.SS3.p2.6.m6.1.1.2.cmml">10</mn><mrow id="S3.SS3.p2.6.m6.1.1.3" xref="S3.SS3.p2.6.m6.1.1.3.cmml"><mo id="S3.SS3.p2.6.m6.1.1.3a" xref="S3.SS3.p2.6.m6.1.1.3.cmml">−</mo><mn id="S3.SS3.p2.6.m6.1.1.3.2" xref="S3.SS3.p2.6.m6.1.1.3.2.cmml">4</mn></mrow></msup><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.6.m6.1b"><apply id="S3.SS3.p2.6.m6.1.1.cmml" xref="S3.SS3.p2.6.m6.1.1"><csymbol cd="ambiguous" id="S3.SS3.p2.6.m6.1.1.1.cmml" xref="S3.SS3.p2.6.m6.1.1">superscript</csymbol><cn type="integer" id="S3.SS3.p2.6.m6.1.1.2.cmml" xref="S3.SS3.p2.6.m6.1.1.2">10</cn><apply id="S3.SS3.p2.6.m6.1.1.3.cmml" xref="S3.SS3.p2.6.m6.1.1.3"><minus id="S3.SS3.p2.6.m6.1.1.3.1.cmml" xref="S3.SS3.p2.6.m6.1.1.3"></minus><cn type="integer" id="S3.SS3.p2.6.m6.1.1.3.2.cmml" xref="S3.SS3.p2.6.m6.1.1.3.2">4</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.6.m6.1c">10^{-4}</annotation></semantics></math>, a linear schedule and a warm-up phase of 1000 steps.
+The models used in the evaluation were selected based on the lowest WER achieved on the validation set comprised of all validation portions from the four datasets used for training.
+We utilized greedy decoding for its increased inference speed.</p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>Whisper exhibits outlier behavior similar to LMs</h3>
+
+<div id="S3.SS4.p1" class="ltx_para">
+<p id="S3.SS4.p1.1" class="ltx_p">As an initial analysis, we followed <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite> and visualized the behavior of the multi-headed self-attention mechanism in the Whisper decoder.
+The large version of Whisper employs 20 attention heads with 64 hidden dimensions each.
+Figure <a href="#S2.F1" title="Figure 1 ‣ 2.3 Gated attention ‣ 2 Method ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> illustrates the attention mechanism in the <span id="S3.SS4.p1.1.1" class="ltx_ERROR undefined">\nth</span>31 layer in the decoder part of the pretrained 1.55B parameter version of Whisper.
+We observe that the attention head predominantly allocates its probability mass to the transcription token <span id="S3.SS4.p1.1.2" class="ltx_text ltx_font_typewriter">&lt;|tr|&gt;</span>, while the same token has small values associated with it in <math id="S3.SS4.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{V}" display="inline"><semantics id="S3.SS4.p1.1.m1.1a"><mi id="S3.SS4.p1.1.m1.1.1" xref="S3.SS4.p1.1.m1.1.1.cmml">𝐕</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.p1.1.m1.1b"><ci id="S3.SS4.p1.1.m1.1.1.cmml" xref="S3.SS4.p1.1.m1.1.1">𝐕</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.p1.1.m1.1c">\mathbf{V}</annotation></semantics></math> (cf. third row from the bottom in the middle matrix).
+As a result, the product between the two is small, representing only a minimal or no update of the hidden representation.
+Only a small portion of the probability mass is distributed to other tokens (in this case mostly the token <span id="S3.SS4.p1.1.3" class="ltx_text ltx_font_typewriter">we</span>), resulting in a local update of the hidden representation for those tokens.
+Similar patterns can be found across all decoder layers and attention heads.
+These results are in line with the findings on transformer-based language and vision models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib46" title="" class="ltx_ref">46</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, supplementing them with SFMs.</p>
+</div>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Gated attention improves PTQ in student models</h3>
+
+<figure id="S3.F2" class="ltx_figure"><img src="/html/2406.11022/assets/x2.png" id="S3.F2.g1" class="ltx_graphics ltx_img_landscape" width="461" height="142" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Top 10 shares of activation outliers per hidden dimension at the output projection of the self-attention block of the last decoder layer in trained student models. Left are the relative outliers for a student trained without gated attention and right are the relative outliers with gated attention. Both models were trained using 24 layers for the encoder. The hidden dimensions are zero-indexed. Each output projection layer has a dimensionality of 1280.</figcaption>
+</figure>
+<div id="S3.SS5.p1" class="ltx_para">
+<p id="S3.SS5.p1.2" class="ltx_p">Figure <a href="#S3.F2" title="Figure 2 ‣ 3.5 Gated attention improves PTQ in student models ‣ 3 Experiments and Results ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> illustrates which hidden dimensions contribute the most outliers for one student model trained without gated attention (left) and another one trained with gated attention (right).
+Outliers were counted separately for each dimension in the output projection of the self-attention block in the last decoder layer (i.e., the <span id="S3.SS5.p1.2.1" class="ltx_ERROR undefined">\nth</span>2 decoder layer).
+We see that the distribution of outliers becomes more uniform and each dimension contributes less to the overall outliers with the gating mechanism in place.
+For example, with conventional attention, the hidden dimensions #819 and #1054 contribute <math id="S3.SS5.p1.1.m1.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S3.SS5.p1.1.m1.1a"><mo id="S3.SS5.p1.1.m1.1.1" xref="S3.SS5.p1.1.m1.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S3.SS5.p1.1.m1.1b"><csymbol cd="latexml" id="S3.SS5.p1.1.m1.1.1.cmml" xref="S3.SS5.p1.1.m1.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p1.1.m1.1c">\sim</annotation></semantics></math>15% of all outliers, whereas with gated attention the two highest shares (dimension #287 and #211) amount only to a total of <math id="S3.SS5.p1.2.m2.1" class="ltx_Math" alttext="\sim" display="inline"><semantics id="S3.SS5.p1.2.m2.1a"><mo id="S3.SS5.p1.2.m2.1.1" xref="S3.SS5.p1.2.m2.1.1.cmml">∼</mo><annotation-xml encoding="MathML-Content" id="S3.SS5.p1.2.m2.1b"><csymbol cd="latexml" id="S3.SS5.p1.2.m2.1.1.cmml" xref="S3.SS5.p1.2.m2.1.1">similar-to</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p1.2.m2.1c">\sim</annotation></semantics></math>5% relative to all outliers.
+</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 1: </span>Average kurtosis and maximum infinity norm on the full ID test set for different model sizes before quantization.</figcaption>
+<table id="S3.T1.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tr id="S3.T1.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.1.1" class="ltx_text"><span id="S3.T1.1.1.1.1.1" class="ltx_text"></span> <span id="S3.T1.1.1.1.1.2" class="ltx_text">
+<span id="S3.T1.1.1.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T1.1.1.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.1.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Decoder</span></span></span>
+<span id="S3.T1.1.1.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T1.1.1.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.1.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Layers</span></span></span>
+</span></span> <span id="S3.T1.1.1.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.2.1" class="ltx_text"><span id="S3.T1.1.1.2.1.1" class="ltx_text"></span> <span id="S3.T1.1.1.2.1.2" class="ltx_text">
+<span id="S3.T1.1.1.2.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T1.1.1.2.1.2.1.1" class="ltx_tr">
+<span id="S3.T1.1.1.2.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.2.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Gated</span></span></span>
+<span id="S3.T1.1.1.2.1.2.1.2" class="ltx_tr">
+<span id="S3.T1.1.1.2.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.2.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Attention</span></span></span>
+</span></span> <span id="S3.T1.1.1.2.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T1.1.1.3" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.3.1" class="ltx_text"><span id="S3.T1.1.1.3.1.1" class="ltx_text"></span> <span id="S3.T1.1.1.3.1.2" class="ltx_text">
+<span id="S3.T1.1.1.3.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T1.1.1.3.1.2.1.1" class="ltx_tr">
+<span id="S3.T1.1.1.3.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.3.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Average</span></span></span>
+<span id="S3.T1.1.1.3.1.2.1.2" class="ltx_tr">
+<span id="S3.T1.1.1.3.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.3.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Kurtosis</span></span></span>
+</span></span> <span id="S3.T1.1.1.3.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T1.1.1.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.4.1" class="ltx_text"><span id="S3.T1.1.1.4.1.1" class="ltx_text"></span> <span id="S3.T1.1.1.4.1.2" class="ltx_text">
+<span id="S3.T1.1.1.4.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T1.1.1.4.1.2.1.1" class="ltx_tr">
+<span id="S3.T1.1.1.4.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.4.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Maximum</span></span></span>
+<span id="S3.T1.1.1.4.1.2.1.2" class="ltx_tr">
+<span id="S3.T1.1.1.4.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;"><span id="S3.T1.1.1.4.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Inf. Norm</span></span></span>
+</span></span> <span id="S3.T1.1.1.4.1.3" class="ltx_text"></span></span></td>
+</tr>
+<tr id="S3.T1.1.2" class="ltx_tr">
+<td id="S3.T1.1.2.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T1.1.2.1.1" class="ltx_text">24</span></td>
+<td id="S3.T1.1.2.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">✗</td>
+<td id="S3.T1.1.2.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">105.4</td>
+<td id="S3.T1.1.2.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">66.8</td>
+</tr>
+<tr id="S3.T1.1.3" class="ltx_tr">
+<td id="S3.T1.1.3.1" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">✓</td>
+<td id="S3.T1.1.3.2" class="ltx_td ltx_align_right" style="padding-left:10.0pt;padding-right:10.0pt;">42.8</td>
+<td id="S3.T1.1.3.3" class="ltx_td ltx_align_right" style="padding-left:10.0pt;padding-right:10.0pt;">44.0</td>
+</tr>
+<tr id="S3.T1.1.4" class="ltx_tr">
+<td id="S3.T1.1.4.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T1.1.4.1.1" class="ltx_text">16</span></td>
+<td id="S3.T1.1.4.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">✗</td>
+<td id="S3.T1.1.4.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">48.5</td>
+<td id="S3.T1.1.4.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">35.3</td>
+</tr>
+<tr id="S3.T1.1.5" class="ltx_tr">
+<td id="S3.T1.1.5.1" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">✓</td>
+<td id="S3.T1.1.5.2" class="ltx_td ltx_align_right" style="padding-left:10.0pt;padding-right:10.0pt;">19.5</td>
+<td id="S3.T1.1.5.3" class="ltx_td ltx_align_right" style="padding-left:10.0pt;padding-right:10.0pt;">29.8</td>
+</tr>
+<tr id="S3.T1.1.6" class="ltx_tr">
+<td id="S3.T1.1.6.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_bb ltx_border_b ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T1.1.6.1.1" class="ltx_text">8</span></td>
+<td id="S3.T1.1.6.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">✗</td>
+<td id="S3.T1.1.6.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">28.6</td>
+<td id="S3.T1.1.6.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">29.9</td>
+</tr>
+<tr id="S3.T1.1.7" class="ltx_tr">
+<td id="S3.T1.1.7.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:10.0pt;padding-right:10.0pt;">✓</td>
+<td id="S3.T1.1.7.2" class="ltx_td ltx_align_right ltx_border_bb ltx_border_b" style="padding-left:10.0pt;padding-right:10.0pt;">20.7</td>
+<td id="S3.T1.1.7.3" class="ltx_td ltx_align_right ltx_border_bb ltx_border_b" style="padding-left:10.0pt;padding-right:10.0pt;">23.7</td>
+</tr>
+</table>
+</figure>
+<div id="S3.SS5.p2" class="ltx_para">
+<p id="S3.SS5.p2.1" class="ltx_p">Table <a href="#S3.T1" title="Table 1 ‣ 3.5 Gated attention improves PTQ in student models ‣ 3 Experiments and Results ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows the average kurtosis and <math id="S3.SS5.p2.1.m1.1" class="ltx_Math" alttext="\left\lVert\cdot\right\rVert_{\infty}" display="inline"><semantics id="S3.SS5.p2.1.m1.1a"><msub id="S3.SS5.p2.1.m1.1.2" xref="S3.SS5.p2.1.m1.1.2.cmml"><mrow id="S3.SS5.p2.1.m1.1.2.2.2" xref="S3.SS5.p2.1.m1.1.2.2.1.cmml"><mo fence="true" rspace="0em" stretchy="true" id="S3.SS5.p2.1.m1.1.2.2.2.1" xref="S3.SS5.p2.1.m1.1.2.2.1.1.cmml">∥</mo><mo lspace="0em" rspace="0em" id="S3.SS5.p2.1.m1.1.1" xref="S3.SS5.p2.1.m1.1.1.cmml">⋅</mo><mo fence="true" lspace="0em" stretchy="true" id="S3.SS5.p2.1.m1.1.2.2.2.2" xref="S3.SS5.p2.1.m1.1.2.2.1.1.cmml">∥</mo></mrow><mi mathvariant="normal" id="S3.SS5.p2.1.m1.1.2.3" xref="S3.SS5.p2.1.m1.1.2.3.cmml">∞</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.p2.1.m1.1b"><apply id="S3.SS5.p2.1.m1.1.2.cmml" xref="S3.SS5.p2.1.m1.1.2"><csymbol cd="ambiguous" id="S3.SS5.p2.1.m1.1.2.1.cmml" xref="S3.SS5.p2.1.m1.1.2">subscript</csymbol><apply id="S3.SS5.p2.1.m1.1.2.2.1.cmml" xref="S3.SS5.p2.1.m1.1.2.2.2"><csymbol cd="latexml" id="S3.SS5.p2.1.m1.1.2.2.1.1.cmml" xref="S3.SS5.p2.1.m1.1.2.2.2.1">delimited-∥∥</csymbol><ci id="S3.SS5.p2.1.m1.1.1.cmml" xref="S3.SS5.p2.1.m1.1.1">⋅</ci></apply><infinity id="S3.SS5.p2.1.m1.1.2.3.cmml" xref="S3.SS5.p2.1.m1.1.2.3"></infinity></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.p2.1.m1.1c">\left\lVert\cdot\right\rVert_{\infty}</annotation></semantics></math> across test sets with and without gated attention.
+Consistently lower outlier metrics were observed for models trained with gated attention compared to those trained without gated attention, indicating improved robustness and stability in the former case.</p>
+</div>
+<figure id="S3.T2" class="ltx_table">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 2: </span>Word Error Rates on different in-distribution (ID) and out-of-distribution (OOD) test sets.</figcaption>
+<table id="S3.T2.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tr id="S3.T2.1.1" class="ltx_tr">
+<td id="S3.T2.1.1.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.1.1.1" class="ltx_text ltx_font_bold">Dataset</span></td>
+<td id="S3.T2.1.1.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.1.2.1" class="ltx_text"><span id="S3.T2.1.1.2.1.1" class="ltx_text"></span> <span id="S3.T2.1.1.2.1.2" class="ltx_text">
+<span id="S3.T2.1.1.2.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.1.2.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.1.2.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.1.2.1.2.1.1.1.1" class="ltx_text ltx_font_bold">INT8</span></span></span>
+<span id="S3.T2.1.1.2.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.1.2.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.1.2.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Quant.</span></span></span>
+</span></span> <span id="S3.T2.1.1.2.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.1.3" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.1.3.1" class="ltx_text"><span id="S3.T2.1.1.3.1.1" class="ltx_text"></span> <span id="S3.T2.1.1.3.1.2" class="ltx_text">
+<span id="S3.T2.1.1.3.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.1.3.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.1.3.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.1.3.1.2.1.1.1.1" class="ltx_text ltx_font_bold">Gated</span></span></span>
+<span id="S3.T2.1.1.3.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.1.3.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.1.3.1.2.1.2.1.1" class="ltx_text ltx_font_bold">Attention</span></span></span>
+</span></span> <span id="S3.T2.1.1.3.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.1.4" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" colspan="3"><span id="S3.T2.1.1.4.1" class="ltx_text ltx_font_bold">WER</span></td>
+</tr>
+<tr id="S3.T2.1.2" class="ltx_tr">
+<td id="S3.T2.1.2.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">
+<span id="S3.T2.1.2.1.1" class="ltx_text"></span> <span id="S3.T2.1.2.1.2" class="ltx_text">
+<span id="S3.T2.1.2.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.2.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.2.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">24</span></span>
+<span id="S3.T2.1.2.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.2.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.2.1.2.1.2.1.1" class="ltx_text" style="font-size:80%;">layer</span></span></span>
+</span></span><span id="S3.T2.1.2.1.3" class="ltx_text"></span>
+</td>
+<td id="S3.T2.1.2.2" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">
+<span id="S3.T2.1.2.2.1" class="ltx_text"></span> <span id="S3.T2.1.2.2.2" class="ltx_text">
+<span id="S3.T2.1.2.2.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.2.2.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.2.2.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">16</span></span>
+<span id="S3.T2.1.2.2.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.2.2.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.2.2.2.1.2.1.1" class="ltx_text" style="font-size:80%;">layer</span></span></span>
+</span></span><span id="S3.T2.1.2.2.3" class="ltx_text"></span>
+</td>
+<td id="S3.T2.1.2.3" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">
+<span id="S3.T2.1.2.3.1" class="ltx_text"></span> <span id="S3.T2.1.2.3.2" class="ltx_text">
+<span id="S3.T2.1.2.3.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.2.3.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.2.3.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">8</span></span>
+<span id="S3.T2.1.2.3.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.2.3.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;"><span id="S3.T2.1.2.3.2.1.2.1.1" class="ltx_text" style="font-size:80%;">layer</span></span></span>
+</span></span><span id="S3.T2.1.2.3.3" class="ltx_text"></span>
+</td>
+</tr>
+<tr id="S3.T2.1.3" class="ltx_tr">
+<td id="S3.T2.1.3.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.3.1.1" class="ltx_text"><span id="S3.T2.1.3.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.3.1.1.2" class="ltx_text">
+<span id="S3.T2.1.3.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.3.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.3.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">Voxpopuli</span></span>
+<span id="S3.T2.1.3.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.3.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(ID)</span></span>
+</span></span> <span id="S3.T2.1.3.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.3.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.3.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.3.3" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.3.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">13.7</td>
+<td id="S3.T2.1.3.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">15.6</td>
+<td id="S3.T2.1.3.6" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">19.2</td>
+</tr>
+<tr id="S3.T2.1.4" class="ltx_tr">
+<td id="S3.T2.1.4.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.4.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">12.6</td>
+<td id="S3.T2.1.4.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">13.8</td>
+<td id="S3.T2.1.4.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">18.1</td>
+</tr>
+<tr id="S3.T2.1.5" class="ltx_tr">
+<td id="S3.T2.1.5.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.5.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.5.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.5.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">21.7</td>
+<td id="S3.T2.1.5.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">22.2</td>
+<td id="S3.T2.1.5.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">24.1</td>
+</tr>
+<tr id="S3.T2.1.6" class="ltx_tr">
+<td id="S3.T2.1.6.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.6.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">13.9</td>
+<td id="S3.T2.1.6.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">15.6</td>
+<td id="S3.T2.1.6.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">19.6</td>
+</tr>
+<tr id="S3.T2.1.7" class="ltx_tr">
+<td id="S3.T2.1.7.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.7.1.1" class="ltx_text"><span id="S3.T2.1.7.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.7.1.1.2" class="ltx_text">
+<span id="S3.T2.1.7.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.7.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.7.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">LibriSpeech</span></span>
+<span id="S3.T2.1.7.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.7.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">test-clean</span></span>
+<span id="S3.T2.1.7.1.1.2.1.3" class="ltx_tr">
+<span id="S3.T2.1.7.1.1.2.1.3.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(ID)</span></span>
+</span></span> <span id="S3.T2.1.7.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.7.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.7.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.7.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.7.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">7.0</td>
+<td id="S3.T2.1.7.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">6.7</td>
+<td id="S3.T2.1.7.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">10.7</td>
+</tr>
+<tr id="S3.T2.1.8" class="ltx_tr">
+<td id="S3.T2.1.8.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.8.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">6.3</td>
+<td id="S3.T2.1.8.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">6.9</td>
+<td id="S3.T2.1.8.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">10.0</td>
+</tr>
+<tr id="S3.T2.1.9" class="ltx_tr">
+<td id="S3.T2.1.9.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.9.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.9.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.9.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">9.7</td>
+<td id="S3.T2.1.9.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">12.7</td>
+<td id="S3.T2.1.9.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">13.7</td>
+</tr>
+<tr id="S3.T2.1.10" class="ltx_tr">
+<td id="S3.T2.1.10.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.10.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">7.7</td>
+<td id="S3.T2.1.10.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">8.6</td>
+<td id="S3.T2.1.10.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">12.3</td>
+</tr>
+<tr id="S3.T2.1.11" class="ltx_tr">
+<td id="S3.T2.1.11.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.11.1.1" class="ltx_text"><span id="S3.T2.1.11.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.11.1.1.2" class="ltx_text">
+<span id="S3.T2.1.11.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.11.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.11.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">LibriSpeech</span></span>
+<span id="S3.T2.1.11.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.11.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">test-other</span></span>
+<span id="S3.T2.1.11.1.1.2.1.3" class="ltx_tr">
+<span id="S3.T2.1.11.1.1.2.1.3.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(ID)</span></span>
+</span></span> <span id="S3.T2.1.11.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.11.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.11.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.11.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.11.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">13.1</td>
+<td id="S3.T2.1.11.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">14.6</td>
+<td id="S3.T2.1.11.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">21.1</td>
+</tr>
+<tr id="S3.T2.1.12" class="ltx_tr">
+<td id="S3.T2.1.12.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.12.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">12.7</td>
+<td id="S3.T2.1.12.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">14.0</td>
+<td id="S3.T2.1.12.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">20.6</td>
+</tr>
+<tr id="S3.T2.1.13" class="ltx_tr">
+<td id="S3.T2.1.13.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.13.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.13.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.13.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">18.4</td>
+<td id="S3.T2.1.13.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">23.2</td>
+<td id="S3.T2.1.13.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">24.0</td>
+</tr>
+<tr id="S3.T2.1.14" class="ltx_tr">
+<td id="S3.T2.1.14.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.14.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">14.4</td>
+<td id="S3.T2.1.14.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">15.8</td>
+<td id="S3.T2.1.14.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">22.8</td>
+</tr>
+<tr id="S3.T2.1.15" class="ltx_tr">
+<td id="S3.T2.1.15.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.15.1.1" class="ltx_text"><span id="S3.T2.1.15.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.15.1.1.2" class="ltx_text">
+<span id="S3.T2.1.15.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.15.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.15.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">CommonVoice 16</span></span>
+<span id="S3.T2.1.15.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.15.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(ID)</span></span>
+</span></span> <span id="S3.T2.1.15.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.15.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.15.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.15.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.15.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">23.6</td>
+<td id="S3.T2.1.15.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">27.6</td>
+<td id="S3.T2.1.15.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">36.5</td>
+</tr>
+<tr id="S3.T2.1.16" class="ltx_tr">
+<td id="S3.T2.1.16.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.16.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">22.4</td>
+<td id="S3.T2.1.16.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">26.2</td>
+<td id="S3.T2.1.16.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">36.3</td>
+</tr>
+<tr id="S3.T2.1.17" class="ltx_tr">
+<td id="S3.T2.1.17.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.17.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.17.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.17.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">34.4</td>
+<td id="S3.T2.1.17.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">33.2</td>
+<td id="S3.T2.1.17.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">39.3</td>
+</tr>
+<tr id="S3.T2.1.18" class="ltx_tr">
+<td id="S3.T2.1.18.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.18.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">25.0</td>
+<td id="S3.T2.1.18.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">28.4</td>
+<td id="S3.T2.1.18.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">38.6</td>
+</tr>
+<tr id="S3.T2.1.19" class="ltx_tr">
+<td id="S3.T2.1.19.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.19.1.1" class="ltx_text"><span id="S3.T2.1.19.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.19.1.1.2" class="ltx_text">
+<span id="S3.T2.1.19.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.19.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.19.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">People's Speech</span></span>
+<span id="S3.T2.1.19.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.19.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(ID)</span></span>
+</span></span> <span id="S3.T2.1.19.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.19.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.19.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.19.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.19.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">33.7</td>
+<td id="S3.T2.1.19.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">33.9</td>
+<td id="S3.T2.1.19.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">46.1</td>
+</tr>
+<tr id="S3.T2.1.20" class="ltx_tr">
+<td id="S3.T2.1.20.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.20.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">32.7</td>
+<td id="S3.T2.1.20.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">35.0</td>
+<td id="S3.T2.1.20.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">41.6</td>
+</tr>
+<tr id="S3.T2.1.21" class="ltx_tr">
+<td id="S3.T2.1.21.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.21.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.21.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.21.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">38.7</td>
+<td id="S3.T2.1.21.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">45.6</td>
+<td id="S3.T2.1.21.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">47.6</td>
+</tr>
+<tr id="S3.T2.1.22" class="ltx_tr">
+<td id="S3.T2.1.22.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.22.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">35.5</td>
+<td id="S3.T2.1.22.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">37.6</td>
+<td id="S3.T2.1.22.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">44.7</td>
+</tr>
+<tr id="S3.T2.1.23" class="ltx_tr">
+<td id="S3.T2.1.23.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.23.1.1" class="ltx_text"><span id="S3.T2.1.23.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.23.1.1.2" class="ltx_text">
+<span id="S3.T2.1.23.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.23.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.23.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">TED-LIUM</span></span>
+<span id="S3.T2.1.23.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.23.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(OOD)</span></span>
+</span></span> <span id="S3.T2.1.23.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.23.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.23.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.23.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.23.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">13.6</td>
+<td id="S3.T2.1.23.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">15.0</td>
+<td id="S3.T2.1.23.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">19.6</td>
+</tr>
+<tr id="S3.T2.1.24" class="ltx_tr">
+<td id="S3.T2.1.24.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.24.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">14.3</td>
+<td id="S3.T2.1.24.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">14.9</td>
+<td id="S3.T2.1.24.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">18.0</td>
+</tr>
+<tr id="S3.T2.1.25" class="ltx_tr">
+<td id="S3.T2.1.25.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.25.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.25.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.25.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">19.7</td>
+<td id="S3.T2.1.25.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">22.4</td>
+<td id="S3.T2.1.25.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">27.1</td>
+</tr>
+<tr id="S3.T2.1.26" class="ltx_tr">
+<td id="S3.T2.1.26.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.26.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">15.5</td>
+<td id="S3.T2.1.26.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">17.2</td>
+<td id="S3.T2.1.26.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">19.8</td>
+</tr>
+<tr id="S3.T2.1.27" class="ltx_tr">
+<td id="S3.T2.1.27.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.27.1.1" class="ltx_text"><span id="S3.T2.1.27.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.27.1.1.2" class="ltx_text">
+<span id="S3.T2.1.27.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.27.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.27.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">Gigaspeech</span></span>
+<span id="S3.T2.1.27.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.27.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(OOD)</span></span>
+</span></span> <span id="S3.T2.1.27.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.27.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.27.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.27.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.27.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">18.4</td>
+<td id="S3.T2.1.27.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">19.9</td>
+<td id="S3.T2.1.27.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">26.2</td>
+</tr>
+<tr id="S3.T2.1.28" class="ltx_tr">
+<td id="S3.T2.1.28.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.28.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">17.9</td>
+<td id="S3.T2.1.28.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">20.0</td>
+<td id="S3.T2.1.28.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">25.7</td>
+</tr>
+<tr id="S3.T2.1.29" class="ltx_tr">
+<td id="S3.T2.1.29.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.29.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.29.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.29.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">23.1</td>
+<td id="S3.T2.1.29.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">25.7</td>
+<td id="S3.T2.1.29.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">28.5</td>
+</tr>
+<tr id="S3.T2.1.30" class="ltx_tr">
+<td id="S3.T2.1.30.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.30.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">19.2</td>
+<td id="S3.T2.1.30.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">21.5</td>
+<td id="S3.T2.1.30.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">27.8</td>
+</tr>
+<tr id="S3.T2.1.31" class="ltx_tr">
+<td id="S3.T2.1.31.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_bb ltx_border_b ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="4"><span id="S3.T2.1.31.1.1" class="ltx_text"><span id="S3.T2.1.31.1.1.1" class="ltx_text"></span> <span id="S3.T2.1.31.1.1.2" class="ltx_text">
+<span id="S3.T2.1.31.1.1.2.1" class="ltx_tabular ltx_align_middle">
+<span id="S3.T2.1.31.1.1.2.1.1" class="ltx_tr">
+<span id="S3.T2.1.31.1.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">Fleurs</span></span>
+<span id="S3.T2.1.31.1.1.2.1.2" class="ltx_tr">
+<span id="S3.T2.1.31.1.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">(OOD)</span></span>
+</span></span> <span id="S3.T2.1.31.1.1.3" class="ltx_text"></span></span></td>
+<td id="S3.T2.1.31.2" class="ltx_td ltx_align_center ltx_align_middle ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.31.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T2.1.31.3" class="ltx_td ltx_align_center ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.31.4" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">17.1</td>
+<td id="S3.T2.1.31.5" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">17.7</td>
+<td id="S3.T2.1.31.6" class="ltx_td ltx_align_right ltx_border_tt" style="padding-left:4.5pt;padding-right:4.5pt;">25.2</td>
+</tr>
+<tr id="S3.T2.1.32" class="ltx_tr">
+<td id="S3.T2.1.32.1" class="ltx_td ltx_align_center" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.32.2" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">15.8</td>
+<td id="S3.T2.1.32.3" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">18.6</td>
+<td id="S3.T2.1.32.4" class="ltx_td ltx_align_right" style="padding-left:4.5pt;padding-right:4.5pt;">25.5</td>
+</tr>
+<tr id="S3.T2.1.33" class="ltx_tr">
+<td id="S3.T2.1.33.1" class="ltx_td ltx_align_center ltx_align_middle ltx_border_bb ltx_border_bb ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;" rowspan="2"><span id="S3.T2.1.33.1.1" class="ltx_text">✓</span></td>
+<td id="S3.T2.1.33.2" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">✗</td>
+<td id="S3.T2.1.33.3" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">25.2</td>
+<td id="S3.T2.1.33.4" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">21.3</td>
+<td id="S3.T2.1.33.5" class="ltx_td ltx_align_right ltx_border_t" style="padding-left:4.5pt;padding-right:4.5pt;">28.9</td>
+</tr>
+<tr id="S3.T2.1.34" class="ltx_tr">
+<td id="S3.T2.1.34.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_bb" style="padding-left:4.5pt;padding-right:4.5pt;">✓</td>
+<td id="S3.T2.1.34.2" class="ltx_td ltx_align_right ltx_border_bb ltx_border_bb" style="padding-left:4.5pt;padding-right:4.5pt;">17.4</td>
+<td id="S3.T2.1.34.3" class="ltx_td ltx_align_right ltx_border_bb ltx_border_bb" style="padding-left:4.5pt;padding-right:4.5pt;">20.5</td>
+<td id="S3.T2.1.34.4" class="ltx_td ltx_align_right ltx_border_bb ltx_border_bb" style="padding-left:4.5pt;padding-right:4.5pt;">28.1</td>
+</tr>
+</table>
+</figure>
+<div id="S3.SS5.p3" class="ltx_para">
+<p id="S3.SS5.p3.1" class="ltx_p">Table <a href="#S3.T2" title="Table 2 ‣ 3.5 Gated attention improves PTQ in student models ‣ 3 Experiments and Results ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> presents WERs on each ID and OOD test set for student models with 24, 16, and 8 encoder layers before and after INT8 quantization of weights and activations.
+Each model was trained once with the gated attention mechanism in place and once without.
+The 24-layer encoder system demonstrated the best overall performance across the test sets and WERs increased with fewer encoder layers used in the student model.
+Before quantization, using the gated attention mechanism during student-teacher training resulted in similar WERs compared to training without gated attention across all test sets.
+However, a notable difference emerges after quantization.
+With gated attention, Table <a href="#S3.T2" title="Table 2 ‣ 3.5 Gated attention improves PTQ in student models ‣ 3 Experiments and Results ‣ Outlier Reduction with Gated Attention for Improved Post-training Quantization in Large Sequence-to-sequence Speech Foundation Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows only slight increases in WERs relative to non-quantized models, whereas quantized models trained without gated attention experience significant increases in WERs across all test sets.
+This highlights the effectiveness of gated attention in maintaining ASR performance after quantization.
+Additionally, in some cases, the gating mechanism also improves the full precision performance.
+However, this is not consistent across all test sets and encoder layer configurations.</p>
+</div>
+<div id="S3.SS5.p4" class="ltx_para">
+<p id="S3.SS5.p4.1" class="ltx_p">Our findings align with outlier analyses conducted for language and vision models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, showing that the importance of outlier mitigation is crucial to control performance degradation in PTQ.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusions</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In line with observations in transformer-based language and vision models, we found that outliers generated by the attention mechanism, attempting to perform no-update operations, also manifest in the Whisper model architecture.
+These outliers pose challenges when applying post-training quantization, particularly concerning activation quantization.
+We focused on reducing the model size through student-teacher training, followed by applying INT8 quantization to both weight and activation tensors.
+To enhance robustness against outliers, we used a gated attention mechanism that learns to perform the null operation when necessary.
+Our experiments demonstrated that the student model equipped with the gating mechanism achieved similar WERs as the model without gated attention at floating-point precision.
+However, when quantization was applied, models with gated attention exhibited significantly more stable WERs. This underscores the efficacy of gated attention in complementing student-teacher training, particularly in scenarios where the ultimate goal involves weight and activation quantization.</p>
+</div>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Acknowledgments</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">We gratefully acknowledge the scientific support and HPC resources provided by the Erlangen National High Performance Computing Center (NHR@FAU) of the Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU) under the NHR project b196ac14. NHR funding is provided by federal and Bavarian state authorities. NHR@FAU hardware is partially funded by the German Research Foundation (DFG) – 440719683.
+This work was supported by the Bavarian State Ministry of Science and the Arts under grant H.2-F1116.NÜ/61/2.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="font-size:80%;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="font-size:80%;">
+A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, ``wav2vec 2.0: A framework for self-supervised learning of speech representations,'' in </span><em id="bib.bib1.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib1.3.3" class="ltx_text" style="font-size:80%;">, vol. 33, 2020, pp. 12 449–12 460.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="font-size:80%;">
+W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, ``Hubert: Self-supervised speech representation learning by masked prediction of hidden units,'' </span><em id="bib.bib2.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">IEEE/ACM Trans. Audio, Speech and Lang. Proc.</em><span id="bib.bib2.3.3" class="ltx_text" style="font-size:80%;">, p. 3451–3460, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="font-size:80%;">
+A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, ``Robust Speech Recognition via Large-Scale Weak Supervision,'' 2022, arXiv:2212.04356.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="font-size:80%;">
+S. Gandhi, P. von Platen, and A. M. Rush, ``Distil-whisper: Robust knowledge distillation via large-scale pseudo labelling,'' 2023, arXiv:2311.00430.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="font-size:80%;">
+Y. Peng, Y. Sudo, M. Shakeel, and S. Watanabe, ``OWSM-CTC: An open encoder-only speech foundation model for speech recognition, translation, and language identification,'' 2024, arXiv:2402.12654.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="font-size:80%;">
+H. Shao, W. Wang, B. Liu, X. Gong, H. Wang, and Y. Qian, ``Whisper-KDQ: A lightweight whisper via guided knowledge distillation and quantization for efficient ASR,'' 2023, arXiv:2305.10788.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="font-size:80%;">
+E. Fish, U. Michieli, and M. Ozay, ``A Model for Every User and Budget: Label-Free and Personalized Mixed-Precision Quantization,'' in </span><em id="bib.bib7.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib7.3.3" class="ltx_text" style="font-size:80%;">, 2023, pp. 3232–3236.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="font-size:80%;">
+H.-J. Chang, S.-w. Yang, and H.-y. Lee, ``Distilhubert: Speech representation learning by layer-wise distillation of hidden-unit bert,'' in </span><em id="bib.bib8.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ICASSP</em><span id="bib.bib8.3.3" class="ltx_text" style="font-size:80%;">, 2022, pp. 7087–7091.
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="font-size:80%;">
+X. Gong, Z. Zhou, and Y. Qian, ``Knowledge Transfer and Distillation from Autoregressive to Non-Autoregessive Speech Recognition,'' in </span><em id="bib.bib9.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib9.3.3" class="ltx_text" style="font-size:80%;">, 2022, pp. 2618–2622.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="font-size:80%;">
+T. Ashihara, T. Moriya, K. Matsuura, and T. Tanaka, ``Deep versus Wide: An Analysis of Student Architectures for Task-Agnostic Knowledge Distillation of Self-Supervised Speech Models,'' in </span><em id="bib.bib10.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib10.3.3" class="ltx_text" style="font-size:80%;">, 2022, pp. 411–415.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="font-size:80%;">
+C.-F. Yeh, W.-N. Hsu, P. Tomasello, and A. Mohamed, ``Efficient speech representation learning with low-bit quantization,'' 2022, arXiv:2301.00652.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="font-size:80%;">
+S. Ding, P. Meadowlark, Y. He, L. Lew, S. Agrawal, and O. Rybakov, ``4-bit Conformer with Native Quantization Aware Training for Speech Recognition,'' in </span><em id="bib.bib12.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib12.3.3" class="ltx_text" style="font-size:80%;">, 2022, pp. 1711–1715.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="font-size:80%;">
+K. Zhen, H. D. Nguyen, R. Chinta, N. Susanj, A. Mouchtaris, T. Afzal, and A. Rastrow, ``Sub-8-Bit Quantization Aware Training for 8-Bit Neural Network Accelerator with On-Device Speech Recognition,'' in </span><em id="bib.bib13.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib13.3.3" class="ltx_text" style="font-size:80%;">, 2022, pp. 3033–3037.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="font-size:80%;">
+A. Fasoli </span><em id="bib.bib14.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">et al.</em><span id="bib.bib14.3.3" class="ltx_text" style="font-size:80%;">, ``4-Bit Quantization of LSTM-Based Speech Recognition Models,'' in </span><em id="bib.bib14.4.4" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib14.5.5" class="ltx_text" style="font-size:80%;">, 2021, pp. 2586–2590.
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="font-size:80%;">
+T. Moriya, H. Sato, T. Tanaka, T. Ashihara, R. Masumura, and Y. Shinohara, ``Distilling attention weights for ctc-based asr systems,'' in </span><em id="bib.bib15.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ICASSP</em><span id="bib.bib15.3.3" class="ltx_text" style="font-size:80%;">, 2020, pp. 6894–6898.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="font-size:80%;">
+V. S. Lodagala, S. Ghosh, and S. Umesh, ``PADA: Pruning assisted domain adaptation for self-supervised speech representations,'' in </span><em id="bib.bib16.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">SLT</em><span id="bib.bib16.3.3" class="ltx_text" style="font-size:80%;">, 2023, pp. 136–143.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="font-size:80%;">
+C.-I. J. Lai </span><em id="bib.bib17.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">et al.</em><span id="bib.bib17.3.3" class="ltx_text" style="font-size:80%;">, ``PARP: Prune, adjust and re-prune for self-supervised speech recognition,'' in </span><em id="bib.bib17.4.4" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib17.5.5" class="ltx_text" style="font-size:80%;">, vol. 34, 2021, pp. 21 256–21 272.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="font-size:80%;">
+J. Kim, S. Chang, and N. Kwak, ``PQK: Model Compression via Pruning, Quantization, and Knowledge Distillation,'' in </span><em id="bib.bib18.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib18.3.3" class="ltx_text" style="font-size:80%;">, 2021, pp. 4568–4572.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="font-size:80%;">
+S. Ding </span><em id="bib.bib19.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">et al.</em><span id="bib.bib19.3.3" class="ltx_text" style="font-size:80%;">, ``USM-Lite: Quantization and sparsity aware fine-tuning for speech recognition with universal speech models,'' 2024, arXiv:2312.08553.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="font-size:80%;">
+Y. Bondarenko, M. Nagel, and T. Blankevoort, ``Understanding and overcoming the challenges of efficient transformer quantization,'' in </span><em id="bib.bib20.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">EMNLP</em><span id="bib.bib20.3.3" class="ltx_text" style="font-size:80%;">, Nov. 2021, pp. 7947–7969.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="font-size:80%;">
+T. Dettmers, M. Lewis, Y. Belkada, and L. Zettlemoyer, ``GPT3.int8(): 8-bit matrix multiplication for transformers at scale,'' in </span><em id="bib.bib21.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib21.3.3" class="ltx_text" style="font-size:80%;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="font-size:80%;">
+Z. Yao, R. Yazdani Aminabadi, M. Zhang, X. Wu, C. Li, and Y. He, ``Zeroquant: Efficient and affordable post-training quantization for large-scale transformers,'' in </span><em id="bib.bib22.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib22.3.3" class="ltx_text" style="font-size:80%;">, vol. 35, 2022, pp. 27 168–27 183.
+</span>
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text" style="font-size:80%;">
+G. Xiao, J. Lin, M. Seznec, H. Wu, J. Demouth, and S. Han, ``SmoothQuant: Accurate and efficient post-training quantization for large language models,'' in </span><em id="bib.bib23.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ICML</em><span id="bib.bib23.3.3" class="ltx_text" style="font-size:80%;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text" style="font-size:80%;">
+T. P. Ferraz, M. Z. Boito, C. Brun, and V. Nikoulina, ``Multilingual DistilWhisper: Efficient distillation of multi-task speech models via language-specific experts,'' 2024, arXiv:2311.01070.
+</span>
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text" style="font-size:80%;">
+Z. Luo, A. Kulmizev, and X. Mao, ``Positional artefacts propagate through masked language model embeddings,'' in </span><em id="bib.bib25.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ACL</em><span id="bib.bib25.3.3" class="ltx_text" style="font-size:80%;">, 2021, pp. 5312–5327.
+</span>
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text" style="font-size:80%;">
+X. Wei, Y. Zhang, X. Zhang, R. Gong, S. Zhang, Q. Zhang, F. Yu, and X. Liu, ``Outlier suppression: Pushing the limit of low-bit transformer language models,'' in </span><em id="bib.bib26.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib26.3.3" class="ltx_text" style="font-size:80%;">, vol. 35, 2022, pp. 17 402–17 414.
+</span>
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text" style="font-size:80%;">
+O. Kovaleva, S. Kulshreshtha, A. Rogers, and A. Rumshisky, ``BERT busters: Outlier dimensions that disrupt transformers,'' in </span><em id="bib.bib27.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ACL-IJCNLP</em><span id="bib.bib27.3.3" class="ltx_text" style="font-size:80%;">, 2021, pp. 3392–3405.
+</span>
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text" style="font-size:80%;">
+Y. Bondarenko, M. Nagel, and T. Blankevoort, ``Quantizable transformers: Removing outliers by helping attention heads do nothing,'' in </span><em id="bib.bib28.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib28.3.3" class="ltx_text" style="font-size:80%;">, 2023.
+</span>
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock"><span id="bib.bib29.1.1" class="ltx_text" style="font-size:80%;">
+O. Kovaleva, A. Romanov, A. Rogers, and A. Rumshisky, ``Revealing the dark secrets of BERT,'' in </span><em id="bib.bib29.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">EMNLP-IJCNLP</em><span id="bib.bib29.3.3" class="ltx_text" style="font-size:80%;">, 2019, pp. 4365–4374.
+</span>
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock"><span id="bib.bib30.1.1" class="ltx_text" style="font-size:80%;">
+G. Hinton, O. Vinyals, and J. Dean, ``Distilling the knowledge in a neural network,'' in </span><em id="bib.bib30.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NIPS Deep Learning and Representation Learning Workshop</em><span id="bib.bib30.3.3" class="ltx_text" style="font-size:80%;">, 2015.
+</span>
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock"><span id="bib.bib31.1.1" class="ltx_text" style="font-size:80%;">
+Y. Kim and A. M. Rush, ``Sequence-level knowledge distillation,'' in </span><em id="bib.bib31.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">EMNLP</em><span id="bib.bib31.3.3" class="ltx_text" style="font-size:80%;">, 2016, pp. 1317–1327.
+</span>
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock"><span id="bib.bib32.1.1" class="ltx_text" style="font-size:80%;">
+S. Kullback and R. A. Leibler, ``On information and sufficiency,'' </span><em id="bib.bib32.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">The Annals of Mathematical Statistics</em><span id="bib.bib32.3.3" class="ltx_text" style="font-size:80%;">, pp. 79–86, 1951.
+</span>
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock"><span id="bib.bib33.1.1" class="ltx_text" style="font-size:80%;">
+B. Jacob, S. Kligys, B. Chen, M. Zhu, M. Tang, A. Howard, H. Adam, and D. Kalenichenko, ``Quantization and training of neural networks for efficient integer-arithmetic-only inference,'' in </span><em id="bib.bib33.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">CVPR</em><span id="bib.bib33.3.3" class="ltx_text" style="font-size:80%;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock"><span id="bib.bib34.1.1" class="ltx_text" style="font-size:80%;">
+R. Krishnamoorthi, ``Quantizing deep convolutional networks for efficient inference: A whitepaper,'' 2018, arXiv:1806.08342.
+</span>
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock"><span id="bib.bib35.1.1" class="ltx_text" style="font-size:80%;">
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. u. Kaiser, and I. Polosukhin, ``Attention is All you Need,'' in </span><em id="bib.bib35.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS</em><span id="bib.bib35.3.3" class="ltx_text" style="font-size:80%;">, vol. 30, 2017.
+</span>
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock"><span id="bib.bib36.1.1" class="ltx_text" style="font-size:80%;">
+D. Galvez, G. Diamos, J. M. C. Torres, J. F. Cerón, K. Achorn, A. Gopi, D. Kanter, M. Lam, M. Mazumder, and V. J. Reddi, ``The people’s speech: A large-scale diverse english speech recognition dataset for commercial usage,'' in </span><em id="bib.bib36.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">NeurIPS Datasets and Benchmarks Track</em><span id="bib.bib36.3.3" class="ltx_text" style="font-size:80%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib37" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[37]</span>
+<span class="ltx_bibblock"><span id="bib.bib37.1.1" class="ltx_text" style="font-size:80%;">
+R. Ardila, M. Branson, K. Davis, M. Kohler, J. Meyer, M. Henretty, R. Morais, L. Saunders, F. Tyers, and G. Weber, ``Common Voice: A massively-multilingual speech corpus,'' in </span><em id="bib.bib37.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">LREC</em><span id="bib.bib37.3.3" class="ltx_text" style="font-size:80%;">, 2020, pp. 4218–4222.
+</span>
+</span>
+</li>
+<li id="bib.bib38" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[38]</span>
+<span class="ltx_bibblock"><span id="bib.bib38.1.1" class="ltx_text" style="font-size:80%;">
+V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, ``Librispeech: An asr corpus based on public domain audio books,'' in </span><em id="bib.bib38.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ICASSP</em><span id="bib.bib38.3.3" class="ltx_text" style="font-size:80%;">, 2015, pp. 5206–5210.
+</span>
+</span>
+</li>
+<li id="bib.bib39" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[39]</span>
+<span class="ltx_bibblock"><span id="bib.bib39.1.1" class="ltx_text" style="font-size:80%;">
+C. Wang, M. Riviere, A. Lee, A. Wu, C. Talnikar, D. Haziza, M. Williamson, J. Pino, and E. Dupoux, ``VoxPopuli: A large-scale multilingual speech corpus for representation learning, semi-supervised learning and interpretation,'' in </span><em id="bib.bib39.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ACL</em><span id="bib.bib39.3.3" class="ltx_text" style="font-size:80%;">, 2021, pp. 993–1003.
+</span>
+</span>
+</li>
+<li id="bib.bib40" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[40]</span>
+<span class="ltx_bibblock"><span id="bib.bib40.1.1" class="ltx_text" style="font-size:80%;">
+A. Rousseau, P. Deléglise, and Y. Estève, ``TED-LIUM: an automatic speech recognition dedicated corpus,'' in </span><em id="bib.bib40.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">LREC</em><span id="bib.bib40.3.3" class="ltx_text" style="font-size:80%;">, 2012, pp. 125–129.
+</span>
+</span>
+</li>
+<li id="bib.bib41" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[41]</span>
+<span class="ltx_bibblock"><span id="bib.bib41.1.1" class="ltx_text" style="font-size:80%;">
+A. Conneau </span><em id="bib.bib41.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">et al.</em><span id="bib.bib41.3.3" class="ltx_text" style="font-size:80%;">, ``FLEURS: Few-shot learning evaluation of universal representations of speech,'' in </span><em id="bib.bib41.4.4" class="ltx_emph ltx_font_italic" style="font-size:80%;">SLT</em><span id="bib.bib41.5.5" class="ltx_text" style="font-size:80%;">, 2023, pp. 798–805.
+</span>
+</span>
+</li>
+<li id="bib.bib42" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[42]</span>
+<span class="ltx_bibblock"><span id="bib.bib42.1.1" class="ltx_text" style="font-size:80%;">
+G. Chen </span><em id="bib.bib42.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">et al.</em><span id="bib.bib42.3.3" class="ltx_text" style="font-size:80%;">, ``GigaSpeech: An Evolving, Multi-Domain ASR Corpus with 10,000 Hours of Transcribed Audio,'' in </span><em id="bib.bib42.4.4" class="ltx_emph ltx_font_italic" style="font-size:80%;">Interspeech</em><span id="bib.bib42.5.5" class="ltx_text" style="font-size:80%;">, 2021, pp. 3670–3674.
+</span>
+</span>
+</li>
+<li id="bib.bib43" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[43]</span>
+<span class="ltx_bibblock"><span id="bib.bib43.1.1" class="ltx_text" style="font-size:80%;">
+V. Sanh, L. Debut, J. Chaumond, and T. Wolf, ``Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter,'' 2020, arXiv:1910.01108.
+</span>
+</span>
+</li>
+<li id="bib.bib44" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[44]</span>
+<span class="ltx_bibblock"><span id="bib.bib44.1.1" class="ltx_text" style="font-size:80%;">
+S. Shleifer and A. M. Rush, ``Pre-trained summarization distillation,'' 2020, arXiv:2010.13002.
+</span>
+</span>
+</li>
+<li id="bib.bib45" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[45]</span>
+<span class="ltx_bibblock"><span id="bib.bib45.1.1" class="ltx_text" style="font-size:80%;">
+I. Loshchilov and F. Hutter, ``Decoupled weight decay regularization,'' in </span><em id="bib.bib45.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ICLR</em><span id="bib.bib45.3.3" class="ltx_text" style="font-size:80%;">, 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib46" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[46]</span>
+<span class="ltx_bibblock"><span id="bib.bib46.1.1" class="ltx_text" style="font-size:80%;">
+K. Clark, U. Khandelwal, O. Levy, and C. D. Manning, ``What does BERT look at? an analysis of BERT's attention,'' in </span><em id="bib.bib46.2.2" class="ltx_emph ltx_font_italic" style="font-size:80%;">ACL Workshop BlackboxNLP</em><span id="bib.bib46.3.3" class="ltx_text" style="font-size:80%;">, 2019, pp. 276–286.
+</span>
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:title" content="{Under review}"></div>
+
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.11021" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.11022" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.11022">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.11022" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.11023" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Jul  5 17:47:43 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

@@ -1,0 +1,1159 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2408.17431] Advancing Multi-talker ASR Performance with Large Language Models</title><meta property="og:description" content="Recognizing overlapping speech from multiple speakers in conversational scenarios is one of the most challenging problem for automatic speech recognition (ASR). Serialized output training (SOT) is a classic method to a…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Advancing Multi-talker ASR Performance with Large Language Models">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Advancing Multi-talker ASR Performance with Large Language Models">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2408.17431">
+
+<!--Generated on Thu Sep  5 11:59:16 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Advancing Multi-talker ASR Performance with Large Language Models</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Recognizing overlapping speech from multiple speakers in conversational scenarios is one of the most challenging problem for automatic speech recognition (ASR). Serialized output training (SOT) is a classic method to address multi-talker ASR, with the idea of concatenating transcriptions from multiple speakers according to the emission times of their speech for training. However, SOT-style transcriptions, derived from concatenating <span id="id1.id1.1" class="ltx_text" style="color:#000000;">multiple related utterances in a conversation</span>, depend significantly on modeling long contexts.
+<span id="id1.id1.2" class="ltx_text" style="color:#000000;">Therefore, compared to traditional methods that primarily emphasize encoder performance in attention-based encoder-decoder (AED) architectures, a novel approach utilizing large language models (LLMs) that leverages the capabilities of pre-trained decoders may be better suited for such complex and challenging scenarios.</span>
+In this paper, we propose an LLM-based SOT approach for multi-talker ASR, leveraging pre-trained speech encoder and LLM, fine-tuning them on multi-talker dataset using appropriate strategies. Experimental results demonstrate that our approach surpasses traditional AED-based methods on the simulated dataset LibriMix and achieves state-of-the-art performance on the evaluation set of the real-world dataset AMI, outperforming the AED model trained with 1000 times more supervised data in previous works.</p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— </span></span>
+Multi-talker ASR, large language models, serialized output training</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Although automatic speech recognition (ASR) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> has achieved excellent performance in quiet, single-speaker scenarios, it still faces significant challenges in multi-talker conversational scenarios, especially in the case of overlapping speech.
+To overcome this challenge, a series of multi-talker ASR approaches have been proposed <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. One of the most representative methods is serialized output training (SOT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite>. The core idea of SOT is to concatenate the transcriptions of multiple speakers in the order of their speech emission times, separated by a speaker change symbol. Compared to permutation invariant training (PIT) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, SOT avoids the limitation on the maximum number of speakers, models the dependencies in multi-talker content, and reduces computational complexity, resulting in better performance on multi-talker ASR task.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p"><span id="S1.p2.1.1" class="ltx_text" style="color:#000000;">However, in SOT-style transcriptions, the concatenation of related content from multiple speakers, coupled with the relatively poor grammatical structure of sentences in meeting discussions, necessitates strong long-context awareness and cross utterance modeling. This is precisely what previous SOT methods based on attention-based encoder-decoder (AED) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>, which relied more on encoder performance, lacked, leading to performance bottlenecks.</span>
+For instance, in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>, despite using 900K hours of large-scale simulated data for pre-training, the word error rate on the AMI <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> meeting corpus still reached 21.2%.</p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p">Large language models (LLMs) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, trained on vast amounts of text data, possess unparalleled capabilities in understanding and generating natural language. Their proficiency in long-context awareness makes them exceptionally well-suited for SOT-style transcriptions. Therefore, the combination of LLM and SOT-based multi-talker ASR is a perfect match.
+<span id="S1.p3.1.1" class="ltx_text" style="color:#000000;">A series of LLM-based ASR works <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a>, <a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite> have been conducted, which, in contrast to traditional AED methods that focus on encoder performance, tend to treat the speech foundation encoder <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>, <a href="#bib.bib24" title="" class="ltx_ref">24</a>, <a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> in LLM-based models as a tool for extracting embedding. The speech embedding then serve as prompt for the LLM, relying on the powerful decoder-only LLM to generate transcription.</span>
+These studies have shown that this approach can match or slightly outperform traditional AED methods in simple single-speaker ASR tasks <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>. However, in these works, the performance advantage of the LLM-based methods is not particularly pronounced, indicating that LLM-based models, <span id="S1.p3.1.2" class="ltx_text" style="color:#000000;">with their powerful decoders,</span> have not fully realized their potential in handling speech tasks in simple scenarios.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">Therefore, in this paper, motivated by the potential of powerful LLMs to handle challenging speech tasks in complex scenarios and the natural compatibility of LLMs with SOT, we propose an LLM-based approach for multi-talker ASR. Similar to previous LLM-based ASR works, we employ a architecture comprising a pre-trained speech encoder, a projector, and an LLM. In previous works, various training strategies have been employed. For example, in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, low-rank adaptation (LoRA) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite> was introduced into the LLM to facilitate efficient fine-tuning, and all three components were fine-tuned together in a single stage. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, LoRA was not introduced, and the encoder was frozen while training only the projector, which also yielded satisfactory results. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, a multi-stage fine-tuning approach was used to better align the modalities of speech and text. In this paper, we compared the aforementioned training strategies on the simulated LibriMix dataset and synthesized the best practices to propose the most suitable strategy, which made our LLM-based method surpass the AED-based approach. On the evaluation set of the real-world meeting corpus AMI, the proposed LLM-based method not only surpasses AED-based methods trained with the same amount of data but also remarkably outperforms the AED model trained on an enormous scale of 900K hours (1000 times more) of supervised data, achieving state-of-the-art. This astounding result demonstrates the immense potential of LLM-based models in handling speech processing tasks in challenging scenarios.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Method</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Serialized Output Training</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.8" class="ltx_p">Serialized output training (SOT) is an elegant method to address multi-talker ASR. During the training stage, the transcriptions of different speakers are concatenated using a speaker change symbol to create the reference transcription for the overlapping speech. The concatenation order follows the emission time of each speaker, known as first-in first-out (FIFO). For example, as shown in Fig. <a href="#S2.F1" title="Figure 1 ‣ 2.1 Serialized Output Training ‣ 2 Method ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, in the case of three speakers, the reference transcription <math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="Y" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mi id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml">Y</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><ci id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">𝑌</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">Y</annotation></semantics></math> is given as <math id="S2.SS1.p1.2.m2.11" class="ltx_Math" alttext="R=\{r_{1}^{1},\cdots,r_{N_{1}}^{1},\$,r_{1}^{2},\cdots,r_{N_{2}}^{2},\$,r_{1}^{3},\cdots,r_{N_{3}}^{3}\}" display="inline"><semantics id="S2.SS1.p1.2.m2.11a"><mrow id="S2.SS1.p1.2.m2.11.11" xref="S2.SS1.p1.2.m2.11.11.cmml"><mi id="S2.SS1.p1.2.m2.11.11.8" xref="S2.SS1.p1.2.m2.11.11.8.cmml">R</mi><mo id="S2.SS1.p1.2.m2.11.11.7" xref="S2.SS1.p1.2.m2.11.11.7.cmml">=</mo><mrow id="S2.SS1.p1.2.m2.11.11.6.6" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.11.11.6.6.7" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">{</mo><msubsup id="S2.SS1.p1.2.m2.6.6.1.1.1" xref="S2.SS1.p1.2.m2.6.6.1.1.1.cmml"><mi id="S2.SS1.p1.2.m2.6.6.1.1.1.2.2" xref="S2.SS1.p1.2.m2.6.6.1.1.1.2.2.cmml">r</mi><mn id="S2.SS1.p1.2.m2.6.6.1.1.1.2.3" xref="S2.SS1.p1.2.m2.6.6.1.1.1.2.3.cmml">1</mn><mn id="S2.SS1.p1.2.m2.6.6.1.1.1.3" xref="S2.SS1.p1.2.m2.6.6.1.1.1.3.cmml">1</mn></msubsup><mo id="S2.SS1.p1.2.m2.11.11.6.6.8" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">⋯</mi><mo id="S2.SS1.p1.2.m2.11.11.6.6.9" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><msubsup id="S2.SS1.p1.2.m2.7.7.2.2.2" xref="S2.SS1.p1.2.m2.7.7.2.2.2.cmml"><mi id="S2.SS1.p1.2.m2.7.7.2.2.2.2.2" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.2.cmml">r</mi><msub id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.cmml"><mi id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.2" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.2.cmml">N</mi><mn id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.3" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.3.cmml">1</mn></msub><mn id="S2.SS1.p1.2.m2.7.7.2.2.2.3" xref="S2.SS1.p1.2.m2.7.7.2.2.2.3.cmml">1</mn></msubsup><mo id="S2.SS1.p1.2.m2.11.11.6.6.10" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><mo lspace="0em" rspace="0em" id="S2.SS1.p1.2.m2.2.2" xref="S2.SS1.p1.2.m2.2.2.cmml">$</mo><mo id="S2.SS1.p1.2.m2.11.11.6.6.11" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><msubsup id="S2.SS1.p1.2.m2.8.8.3.3.3" xref="S2.SS1.p1.2.m2.8.8.3.3.3.cmml"><mi id="S2.SS1.p1.2.m2.8.8.3.3.3.2.2" xref="S2.SS1.p1.2.m2.8.8.3.3.3.2.2.cmml">r</mi><mn id="S2.SS1.p1.2.m2.8.8.3.3.3.2.3" xref="S2.SS1.p1.2.m2.8.8.3.3.3.2.3.cmml">1</mn><mn id="S2.SS1.p1.2.m2.8.8.3.3.3.3" xref="S2.SS1.p1.2.m2.8.8.3.3.3.3.cmml">2</mn></msubsup><mo id="S2.SS1.p1.2.m2.11.11.6.6.12" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.2.m2.3.3" xref="S2.SS1.p1.2.m2.3.3.cmml">⋯</mi><mo id="S2.SS1.p1.2.m2.11.11.6.6.13" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><msubsup id="S2.SS1.p1.2.m2.9.9.4.4.4" xref="S2.SS1.p1.2.m2.9.9.4.4.4.cmml"><mi id="S2.SS1.p1.2.m2.9.9.4.4.4.2.2" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.2.cmml">r</mi><msub id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.cmml"><mi id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.2" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.2.cmml">N</mi><mn id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.3" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.3.cmml">2</mn></msub><mn id="S2.SS1.p1.2.m2.9.9.4.4.4.3" xref="S2.SS1.p1.2.m2.9.9.4.4.4.3.cmml">2</mn></msubsup><mo id="S2.SS1.p1.2.m2.11.11.6.6.14" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><mo lspace="0em" rspace="0em" id="S2.SS1.p1.2.m2.4.4" xref="S2.SS1.p1.2.m2.4.4.cmml">$</mo><mo id="S2.SS1.p1.2.m2.11.11.6.6.15" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><msubsup id="S2.SS1.p1.2.m2.10.10.5.5.5" xref="S2.SS1.p1.2.m2.10.10.5.5.5.cmml"><mi id="S2.SS1.p1.2.m2.10.10.5.5.5.2.2" xref="S2.SS1.p1.2.m2.10.10.5.5.5.2.2.cmml">r</mi><mn id="S2.SS1.p1.2.m2.10.10.5.5.5.2.3" xref="S2.SS1.p1.2.m2.10.10.5.5.5.2.3.cmml">1</mn><mn id="S2.SS1.p1.2.m2.10.10.5.5.5.3" xref="S2.SS1.p1.2.m2.10.10.5.5.5.3.cmml">3</mn></msubsup><mo id="S2.SS1.p1.2.m2.11.11.6.6.16" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><mi mathvariant="normal" id="S2.SS1.p1.2.m2.5.5" xref="S2.SS1.p1.2.m2.5.5.cmml">⋯</mi><mo id="S2.SS1.p1.2.m2.11.11.6.6.17" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">,</mo><msubsup id="S2.SS1.p1.2.m2.11.11.6.6.6" xref="S2.SS1.p1.2.m2.11.11.6.6.6.cmml"><mi id="S2.SS1.p1.2.m2.11.11.6.6.6.2.2" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.2.cmml">r</mi><msub id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.cmml"><mi id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.2" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.2.cmml">N</mi><mn id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.3" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.3.cmml">3</mn></msub><mn id="S2.SS1.p1.2.m2.11.11.6.6.6.3" xref="S2.SS1.p1.2.m2.11.11.6.6.6.3.cmml">3</mn></msubsup><mo stretchy="false" id="S2.SS1.p1.2.m2.11.11.6.6.18" xref="S2.SS1.p1.2.m2.11.11.6.7.cmml">}</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.11b"><apply id="S2.SS1.p1.2.m2.11.11.cmml" xref="S2.SS1.p1.2.m2.11.11"><eq id="S2.SS1.p1.2.m2.11.11.7.cmml" xref="S2.SS1.p1.2.m2.11.11.7"></eq><ci id="S2.SS1.p1.2.m2.11.11.8.cmml" xref="S2.SS1.p1.2.m2.11.11.8">𝑅</ci><set id="S2.SS1.p1.2.m2.11.11.6.7.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6"><apply id="S2.SS1.p1.2.m2.6.6.1.1.1.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.6.6.1.1.1.1.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1">superscript</csymbol><apply id="S2.SS1.p1.2.m2.6.6.1.1.1.2.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.6.6.1.1.1.2.1.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1">subscript</csymbol><ci id="S2.SS1.p1.2.m2.6.6.1.1.1.2.2.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1.2.2">𝑟</ci><cn type="integer" id="S2.SS1.p1.2.m2.6.6.1.1.1.2.3.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1.2.3">1</cn></apply><cn type="integer" id="S2.SS1.p1.2.m2.6.6.1.1.1.3.cmml" xref="S2.SS1.p1.2.m2.6.6.1.1.1.3">1</cn></apply><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">⋯</ci><apply id="S2.SS1.p1.2.m2.7.7.2.2.2.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.7.7.2.2.2.1.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2">superscript</csymbol><apply id="S2.SS1.p1.2.m2.7.7.2.2.2.2.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.7.7.2.2.2.2.1.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2">subscript</csymbol><ci id="S2.SS1.p1.2.m2.7.7.2.2.2.2.2.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.2">𝑟</ci><apply id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.1.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3">subscript</csymbol><ci id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.2.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.2">𝑁</ci><cn type="integer" id="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.3.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.2.3.3">1</cn></apply></apply><cn type="integer" id="S2.SS1.p1.2.m2.7.7.2.2.2.3.cmml" xref="S2.SS1.p1.2.m2.7.7.2.2.2.3">1</cn></apply><csymbol cd="latexml" id="S2.SS1.p1.2.m2.2.2.cmml" xref="S2.SS1.p1.2.m2.2.2">currency-dollar</csymbol><apply id="S2.SS1.p1.2.m2.8.8.3.3.3.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.8.8.3.3.3.1.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3">superscript</csymbol><apply id="S2.SS1.p1.2.m2.8.8.3.3.3.2.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.8.8.3.3.3.2.1.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3">subscript</csymbol><ci id="S2.SS1.p1.2.m2.8.8.3.3.3.2.2.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3.2.2">𝑟</ci><cn type="integer" id="S2.SS1.p1.2.m2.8.8.3.3.3.2.3.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3.2.3">1</cn></apply><cn type="integer" id="S2.SS1.p1.2.m2.8.8.3.3.3.3.cmml" xref="S2.SS1.p1.2.m2.8.8.3.3.3.3">2</cn></apply><ci id="S2.SS1.p1.2.m2.3.3.cmml" xref="S2.SS1.p1.2.m2.3.3">⋯</ci><apply id="S2.SS1.p1.2.m2.9.9.4.4.4.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.9.9.4.4.4.1.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4">superscript</csymbol><apply id="S2.SS1.p1.2.m2.9.9.4.4.4.2.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.9.9.4.4.4.2.1.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4">subscript</csymbol><ci id="S2.SS1.p1.2.m2.9.9.4.4.4.2.2.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.2">𝑟</ci><apply id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.1.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3">subscript</csymbol><ci id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.2.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.2">𝑁</ci><cn type="integer" id="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.3.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.2.3.3">2</cn></apply></apply><cn type="integer" id="S2.SS1.p1.2.m2.9.9.4.4.4.3.cmml" xref="S2.SS1.p1.2.m2.9.9.4.4.4.3">2</cn></apply><csymbol cd="latexml" id="S2.SS1.p1.2.m2.4.4.cmml" xref="S2.SS1.p1.2.m2.4.4">currency-dollar</csymbol><apply id="S2.SS1.p1.2.m2.10.10.5.5.5.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.10.10.5.5.5.1.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5">superscript</csymbol><apply id="S2.SS1.p1.2.m2.10.10.5.5.5.2.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.10.10.5.5.5.2.1.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5">subscript</csymbol><ci id="S2.SS1.p1.2.m2.10.10.5.5.5.2.2.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5.2.2">𝑟</ci><cn type="integer" id="S2.SS1.p1.2.m2.10.10.5.5.5.2.3.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5.2.3">1</cn></apply><cn type="integer" id="S2.SS1.p1.2.m2.10.10.5.5.5.3.cmml" xref="S2.SS1.p1.2.m2.10.10.5.5.5.3">3</cn></apply><ci id="S2.SS1.p1.2.m2.5.5.cmml" xref="S2.SS1.p1.2.m2.5.5">⋯</ci><apply id="S2.SS1.p1.2.m2.11.11.6.6.6.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.11.11.6.6.6.1.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6">superscript</csymbol><apply id="S2.SS1.p1.2.m2.11.11.6.6.6.2.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.11.11.6.6.6.2.1.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6">subscript</csymbol><ci id="S2.SS1.p1.2.m2.11.11.6.6.6.2.2.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.2">𝑟</ci><apply id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.1.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3">subscript</csymbol><ci id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.2.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.2">𝑁</ci><cn type="integer" id="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.3.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.2.3.3">3</cn></apply></apply><cn type="integer" id="S2.SS1.p1.2.m2.11.11.6.6.6.3.cmml" xref="S2.SS1.p1.2.m2.11.11.6.6.6.3">3</cn></apply></set></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.11c">R=\{r_{1}^{1},\cdots,r_{N_{1}}^{1},\$,r_{1}^{2},\cdots,r_{N_{2}}^{2},\$,r_{1}^{3},\cdots,r_{N_{3}}^{3}\}</annotation></semantics></math>, where <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="r_{i}^{j}" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><msubsup id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml"><mi id="S2.SS1.p1.3.m3.1.1.2.2" xref="S2.SS1.p1.3.m3.1.1.2.2.cmml">r</mi><mi id="S2.SS1.p1.3.m3.1.1.2.3" xref="S2.SS1.p1.3.m3.1.1.2.3.cmml">i</mi><mi id="S2.SS1.p1.3.m3.1.1.3" xref="S2.SS1.p1.3.m3.1.1.3.cmml">j</mi></msubsup><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><apply id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">superscript</csymbol><apply id="S2.SS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.2.1.cmml" xref="S2.SS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS1.p1.3.m3.1.1.2.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2.2">𝑟</ci><ci id="S2.SS1.p1.3.m3.1.1.2.3.cmml" xref="S2.SS1.p1.3.m3.1.1.2.3">𝑖</ci></apply><ci id="S2.SS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">r_{i}^{j}</annotation></semantics></math> represents the <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="i" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><mi id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml">i</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><ci id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1">𝑖</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">i</annotation></semantics></math>-th token of the <math id="S2.SS1.p1.5.m5.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S2.SS1.p1.5.m5.1a"><mi id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.1b"><ci id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.1c">j</annotation></semantics></math>-th speaker, <math id="S2.SS1.p1.6.m6.1" class="ltx_Math" alttext="N_{j}" display="inline"><semantics id="S2.SS1.p1.6.m6.1a"><msub id="S2.SS1.p1.6.m6.1.1" xref="S2.SS1.p1.6.m6.1.1.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2" xref="S2.SS1.p1.6.m6.1.1.2.cmml">N</mi><mi id="S2.SS1.p1.6.m6.1.1.3" xref="S2.SS1.p1.6.m6.1.1.3.cmml">j</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m6.1b"><apply id="S2.SS1.p1.6.m6.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.6.m6.1.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1">subscript</csymbol><ci id="S2.SS1.p1.6.m6.1.1.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2">𝑁</ci><ci id="S2.SS1.p1.6.m6.1.1.3.cmml" xref="S2.SS1.p1.6.m6.1.1.3">𝑗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m6.1c">N_{j}</annotation></semantics></math> represents the number of tokens in the <math id="S2.SS1.p1.7.m7.1" class="ltx_Math" alttext="j" display="inline"><semantics id="S2.SS1.p1.7.m7.1a"><mi id="S2.SS1.p1.7.m7.1.1" xref="S2.SS1.p1.7.m7.1.1.cmml">j</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m7.1b"><ci id="S2.SS1.p1.7.m7.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1">𝑗</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m7.1c">j</annotation></semantics></math>-th speaker, and “<math id="S2.SS1.p1.8.m8.1" class="ltx_Math" alttext="\$" display="inline"><semantics id="S2.SS1.p1.8.m8.1a"><mo id="S2.SS1.p1.8.m8.1.1" xref="S2.SS1.p1.8.m8.1.1.cmml">$</mo><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.8.m8.1b"><csymbol cd="latexml" id="S2.SS1.p1.8.m8.1.1.cmml" xref="S2.SS1.p1.8.m8.1.1">currency-dollar</csymbol></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.8.m8.1c">\$</annotation></semantics></math>” represents the speaker change symbol.</p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2408.17431/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="209" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S2.F1.2.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>
+SOT transcription following speaker-wise FIFO
+</figcaption>
+</figure>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2408.17431/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_portrait" width="345" height="431" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S2.F2.2.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>
+Model architecture of LLM-based multi-talker ASR
+</figcaption>
+</figure>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>LLM-Based SOT for Multi-Talker ASR</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p"><span id="S2.SS2.p1.1.1" class="ltx_text" style="color:#000000;">In previous works, attention-based encoder-decoder (AED) architectures have been employed to implement SOT-based multi-talker ASR. Considering that SOT-style transcription involves concatenating potentially related utterances from multiple speakers, the model requires strong long-context awareness and the ability to model across utterances. Unlike AED architectures that use cross attention to obtain recognition sequences, LLM architectures directly utilize their powerful decoders, which have undergone extensive pre-training, to generate text. Therefore, LLM-based models are likely better suited for this complex and challenging task.</span>
+Given these considerations, we propose an LLM-based model to further overcome the performance bottlenecks of SOT-based multi-talker ASR.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.2" class="ltx_p">As shown in Fig. <a href="#S2.F2" title="Figure 2 ‣ 2.1 Serialized Output Training ‣ 2 Method ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>, the architecture for LLM-based multi-talker ASR mainly consists of a speech encoder, a projector, and an LLM. For each sample, given the overlapped speech signal <math id="S2.SS2.p2.1.m1.1" class="ltx_Math" alttext="S_{\text{olp}}" display="inline"><semantics id="S2.SS2.p2.1.m1.1a"><msub id="S2.SS2.p2.1.m1.1.1" xref="S2.SS2.p2.1.m1.1.1.cmml"><mi id="S2.SS2.p2.1.m1.1.1.2" xref="S2.SS2.p2.1.m1.1.1.2.cmml">S</mi><mtext id="S2.SS2.p2.1.m1.1.1.3" xref="S2.SS2.p2.1.m1.1.1.3a.cmml">olp</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.1.m1.1b"><apply id="S2.SS2.p2.1.m1.1.1.cmml" xref="S2.SS2.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.1.m1.1.1.1.cmml" xref="S2.SS2.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS2.p2.1.m1.1.1.2.cmml" xref="S2.SS2.p2.1.m1.1.1.2">𝑆</ci><ci id="S2.SS2.p2.1.m1.1.1.3a.cmml" xref="S2.SS2.p2.1.m1.1.1.3"><mtext mathsize="70%" id="S2.SS2.p2.1.m1.1.1.3.cmml" xref="S2.SS2.p2.1.m1.1.1.3">olp</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.1.m1.1c">S_{\text{olp}}</annotation></semantics></math> and the corresponding SOT-style multi-talker transcription <math id="S2.SS2.p2.2.m2.1" class="ltx_Math" alttext="T_{\text{multi}}" display="inline"><semantics id="S2.SS2.p2.2.m2.1a"><msub id="S2.SS2.p2.2.m2.1.1" xref="S2.SS2.p2.2.m2.1.1.cmml"><mi id="S2.SS2.p2.2.m2.1.1.2" xref="S2.SS2.p2.2.m2.1.1.2.cmml">T</mi><mtext id="S2.SS2.p2.2.m2.1.1.3" xref="S2.SS2.p2.2.m2.1.1.3a.cmml">multi</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.2.m2.1b"><apply id="S2.SS2.p2.2.m2.1.1.cmml" xref="S2.SS2.p2.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.2.m2.1.1.1.cmml" xref="S2.SS2.p2.2.m2.1.1">subscript</csymbol><ci id="S2.SS2.p2.2.m2.1.1.2.cmml" xref="S2.SS2.p2.2.m2.1.1.2">𝑇</ci><ci id="S2.SS2.p2.2.m2.1.1.3a.cmml" xref="S2.SS2.p2.2.m2.1.1.3"><mtext mathsize="70%" id="S2.SS2.p2.2.m2.1.1.3.cmml" xref="S2.SS2.p2.2.m2.1.1.3">multi</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.2.m2.1c">T_{\text{multi}}</annotation></semantics></math>, a speech encoder is first used to convert the overlapped speech signal into a speech representation, which can be represented as:</p>
+<table id="S4.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E1"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E1.m1.1" class="ltx_Math" alttext="\displaystyle H^{s}=\text{Encoder}(S_{\text{olp}})" display="inline"><semantics id="S2.E1.m1.1a"><mrow id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml"><msup id="S2.E1.m1.1.1.3" xref="S2.E1.m1.1.1.3.cmml"><mi id="S2.E1.m1.1.1.3.2" xref="S2.E1.m1.1.1.3.2.cmml">H</mi><mi id="S2.E1.m1.1.1.3.3" xref="S2.E1.m1.1.1.3.3.cmml">s</mi></msup><mo id="S2.E1.m1.1.1.2" xref="S2.E1.m1.1.1.2.cmml">=</mo><mrow id="S2.E1.m1.1.1.1" xref="S2.E1.m1.1.1.1.cmml"><mtext id="S2.E1.m1.1.1.1.3" xref="S2.E1.m1.1.1.1.3a.cmml">Encoder</mtext><mo lspace="0em" rspace="0em" id="S2.E1.m1.1.1.1.2" xref="S2.E1.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E1.m1.1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.1.cmml"><mi id="S2.E1.m1.1.1.1.1.1.1.2" xref="S2.E1.m1.1.1.1.1.1.1.2.cmml">S</mi><mtext id="S2.E1.m1.1.1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.1.1.3a.cmml">olp</mtext></msub><mo stretchy="false" id="S2.E1.m1.1.1.1.1.1.3" xref="S2.E1.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.1b"><apply id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1"><eq id="S2.E1.m1.1.1.2.cmml" xref="S2.E1.m1.1.1.2"></eq><apply id="S2.E1.m1.1.1.3.cmml" xref="S2.E1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.3.1.cmml" xref="S2.E1.m1.1.1.3">superscript</csymbol><ci id="S2.E1.m1.1.1.3.2.cmml" xref="S2.E1.m1.1.1.3.2">𝐻</ci><ci id="S2.E1.m1.1.1.3.3.cmml" xref="S2.E1.m1.1.1.3.3">𝑠</ci></apply><apply id="S2.E1.m1.1.1.1.cmml" xref="S2.E1.m1.1.1.1"><times id="S2.E1.m1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.2"></times><ci id="S2.E1.m1.1.1.1.3a.cmml" xref="S2.E1.m1.1.1.1.3"><mtext id="S2.E1.m1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.3">Encoder</mtext></ci><apply id="S2.E1.m1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1">subscript</csymbol><ci id="S2.E1.m1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.1.1.1.1.1.1.2">𝑆</ci><ci id="S2.E1.m1.1.1.1.1.1.1.3a.cmml" xref="S2.E1.m1.1.1.1.1.1.1.3"><mtext mathsize="70%" id="S2.E1.m1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.1.1.1.1.1.1.3">olp</mtext></ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.1c">\displaystyle H^{s}=\text{Encoder}(S_{\text{olp}})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.7" class="ltx_p"><math id="S2.SS2.p2.3.m1.1" class="ltx_Math" alttext="H^{s}\in\mathbb{R}^{f^{s}\times l^{s}}" display="inline"><semantics id="S2.SS2.p2.3.m1.1a"><mrow id="S2.SS2.p2.3.m1.1.1" xref="S2.SS2.p2.3.m1.1.1.cmml"><msup id="S2.SS2.p2.3.m1.1.1.2" xref="S2.SS2.p2.3.m1.1.1.2.cmml"><mi id="S2.SS2.p2.3.m1.1.1.2.2" xref="S2.SS2.p2.3.m1.1.1.2.2.cmml">H</mi><mi id="S2.SS2.p2.3.m1.1.1.2.3" xref="S2.SS2.p2.3.m1.1.1.2.3.cmml">s</mi></msup><mo id="S2.SS2.p2.3.m1.1.1.1" xref="S2.SS2.p2.3.m1.1.1.1.cmml">∈</mo><msup id="S2.SS2.p2.3.m1.1.1.3" xref="S2.SS2.p2.3.m1.1.1.3.cmml"><mi id="S2.SS2.p2.3.m1.1.1.3.2" xref="S2.SS2.p2.3.m1.1.1.3.2.cmml">ℝ</mi><mrow id="S2.SS2.p2.3.m1.1.1.3.3" xref="S2.SS2.p2.3.m1.1.1.3.3.cmml"><msup id="S2.SS2.p2.3.m1.1.1.3.3.2" xref="S2.SS2.p2.3.m1.1.1.3.3.2.cmml"><mi id="S2.SS2.p2.3.m1.1.1.3.3.2.2" xref="S2.SS2.p2.3.m1.1.1.3.3.2.2.cmml">f</mi><mi id="S2.SS2.p2.3.m1.1.1.3.3.2.3" xref="S2.SS2.p2.3.m1.1.1.3.3.2.3.cmml">s</mi></msup><mo lspace="0.222em" rspace="0.222em" id="S2.SS2.p2.3.m1.1.1.3.3.1" xref="S2.SS2.p2.3.m1.1.1.3.3.1.cmml">×</mo><msup id="S2.SS2.p2.3.m1.1.1.3.3.3" xref="S2.SS2.p2.3.m1.1.1.3.3.3.cmml"><mi id="S2.SS2.p2.3.m1.1.1.3.3.3.2" xref="S2.SS2.p2.3.m1.1.1.3.3.3.2.cmml">l</mi><mi id="S2.SS2.p2.3.m1.1.1.3.3.3.3" xref="S2.SS2.p2.3.m1.1.1.3.3.3.3.cmml">s</mi></msup></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.3.m1.1b"><apply id="S2.SS2.p2.3.m1.1.1.cmml" xref="S2.SS2.p2.3.m1.1.1"><in id="S2.SS2.p2.3.m1.1.1.1.cmml" xref="S2.SS2.p2.3.m1.1.1.1"></in><apply id="S2.SS2.p2.3.m1.1.1.2.cmml" xref="S2.SS2.p2.3.m1.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m1.1.1.2.1.cmml" xref="S2.SS2.p2.3.m1.1.1.2">superscript</csymbol><ci id="S2.SS2.p2.3.m1.1.1.2.2.cmml" xref="S2.SS2.p2.3.m1.1.1.2.2">𝐻</ci><ci id="S2.SS2.p2.3.m1.1.1.2.3.cmml" xref="S2.SS2.p2.3.m1.1.1.2.3">𝑠</ci></apply><apply id="S2.SS2.p2.3.m1.1.1.3.cmml" xref="S2.SS2.p2.3.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m1.1.1.3.1.cmml" xref="S2.SS2.p2.3.m1.1.1.3">superscript</csymbol><ci id="S2.SS2.p2.3.m1.1.1.3.2.cmml" xref="S2.SS2.p2.3.m1.1.1.3.2">ℝ</ci><apply id="S2.SS2.p2.3.m1.1.1.3.3.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3"><times id="S2.SS2.p2.3.m1.1.1.3.3.1.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.1"></times><apply id="S2.SS2.p2.3.m1.1.1.3.3.2.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.2"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m1.1.1.3.3.2.1.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.2">superscript</csymbol><ci id="S2.SS2.p2.3.m1.1.1.3.3.2.2.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.2.2">𝑓</ci><ci id="S2.SS2.p2.3.m1.1.1.3.3.2.3.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.2.3">𝑠</ci></apply><apply id="S2.SS2.p2.3.m1.1.1.3.3.3.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.3"><csymbol cd="ambiguous" id="S2.SS2.p2.3.m1.1.1.3.3.3.1.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.3">superscript</csymbol><ci id="S2.SS2.p2.3.m1.1.1.3.3.3.2.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.3.2">𝑙</ci><ci id="S2.SS2.p2.3.m1.1.1.3.3.3.3.cmml" xref="S2.SS2.p2.3.m1.1.1.3.3.3.3">𝑠</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.3.m1.1c">H^{s}\in\mathbb{R}^{f^{s}\times l^{s}}</annotation></semantics></math> is the speech representation, where <math id="S2.SS2.p2.4.m2.1" class="ltx_Math" alttext="f^{s}" display="inline"><semantics id="S2.SS2.p2.4.m2.1a"><msup id="S2.SS2.p2.4.m2.1.1" xref="S2.SS2.p2.4.m2.1.1.cmml"><mi id="S2.SS2.p2.4.m2.1.1.2" xref="S2.SS2.p2.4.m2.1.1.2.cmml">f</mi><mi id="S2.SS2.p2.4.m2.1.1.3" xref="S2.SS2.p2.4.m2.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.4.m2.1b"><apply id="S2.SS2.p2.4.m2.1.1.cmml" xref="S2.SS2.p2.4.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.4.m2.1.1.1.cmml" xref="S2.SS2.p2.4.m2.1.1">superscript</csymbol><ci id="S2.SS2.p2.4.m2.1.1.2.cmml" xref="S2.SS2.p2.4.m2.1.1.2">𝑓</ci><ci id="S2.SS2.p2.4.m2.1.1.3.cmml" xref="S2.SS2.p2.4.m2.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.4.m2.1c">f^{s}</annotation></semantics></math> and <math id="S2.SS2.p2.5.m3.1" class="ltx_Math" alttext="l^{s}" display="inline"><semantics id="S2.SS2.p2.5.m3.1a"><msup id="S2.SS2.p2.5.m3.1.1" xref="S2.SS2.p2.5.m3.1.1.cmml"><mi id="S2.SS2.p2.5.m3.1.1.2" xref="S2.SS2.p2.5.m3.1.1.2.cmml">l</mi><mi id="S2.SS2.p2.5.m3.1.1.3" xref="S2.SS2.p2.5.m3.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.5.m3.1b"><apply id="S2.SS2.p2.5.m3.1.1.cmml" xref="S2.SS2.p2.5.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.5.m3.1.1.1.cmml" xref="S2.SS2.p2.5.m3.1.1">superscript</csymbol><ci id="S2.SS2.p2.5.m3.1.1.2.cmml" xref="S2.SS2.p2.5.m3.1.1.2">𝑙</ci><ci id="S2.SS2.p2.5.m3.1.1.3.cmml" xref="S2.SS2.p2.5.m3.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.5.m3.1c">l^{s}</annotation></semantics></math> denote the feature dimension and the length, respectively. <math id="S2.SS2.p2.6.m4.1" class="ltx_Math" alttext="H^{s}" display="inline"><semantics id="S2.SS2.p2.6.m4.1a"><msup id="S2.SS2.p2.6.m4.1.1" xref="S2.SS2.p2.6.m4.1.1.cmml"><mi id="S2.SS2.p2.6.m4.1.1.2" xref="S2.SS2.p2.6.m4.1.1.2.cmml">H</mi><mi id="S2.SS2.p2.6.m4.1.1.3" xref="S2.SS2.p2.6.m4.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.6.m4.1b"><apply id="S2.SS2.p2.6.m4.1.1.cmml" xref="S2.SS2.p2.6.m4.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.6.m4.1.1.1.cmml" xref="S2.SS2.p2.6.m4.1.1">superscript</csymbol><ci id="S2.SS2.p2.6.m4.1.1.2.cmml" xref="S2.SS2.p2.6.m4.1.1.2">𝐻</ci><ci id="S2.SS2.p2.6.m4.1.1.3.cmml" xref="S2.SS2.p2.6.m4.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.6.m4.1c">H^{s}</annotation></semantics></math> can be very long, making it difficult for the LLM to process and increasing the computational burden. Therefore, we stack every <math id="S2.SS2.p2.7.m5.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS2.p2.7.m5.1a"><mi id="S2.SS2.p2.7.m5.1.1" xref="S2.SS2.p2.7.m5.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.7.m5.1b"><ci id="S2.SS2.p2.7.m5.1.1.cmml" xref="S2.SS2.p2.7.m5.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.7.m5.1c">n</annotation></semantics></math> consecutive frames in the feature dimension to downsample the representation, denoted as:</p>
+<table id="S4.EGx2" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E2.m1.1" class="ltx_Math" alttext="\displaystyle\bar{H}^{s}=\text{Downsampler}(H^{s})" display="inline"><semantics id="S2.E2.m1.1a"><mrow id="S2.E2.m1.1.1" xref="S2.E2.m1.1.1.cmml"><msup id="S2.E2.m1.1.1.3" xref="S2.E2.m1.1.1.3.cmml"><mover accent="true" id="S2.E2.m1.1.1.3.2" xref="S2.E2.m1.1.1.3.2.cmml"><mi id="S2.E2.m1.1.1.3.2.2" xref="S2.E2.m1.1.1.3.2.2.cmml">H</mi><mo id="S2.E2.m1.1.1.3.2.1" xref="S2.E2.m1.1.1.3.2.1.cmml">¯</mo></mover><mi id="S2.E2.m1.1.1.3.3" xref="S2.E2.m1.1.1.3.3.cmml">s</mi></msup><mo id="S2.E2.m1.1.1.2" xref="S2.E2.m1.1.1.2.cmml">=</mo><mrow id="S2.E2.m1.1.1.1" xref="S2.E2.m1.1.1.1.cmml"><mtext id="S2.E2.m1.1.1.1.3" xref="S2.E2.m1.1.1.1.3a.cmml">Downsampler</mtext><mo lspace="0em" rspace="0em" id="S2.E2.m1.1.1.1.2" xref="S2.E2.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E2.m1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.cmml">(</mo><msup id="S2.E2.m1.1.1.1.1.1.1" xref="S2.E2.m1.1.1.1.1.1.1.cmml"><mi id="S2.E2.m1.1.1.1.1.1.1.2" xref="S2.E2.m1.1.1.1.1.1.1.2.cmml">H</mi><mi id="S2.E2.m1.1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.3.cmml">s</mi></msup><mo stretchy="false" id="S2.E2.m1.1.1.1.1.1.3" xref="S2.E2.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><apply id="S2.E2.m1.1.1.cmml" xref="S2.E2.m1.1.1"><eq id="S2.E2.m1.1.1.2.cmml" xref="S2.E2.m1.1.1.2"></eq><apply id="S2.E2.m1.1.1.3.cmml" xref="S2.E2.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.3.1.cmml" xref="S2.E2.m1.1.1.3">superscript</csymbol><apply id="S2.E2.m1.1.1.3.2.cmml" xref="S2.E2.m1.1.1.3.2"><ci id="S2.E2.m1.1.1.3.2.1.cmml" xref="S2.E2.m1.1.1.3.2.1">¯</ci><ci id="S2.E2.m1.1.1.3.2.2.cmml" xref="S2.E2.m1.1.1.3.2.2">𝐻</ci></apply><ci id="S2.E2.m1.1.1.3.3.cmml" xref="S2.E2.m1.1.1.3.3">𝑠</ci></apply><apply id="S2.E2.m1.1.1.1.cmml" xref="S2.E2.m1.1.1.1"><times id="S2.E2.m1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.2"></times><ci id="S2.E2.m1.1.1.1.3a.cmml" xref="S2.E2.m1.1.1.1.3"><mtext id="S2.E2.m1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.3">Downsampler</mtext></ci><apply id="S2.E2.m1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m1.1.1.1.1.1">superscript</csymbol><ci id="S2.E2.m1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m1.1.1.1.1.1.1.2">𝐻</ci><ci id="S2.E2.m1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m1.1.1.1.1.1.1.3">𝑠</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\displaystyle\bar{H}^{s}=\text{Downsampler}(H^{s})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.11" class="ltx_p">where <math id="S2.SS2.p2.8.m1.1" class="ltx_Math" alttext="\bar{H}^{s}\in\mathbb{R}^{(f^{s}\cdot n)\times l^{\bar{s}}}" display="inline"><semantics id="S2.SS2.p2.8.m1.1a"><mrow id="S2.SS2.p2.8.m1.1.2" xref="S2.SS2.p2.8.m1.1.2.cmml"><msup id="S2.SS2.p2.8.m1.1.2.2" xref="S2.SS2.p2.8.m1.1.2.2.cmml"><mover accent="true" id="S2.SS2.p2.8.m1.1.2.2.2" xref="S2.SS2.p2.8.m1.1.2.2.2.cmml"><mi id="S2.SS2.p2.8.m1.1.2.2.2.2" xref="S2.SS2.p2.8.m1.1.2.2.2.2.cmml">H</mi><mo id="S2.SS2.p2.8.m1.1.2.2.2.1" xref="S2.SS2.p2.8.m1.1.2.2.2.1.cmml">¯</mo></mover><mi id="S2.SS2.p2.8.m1.1.2.2.3" xref="S2.SS2.p2.8.m1.1.2.2.3.cmml">s</mi></msup><mo id="S2.SS2.p2.8.m1.1.2.1" xref="S2.SS2.p2.8.m1.1.2.1.cmml">∈</mo><msup id="S2.SS2.p2.8.m1.1.2.3" xref="S2.SS2.p2.8.m1.1.2.3.cmml"><mi id="S2.SS2.p2.8.m1.1.2.3.2" xref="S2.SS2.p2.8.m1.1.2.3.2.cmml">ℝ</mi><mrow id="S2.SS2.p2.8.m1.1.1.1" xref="S2.SS2.p2.8.m1.1.1.1.cmml"><mrow id="S2.SS2.p2.8.m1.1.1.1.1.1" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.SS2.p2.8.m1.1.1.1.1.1.2" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS2.p2.8.m1.1.1.1.1.1.1" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.cmml"><msup id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.cmml"><mi id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.2" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.2.cmml">f</mi><mi id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.3" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.3.cmml">s</mi></msup><mo lspace="0.222em" rspace="0.222em" id="S2.SS2.p2.8.m1.1.1.1.1.1.1.1" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.1.cmml">⋅</mo><mi id="S2.SS2.p2.8.m1.1.1.1.1.1.1.3" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.3.cmml">n</mi></mrow><mo rspace="0.055em" stretchy="false" id="S2.SS2.p2.8.m1.1.1.1.1.1.3" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.cmml">)</mo></mrow><mo rspace="0.222em" id="S2.SS2.p2.8.m1.1.1.1.2" xref="S2.SS2.p2.8.m1.1.1.1.2.cmml">×</mo><msup id="S2.SS2.p2.8.m1.1.1.1.3" xref="S2.SS2.p2.8.m1.1.1.1.3.cmml"><mi id="S2.SS2.p2.8.m1.1.1.1.3.2" xref="S2.SS2.p2.8.m1.1.1.1.3.2.cmml">l</mi><mover accent="true" id="S2.SS2.p2.8.m1.1.1.1.3.3" xref="S2.SS2.p2.8.m1.1.1.1.3.3.cmml"><mi id="S2.SS2.p2.8.m1.1.1.1.3.3.2" xref="S2.SS2.p2.8.m1.1.1.1.3.3.2.cmml">s</mi><mo id="S2.SS2.p2.8.m1.1.1.1.3.3.1" xref="S2.SS2.p2.8.m1.1.1.1.3.3.1.cmml">¯</mo></mover></msup></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.8.m1.1b"><apply id="S2.SS2.p2.8.m1.1.2.cmml" xref="S2.SS2.p2.8.m1.1.2"><in id="S2.SS2.p2.8.m1.1.2.1.cmml" xref="S2.SS2.p2.8.m1.1.2.1"></in><apply id="S2.SS2.p2.8.m1.1.2.2.cmml" xref="S2.SS2.p2.8.m1.1.2.2"><csymbol cd="ambiguous" id="S2.SS2.p2.8.m1.1.2.2.1.cmml" xref="S2.SS2.p2.8.m1.1.2.2">superscript</csymbol><apply id="S2.SS2.p2.8.m1.1.2.2.2.cmml" xref="S2.SS2.p2.8.m1.1.2.2.2"><ci id="S2.SS2.p2.8.m1.1.2.2.2.1.cmml" xref="S2.SS2.p2.8.m1.1.2.2.2.1">¯</ci><ci id="S2.SS2.p2.8.m1.1.2.2.2.2.cmml" xref="S2.SS2.p2.8.m1.1.2.2.2.2">𝐻</ci></apply><ci id="S2.SS2.p2.8.m1.1.2.2.3.cmml" xref="S2.SS2.p2.8.m1.1.2.2.3">𝑠</ci></apply><apply id="S2.SS2.p2.8.m1.1.2.3.cmml" xref="S2.SS2.p2.8.m1.1.2.3"><csymbol cd="ambiguous" id="S2.SS2.p2.8.m1.1.2.3.1.cmml" xref="S2.SS2.p2.8.m1.1.2.3">superscript</csymbol><ci id="S2.SS2.p2.8.m1.1.2.3.2.cmml" xref="S2.SS2.p2.8.m1.1.2.3.2">ℝ</ci><apply id="S2.SS2.p2.8.m1.1.1.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1"><times id="S2.SS2.p2.8.m1.1.1.1.2.cmml" xref="S2.SS2.p2.8.m1.1.1.1.2"></times><apply id="S2.SS2.p2.8.m1.1.1.1.1.1.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1"><ci id="S2.SS2.p2.8.m1.1.1.1.1.1.1.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.1">⋅</ci><apply id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2">superscript</csymbol><ci id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.2.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.2">𝑓</ci><ci id="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.3.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.2.3">𝑠</ci></apply><ci id="S2.SS2.p2.8.m1.1.1.1.1.1.1.3.cmml" xref="S2.SS2.p2.8.m1.1.1.1.1.1.1.3">𝑛</ci></apply><apply id="S2.SS2.p2.8.m1.1.1.1.3.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p2.8.m1.1.1.1.3.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3">superscript</csymbol><ci id="S2.SS2.p2.8.m1.1.1.1.3.2.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3.2">𝑙</ci><apply id="S2.SS2.p2.8.m1.1.1.1.3.3.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3.3"><ci id="S2.SS2.p2.8.m1.1.1.1.3.3.1.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3.3.1">¯</ci><ci id="S2.SS2.p2.8.m1.1.1.1.3.3.2.cmml" xref="S2.SS2.p2.8.m1.1.1.1.3.3.2">𝑠</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.8.m1.1c">\bar{H}^{s}\in\mathbb{R}^{(f^{s}\cdot n)\times l^{\bar{s}}}</annotation></semantics></math> is the output after downsampling. The length of <math id="S2.SS2.p2.9.m2.1" class="ltx_Math" alttext="\bar{H}^{s}" display="inline"><semantics id="S2.SS2.p2.9.m2.1a"><msup id="S2.SS2.p2.9.m2.1.1" xref="S2.SS2.p2.9.m2.1.1.cmml"><mover accent="true" id="S2.SS2.p2.9.m2.1.1.2" xref="S2.SS2.p2.9.m2.1.1.2.cmml"><mi id="S2.SS2.p2.9.m2.1.1.2.2" xref="S2.SS2.p2.9.m2.1.1.2.2.cmml">H</mi><mo id="S2.SS2.p2.9.m2.1.1.2.1" xref="S2.SS2.p2.9.m2.1.1.2.1.cmml">¯</mo></mover><mi id="S2.SS2.p2.9.m2.1.1.3" xref="S2.SS2.p2.9.m2.1.1.3.cmml">s</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.9.m2.1b"><apply id="S2.SS2.p2.9.m2.1.1.cmml" xref="S2.SS2.p2.9.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.9.m2.1.1.1.cmml" xref="S2.SS2.p2.9.m2.1.1">superscript</csymbol><apply id="S2.SS2.p2.9.m2.1.1.2.cmml" xref="S2.SS2.p2.9.m2.1.1.2"><ci id="S2.SS2.p2.9.m2.1.1.2.1.cmml" xref="S2.SS2.p2.9.m2.1.1.2.1">¯</ci><ci id="S2.SS2.p2.9.m2.1.1.2.2.cmml" xref="S2.SS2.p2.9.m2.1.1.2.2">𝐻</ci></apply><ci id="S2.SS2.p2.9.m2.1.1.3.cmml" xref="S2.SS2.p2.9.m2.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.9.m2.1c">\bar{H}^{s}</annotation></semantics></math> is <math id="S2.SS2.p2.10.m3.1" class="ltx_Math" alttext="l^{\bar{s}}" display="inline"><semantics id="S2.SS2.p2.10.m3.1a"><msup id="S2.SS2.p2.10.m3.1.1" xref="S2.SS2.p2.10.m3.1.1.cmml"><mi id="S2.SS2.p2.10.m3.1.1.2" xref="S2.SS2.p2.10.m3.1.1.2.cmml">l</mi><mover accent="true" id="S2.SS2.p2.10.m3.1.1.3" xref="S2.SS2.p2.10.m3.1.1.3.cmml"><mi id="S2.SS2.p2.10.m3.1.1.3.2" xref="S2.SS2.p2.10.m3.1.1.3.2.cmml">s</mi><mo id="S2.SS2.p2.10.m3.1.1.3.1" xref="S2.SS2.p2.10.m3.1.1.3.1.cmml">¯</mo></mover></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.10.m3.1b"><apply id="S2.SS2.p2.10.m3.1.1.cmml" xref="S2.SS2.p2.10.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.10.m3.1.1.1.cmml" xref="S2.SS2.p2.10.m3.1.1">superscript</csymbol><ci id="S2.SS2.p2.10.m3.1.1.2.cmml" xref="S2.SS2.p2.10.m3.1.1.2">𝑙</ci><apply id="S2.SS2.p2.10.m3.1.1.3.cmml" xref="S2.SS2.p2.10.m3.1.1.3"><ci id="S2.SS2.p2.10.m3.1.1.3.1.cmml" xref="S2.SS2.p2.10.m3.1.1.3.1">¯</ci><ci id="S2.SS2.p2.10.m3.1.1.3.2.cmml" xref="S2.SS2.p2.10.m3.1.1.3.2">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.10.m3.1c">l^{\bar{s}}</annotation></semantics></math>, which is more suitable for the LLM. The dimension of the speech representation is expanded by a factor of <math id="S2.SS2.p2.11.m4.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS2.p2.11.m4.1a"><mi id="S2.SS2.p2.11.m4.1.1" xref="S2.SS2.p2.11.m4.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.11.m4.1b"><ci id="S2.SS2.p2.11.m4.1.1.cmml" xref="S2.SS2.p2.11.m4.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.11.m4.1c">n</annotation></semantics></math>. Then, a projector is introduced to convert the speech representation into a speech embedding that resides in the same domain as the text embedding and has the same dimension as the hidden size of the LLM, denoted as:</p>
+<table id="S4.EGx3" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E3"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E3.m1.1" class="ltx_Math" alttext="\displaystyle E^{s}=\text{Projector}(\bar{H}^{s})" display="inline"><semantics id="S2.E3.m1.1a"><mrow id="S2.E3.m1.1.1" xref="S2.E3.m1.1.1.cmml"><msup id="S2.E3.m1.1.1.3" xref="S2.E3.m1.1.1.3.cmml"><mi id="S2.E3.m1.1.1.3.2" xref="S2.E3.m1.1.1.3.2.cmml">E</mi><mi id="S2.E3.m1.1.1.3.3" xref="S2.E3.m1.1.1.3.3.cmml">s</mi></msup><mo id="S2.E3.m1.1.1.2" xref="S2.E3.m1.1.1.2.cmml">=</mo><mrow id="S2.E3.m1.1.1.1" xref="S2.E3.m1.1.1.1.cmml"><mtext id="S2.E3.m1.1.1.1.3" xref="S2.E3.m1.1.1.1.3a.cmml">Projector</mtext><mo lspace="0em" rspace="0em" id="S2.E3.m1.1.1.1.2" xref="S2.E3.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E3.m1.1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E3.m1.1.1.1.1.1.2" xref="S2.E3.m1.1.1.1.1.1.1.cmml">(</mo><msup id="S2.E3.m1.1.1.1.1.1.1" xref="S2.E3.m1.1.1.1.1.1.1.cmml"><mover accent="true" id="S2.E3.m1.1.1.1.1.1.1.2" xref="S2.E3.m1.1.1.1.1.1.1.2.cmml"><mi id="S2.E3.m1.1.1.1.1.1.1.2.2" xref="S2.E3.m1.1.1.1.1.1.1.2.2.cmml">H</mi><mo id="S2.E3.m1.1.1.1.1.1.1.2.1" xref="S2.E3.m1.1.1.1.1.1.1.2.1.cmml">¯</mo></mover><mi id="S2.E3.m1.1.1.1.1.1.1.3" xref="S2.E3.m1.1.1.1.1.1.1.3.cmml">s</mi></msup><mo stretchy="false" id="S2.E3.m1.1.1.1.1.1.3" xref="S2.E3.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m1.1b"><apply id="S2.E3.m1.1.1.cmml" xref="S2.E3.m1.1.1"><eq id="S2.E3.m1.1.1.2.cmml" xref="S2.E3.m1.1.1.2"></eq><apply id="S2.E3.m1.1.1.3.cmml" xref="S2.E3.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.3.1.cmml" xref="S2.E3.m1.1.1.3">superscript</csymbol><ci id="S2.E3.m1.1.1.3.2.cmml" xref="S2.E3.m1.1.1.3.2">𝐸</ci><ci id="S2.E3.m1.1.1.3.3.cmml" xref="S2.E3.m1.1.1.3.3">𝑠</ci></apply><apply id="S2.E3.m1.1.1.1.cmml" xref="S2.E3.m1.1.1.1"><times id="S2.E3.m1.1.1.1.2.cmml" xref="S2.E3.m1.1.1.1.2"></times><ci id="S2.E3.m1.1.1.1.3a.cmml" xref="S2.E3.m1.1.1.1.3"><mtext id="S2.E3.m1.1.1.1.3.cmml" xref="S2.E3.m1.1.1.1.3">Projector</mtext></ci><apply id="S2.E3.m1.1.1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.1.1.1.1.1.cmml" xref="S2.E3.m1.1.1.1.1.1">superscript</csymbol><apply id="S2.E3.m1.1.1.1.1.1.1.2.cmml" xref="S2.E3.m1.1.1.1.1.1.1.2"><ci id="S2.E3.m1.1.1.1.1.1.1.2.1.cmml" xref="S2.E3.m1.1.1.1.1.1.1.2.1">¯</ci><ci id="S2.E3.m1.1.1.1.1.1.1.2.2.cmml" xref="S2.E3.m1.1.1.1.1.1.1.2.2">𝐻</ci></apply><ci id="S2.E3.m1.1.1.1.1.1.1.3.cmml" xref="S2.E3.m1.1.1.1.1.1.1.3">𝑠</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.1c">\displaystyle E^{s}=\text{Projector}(\bar{H}^{s})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.12" class="ltx_p">We tokenize the SOT-style multi-talker transcription and obtain the text embedding <math id="S2.SS2.p2.12.m1.1" class="ltx_Math" alttext="E^{t}" display="inline"><semantics id="S2.SS2.p2.12.m1.1a"><msup id="S2.SS2.p2.12.m1.1.1" xref="S2.SS2.p2.12.m1.1.1.cmml"><mi id="S2.SS2.p2.12.m1.1.1.2" xref="S2.SS2.p2.12.m1.1.1.2.cmml">E</mi><mi id="S2.SS2.p2.12.m1.1.1.3" xref="S2.SS2.p2.12.m1.1.1.3.cmml">t</mi></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.12.m1.1b"><apply id="S2.SS2.p2.12.m1.1.1.cmml" xref="S2.SS2.p2.12.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.12.m1.1.1.1.cmml" xref="S2.SS2.p2.12.m1.1.1">superscript</csymbol><ci id="S2.SS2.p2.12.m1.1.1.2.cmml" xref="S2.SS2.p2.12.m1.1.1.2">𝐸</ci><ci id="S2.SS2.p2.12.m1.1.1.3.cmml" xref="S2.SS2.p2.12.m1.1.1.3">𝑡</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.12.m1.1c">E^{t}</annotation></semantics></math>, denoted as:</p>
+<table id="S4.EGx4" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E4"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E4.m1.1" class="ltx_Math" alttext="\displaystyle E^{t}=\text{Embedding}(\text{Tokenizer}(T_{\text{multi}}))" display="inline"><semantics id="S2.E4.m1.1a"><mrow id="S2.E4.m1.1.1" xref="S2.E4.m1.1.1.cmml"><msup id="S2.E4.m1.1.1.3" xref="S2.E4.m1.1.1.3.cmml"><mi id="S2.E4.m1.1.1.3.2" xref="S2.E4.m1.1.1.3.2.cmml">E</mi><mi id="S2.E4.m1.1.1.3.3" xref="S2.E4.m1.1.1.3.3.cmml">t</mi></msup><mo id="S2.E4.m1.1.1.2" xref="S2.E4.m1.1.1.2.cmml">=</mo><mrow id="S2.E4.m1.1.1.1" xref="S2.E4.m1.1.1.1.cmml"><mtext id="S2.E4.m1.1.1.1.3" xref="S2.E4.m1.1.1.1.3a.cmml">Embedding</mtext><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.1.1.2" xref="S2.E4.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E4.m1.1.1.1.1.1" xref="S2.E4.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E4.m1.1.1.1.1.1.2" xref="S2.E4.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E4.m1.1.1.1.1.1.1" xref="S2.E4.m1.1.1.1.1.1.1.cmml"><mtext id="S2.E4.m1.1.1.1.1.1.1.3" xref="S2.E4.m1.1.1.1.1.1.1.3a.cmml">Tokenizer</mtext><mo lspace="0em" rspace="0em" id="S2.E4.m1.1.1.1.1.1.1.2" xref="S2.E4.m1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E4.m1.1.1.1.1.1.1.1.1" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E4.m1.1.1.1.1.1.1.1.1.2" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.E4.m1.1.1.1.1.1.1.1.1.1" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E4.m1.1.1.1.1.1.1.1.1.1.2" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.2.cmml">T</mi><mtext id="S2.E4.m1.1.1.1.1.1.1.1.1.1.3" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.3a.cmml">multi</mtext></msub><mo stretchy="false" id="S2.E4.m1.1.1.1.1.1.1.1.1.3" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S2.E4.m1.1.1.1.1.1.3" xref="S2.E4.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E4.m1.1b"><apply id="S2.E4.m1.1.1.cmml" xref="S2.E4.m1.1.1"><eq id="S2.E4.m1.1.1.2.cmml" xref="S2.E4.m1.1.1.2"></eq><apply id="S2.E4.m1.1.1.3.cmml" xref="S2.E4.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E4.m1.1.1.3.1.cmml" xref="S2.E4.m1.1.1.3">superscript</csymbol><ci id="S2.E4.m1.1.1.3.2.cmml" xref="S2.E4.m1.1.1.3.2">𝐸</ci><ci id="S2.E4.m1.1.1.3.3.cmml" xref="S2.E4.m1.1.1.3.3">𝑡</ci></apply><apply id="S2.E4.m1.1.1.1.cmml" xref="S2.E4.m1.1.1.1"><times id="S2.E4.m1.1.1.1.2.cmml" xref="S2.E4.m1.1.1.1.2"></times><ci id="S2.E4.m1.1.1.1.3a.cmml" xref="S2.E4.m1.1.1.1.3"><mtext id="S2.E4.m1.1.1.1.3.cmml" xref="S2.E4.m1.1.1.1.3">Embedding</mtext></ci><apply id="S2.E4.m1.1.1.1.1.1.1.cmml" xref="S2.E4.m1.1.1.1.1.1"><times id="S2.E4.m1.1.1.1.1.1.1.2.cmml" xref="S2.E4.m1.1.1.1.1.1.1.2"></times><ci id="S2.E4.m1.1.1.1.1.1.1.3a.cmml" xref="S2.E4.m1.1.1.1.1.1.1.3"><mtext id="S2.E4.m1.1.1.1.1.1.1.3.cmml" xref="S2.E4.m1.1.1.1.1.1.1.3">Tokenizer</mtext></ci><apply id="S2.E4.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E4.m1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E4.m1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E4.m1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.E4.m1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.2">𝑇</ci><ci id="S2.E4.m1.1.1.1.1.1.1.1.1.1.3a.cmml" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.3"><mtext mathsize="70%" id="S2.E4.m1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E4.m1.1.1.1.1.1.1.1.1.1.3">multi</mtext></ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E4.m1.1c">\displaystyle E^{t}=\text{Embedding}(\text{Tokenizer}(T_{\text{multi}}))</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.13" class="ltx_p">Finally, during the training stage, the speech embedding and text embedding are concatenated together as the input to the LLM. The output of the LLM is the predicted SOT-style multi-talker transcription <math id="S2.SS2.p2.13.m1.1" class="ltx_Math" alttext="\hat{T}_{\text{multi}}" display="inline"><semantics id="S2.SS2.p2.13.m1.1a"><msub id="S2.SS2.p2.13.m1.1.1" xref="S2.SS2.p2.13.m1.1.1.cmml"><mover accent="true" id="S2.SS2.p2.13.m1.1.1.2" xref="S2.SS2.p2.13.m1.1.1.2.cmml"><mi id="S2.SS2.p2.13.m1.1.1.2.2" xref="S2.SS2.p2.13.m1.1.1.2.2.cmml">T</mi><mo id="S2.SS2.p2.13.m1.1.1.2.1" xref="S2.SS2.p2.13.m1.1.1.2.1.cmml">^</mo></mover><mtext id="S2.SS2.p2.13.m1.1.1.3" xref="S2.SS2.p2.13.m1.1.1.3a.cmml">multi</mtext></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.13.m1.1b"><apply id="S2.SS2.p2.13.m1.1.1.cmml" xref="S2.SS2.p2.13.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p2.13.m1.1.1.1.cmml" xref="S2.SS2.p2.13.m1.1.1">subscript</csymbol><apply id="S2.SS2.p2.13.m1.1.1.2.cmml" xref="S2.SS2.p2.13.m1.1.1.2"><ci id="S2.SS2.p2.13.m1.1.1.2.1.cmml" xref="S2.SS2.p2.13.m1.1.1.2.1">^</ci><ci id="S2.SS2.p2.13.m1.1.1.2.2.cmml" xref="S2.SS2.p2.13.m1.1.1.2.2">𝑇</ci></apply><ci id="S2.SS2.p2.13.m1.1.1.3a.cmml" xref="S2.SS2.p2.13.m1.1.1.3"><mtext mathsize="70%" id="S2.SS2.p2.13.m1.1.1.3.cmml" xref="S2.SS2.p2.13.m1.1.1.3">multi</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.13.m1.1c">\hat{T}_{\text{multi}}</annotation></semantics></math>, denoted as:</p>
+<table id="S4.EGx5" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E5"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E5.m1.1" class="ltx_Math" alttext="\displaystyle\hat{T}_{\text{multi}}=\text{LLM}(\text{Concat}(E^{s},E^{t}))" display="inline"><semantics id="S2.E5.m1.1a"><mrow id="S2.E5.m1.1.1" xref="S2.E5.m1.1.1.cmml"><msub id="S2.E5.m1.1.1.3" xref="S2.E5.m1.1.1.3.cmml"><mover accent="true" id="S2.E5.m1.1.1.3.2" xref="S2.E5.m1.1.1.3.2.cmml"><mi id="S2.E5.m1.1.1.3.2.2" xref="S2.E5.m1.1.1.3.2.2.cmml">T</mi><mo id="S2.E5.m1.1.1.3.2.1" xref="S2.E5.m1.1.1.3.2.1.cmml">^</mo></mover><mtext id="S2.E5.m1.1.1.3.3" xref="S2.E5.m1.1.1.3.3a.cmml">multi</mtext></msub><mo id="S2.E5.m1.1.1.2" xref="S2.E5.m1.1.1.2.cmml">=</mo><mrow id="S2.E5.m1.1.1.1" xref="S2.E5.m1.1.1.1.cmml"><mtext id="S2.E5.m1.1.1.1.3" xref="S2.E5.m1.1.1.1.3a.cmml">LLM</mtext><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.1.2" xref="S2.E5.m1.1.1.1.2.cmml">​</mo><mrow id="S2.E5.m1.1.1.1.1.1" xref="S2.E5.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E5.m1.1.1.1.1.1.2" xref="S2.E5.m1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E5.m1.1.1.1.1.1.1" xref="S2.E5.m1.1.1.1.1.1.1.cmml"><mtext id="S2.E5.m1.1.1.1.1.1.1.4" xref="S2.E5.m1.1.1.1.1.1.1.4a.cmml">Concat</mtext><mo lspace="0em" rspace="0em" id="S2.E5.m1.1.1.1.1.1.1.3" xref="S2.E5.m1.1.1.1.1.1.1.3.cmml">​</mo><mrow id="S2.E5.m1.1.1.1.1.1.1.2.2" xref="S2.E5.m1.1.1.1.1.1.1.2.3.cmml"><mo stretchy="false" id="S2.E5.m1.1.1.1.1.1.1.2.2.3" xref="S2.E5.m1.1.1.1.1.1.1.2.3.cmml">(</mo><msup id="S2.E5.m1.1.1.1.1.1.1.1.1.1" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S2.E5.m1.1.1.1.1.1.1.1.1.1.2" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1.2.cmml">E</mi><mi id="S2.E5.m1.1.1.1.1.1.1.1.1.1.3" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1.3.cmml">s</mi></msup><mo id="S2.E5.m1.1.1.1.1.1.1.2.2.4" xref="S2.E5.m1.1.1.1.1.1.1.2.3.cmml">,</mo><msup id="S2.E5.m1.1.1.1.1.1.1.2.2.2" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2.cmml"><mi id="S2.E5.m1.1.1.1.1.1.1.2.2.2.2" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2.2.cmml">E</mi><mi id="S2.E5.m1.1.1.1.1.1.1.2.2.2.3" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2.3.cmml">t</mi></msup><mo stretchy="false" id="S2.E5.m1.1.1.1.1.1.1.2.2.5" xref="S2.E5.m1.1.1.1.1.1.1.2.3.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S2.E5.m1.1.1.1.1.1.3" xref="S2.E5.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E5.m1.1b"><apply id="S2.E5.m1.1.1.cmml" xref="S2.E5.m1.1.1"><eq id="S2.E5.m1.1.1.2.cmml" xref="S2.E5.m1.1.1.2"></eq><apply id="S2.E5.m1.1.1.3.cmml" xref="S2.E5.m1.1.1.3"><csymbol cd="ambiguous" id="S2.E5.m1.1.1.3.1.cmml" xref="S2.E5.m1.1.1.3">subscript</csymbol><apply id="S2.E5.m1.1.1.3.2.cmml" xref="S2.E5.m1.1.1.3.2"><ci id="S2.E5.m1.1.1.3.2.1.cmml" xref="S2.E5.m1.1.1.3.2.1">^</ci><ci id="S2.E5.m1.1.1.3.2.2.cmml" xref="S2.E5.m1.1.1.3.2.2">𝑇</ci></apply><ci id="S2.E5.m1.1.1.3.3a.cmml" xref="S2.E5.m1.1.1.3.3"><mtext mathsize="70%" id="S2.E5.m1.1.1.3.3.cmml" xref="S2.E5.m1.1.1.3.3">multi</mtext></ci></apply><apply id="S2.E5.m1.1.1.1.cmml" xref="S2.E5.m1.1.1.1"><times id="S2.E5.m1.1.1.1.2.cmml" xref="S2.E5.m1.1.1.1.2"></times><ci id="S2.E5.m1.1.1.1.3a.cmml" xref="S2.E5.m1.1.1.1.3"><mtext id="S2.E5.m1.1.1.1.3.cmml" xref="S2.E5.m1.1.1.1.3">LLM</mtext></ci><apply id="S2.E5.m1.1.1.1.1.1.1.cmml" xref="S2.E5.m1.1.1.1.1.1"><times id="S2.E5.m1.1.1.1.1.1.1.3.cmml" xref="S2.E5.m1.1.1.1.1.1.1.3"></times><ci id="S2.E5.m1.1.1.1.1.1.1.4a.cmml" xref="S2.E5.m1.1.1.1.1.1.1.4"><mtext id="S2.E5.m1.1.1.1.1.1.1.4.cmml" xref="S2.E5.m1.1.1.1.1.1.1.4">Concat</mtext></ci><interval closure="open" id="S2.E5.m1.1.1.1.1.1.1.2.3.cmml" xref="S2.E5.m1.1.1.1.1.1.1.2.2"><apply id="S2.E5.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E5.m1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1">superscript</csymbol><ci id="S2.E5.m1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1.2">𝐸</ci><ci id="S2.E5.m1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E5.m1.1.1.1.1.1.1.1.1.1.3">𝑠</ci></apply><apply id="S2.E5.m1.1.1.1.1.1.1.2.2.2.cmml" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2"><csymbol cd="ambiguous" id="S2.E5.m1.1.1.1.1.1.1.2.2.2.1.cmml" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2">superscript</csymbol><ci id="S2.E5.m1.1.1.1.1.1.1.2.2.2.2.cmml" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2.2">𝐸</ci><ci id="S2.E5.m1.1.1.1.1.1.1.2.2.2.3.cmml" xref="S2.E5.m1.1.1.1.1.1.1.2.2.2.3">𝑡</ci></apply></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E5.m1.1c">\displaystyle\hat{T}_{\text{multi}}=\text{LLM}(\text{Concat}(E^{s},E^{t}))</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(5)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.16" class="ltx_p">Cross-Entropy (CE) is used as the loss function:</p>
+<table id="S4.EGx6" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E6"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E6.m1.2" class="ltx_Math" alttext="\displaystyle\mathcal{L}=\text{CE}(\hat{T}_{\text{multi}},T_{\text{multi}})" display="inline"><semantics id="S2.E6.m1.2a"><mrow id="S2.E6.m1.2.2" xref="S2.E6.m1.2.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E6.m1.2.2.4" xref="S2.E6.m1.2.2.4.cmml">ℒ</mi><mo id="S2.E6.m1.2.2.3" xref="S2.E6.m1.2.2.3.cmml">=</mo><mrow id="S2.E6.m1.2.2.2" xref="S2.E6.m1.2.2.2.cmml"><mtext id="S2.E6.m1.2.2.2.4" xref="S2.E6.m1.2.2.2.4a.cmml">CE</mtext><mo lspace="0em" rspace="0em" id="S2.E6.m1.2.2.2.3" xref="S2.E6.m1.2.2.2.3.cmml">​</mo><mrow id="S2.E6.m1.2.2.2.2.2" xref="S2.E6.m1.2.2.2.2.3.cmml"><mo stretchy="false" id="S2.E6.m1.2.2.2.2.2.3" xref="S2.E6.m1.2.2.2.2.3.cmml">(</mo><msub id="S2.E6.m1.1.1.1.1.1.1" xref="S2.E6.m1.1.1.1.1.1.1.cmml"><mover accent="true" id="S2.E6.m1.1.1.1.1.1.1.2" xref="S2.E6.m1.1.1.1.1.1.1.2.cmml"><mi id="S2.E6.m1.1.1.1.1.1.1.2.2" xref="S2.E6.m1.1.1.1.1.1.1.2.2.cmml">T</mi><mo id="S2.E6.m1.1.1.1.1.1.1.2.1" xref="S2.E6.m1.1.1.1.1.1.1.2.1.cmml">^</mo></mover><mtext id="S2.E6.m1.1.1.1.1.1.1.3" xref="S2.E6.m1.1.1.1.1.1.1.3a.cmml">multi</mtext></msub><mo id="S2.E6.m1.2.2.2.2.2.4" xref="S2.E6.m1.2.2.2.2.3.cmml">,</mo><msub id="S2.E6.m1.2.2.2.2.2.2" xref="S2.E6.m1.2.2.2.2.2.2.cmml"><mi id="S2.E6.m1.2.2.2.2.2.2.2" xref="S2.E6.m1.2.2.2.2.2.2.2.cmml">T</mi><mtext id="S2.E6.m1.2.2.2.2.2.2.3" xref="S2.E6.m1.2.2.2.2.2.2.3a.cmml">multi</mtext></msub><mo stretchy="false" id="S2.E6.m1.2.2.2.2.2.5" xref="S2.E6.m1.2.2.2.2.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E6.m1.2b"><apply id="S2.E6.m1.2.2.cmml" xref="S2.E6.m1.2.2"><eq id="S2.E6.m1.2.2.3.cmml" xref="S2.E6.m1.2.2.3"></eq><ci id="S2.E6.m1.2.2.4.cmml" xref="S2.E6.m1.2.2.4">ℒ</ci><apply id="S2.E6.m1.2.2.2.cmml" xref="S2.E6.m1.2.2.2"><times id="S2.E6.m1.2.2.2.3.cmml" xref="S2.E6.m1.2.2.2.3"></times><ci id="S2.E6.m1.2.2.2.4a.cmml" xref="S2.E6.m1.2.2.2.4"><mtext id="S2.E6.m1.2.2.2.4.cmml" xref="S2.E6.m1.2.2.2.4">CE</mtext></ci><interval closure="open" id="S2.E6.m1.2.2.2.2.3.cmml" xref="S2.E6.m1.2.2.2.2.2"><apply id="S2.E6.m1.1.1.1.1.1.1.cmml" xref="S2.E6.m1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E6.m1.1.1.1.1.1.1.1.cmml" xref="S2.E6.m1.1.1.1.1.1.1">subscript</csymbol><apply id="S2.E6.m1.1.1.1.1.1.1.2.cmml" xref="S2.E6.m1.1.1.1.1.1.1.2"><ci id="S2.E6.m1.1.1.1.1.1.1.2.1.cmml" xref="S2.E6.m1.1.1.1.1.1.1.2.1">^</ci><ci id="S2.E6.m1.1.1.1.1.1.1.2.2.cmml" xref="S2.E6.m1.1.1.1.1.1.1.2.2">𝑇</ci></apply><ci id="S2.E6.m1.1.1.1.1.1.1.3a.cmml" xref="S2.E6.m1.1.1.1.1.1.1.3"><mtext mathsize="70%" id="S2.E6.m1.1.1.1.1.1.1.3.cmml" xref="S2.E6.m1.1.1.1.1.1.1.3">multi</mtext></ci></apply><apply id="S2.E6.m1.2.2.2.2.2.2.cmml" xref="S2.E6.m1.2.2.2.2.2.2"><csymbol cd="ambiguous" id="S2.E6.m1.2.2.2.2.2.2.1.cmml" xref="S2.E6.m1.2.2.2.2.2.2">subscript</csymbol><ci id="S2.E6.m1.2.2.2.2.2.2.2.cmml" xref="S2.E6.m1.2.2.2.2.2.2.2">𝑇</ci><ci id="S2.E6.m1.2.2.2.2.2.2.3a.cmml" xref="S2.E6.m1.2.2.2.2.2.2.3"><mtext mathsize="70%" id="S2.E6.m1.2.2.2.2.2.2.3.cmml" xref="S2.E6.m1.2.2.2.2.2.2.3">multi</mtext></ci></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E6.m1.2c">\displaystyle\mathcal{L}=\text{CE}(\hat{T}_{\text{multi}},T_{\text{multi}})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(6)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p2.15" class="ltx_p">Since the begin (<math id="S2.SS2.p2.14.m1.1" class="ltx_Math" alttext="\langle\text{bos}\rangle" display="inline"><semantics id="S2.SS2.p2.14.m1.1a"><mrow id="S2.SS2.p2.14.m1.1.2.2" xref="S2.SS2.p2.14.m1.1.2.1.cmml"><mo stretchy="false" id="S2.SS2.p2.14.m1.1.2.2.1" xref="S2.SS2.p2.14.m1.1.2.1.1.cmml">⟨</mo><mtext id="S2.SS2.p2.14.m1.1.1" xref="S2.SS2.p2.14.m1.1.1a.cmml">bos</mtext><mo stretchy="false" id="S2.SS2.p2.14.m1.1.2.2.2" xref="S2.SS2.p2.14.m1.1.2.1.1.cmml">⟩</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.14.m1.1b"><apply id="S2.SS2.p2.14.m1.1.2.1.cmml" xref="S2.SS2.p2.14.m1.1.2.2"><csymbol cd="latexml" id="S2.SS2.p2.14.m1.1.2.1.1.cmml" xref="S2.SS2.p2.14.m1.1.2.2.1">delimited-⟨⟩</csymbol><ci id="S2.SS2.p2.14.m1.1.1a.cmml" xref="S2.SS2.p2.14.m1.1.1"><mtext id="S2.SS2.p2.14.m1.1.1.cmml" xref="S2.SS2.p2.14.m1.1.1">bos</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.14.m1.1c">\langle\text{bos}\rangle</annotation></semantics></math>) and end token (<math id="S2.SS2.p2.15.m2.1" class="ltx_Math" alttext="\langle\text{eos}\rangle" display="inline"><semantics id="S2.SS2.p2.15.m2.1a"><mrow id="S2.SS2.p2.15.m2.1.2.2" xref="S2.SS2.p2.15.m2.1.2.1.cmml"><mo stretchy="false" id="S2.SS2.p2.15.m2.1.2.2.1" xref="S2.SS2.p2.15.m2.1.2.1.1.cmml">⟨</mo><mtext id="S2.SS2.p2.15.m2.1.1" xref="S2.SS2.p2.15.m2.1.1a.cmml">eos</mtext><mo stretchy="false" id="S2.SS2.p2.15.m2.1.2.2.2" xref="S2.SS2.p2.15.m2.1.2.1.1.cmml">⟩</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p2.15.m2.1b"><apply id="S2.SS2.p2.15.m2.1.2.1.cmml" xref="S2.SS2.p2.15.m2.1.2.2"><csymbol cd="latexml" id="S2.SS2.p2.15.m2.1.2.1.1.cmml" xref="S2.SS2.p2.15.m2.1.2.2.1">delimited-⟨⟩</csymbol><ci id="S2.SS2.p2.15.m2.1.1a.cmml" xref="S2.SS2.p2.15.m2.1.1"><mtext id="S2.SS2.p2.15.m2.1.1.cmml" xref="S2.SS2.p2.15.m2.1.1">eos</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p2.15.m2.1c">\langle\text{eos}\rangle</annotation></semantics></math>) are introduced during training, the speech embedding is used as the input to the LLM during the inference stage, allowing the multi-talker transcription to be predicted via auto-regressive inference.</p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">We first conducted experiments on the modified simulated dataset LibriMix <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>]</cite>, where each utterance contains only 2 speakers with a time delay between them. Then, we evaluated our model on the real-world meeting scenario dataset AMI <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>, where each meeting in the evaluation set contains up to 4 speakers.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Experiment with LibriMix</h3>
+
+<section id="S3.SS1.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.1.1 </span>Dateset and evaluation metric</h4>
+
+<div id="S3.SS1.SSS1.p1" class="ltx_para">
+<p id="S3.SS1.SSS1.p1.1" class="ltx_p">We used LibriMix<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://github.com/espnet/espnet/tree/master/egs2/librimix/sot_asr1</span></span></span></span> modified by ESPnet <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite> for preliminary experiments. LibriMix is a simulated dataset obtained by mixing single-speaker speech from LibriSpeech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>]</cite> with noise from WHAM! <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib31" title="" class="ltx_ref">31</a>, <a href="#bib.bib32" title="" class="ltx_ref">32</a>]</cite>. The official LibriMix is used for the source separation task, where the simulation process typically assumes fully-overlapped speech, meaning that speech from different speakers starts at the same time. To make it suitable for the multi-talker ASR task, the original simulation process is modified in the ESPnet pipeline<span id="S3.SS1.SSS1.p1.1.1" class="ltx_ERROR undefined">\footref</span>espnet to introduce a random delay ranging from 1 to 1.5 seconds for the mixed speech. The final generated simulated data contains approximately 830 hours of speed-perturbed training set, 8.2 hours of development set, and 7.6 hours of test set, with two speakers in all utterances.</p>
+</div>
+<div id="S3.SS1.SSS1.p2" class="ltx_para">
+<p id="S3.SS1.SSS1.p2.1" class="ltx_p">In the LibriMix experiment, to compare with the results from ESPnet, we used word error rate (WER) as the evaluation metric. This metric is directly calculated between the predicted and reference SOT-style multi-talker transcriptions.</p>
+</div>
+</section>
+<section id="S3.SS1.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.1.2 </span>Model configuration</h4>
+
+<div id="S3.SS1.SSS2.p1" class="ltx_para">
+<p id="S3.SS1.SSS2.p1.1" class="ltx_p">We utilized WavLM<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://huggingface.co/microsoft/wavlm-large</span></span></span></span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite> as the speech encoder because both the Base+ and Large versions of WavLM leverage a substantial amount of overlapped speech data for self-supervised pre-training, making them suitable for the multi-talker ASR task. The LLM module chosen was Vicuna-7B<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><span class="ltx_ref ltx_nolink ltx_url ltx_font_typewriter ltx_ref_self">https://huggingface.co/lmsys/vicuna-7b-v1.5</span></span></span></span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>, a chat model fine-tuned from the pre-trained LLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> on conversational data collected from ShareGPT users. The downsampling rate <math id="S3.SS1.SSS2.p1.1.m1.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S3.SS1.SSS2.p1.1.m1.1a"><mi id="S3.SS1.SSS2.p1.1.m1.1.1" xref="S3.SS1.SSS2.p1.1.m1.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS2.p1.1.m1.1b"><ci id="S3.SS1.SSS2.p1.1.m1.1.1.cmml" xref="S3.SS1.SSS2.p1.1.m1.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS2.p1.1.m1.1c">n</annotation></semantics></math> was set to 10, resulting in speech embedding with frames of 200 ms length. Two linear layers acted as projectors with ReLU activation in between, and the hidden size was set to 4096. <span id="S3.SS1.SSS2.p1.1.1" class="ltx_text" style="color:#000000;">We used Vicuna tokenizer in all systems.</span></p>
+</div>
+</section>
+<section id="S3.SS1.SSS3" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.1.3 </span>Training strategy and detail</h4>
+
+<div id="S3.SS1.SSS3.p1" class="ltx_para">
+<p id="S3.SS1.SSS3.p1.2" class="ltx_p">In previous works on LLM-based ASR, different training strategies were employed. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>, the speech encoder, projector, and LoRA adaptor were trained together. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, the LoRA was not introduced, the speech encoder was frozen, and only the projector was trained. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, the three modules were unfrozen in three stages, following the order of projector <math id="S3.SS1.SSS3.p1.1.m1.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.SS1.SSS3.p1.1.m1.1a"><mo stretchy="false" id="S3.SS1.SSS3.p1.1.m1.1.1" xref="S3.SS1.SSS3.p1.1.m1.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS3.p1.1.m1.1b"><ci id="S3.SS1.SSS3.p1.1.m1.1.1.cmml" xref="S3.SS1.SSS3.p1.1.m1.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS3.p1.1.m1.1c">\rightarrow</annotation></semantics></math> speech encoder <math id="S3.SS1.SSS3.p1.2.m2.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.SS1.SSS3.p1.2.m2.1a"><mo stretchy="false" id="S3.SS1.SSS3.p1.2.m2.1.1" xref="S3.SS1.SSS3.p1.2.m2.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.SSS3.p1.2.m2.1b"><ci id="S3.SS1.SSS3.p1.2.m2.1.1.cmml" xref="S3.SS1.SSS3.p1.2.m2.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.SSS3.p1.2.m2.1c">\rightarrow</annotation></semantics></math> LoRA. In the LibriMix experiment, we adopted a multi-stage training strategy similar to that in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>. The benefit of this multi-stage training is that it enhances the model’s capacity to align auditory and textual information. A slight difference in our approach is that when using the WavLM model fine-tuned with LibriMix, the training process requires freezing the speech encoder.</p>
+</div>
+<div id="S3.SS1.SSS3.p2" class="ltx_para">
+<p id="S3.SS1.SSS3.p2.1" class="ltx_p">We used 8 NVIDIA V100 32GB GPUs for training, with a batch size of 2 samples per GPU and a gradient accumulation of 4. The DeepSpeed strategy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib33" title="" class="ltx_ref">33</a>]</cite> was used for distributed training. We employed the AdamW optimizer <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib34" title="" class="ltx_ref">34</a>]</cite> with a learning rate of 0.0001, betas of (0.9, 0.999), epsilon of 1e-08, and weight decay of 1e-6. A linear warmup scheduler was used, with 2000 warmup steps and a maximum of 100,000 training steps, but training was stopped early if the validation loss did not decrease. We applied this training configuration in each training stage. When training the LLM, we only performed LoRA fine-tuning with alpha = 16 and rank = 16. In all experiments, greedy search was used for decoding.</p>
+</div>
+</section>
+<section id="S3.SS1.SSS4" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.1.4 </span>Experimental results</h4>
+
+<div id="S3.SS1.SSS4.p1" class="ltx_para">
+<p id="S3.SS1.SSS4.p1.1" class="ltx_p">Table <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> shows our results comparing various approaches on LibriMix. Sys. {1-3} are the results from ESPnet. Among these, using a conformer as the encoder and the WavLM Large model as upstream achieves better results because the WavLM model has been self-supervised pre-trained on large-scale overlapped speech, making it more suitable for multi-talker scenarios. Sys. {4-5} in Table <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> are the results of fine-tuning the WavLM model using AED approach. The performance of the WavLM Large model is significantly better than that in ESPnet, since the WavLM in the latter is frozen. Sys. {6-8} in Table <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> are the results of the LLM-based approach proposed in this work.
+<span id="S3.SS1.SSS4.p1.1.1" class="ltx_text" style="color:#000000;">When using WavLM Base+ as the speech encoder, the LLM-based method (Sys. 6, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) outperforms the AED-based method (Sys. 4, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>). However, when WavLM Large is used as the encoder, the AED-based method shows a significant performance boost (Sys. 5, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), even surpassing the LLM-based method (Sys. 7, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), which indicates that AED-based systems are more dependent on encoder performance. Initializing the LLM-based system with the speech encoder fine-tuned on LibriMix using AED method results in the best performance (Sys. 8, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>). Therefore, in the performance on LibriMix test set, the advantage of the LLM-based system over the AED-based system is not very pronounced (9.0% WER in Sys. 8 <span id="S3.SS1.SSS4.p1.1.1.1" class="ltx_text ltx_font_italic">vs.</span> 9.2% WER in Sys. 5). This is similar to conclusions drawn from single-speaker ASR studies <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, as LibriMix is simulated data and contains only two speakers per utterance, making it less challenging compared to real conversational scenarios.</span></p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T1.4.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Overall performance comparison of various approaches on LibriMix. <span id="S3.T1.5.2" class="ltx_text" style="color:#000000;">Sys. {1-3} are the experimental results from ESPnet<span id="S3.T1.5.2.1" class="ltx_ERROR undefined">\footref</span>espnet, Sys. {4-5} are the results of AED-based models, and Sys. {6-8} are the results of the LLM-based models.</span></figcaption>
+<div id="S3.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:246.8pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(58.7pt,-33.4pt) scale(1.37093634553146,1.37093634553146) ;">
+<table id="S3.T1.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1.1" class="ltx_tr">
+<td id="S3.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T1.1.1.1.2.1" class="ltx_text">Sys.</span></td>
+<td id="S3.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T1.1.1.1.3.1" class="ltx_text">type</span></td>
+<td id="S3.T1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T1.1.1.1.4.1" class="ltx_text">Speech Encoder</span></td>
+<td id="S3.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" colspan="2">WER (%) <math id="S3.T1.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T1.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T1.1.1.1.1.m1.1.1" xref="S3.T1.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T1.1.1.1.1.m1.1b"><ci id="S3.T1.1.1.1.1.m1.1.1.cmml" xref="S3.T1.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T1.1.1.2.1" class="ltx_tr">
+<td id="S3.T1.1.1.2.1.1" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">dev</td>
+<td id="S3.T1.1.1.2.1.2" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">test</td>
+</tr>
+<tr id="S3.T1.1.1.3.2" class="ltx_tr">
+<td id="S3.T1.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">1</td>
+<td id="S3.T1.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="3"><span id="S3.T1.1.1.3.2.2.1" class="ltx_text">
+<span id="S3.T1.1.1.3.2.2.1.1" class="ltx_inline-block">
+<span id="S3.T1.1.1.3.2.2.1.1.1" class="ltx_p">ESPnet<span id="S3.T1.1.1.3.2.2.1.1.1.1" class="ltx_ERROR undefined">\footref</span>espnet</span>
+<span id="S3.T1.1.1.3.2.2.1.1.2" class="ltx_p">Baseline</span>
+</span></span></td>
+<td id="S3.T1.1.1.3.2.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">Whisper small</td>
+<td id="S3.T1.1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">26.0</td>
+<td id="S3.T1.1.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">25.0</td>
+</tr>
+<tr id="S3.T1.1.1.4.3" class="ltx_tr">
+<td id="S3.T1.1.1.4.3.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">2</td>
+<td id="S3.T1.1.1.4.3.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">Conformer</td>
+<td id="S3.T1.1.1.4.3.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">24.7</td>
+<td id="S3.T1.1.1.4.3.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">23.3</td>
+</tr>
+<tr id="S3.T1.1.1.5.4" class="ltx_tr">
+<td id="S3.T1.1.1.5.4.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">3</td>
+<td id="S3.T1.1.1.5.4.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">   + WavLM Large upstream</td>
+<td id="S3.T1.1.1.5.4.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">19.4</td>
+<td id="S3.T1.1.1.5.4.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">17.1</td>
+</tr>
+<tr id="S3.T1.1.1.6.5" class="ltx_tr">
+<td id="S3.T1.1.1.6.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">4</td>
+<td id="S3.T1.1.1.6.5.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T1.1.1.6.5.2.1" class="ltx_text">AED</span></td>
+<td id="S3.T1.1.1.6.5.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Base+</td>
+<td id="S3.T1.1.1.6.5.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">18.9</td>
+<td id="S3.T1.1.1.6.5.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">17.7</td>
+</tr>
+<tr id="S3.T1.1.1.7.6" class="ltx_tr">
+<td id="S3.T1.1.1.7.6.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">5</td>
+<td id="S3.T1.1.1.7.6.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Large</td>
+<td id="S3.T1.1.1.7.6.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T1.1.1.7.6.3.1" class="ltx_text" style="color:#000000;">10.6</span></td>
+<td id="S3.T1.1.1.7.6.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T1.1.1.7.6.4.1" class="ltx_text" style="color:#000000;">9.2</span></td>
+</tr>
+<tr id="S3.T1.1.1.8.7" class="ltx_tr">
+<td id="S3.T1.1.1.8.7.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">6</td>
+<td id="S3.T1.1.1.8.7.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="3"><span id="S3.T1.1.1.8.7.2.1" class="ltx_text">LLM</span></td>
+<td id="S3.T1.1.1.8.7.3" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Base+</td>
+<td id="S3.T1.1.1.8.7.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">17.6</td>
+<td id="S3.T1.1.1.8.7.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">15.9</td>
+</tr>
+<tr id="S3.T1.1.1.9.8" class="ltx_tr">
+<td id="S3.T1.1.1.9.8.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">7</td>
+<td id="S3.T1.1.1.9.8.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Large</td>
+<td id="S3.T1.1.1.9.8.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">11.4</td>
+<td id="S3.T1.1.1.9.8.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">10.2</td>
+</tr>
+<tr id="S3.T1.1.1.10.9" class="ltx_tr">
+<td id="S3.T1.1.1.10.9.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">8</td>
+<td id="S3.T1.1.1.10.9.2" class="ltx_td ltx_align_left ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">   + LibriMix Fine-tuning</td>
+<td id="S3.T1.1.1.10.9.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T1.1.1.10.9.3.1" class="ltx_text ltx_font_bold">10.3</span></td>
+<td id="S3.T1.1.1.10.9.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T1.1.1.10.9.4.1" class="ltx_text ltx_font_bold">9.0</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S3.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T2.4.1.1" class="ltx_text ltx_font_bold">Table 2</span>: </span><span id="S3.T2.5.2" class="ltx_text" style="color:#000000;">Performance comparison with and without LoRA fine-tuning in the case of different speech encoders.</span></figcaption>
+<div id="S3.T2.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:222.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(76.3pt,-39.1pt) scale(1.54262226764451,1.54262226764451) ;">
+<table id="S3.T2.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T2.1.1.1" class="ltx_tr">
+<th id="S3.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.1.2.1" class="ltx_text">Sys.</span></th>
+<th id="S3.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.1.3.1" class="ltx_text">Speech Encoder</span></th>
+<th id="S3.T2.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.1.4.1" class="ltx_text">LoRA</span></th>
+<th id="S3.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" colspan="2">WER (%) <math id="S3.T2.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T2.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T2.1.1.1.1.m1.1.1" xref="S3.T2.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T2.1.1.1.1.m1.1b"><ci id="S3.T2.1.1.1.1.m1.1.1.cmml" xref="S3.T2.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T2.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</th>
+</tr>
+<tr id="S3.T2.1.1.2.1" class="ltx_tr">
+<th id="S3.T2.1.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column" style="padding-left:4.3pt;padding-right:4.3pt;">dev</th>
+<th id="S3.T2.1.1.2.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column" style="padding-left:4.3pt;padding-right:4.3pt;">test</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T2.1.1.3.1" class="ltx_tr">
+<td id="S3.T2.1.1.3.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">-</td>
+<td id="S3.T2.1.1.3.1.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.3.1.2.1" class="ltx_text">WavLM Base+</span></td>
+<td id="S3.T2.1.1.3.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">✗</td>
+<td id="S3.T2.1.1.3.1.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">19.4</td>
+<td id="S3.T2.1.1.3.1.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">17.3</td>
+</tr>
+<tr id="S3.T2.1.1.4.2" class="ltx_tr">
+<td id="S3.T2.1.1.4.2.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 6</td>
+<td id="S3.T2.1.1.4.2.2" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">✓</td>
+<td id="S3.T2.1.1.4.2.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;">17.6</td>
+<td id="S3.T2.1.1.4.2.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;">15.9</td>
+</tr>
+<tr id="S3.T2.1.1.5.3" class="ltx_tr">
+<td id="S3.T2.1.1.5.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">-</td>
+<td id="S3.T2.1.1.5.3.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.5.3.2.1" class="ltx_text">WavLM Large</span></td>
+<td id="S3.T2.1.1.5.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">✗</td>
+<td id="S3.T2.1.1.5.3.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">12.6</td>
+<td id="S3.T2.1.1.5.3.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">11.3</td>
+</tr>
+<tr id="S3.T2.1.1.6.4" class="ltx_tr">
+<td id="S3.T2.1.1.6.4.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 7</td>
+<td id="S3.T2.1.1.6.4.2" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">✓</td>
+<td id="S3.T2.1.1.6.4.3" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;">11.4</td>
+<td id="S3.T2.1.1.6.4.4" class="ltx_td ltx_align_center" style="padding-left:4.3pt;padding-right:4.3pt;">10.2</td>
+</tr>
+<tr id="S3.T2.1.1.7.5" class="ltx_tr">
+<td id="S3.T2.1.1.7.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">-</td>
+<td id="S3.T2.1.1.7.5.2" class="ltx_td ltx_align_left ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;" rowspan="2"><span id="S3.T2.1.1.7.5.2.1" class="ltx_text"> + LibriMix Fine-tuning</span></td>
+<td id="S3.T2.1.1.7.5.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">✗</td>
+<td id="S3.T2.1.1.7.5.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">10.8</td>
+<td id="S3.T2.1.1.7.5.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:4.3pt;padding-right:4.3pt;">9.5</td>
+</tr>
+<tr id="S3.T2.1.1.8.6" class="ltx_tr">
+<td id="S3.T2.1.1.8.6.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 8</td>
+<td id="S3.T2.1.1.8.6.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:4.3pt;padding-right:4.3pt;">✓</td>
+<td id="S3.T2.1.1.8.6.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;">10.3</td>
+<td id="S3.T2.1.1.8.6.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:4.3pt;padding-right:4.3pt;">9.0</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S3.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T3.4.1.1" class="ltx_text ltx_font_bold">Table 3</span>: </span><span id="S3.T3.5.2" class="ltx_text" style="color:#000000;">Performance comparison of freezing and jointly training the speech encoder with and without fine-tuning on LibriMix using AED method.</span></figcaption>
+<div id="S3.T3.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:164.4pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(74.3pt,-28.2pt) scale(1.5217799335022,1.5217799335022) ;">
+<table id="S3.T3.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T3.1.1.1" class="ltx_tr">
+<td id="S3.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T3.1.1.1.2.1" class="ltx_text">Sys.</span></td>
+<td id="S3.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T3.1.1.1.3.1" class="ltx_text">
+<span id="S3.T3.1.1.1.3.1.1" class="ltx_inline-block">
+<span id="S3.T3.1.1.1.3.1.1.1" class="ltx_p">LibriMix</span>
+<span id="S3.T3.1.1.1.3.1.1.2" class="ltx_p">Fine-tuning</span>
+</span></span></td>
+<td id="S3.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T3.1.1.1.4.1" class="ltx_text">
+<span id="S3.T3.1.1.1.4.1.1" class="ltx_inline-block">
+<span id="S3.T3.1.1.1.4.1.1.1" class="ltx_p">Freeze</span>
+<span id="S3.T3.1.1.1.4.1.1.2" class="ltx_p">Encoder</span>
+</span></span></td>
+<td id="S3.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" colspan="2">WER (%) <math id="S3.T3.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T3.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T3.1.1.1.1.m1.1.1" xref="S3.T3.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T3.1.1.1.1.m1.1b"><ci id="S3.T3.1.1.1.1.m1.1.1.cmml" xref="S3.T3.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T3.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T3.1.1.2.1" class="ltx_tr">
+<td id="S3.T3.1.1.2.1.1" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">dev</td>
+<td id="S3.T3.1.1.2.1.2" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">test</td>
+</tr>
+<tr id="S3.T3.1.1.3.2" class="ltx_tr">
+<td id="S3.T3.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 7</td>
+<td id="S3.T3.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T3.1.1.3.2.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T3.1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">✗</td>
+<td id="S3.T3.1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">11.4</td>
+<td id="S3.T3.1.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">10.2</td>
+</tr>
+<tr id="S3.T3.1.1.4.3" class="ltx_tr">
+<td id="S3.T3.1.1.4.3.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:10.0pt;padding-right:10.0pt;">-</td>
+<td id="S3.T3.1.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:10.0pt;padding-right:10.0pt;">✓</td>
+<td id="S3.T3.1.1.4.3.3" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">47.8</td>
+<td id="S3.T3.1.1.4.3.4" class="ltx_td ltx_align_center" style="padding-left:10.0pt;padding-right:10.0pt;">46.7</td>
+</tr>
+<tr id="S3.T3.1.1.5.4" class="ltx_tr">
+<td id="S3.T3.1.1.5.4.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">-</td>
+<td id="S3.T3.1.1.5.4.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;" rowspan="2"><span id="S3.T3.1.1.5.4.2.1" class="ltx_text">✓</span></td>
+<td id="S3.T3.1.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">✗</td>
+<td id="S3.T3.1.1.5.4.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">11.4</td>
+<td id="S3.T3.1.1.5.4.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:10.0pt;padding-right:10.0pt;">10.1</td>
+</tr>
+<tr id="S3.T3.1.1.6.5" class="ltx_tr">
+<td id="S3.T3.1.1.6.5.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:10.0pt;padding-right:10.0pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 8</td>
+<td id="S3.T3.1.1.6.5.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:10.0pt;padding-right:10.0pt;">✓</td>
+<td id="S3.T3.1.1.6.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:10.0pt;padding-right:10.0pt;">10.3</td>
+<td id="S3.T3.1.1.6.5.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:10.0pt;padding-right:10.0pt;">9.0</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S3.T4" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T4.7.3.1" class="ltx_text ltx_font_bold">Table 4</span>: </span>Performance comparison of single-stage training and multi-stage training strategy. <span id="S3.T4.4.2" class="ltx_text" style="color:#000000;">Multi-stage training refers to sequentially unfreezing and jointly training in the order of projector <math id="S3.T4.3.1.m1.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T4.3.1.m1.1b"><mo mathcolor="#000000" stretchy="false" id="S3.T4.3.1.m1.1.1" xref="S3.T4.3.1.m1.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T4.3.1.m1.1c"><ci id="S3.T4.3.1.m1.1.1.cmml" xref="S3.T4.3.1.m1.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T4.3.1.m1.1d">\rightarrow</annotation></semantics></math> speech encoder <math id="S3.T4.4.2.m2.1" class="ltx_Math" alttext="\rightarrow" display="inline"><semantics id="S3.T4.4.2.m2.1b"><mo mathcolor="#000000" stretchy="false" id="S3.T4.4.2.m2.1.1" xref="S3.T4.4.2.m2.1.1.cmml">→</mo><annotation-xml encoding="MathML-Content" id="S3.T4.4.2.m2.1c"><ci id="S3.T4.4.2.m2.1.1.cmml" xref="S3.T4.4.2.m2.1.1">→</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T4.4.2.m2.1d">\rightarrow</annotation></semantics></math> LoRA. When the “Freeze Encoder” option in the table is set to True, the second stage is skipped. Single-stage training refers to jointly training all these modules from the beginning.</span></figcaption>
+<div id="S3.T4.5" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:173.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(81.9pt,-32.8pt) scale(1.60686231624773,1.60686231624773) ;">
+<table id="S3.T4.5.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T4.5.1.1" class="ltx_tr">
+<td id="S3.T4.5.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" rowspan="2"><span id="S3.T4.5.1.1.2.1" class="ltx_text">Sys.</span></td>
+<td id="S3.T4.5.1.1.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" rowspan="2"><span id="S3.T4.5.1.1.3.1" class="ltx_text">
+<span id="S3.T4.5.1.1.3.1.1" class="ltx_inline-block">
+<span id="S3.T4.5.1.1.3.1.1.1" class="ltx_p">Freeze</span>
+<span id="S3.T4.5.1.1.3.1.1.2" class="ltx_p">Encoder</span>
+</span></span></td>
+<td id="S3.T4.5.1.1.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" rowspan="2"><span id="S3.T4.5.1.1.4.1" class="ltx_text">
+<span id="S3.T4.5.1.1.4.1.1" class="ltx_inline-block">
+<span id="S3.T4.5.1.1.4.1.1.1" class="ltx_p">Training</span>
+<span id="S3.T4.5.1.1.4.1.1.2" class="ltx_p">Strategy</span>
+</span></span></td>
+<td id="S3.T4.5.1.1.1" class="ltx_td ltx_align_center ltx_border_tt ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" colspan="2">WER (%) <math id="S3.T4.5.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T4.5.1.1.1.m1.1a"><mo stretchy="false" id="S3.T4.5.1.1.1.m1.1.1" xref="S3.T4.5.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T4.5.1.1.1.m1.1b"><ci id="S3.T4.5.1.1.1.m1.1.1.cmml" xref="S3.T4.5.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T4.5.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T4.5.1.2.1" class="ltx_tr">
+<td id="S3.T4.5.1.2.1.1" class="ltx_td ltx_align_center" style="padding-left:8.5pt;padding-right:8.5pt;">dev</td>
+<td id="S3.T4.5.1.2.1.2" class="ltx_td ltx_align_center" style="padding-left:8.5pt;padding-right:8.5pt;">test</td>
+</tr>
+<tr id="S3.T4.5.1.3.2" class="ltx_tr">
+<td id="S3.T4.5.1.3.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">-</td>
+<td id="S3.T4.5.1.3.2.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" rowspan="2"><span id="S3.T4.5.1.3.2.2.1" class="ltx_text">✗</span></td>
+<td id="S3.T4.5.1.3.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">single-stage</td>
+<td id="S3.T4.5.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">11.7</td>
+<td id="S3.T4.5.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">10.4</td>
+</tr>
+<tr id="S3.T4.5.1.4.3" class="ltx_tr">
+<td id="S3.T4.5.1.4.3.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:8.5pt;padding-right:8.5pt;">-</td>
+<td id="S3.T4.5.1.4.3.2" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:8.5pt;padding-right:8.5pt;">multi-stage</td>
+<td id="S3.T4.5.1.4.3.3" class="ltx_td ltx_align_center" style="padding-left:8.5pt;padding-right:8.5pt;">11.4</td>
+<td id="S3.T4.5.1.4.3.4" class="ltx_td ltx_align_center" style="padding-left:8.5pt;padding-right:8.5pt;">10.1</td>
+</tr>
+<tr id="S3.T4.5.1.5.4" class="ltx_tr">
+<td id="S3.T4.5.1.5.4.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">-</td>
+<td id="S3.T4.5.1.5.4.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;" rowspan="2"><span id="S3.T4.5.1.5.4.2.1" class="ltx_text">✓</span></td>
+<td id="S3.T4.5.1.5.4.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">single-stage</td>
+<td id="S3.T4.5.1.5.4.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">10.5</td>
+<td id="S3.T4.5.1.5.4.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:8.5pt;padding-right:8.5pt;">9.2</td>
+</tr>
+<tr id="S3.T4.5.1.6.5" class="ltx_tr">
+<td id="S3.T4.5.1.6.5.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:8.5pt;padding-right:8.5pt;">Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>, Sys. 8</td>
+<td id="S3.T4.5.1.6.5.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:8.5pt;padding-right:8.5pt;">multi-stage</td>
+<td id="S3.T4.5.1.6.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:8.5pt;padding-right:8.5pt;">10.3</td>
+<td id="S3.T4.5.1.6.5.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:8.5pt;padding-right:8.5pt;">9.0</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<div id="S3.SS1.SSS4.p2" class="ltx_para">
+<p id="S3.SS1.SSS4.p2.1" class="ltx_p">Table <a href="#S3.T2" title="Table 2 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows the performance comparison of different speech encoders with and without LoRA fine-tuning. Similar to the conclusions in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, introducing LoRA fine-tuning into the LLM consistently improves performance regardless of the speech encoder used. This indicates that LoRA fine-tuning can adapt the LLM output to the style of SOT-based multi-talker transcription. In <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, promising performance can be achieved even without introducing the LoRA adaptor, possibly because the transcription style of the single-talker Librispeech used in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite> is similar to the output of the original LLM.</p>
+</div>
+<figure id="S3.F3" class="ltx_figure"><img src="/html/2408.17431/assets/acc_compare.png" id="S3.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="449" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F3.2.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>
+Training accuracy of the next token prediction with the training steps in the first training stage, where only the Projector is involved in training. Different colored curves represent whether the speech encoder has been fine-tuned by LibriMix.
+</figcaption>
+</figure>
+<div id="S3.SS1.SSS4.p3" class="ltx_para">
+<p id="S3.SS1.SSS4.p3.1" class="ltx_p">Table <a href="#S3.T3" title="Table 3 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> presents the impact of freezing the speech encoder during training. When the initialized speech encoder is not fine-tuned on LibriMix using the AED method, freezing the encoder results in poor performance because the encoder has not adapted to the LibriMix dataset. However, when using the encoder fine-tuned with LibriMix (Sys. 5, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), freezing the encoder during training results in better performance. This is likely because the fine-tuned encoder already has excellent representation extraction capabilities on LibriMix and does not require further adjustment.</p>
+</div>
+<div id="S3.SS1.SSS4.p4" class="ltx_para">
+<p id="S3.SS1.SSS4.p4.1" class="ltx_p">Fig. <a href="#S3.F3" title="Figure 3 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> shows the comparison of training curves in the first training stage, where only the projector module is trained, using either a fine-tuned encoder or a non-fine-tuned encoder. When using the fine-tuned encoder, the model quickly converges to a very high accuracy. In contrast, using the original WavLM model results in slower and less complete convergence. This indicates that if we have a high-quality encoder, simply aligning the modality of speech representations with the LLM can directly achieve a relatively good performance. Conversely, for an unadapted encoder, merely training the projector to perform alignment is insufficient, which is similar to the conclusion in Table <a href="#S3.T3" title="Table 3 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>.</p>
+</div>
+<div id="S3.SS1.SSS4.p5" class="ltx_para">
+<p id="S3.SS1.SSS4.p5.1" class="ltx_p">Table <a href="#S3.T4" title="Table 4 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> presents the comparison between single-stage and multi-stage training strategies. The results show that, regardless of whether the speech encoder is frozen, multi-stage training outperforms single-stage training. This indicates that multi-stage training helps the model better align auditory and textual information.</p>
+</div>
+</section>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Experiment with AMI</h3>
+
+<section id="S3.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.2.1 </span>Experimental settings</h4>
+
+<div id="S3.SS2.SSS1.p1" class="ltx_para">
+<p id="S3.SS2.SSS1.p1.1" class="ltx_p">To evaluate the LLM-based multi-talker ASR approach in a more realistic setting, we conducted experiments on real-world corpus AMI. The AMI meeting corpus includes approximately 95 hours of real-world meeting recordings, with the training, validation, and evaluation sets comprising 76.9, 8.9, and 8.7 hours, respectively. Each meeting involves 3 to 5 participants. The audio in the AMI corpus was recorded using an 8-channel microphone array, known as multiple distant microphones (MDM). Typically, the first channel is used for monaural ASR evaluation, referred to as the single distant microphone (SDM) setting. Additionally, the AMI corpus includes near-field single-speaker audio recorded by independent headset microphones (IHM) worn by each participant.</p>
+</div>
+<div id="S3.SS2.SSS1.p2" class="ltx_para">
+<p id="S3.SS2.SSS1.p2.1" class="ltx_p">In this work, we conducted experiments using the SDM setting. However, in the original SDM, the audio is segmented by oracle timestamps into utterances containing only a single speaker. To evaluate SOT-based multi-talker ASR, we followed the approach in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> to use <span id="S3.SS2.SSS1.p2.1.1" class="ltx_text ltx_font_italic">utterance group</span>-based evaluation. An <span id="S3.SS2.SSS1.p2.1.2" class="ltx_text ltx_font_italic">utterance group</span> is defined as a set of utterances connected by speaker overlap regions. Correspondingly, SOT-style transcriptions are generated in the order of the emission time of each speaker.</p>
+</div>
+<div id="S3.SS2.SSS1.p3" class="ltx_para">
+<p id="S3.SS2.SSS1.p3.1" class="ltx_p">In addition to using simple WER for evaluation, we also introduced the concatenated minimum-permutation word error rate (cpWER) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib35" title="" class="ltx_ref">35</a>]</cite> for comparison with previous work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>. In each <span id="S3.SS2.SSS1.p3.1.1" class="ltx_text ltx_font_italic">utterance group</span>, <span id="S3.SS2.SSS1.p3.1.2" class="ltx_text" style="color:#000000;">as shown in Fig. <a href="#S2.F1" title="Figure 1 ‣ 2.1 Serialized Output Training ‣ 2 Method ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a></span>, the transcriptions of the same speaker are concatenated, and the minimum WER across all possible speaker permutations is taken as the cpWER.</p>
+</div>
+<div id="S3.SS2.SSS1.p4" class="ltx_para">
+<p id="S3.SS2.SSS1.p4.1" class="ltx_p">For the training details, as shown in Fig <a href="#S3.F4" title="Figure 4 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a>, we first fine-tuned the WavLM AED model, which was pre-trained on LibriMix (Sys. 5, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), using the AMI-SDM <span id="S3.SS2.SSS1.p4.1.1" class="ltx_text ltx_font_italic">utterance group</span> segments. Subsequently, we integrated this fine-tuned WavLM encoder into the best-performing system from the LibriMix experiment (Sys. 8, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) and further fine-tuned it on the AMI-SDM <span id="S3.SS2.SSS1.p4.1.2" class="ltx_text ltx_font_italic">utterance group</span> segments. The training strategy and configuration remained consistent with those employed in the LibriMix experiment.</p>
+</div>
+<figure id="S3.F4" class="ltx_figure"><img src="/html/2408.17431/assets/x3.png" id="S3.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="415" height="312" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure"><span id="S3.F4.2.1.1" class="ltx_text ltx_font_bold">Fig. 4</span>: </span>An illustration of the training process of the proposed LLM-based multi-talker ASR system on the LibriMix (blue background) and AMI-SDM (pink background).</figcaption>
+</figure>
+<figure id="S3.T5" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T5.6.1.1" class="ltx_text ltx_font_bold">Table 5</span>: </span>Overall performance comparison of various approaches on AMI-SDM evaluation set. <span id="S3.T5.7.2" class="ltx_text" style="color:#000000;">Sys. {1-3} are previous works that use large-scale supervised data for pre-training. Sys. {4-6} display the results of models pre-trained with only 0.83k hours of LibriMix and then fine-tuned on AMI, where Sys. 4 uses the AED-based architecture, and Sys. {5-6} use the LLM-based architecture. The WER (%) and cpWER (%) metrics are reported for the <span id="S3.T5.7.2.1" class="ltx_text ltx_font_italic">utterance groups</span> with different numbers of speakers, as well as overall (average) results.</span></figcaption>
+<div id="S3.T5.3" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:506.5pt;height:107.4pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-86.4pt,18.3pt) scale(0.74556982867391,0.74556982867391) ;">
+<table id="S3.T5.3.3" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T5.2.2.2" class="ltx_tr">
+<td id="S3.T5.2.2.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T5.2.2.2.3.1" class="ltx_text">Sys.</span></td>
+<td id="S3.T5.2.2.2.4" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T5.2.2.2.4.1" class="ltx_text">Architecture</span></td>
+<td id="S3.T5.2.2.2.5" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T5.2.2.2.5.1" class="ltx_text">
+<span id="S3.T5.2.2.2.5.1.1" class="ltx_inline-block">
+<span id="S3.T5.2.2.2.5.1.1.1" class="ltx_p">Supervised</span>
+<span id="S3.T5.2.2.2.5.1.1.2" class="ltx_p">Pre-training data</span>
+</span></span></td>
+<td id="S3.T5.2.2.2.6" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T5.2.2.2.6.1" class="ltx_text">
+<span id="S3.T5.2.2.2.6.1.1" class="ltx_inline-block">
+<span id="S3.T5.2.2.2.6.1.1.1" class="ltx_p">Fine-tuning</span>
+<span id="S3.T5.2.2.2.6.1.1.2" class="ltx_p">data</span>
+</span></span></td>
+<td id="S3.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" colspan="5">WER (w.r.t. # of talkers) (%) <math id="S3.T5.1.1.1.1.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T5.1.1.1.1.m1.1a"><mo stretchy="false" id="S3.T5.1.1.1.1.m1.1.1" xref="S3.T5.1.1.1.1.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T5.1.1.1.1.m1.1b"><ci id="S3.T5.1.1.1.1.m1.1.1.cmml" xref="S3.T5.1.1.1.1.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T5.1.1.1.1.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+<td id="S3.T5.2.2.2.2" class="ltx_td ltx_align_center ltx_border_tt ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" colspan="5">cpWER (w.r.t. # of talkers) (%) <math id="S3.T5.2.2.2.2.m1.1" class="ltx_Math" alttext="\downarrow" display="inline"><semantics id="S3.T5.2.2.2.2.m1.1a"><mo stretchy="false" id="S3.T5.2.2.2.2.m1.1.1" xref="S3.T5.2.2.2.2.m1.1.1.cmml">↓</mo><annotation-xml encoding="MathML-Content" id="S3.T5.2.2.2.2.m1.1b"><ci id="S3.T5.2.2.2.2.m1.1.1.cmml" xref="S3.T5.2.2.2.2.m1.1.1">↓</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T5.2.2.2.2.m1.1c">\downarrow</annotation></semantics></math>
+</td>
+</tr>
+<tr id="S3.T5.3.3.4.1" class="ltx_tr">
+<td id="S3.T5.3.3.4.1.1" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">avg.</td>
+<td id="S3.T5.3.3.4.1.2" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">1</td>
+<td id="S3.T5.3.3.4.1.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">2</td>
+<td id="S3.T5.3.3.4.1.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">3</td>
+<td id="S3.T5.3.3.4.1.5" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">4</td>
+<td id="S3.T5.3.3.4.1.6" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">avg.</td>
+<td id="S3.T5.3.3.4.1.7" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">1</td>
+<td id="S3.T5.3.3.4.1.8" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">2</td>
+<td id="S3.T5.3.3.4.1.9" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">3</td>
+<td id="S3.T5.3.3.4.1.10" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">4</td>
+</tr>
+<tr id="S3.T5.3.3.5.2" class="ltx_tr">
+<td id="S3.T5.3.3.5.2.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">1</td>
+<td id="S3.T5.3.3.5.2.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">Conformer AED <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>
+</td>
+<td id="S3.T5.3.3.5.2.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">900k hrs</td>
+<td id="S3.T5.3.3.5.2.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="6"><span id="S3.T5.3.3.5.2.4.1" class="ltx_text">AMI</span></td>
+<td id="S3.T5.3.3.5.2.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.5.2.6" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.5.2.7" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.5.2.8" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.5.2.9" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.5.2.10" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">21.2</td>
+<td id="S3.T5.3.3.5.2.11" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">14.7</td>
+<td id="S3.T5.3.3.5.2.12" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">19.6</td>
+<td id="S3.T5.3.3.5.2.13" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.5.2.13.1" class="ltx_text ltx_font_bold">25.7</span></td>
+<td id="S3.T5.3.3.5.2.14" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.5.2.14.1" class="ltx_text ltx_font_bold">35.5</span></td>
+</tr>
+<tr id="S3.T5.3.3.6.3" class="ltx_tr">
+<td id="S3.T5.3.3.6.3.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">2</td>
+<td id="S3.T5.3.3.6.3.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">Whisper medium <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>
+</td>
+<td id="S3.T5.3.3.6.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="2"><span id="S3.T5.3.3.6.3.3.1" class="ltx_text">680k hrs</span></td>
+<td id="S3.T5.3.3.6.3.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.6.3.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.6.3.6" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.6.3.7" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.6.3.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.6.3.9" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">23.6</td>
+<td id="S3.T5.3.3.6.3.10" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">12.8</td>
+<td id="S3.T5.3.3.6.3.11" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">21.8</td>
+<td id="S3.T5.3.3.6.3.12" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">32.5</td>
+<td id="S3.T5.3.3.6.3.13" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">45.9</td>
+</tr>
+<tr id="S3.T5.3.3.7.4" class="ltx_tr">
+<td id="S3.T5.3.3.7.4.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">3</td>
+<td id="S3.T5.3.3.7.4.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">Whisper large <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib36" title="" class="ltx_ref">36</a>]</cite>
+</td>
+<td id="S3.T5.3.3.7.4.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.7.4.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.7.4.5" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.7.4.6" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.7.4.7" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">-</td>
+<td id="S3.T5.3.3.7.4.8" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">21.4</td>
+<td id="S3.T5.3.3.7.4.9" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">12.0</td>
+<td id="S3.T5.3.3.7.4.10" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">20.0</td>
+<td id="S3.T5.3.3.7.4.11" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">29.3</td>
+<td id="S3.T5.3.3.7.4.12" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">40.6</td>
+</tr>
+<tr id="S3.T5.3.3.8.5" class="ltx_tr">
+<td id="S3.T5.3.3.8.5.1" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">4</td>
+<td id="S3.T5.3.3.8.5.2" class="ltx_td ltx_align_left ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Large AED</td>
+<td id="S3.T5.3.3.8.5.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;" rowspan="3"><span id="S3.T5.3.3.8.5.3.1" class="ltx_text ltx_font_bold">0.83k hrs</span></td>
+<td id="S3.T5.3.3.8.5.4" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">30.5</td>
+<td id="S3.T5.3.3.8.5.5" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">16.7</td>
+<td id="S3.T5.3.3.8.5.6" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">26.2</td>
+<td id="S3.T5.3.3.8.5.7" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">45.8</td>
+<td id="S3.T5.3.3.8.5.8" class="ltx_td ltx_align_center ltx_border_r ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">54.8</td>
+<td id="S3.T5.3.3.8.5.9" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">24.1</td>
+<td id="S3.T5.3.3.8.5.10" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">10.8</td>
+<td id="S3.T5.3.3.8.5.11" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">20.4</td>
+<td id="S3.T5.3.3.8.5.12" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">37.9</td>
+<td id="S3.T5.3.3.8.5.13" class="ltx_td ltx_align_center ltx_border_t" style="padding-left:5.7pt;padding-right:5.7pt;">48.6</td>
+</tr>
+<tr id="S3.T5.3.3.9.6" class="ltx_tr">
+<td id="S3.T5.3.3.9.6.1" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">5</td>
+<td id="S3.T5.3.3.9.6.2" class="ltx_td ltx_align_left ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">WavLM Large LLM</td>
+<td id="S3.T5.3.3.9.6.3" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">27.6</td>
+<td id="S3.T5.3.3.9.6.4" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">14.9</td>
+<td id="S3.T5.3.3.9.6.5" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">25.3</td>
+<td id="S3.T5.3.3.9.6.6" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">38.4</td>
+<td id="S3.T5.3.3.9.6.7" class="ltx_td ltx_align_center ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">52.6</td>
+<td id="S3.T5.3.3.9.6.8" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">21.0</td>
+<td id="S3.T5.3.3.9.6.9" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">9.3</td>
+<td id="S3.T5.3.3.9.6.10" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">18.8</td>
+<td id="S3.T5.3.3.9.6.11" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">31.1</td>
+<td id="S3.T5.3.3.9.6.12" class="ltx_td ltx_align_center" style="padding-left:5.7pt;padding-right:5.7pt;">44.1</td>
+</tr>
+<tr id="S3.T5.3.3.3" class="ltx_tr">
+<td id="S3.T5.3.3.3.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">6</td>
+<td id="S3.T5.3.3.3.1" class="ltx_td ltx_align_left ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;">    + beam search (beam=4)</td>
+<td id="S3.T5.3.3.3.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.3.1" class="ltx_text ltx_font_bold">26.8</span></td>
+<td id="S3.T5.3.3.3.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.4.1" class="ltx_text ltx_font_bold">14.8</span></td>
+<td id="S3.T5.3.3.3.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.5.1" class="ltx_text ltx_font_bold">24.4</span></td>
+<td id="S3.T5.3.3.3.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.6.1" class="ltx_text ltx_font_bold">37.5</span></td>
+<td id="S3.T5.3.3.3.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b ltx_border_r" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.7.1" class="ltx_text ltx_font_bold">49.4</span></td>
+<td id="S3.T5.3.3.3.8" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.8.1" class="ltx_text ltx_font_bold">20.4</span></td>
+<td id="S3.T5.3.3.3.9" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.9.1" class="ltx_text ltx_font_bold">9.3</span></td>
+<td id="S3.T5.3.3.3.10" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;"><span id="S3.T5.3.3.3.10.1" class="ltx_text ltx_font_bold">18.1</span></td>
+<td id="S3.T5.3.3.3.11" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;">30.3</td>
+<td id="S3.T5.3.3.3.12" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b" style="padding-left:5.7pt;padding-right:5.7pt;">42.2</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S3.T6" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table"><span id="S3.T6.4.1.1" class="ltx_text ltx_font_bold">Table 6</span>: </span><span id="S3.T6.5.2" class="ltx_text" style="color:#000000;">Speaker counting accuracy (%) for each <span id="S3.T6.5.2.1" class="ltx_text ltx_font_italic">utterance group</span> of AMI-SDM evaluation set. The number of talkers can be estimated by counting the segments obtained by separating SOT-style transcriptions with the speaker change symbol “$”. SOT follows speaker-wise FIFO, as shown in Fig. <a href="#S2.F1" title="Figure 1 ‣ 2.1 Serialized Output Training ‣ 2 Method ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</span></figcaption>
+<div id="S3.T6.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:360.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(65.3pt,-54.3pt) scale(1.43110285796847,1.43110285796847) ;">
+<table id="S3.T6.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T6.1.1.2.1" class="ltx_tr">
+<th id="S3.T6.1.1.2.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt ltx_border_t" rowspan="2"><span id="S3.T6.1.1.2.1.1.1" class="ltx_text">Sys.</span></th>
+<th id="S3.T6.1.1.2.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_tt ltx_border_t" rowspan="2"><span id="S3.T6.1.1.2.1.2.1" class="ltx_text">
+<span id="S3.T6.1.1.2.1.2.1.1" class="ltx_inline-block">
+<span id="S3.T6.1.1.2.1.2.1.1.1" class="ltx_p">Actual #</span>
+<span id="S3.T6.1.1.2.1.2.1.1.2" class="ltx_p">of talkers</span>
+</span></span></th>
+<td id="S3.T6.1.1.2.1.3" class="ltx_td ltx_align_center ltx_border_tt ltx_border_t" colspan="6">Estimated # of talkers</td>
+</tr>
+<tr id="S3.T6.1.1.1" class="ltx_tr">
+<td id="S3.T6.1.1.1.2" class="ltx_td ltx_align_center">0</td>
+<td id="S3.T6.1.1.1.3" class="ltx_td ltx_align_center">1</td>
+<td id="S3.T6.1.1.1.4" class="ltx_td ltx_align_center">2</td>
+<td id="S3.T6.1.1.1.5" class="ltx_td ltx_align_center">3</td>
+<td id="S3.T6.1.1.1.6" class="ltx_td ltx_align_center">4</td>
+<td id="S3.T6.1.1.1.1" class="ltx_td ltx_align_center">
+<math id="S3.T6.1.1.1.1.m1.1" class="ltx_Math" alttext="\geq" display="inline"><semantics id="S3.T6.1.1.1.1.m1.1a"><mo id="S3.T6.1.1.1.1.m1.1.1" xref="S3.T6.1.1.1.1.m1.1.1.cmml">≥</mo><annotation-xml encoding="MathML-Content" id="S3.T6.1.1.1.1.m1.1b"><geq id="S3.T6.1.1.1.1.m1.1.1.cmml" xref="S3.T6.1.1.1.1.m1.1.1"></geq></annotation-xml><annotation encoding="application/x-tex" id="S3.T6.1.1.1.1.m1.1c">\geq</annotation></semantics></math> 5</td>
+</tr>
+<tr id="S3.T6.1.1.3.2" class="ltx_tr">
+<th id="S3.T6.1.1.3.2.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="4"><span id="S3.T6.1.1.3.2.1.1" class="ltx_text">Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 1</span></th>
+<th id="S3.T6.1.1.3.2.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">1</th>
+<td id="S3.T6.1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t">0.2</td>
+<td id="S3.T6.1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T6.1.1.3.2.4.1" class="ltx_text ltx_font_bold">97.2</span></td>
+<td id="S3.T6.1.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t">2.5</td>
+<td id="S3.T6.1.1.3.2.6" class="ltx_td ltx_align_center ltx_border_t">0.1</td>
+<td id="S3.T6.1.1.3.2.7" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T6.1.1.3.2.8" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.4.3" class="ltx_tr">
+<th id="S3.T6.1.1.4.3.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">2</th>
+<td id="S3.T6.1.1.4.3.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.4.3.3" class="ltx_td ltx_align_center">13.7</td>
+<td id="S3.T6.1.1.4.3.4" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.4.3.4.1" class="ltx_text ltx_font_bold">80.5</span></td>
+<td id="S3.T6.1.1.4.3.5" class="ltx_td ltx_align_center">5.9</td>
+<td id="S3.T6.1.1.4.3.6" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.4.3.7" class="ltx_td ltx_align_center">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.5.4" class="ltx_tr">
+<th id="S3.T6.1.1.5.4.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">3</th>
+<td id="S3.T6.1.1.5.4.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.5.4.3" class="ltx_td ltx_align_center">2.4</td>
+<td id="S3.T6.1.1.5.4.4" class="ltx_td ltx_align_center">32.6</td>
+<td id="S3.T6.1.1.5.4.5" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.5.4.5.1" class="ltx_text ltx_font_bold">60.2</span></td>
+<td id="S3.T6.1.1.5.4.6" class="ltx_td ltx_align_center">4.8</td>
+<td id="S3.T6.1.1.5.4.7" class="ltx_td ltx_align_center">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.6.5" class="ltx_tr">
+<th id="S3.T6.1.1.6.5.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">4</th>
+<td id="S3.T6.1.1.6.5.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.6.5.3" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.6.5.4" class="ltx_td ltx_align_center">9.9</td>
+<td id="S3.T6.1.1.6.5.5" class="ltx_td ltx_align_center">51.2</td>
+<td id="S3.T6.1.1.6.5.6" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.6.5.6.1" class="ltx_text ltx_font_bold">38.9</span></td>
+<td id="S3.T6.1.1.6.5.7" class="ltx_td ltx_align_center">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.7.6" class="ltx_tr">
+<th id="S3.T6.1.1.7.6.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t" rowspan="4"><span id="S3.T6.1.1.7.6.1.1" class="ltx_text">Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 4</span></th>
+<th id="S3.T6.1.1.7.6.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">1</th>
+<td id="S3.T6.1.1.7.6.3" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T6.1.1.7.6.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T6.1.1.7.6.4.1" class="ltx_text ltx_font_bold">92.1</span></td>
+<td id="S3.T6.1.1.7.6.5" class="ltx_td ltx_align_center ltx_border_t">7.6</td>
+<td id="S3.T6.1.1.7.6.6" class="ltx_td ltx_align_center ltx_border_t">0.3</td>
+<td id="S3.T6.1.1.7.6.7" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T6.1.1.7.6.8" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.8.7" class="ltx_tr">
+<th id="S3.T6.1.1.8.7.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">2</th>
+<td id="S3.T6.1.1.8.7.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.8.7.3" class="ltx_td ltx_align_center">10.0</td>
+<td id="S3.T6.1.1.8.7.4" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.8.7.4.1" class="ltx_text ltx_font_bold">73.0</span></td>
+<td id="S3.T6.1.1.8.7.5" class="ltx_td ltx_align_center">16.4</td>
+<td id="S3.T6.1.1.8.7.6" class="ltx_td ltx_align_center">0.6</td>
+<td id="S3.T6.1.1.8.7.7" class="ltx_td ltx_align_center">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.9.8" class="ltx_tr">
+<th id="S3.T6.1.1.9.8.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">3</th>
+<td id="S3.T6.1.1.9.8.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.9.8.3" class="ltx_td ltx_align_center">0.8</td>
+<td id="S3.T6.1.1.9.8.4" class="ltx_td ltx_align_center">30.2</td>
+<td id="S3.T6.1.1.9.8.5" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.9.8.5.1" class="ltx_text ltx_font_bold">58.0</span></td>
+<td id="S3.T6.1.1.9.8.6" class="ltx_td ltx_align_center">10.1</td>
+<td id="S3.T6.1.1.9.8.7" class="ltx_td ltx_align_center">0.9</td>
+</tr>
+<tr id="S3.T6.1.1.10.9" class="ltx_tr">
+<th id="S3.T6.1.1.10.9.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">4</th>
+<td id="S3.T6.1.1.10.9.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.10.9.3" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.10.9.4" class="ltx_td ltx_align_center">5.5</td>
+<td id="S3.T6.1.1.10.9.5" class="ltx_td ltx_align_center">52.0</td>
+<td id="S3.T6.1.1.10.9.6" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.10.9.6.1" class="ltx_text ltx_font_bold">33.5</span></td>
+<td id="S3.T6.1.1.10.9.7" class="ltx_td ltx_align_center">9.0</td>
+</tr>
+<tr id="S3.T6.1.1.11.10" class="ltx_tr">
+<th id="S3.T6.1.1.11.10.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_b ltx_border_r ltx_border_t" rowspan="4"><span id="S3.T6.1.1.11.10.1.1" class="ltx_text">Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 5</span></th>
+<th id="S3.T6.1.1.11.10.2" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r ltx_border_t">1</th>
+<td id="S3.T6.1.1.11.10.3" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T6.1.1.11.10.4" class="ltx_td ltx_align_center ltx_border_t"><span id="S3.T6.1.1.11.10.4.1" class="ltx_text ltx_font_bold">96.7</span></td>
+<td id="S3.T6.1.1.11.10.5" class="ltx_td ltx_align_center ltx_border_t">3.2</td>
+<td id="S3.T6.1.1.11.10.6" class="ltx_td ltx_align_center ltx_border_t">0.1</td>
+<td id="S3.T6.1.1.11.10.7" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+<td id="S3.T6.1.1.11.10.8" class="ltx_td ltx_align_center ltx_border_t">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.12.11" class="ltx_tr">
+<th id="S3.T6.1.1.12.11.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">2</th>
+<td id="S3.T6.1.1.12.11.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.12.11.3" class="ltx_td ltx_align_center">11.7</td>
+<td id="S3.T6.1.1.12.11.4" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.12.11.4.1" class="ltx_text ltx_font_bold">76.9</span></td>
+<td id="S3.T6.1.1.12.11.5" class="ltx_td ltx_align_center">11.0</td>
+<td id="S3.T6.1.1.12.11.6" class="ltx_td ltx_align_center">0.4</td>
+<td id="S3.T6.1.1.12.11.7" class="ltx_td ltx_align_center">0.0</td>
+</tr>
+<tr id="S3.T6.1.1.13.12" class="ltx_tr">
+<th id="S3.T6.1.1.13.12.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_r">3</th>
+<td id="S3.T6.1.1.13.12.2" class="ltx_td ltx_align_center">0.0</td>
+<td id="S3.T6.1.1.13.12.3" class="ltx_td ltx_align_center">1.3</td>
+<td id="S3.T6.1.1.13.12.4" class="ltx_td ltx_align_center">39.3</td>
+<td id="S3.T6.1.1.13.12.5" class="ltx_td ltx_align_center"><span id="S3.T6.1.1.13.12.5.1" class="ltx_text ltx_font_bold">48.4</span></td>
+<td id="S3.T6.1.1.13.12.6" class="ltx_td ltx_align_center">10.8</td>
+<td id="S3.T6.1.1.13.12.7" class="ltx_td ltx_align_center">0.2</td>
+</tr>
+<tr id="S3.T6.1.1.14.13" class="ltx_tr">
+<th id="S3.T6.1.1.14.13.1" class="ltx_td ltx_align_center ltx_th ltx_th_row ltx_border_bb ltx_border_b ltx_border_r">4</th>
+<td id="S3.T6.1.1.14.13.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b">0.0</td>
+<td id="S3.T6.1.1.14.13.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b">0.0</td>
+<td id="S3.T6.1.1.14.13.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b">10.5</td>
+<td id="S3.T6.1.1.14.13.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b">53.0</td>
+<td id="S3.T6.1.1.14.13.6" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b"><span id="S3.T6.1.1.14.13.6.1" class="ltx_text ltx_font_bold">35.0</span></td>
+<td id="S3.T6.1.1.14.13.7" class="ltx_td ltx_align_center ltx_border_bb ltx_border_b">1.5</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+</section>
+<section id="S3.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">
+<span class="ltx_tag ltx_tag_subsubsection">3.2.2 </span>Experimental results</h4>
+
+<div id="S3.SS2.SSS2.p1" class="ltx_para">
+<p id="S3.SS2.SSS2.p1.1" class="ltx_p">The overall experimental results on the AMI-SDM evaluation set are presented in Table <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>. Sys. {1-3} are from previous work, all relying on large-scale supervised data for pre-training. As shown by the experimental results, in terms of the average cpWER metric, the LLM-based approach (Sys. 5, Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>) not only outperforms the AED-based method using the same amount of data (Sys. 4, Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>) but also remarkably surpasses the models in Sys. {1-3} that were trained with large-scale supervised data. It is worth mentioning that Sys. 1 in Table <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> was trained using 900k hours of supervised data, which is 1000 times more than what we used.
+<span id="S3.SS2.SSS2.p1.1.1" class="ltx_text" style="color:#000000;">This demonstrates that for SOT-based multi-talker ASR task, having a robust, large-scale pre-trained decoder is more important, as it provides strong capabilities in long-context awareness and cross-utterance modeling. This is precisely the advantage of LLM-based architectures over traditional AED-based systems in a such complex scenarios involving multi-talker conversations.
+Additionally, the performance advancement of the LLM-based model over the AED-based method is further highlighted on the AMI evaluation set with an absolute WER reduction of 2.9% and cpWER reduction of 3.1% (Sys. 5 <span id="S3.SS2.SSS2.p1.1.1.1" class="ltx_text ltx_font_italic">vs.</span> 4, Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, column “avg.”) comparing with the comparable systems evaluated on the LibriMix test set (Sys. 8 <span id="S3.SS2.SSS2.p1.1.1.2" class="ltx_text ltx_font_italic">vs.</span> 5, Tab. <a href="#S3.T1" title="Table 1 ‣ 3.1.4 Experimental results ‣ 3.1 Experiment with LibriMix ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>).
+This indicates that the more realistic and complex the scenario, the greater the advantage of the LLM-based method, confirming our conjecture.</span> Using beam search for decoding yields even better results (Sys. 6, Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>).</p>
+</div>
+<div id="S3.SS2.SSS2.p2" class="ltx_para">
+<p id="S3.SS2.SSS2.p2.1" class="ltx_p">Comparing the results across <span id="S3.SS2.SSS2.p2.1.1" class="ltx_text ltx_font_italic">utterance groups</span> with different numbers of speakers, we find that the LLM-based method performs worse than Sys. 1 and Sys. 3 in groups with 3 and 4 speakers. This may be due to the limited supervised training data used in the LLM-based method, especially since the LibriMix dataset used for pre-training only contains two-speaker utterances, and the AMI training set has relatively few <span id="S3.SS2.SSS2.p2.1.2" class="ltx_text ltx_font_italic">utterance groups</span> with more than 2 speakers.
+<span id="S3.SS2.SSS2.p2.1.3" class="ltx_text" style="color:#000000;">In Sys. 2, the speech encoder in the Whisper medium model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib26" title="" class="ltx_ref">26</a>]</cite> has a parameter amount very close to that of WavLM Large, and the decoder of Whisper is also large. However, the LLM-based method consistently outperforms in <span id="S3.SS2.SSS2.p2.1.3.1" class="ltx_text ltx_font_italic">utterance groups</span> containing any number of speakers. This once again highlights the superiority of the LLM-based architecture, which leverages a powerful pre-trained decoder, over the AED-based architecture, where the decoder has not undergone specialized pre-training, in recognizing SOT-style long transcriptions with related content from multiple speakers.</span></p>
+</div>
+<div id="S3.SS2.SSS2.p3" class="ltx_para">
+<p id="S3.SS2.SSS2.p3.1" class="ltx_p">We calculated the speaker counting accuracy and presented it in Table <a href="#S3.T6" title="Table 6 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a>. From the results, it can be observed that the LLM-based method (Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 5) is less accurate in estimating the number of speakers compared to the AED model trained with large-scale supervised data (Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 1). Additionally, in the cases of 3 and 4 speakers, it also shows no significant advantage over the AED model using the same amount of data (Tab. <a href="#S3.T5" title="Table 5 ‣ 3.2.1 Experimental settings ‣ 3.2 Experiment with AMI ‣ 3 Experiments ‣ Advancing Multi-talker ASR Performance with Large Language Models" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>, Sys. 4). Despite the lower accuracy in speaker counting, the LLM-based method achieves the best performance in the cpWER metric, indicating that it has a very high accuracy in recognizing the content of transcriptions in complex scenarios involving multi-talker conversations with noise and reverberation.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusions</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">In this paper, we pioneer an LLM-based multi-talker ASR approach. In the evaluation, the proposed method achieves state-of-the-art results on both the simulated data LibriMix and the real-world data AMI, even outperforming existing methods trained with 1000 times more supervised data on the AMI-SDM evaluation set. <span id="S4.p1.1.1" class="ltx_text" style="color:#000000;">The experimental results demonstrate that LLM-based architectures, which emphasize decoder performance and possess strong capabilities in understanding long contexts and modeling across utterances, outperform AED-based structures that focus more on encoder performance in SOT-based multi-talker ASR task. The LLM-based method has a much larger advantage on real data AMI than on simulated data LibriMix,</span> which further highlights the potential of LLM-based models in handling speech processing tasks in complex and challenging scenarios.</p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+J. Li <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Recent advances in end-to-end automatic speech recognition,” <em id="bib.bib1.2.2" class="ltx_emph ltx_font_italic">APSIPA Transactions on Signal and Information Processing</em>, vol. 11, no. 1, 2022.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+A. Gulati, J. Qin, C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han, S. Wang, Z. Zhang, Y. Wu, and R. Pang, “Conformer: Convolution-augmented transformer for speech recognition,” in <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2020, pp. 5036–5040.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Z. Yao, L. Guo, X. Yang, W. Kang, F. Kuang, Y. Yang, Z. Jin, L. Lin, and D. Povey, “Zipformer: A Faster and Better Encoder for Automatic Speech Recognition,” <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">ICLR</em>, 2024.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Z. Chen, J. Droppo, J. Li, and W. Xiong, “Progressive joint modeling in unsupervised single-channel overlapped speech recognition,” <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">IEEE ACM Trans. Audio Speech Lang. Process.</em>, vol. 26, no. 1, pp. 184–196, 2018.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+D. Yu, X. Chang, and Y. Qian, “Recognizing multi-talker speech with permutation invariant training,” in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2017, pp. 2456–2460.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+X. Chang, W. Zhang, Y. Qian, J. L. Roux, and S. Watanabe, “Mimo-speech: End-to-end multi-channel multi-speaker speech recognition,” in <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">ASRU</em>.   IEEE, 2019, pp. 237–244.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+W. Zhang, X. Chang, Y. Qian, and S. Watanabe, “Improving end-to-end single-channel multi-talker speech recognition,” <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">IEEE ACM Trans. Audio Speech Lang. Process.</em>, vol. 28, pp. 1385–1394, 2020.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+N. Kanda, Y. Gaur, X. Wang, Z. Meng, and T. Yoshioka, “Serialized output training for end-to-end overlapped speech recognition,” in <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2020, pp. 2797–2801.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+N. Kanda, G. Ye, Y. Gaur, X. Wang, Z. Meng, Z. Chen, and T. Yoshioka, “End-to-end speaker-attributed ASR with transformer,” in <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>.   ISCA, 2021, pp. 4413–4417.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+M. Shi, Z. Du, Q. Chen, F. Yu, Y. Li, S. Zhang, J. Zhang, and L. Dai, “CASA-ASR: context-aware speaker-attributed ASR,” in <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2023, pp. 411–415.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+N. Kanda, G. Ye, Y. Wu, Y. Gaur, X. Wang, Z. Meng, Z. Chen, and T. Yoshioka, “Large-scale pre-training of end-to-end multi-talker ASR for meeting transcription with single distant microphone,” in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">Interspeech</em>.   ISCA, 2021, pp. 3430–3434.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+J. Carletta, S. Ashby, S. Bourban, M. Flynn, M. Guillemot, T. Hain, J. Kadlec, V. Karaiskos, W. Kraaij, M. Kronenthal, G. Lathoud, M. Lincoln, A. Lisowska, I. McCowan, W. M. Post, D. Reidsma, and P. Wellner, “The AMI meeting corpus: A pre-announcement,” in <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">MLMI</em>, ser. Lecture Notes in Computer Science, vol. 3869.   Springer, 2005, pp. 28–39.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+T. L. Scao, A. Fan, C. Akiki, E. Pavlick, S. Ilic, D. Hesslow, R. Castagné, A. S. Luccioni, F. Yvon, M. Gallé, J. Tow, A. M. Rush, S. Biderman, A. Webson, P. S. Ammanamanchi, T. Wang, B. Sagot, N. Muennighoff, A. V. del Moral, O. Ruwase, R. Bawden, S. Bekman <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “BLOOM: A 176b-parameter open-access multilingual language model,” <em id="bib.bib13.2.2" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2211.05100, 2022.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+H. Touvron, T. Lavril, G. Izacard, X. Martinet, M. Lachaux, T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar, A. Rodriguez, A. Joulin, E. Grave, and G. Lample, “Llama: Open and efficient foundation language models,” <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2302.13971, 2023.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+H. Touvron, L. Martin, K. Stone, P. Albert, A. Almahairi, Y. Babaei, N. Bashlykov, S. Batra, P. Bhargava, S. Bhosale, D. Bikel, L. Blecher, C. Canton-Ferrer, M. Chen, G. Cucurull, D. Esiobu, J. Fernandes, J. Fu, W. Fu, B. Fuller, C. Gao, V. Goswami, N. Goyal, A. Hartshorn <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Llama 2: Open foundation and fine-tuned chat models,” <em id="bib.bib15.2.2" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2307.09288, 2023.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+W.-L. Chiang, Z. Li, Z. Lin, Y. Sheng, Z. Wu, H. Zhang, L. Zheng, S. Zhuang, Y. Zhuang, J. E. Gonzalez <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">et al.</em>, “Vicuna: An open-source chatbot impressing gpt-4 with 90%* chatgpt quality, march 2023,” <em id="bib.bib16.2.2" class="ltx_emph ltx_font_italic">URL https://lmsys. org/blog/2023-03-30-vicuna</em>, vol. 3, no. 5, 2023.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+M. Wang, W. Han, I. Shafran, Z. Wu, C. Chiu, Y. Cao, N. Chen, Y. Zhang, H. Soltau, P. K. Rubenstein, L. Zilka, D. Yu, G. Pundak, N. Siddhartha, J. Schalkwyk, and Y. Wu, “SLM: bridge the thin gap between speech and text foundation models,” in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">ASRU</em>.   IEEE, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Y. Fathullah, C. Wu, E. Lakomkin, J. Jia, Y. Shangguan, K. Li, J. Guo, W. Xiong, J. Mahadeokar, O. Kalinli, C. Fuegen, and M. Seltzer, “Prompting large language models with speech recognition abilities,” <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2307.11795, 2023.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+C. Tang, W. Yu, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, Z. Ma, and C. Zhang, “SALMONN: towards generic hearing abilities for large language models,” <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2310.13289, 2023.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Y. Chu, J. Xu, X. Zhou, Q. Yang, S. Zhang, Z. Yan, C. Zhou, and J. Zhou, “Qwen-audio: Advancing universal audio understanding via unified large-scale audio-language models,” <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2311.07919, 2023.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Z. Ma, G. Yang, Y. Yang, Z. Gao, J. Wang, Z. Du, F. Yu, Q. Chen, S. Zheng, S. Zhang, and X. Chen, “An embarrassingly simple approach for LLM with strong ASR capacity,” <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2402.08846, 2024.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+X. Geng, T. Xu, K. Wei, B. Mu, H. Xue, H. Wang, Y. Li, P. Guo, Y. Dai, L. Li, M. Shao, and L. Xie, “Unveiling the potential of llm-based ASR on chinese open-source datasets,” <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2405.02132, 2024.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A framework for self-supervised learning of speech representations,” in <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">NeurIPS</em>, 2020.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+W. Hsu, B. Bolte, Y. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, “Hubert: Self-supervised speech representation learning by masked prediction of hidden units,” <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">IEEE ACM Trans. Audio Speech Lang. Process.</em>, vol. 29, pp. 3451–3460, 2021.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao, J. Wu, L. Zhou, S. Ren, Y. Qian, Y. Qian, J. Wu, M. Zeng, X. Yu, and F. Wei, “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">IEEE J. Sel. Top. Signal Process.</em>, vol. 16, no. 6, pp. 1505–1518, 2022.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever, “Robust speech recognition via large-scale weak supervision,” in <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">ICML</em>, ser. Proceedings of Machine Learning Research, vol. 202.   PMLR, 2023, pp. 28 492–28 518.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, “Lora: Low-rank adaptation of large language models,” in <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">ICLR</em>.   OpenReview.net, 2022.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+J. Cosentino, M. Pariente, S. Cornell, A. Deleforge, and E. Vincent, “Librimix: An open-source dataset for generalizable speech separation,” 2020.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+S. Watanabe, T. Hori, S. Karita, T. Hayashi, J. Nishitoba, Y. Unno, N. E. Y. Soplin, J. Heymann, M. Wiesner, N. Chen, A. Renduchintala, and T. Ochiai, “Espnet: End-to-end speech processing toolkit,” in <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2018, pp. 2207–2211.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Librispeech: An ASR corpus based on public domain audio books,” in <em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>.   IEEE, 2015, pp. 5206–5210.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+G. Wichern, J. Antognini, M. Flynn, L. R. Zhu, E. McQuinn, D. Crow, E. Manilow, and J. L. Roux, “Wham!: Extending speech separation to noisy environments,” in <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2019, pp. 1368–1372.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock">
+M. Maciejewski, G. Wichern, E. McQuinn, and J. L. Roux, “Whamr!: Noisy and reverberant single-channel speech separation,” in <em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>.   IEEE, 2020, pp. 696–700.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock">
+J. Rasley, S. Rajbhandari, O. Ruwase, and Y. He, “Deepspeed: System optimizations enable training deep learning models with over 100 billion parameters,” in <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">KDD</em>.   ACM, 2020, pp. 3505–3506.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[34]</span>
+<span class="ltx_bibblock">
+I. Loshchilov and F. Hutter, “Decoupled weight decay regularization,” in <em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">ICLR (Poster)</em>.   OpenReview.net, 2019.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[35]</span>
+<span class="ltx_bibblock">
+S. Watanabe, M. I. Mandel, J. Barker, and E. Vincent, “Chime-6 challenge: Tackling multispeaker speech recognition for unsegmented recordings,” <em id="bib.bib35.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2004.09249, 2020.
+
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[36]</span>
+<span class="ltx_bibblock">
+C. Li, Y. Qian, Z. Chen, N. Kanda, D. Wang, T. Yoshioka, Y. Qian, and M. Zeng, “Adapting multi-lingual ASR models for handling multiple talkers,” in <em id="bib.bib36.1.1" class="ltx_emph ltx_font_italic">INTERSPEECH</em>.   ISCA, 2023, pp. 1314–1318.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2408.17430" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2408.17431" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2408.17431">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2408.17431" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2408.17432" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Sep  5 11:59:16 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

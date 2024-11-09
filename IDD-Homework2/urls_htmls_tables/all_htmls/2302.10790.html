@@ -1,0 +1,1026 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2302.10790] Federated Learning for ASR based on Wav2vec 2.0</title><meta property="og:description" content="This paper presents a study on the use of federated learning to train an ASR model based on a wav2vec 2.0 model pre-trained by self supervision.
+Carried out on the well-known TED-LIUM 3 dataset, our experiments show th…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Federated Learning for ASR based on Wav2vec 2.0">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Federated Learning for ASR based on Wav2vec 2.0">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2302.10790">
+
+<!--Generated on Fri Mar  1 01:30:37 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Federated Learning for ASR based on Wav2vec 2.0</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p"><span id="id1.id1.1" class="ltx_text" style="font-size:90%;">This paper presents a study on the use of federated learning to train an ASR model based on a wav2vec 2.0 model pre-trained by self supervision.
+Carried out on the well-known TED-LIUM 3 dataset, our experiments show that such a model can obtain, with no use of a language model, a word error rate of 10.92% on the official TED-LIUM 3 test set, without sharing any data from the different users.
+We also analyse the ASR performance for speakers depending to their participation to the federated learning.
+Since federated learning was first introduced for privacy purposes, we also measure its ability to protect speaker identity.
+To do that, we exploit an approach to analyze information contained in exchanged models based on a neural network footprint on an <span id="id1.id1.1.1" class="ltx_text ltx_font_italic">indicator</span> dataset.
+This analysis is made layer-wise and shows which layers in an exchanged wav2vec 2.0-based model bring the speaker identity information.</span></p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— <span id="p1.1.1.1.1" class="ltx_text ltx_font_medium">
+Federated learning, Automatic Speech Recognition, Self-supervised models, Privacy</span></span></span></p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p"><span id="S1.p1.1.1" class="ltx_text" style="font-size:90%;">Federated learning (FL) has been successfully explored for image and natural language processing </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.4" class="ltx_text" style="font-size:90%;">.
+FL </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a><span id="S1.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.7" class="ltx_text" style="font-size:90%;"> is a distributed machine learning paradigm that aims to collaboratively train a machine learning model without data sharing.
+It consists in a network of multiple clients and one server.
+The training is based on an iterative numbers of rounds.
+At each federated learning round, clients train a local model using their private data, and send this updated model to the server.
+The server aggregates the received updates into a single global model and sends its parameters back to the clients’ devices.</span></p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p"><span id="S1.p2.1.1" class="ltx_text" style="font-size:90%;">Recently, FL has been applied in various speech-related applications, such as automatic speech recognition (ASR) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>, <a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S1.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.4" class="ltx_text" style="font-size:90%;">.
+keyword spotting </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a><span id="S1.p2.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.7" class="ltx_text" style="font-size:90%;">,
+speaker recognition </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S1.p2.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.10" class="ltx_text" style="font-size:90%;">,
+speech emotion recognition </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib14" title="" class="ltx_ref">14</a><span id="S1.p2.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.13" class="ltx_text" style="font-size:90%;">,
+self-supervised learning (SSL) of speech representations </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.14.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib15" title="" class="ltx_ref">15</a><span id="S1.p2.1.15.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.16" class="ltx_text" style="font-size:90%;">, and others.
+However, their robustness capabilities have not been extensively investigated and research in this area is still limited.
+In </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.17.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S1.p2.1.18.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.19" class="ltx_text" style="font-size:90%;">, authors showed why ASR FL task can be considered as very challenging.
+The challenges include: (1) communication bottleneck, (2) computation capabilities and energy states, (3) the performance and accuracy of the learned model and (4) privacy and security considerations.</span></p>
+</div>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p"><span id="S1.p3.1.1" class="ltx_text" style="font-size:90%;">Recently, wav2vec2.0 </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S1.p3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p3.1.4" class="ltx_text" style="font-size:90%;"> models have become more popular and have achieved good performance in many speech processing tasks </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p3.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S1.p3.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p3.1.7" class="ltx_text" style="font-size:90%;">.
+Authors in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p3.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S1.p3.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p3.1.10" class="ltx_text" style="font-size:90%;"> claim this framework can enable automatic speech recognition models with just 10 minutes of transcribed speech data.</span></p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p"><span id="S1.p4.1.1" class="ltx_text" style="font-size:90%;">This paper presents a study on the use of federated learning to train an ASR model based on a wav2vec 2.0 model pre-trained by self supervision.
+To our knowledge, there is no previous published work on this use of wav2vec2.0 models.
+We analyse the global ASR performance but also the performance for speakers depending to their participation to the federated learning.
+Since federated learning was first introduced for privacy purposes, we also measure its ability to protect speaker identity.
+Some related works show that federated learning is vulnerable to various types of attacks </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p4.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S1.p4.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p4.1.4" class="ltx_text" style="font-size:90%;">.
+To do that, we exploit an approach to analyze information contained in exchanged models based on a neural network footprint on an </span><span id="S1.p4.1.5" class="ltx_text ltx_font_italic" style="font-size:90%;">indicator</span><span id="S1.p4.1.6" class="ltx_text" style="font-size:90%;"> dataset.
+This analysis is made layer-wise and shows which layers in an exchanged wav2vec 2.0-based model bring the speaker identity information.</span></p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">2 </span>Federated learning for wav2vec 2.0 models</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Federated learning</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p"><span id="S2.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">The idea of FL paradigm is about training a neural model across multiple cross-device or server.
+Unlike distributed learning, FL participants only exchange model parameters without exposing any data samples.
+By doing this, it is expected to ensure the data privacy of participants or clients. FL technique follows strictly to these steps: </span>
+<br class="ltx_break"></p>
+<ol id="S2.I1" class="ltx_enumerate">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">1.</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p"><span id="S2.I1.i1.p1.1.1" class="ltx_text" style="font-size:90%;">The centralized server initializes the global model </span><math id="S2.I1.i1.p1.1.m1.1" class="ltx_Math" alttext="G" display="inline"><semantics id="S2.I1.i1.p1.1.m1.1a"><mi mathsize="90%" id="S2.I1.i1.p1.1.m1.1.1" xref="S2.I1.i1.p1.1.m1.1.1.cmml">G</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i1.p1.1.m1.1b"><ci id="S2.I1.i1.p1.1.m1.1.1.cmml" xref="S2.I1.i1.p1.1.m1.1.1">𝐺</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i1.p1.1.m1.1c">G</annotation></semantics></math><span id="S2.I1.i1.p1.1.2" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">2.</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p"><span id="S2.I1.i2.p1.1.1" class="ltx_text" style="font-size:90%;">The global model </span><math id="S2.I1.i2.p1.1.m1.1" class="ltx_Math" alttext="G" display="inline"><semantics id="S2.I1.i2.p1.1.m1.1a"><mi mathsize="90%" id="S2.I1.i2.p1.1.m1.1.1" xref="S2.I1.i2.p1.1.m1.1.1.cmml">G</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i2.p1.1.m1.1b"><ci id="S2.I1.i2.p1.1.m1.1.1.cmml" xref="S2.I1.i2.p1.1.m1.1.1">𝐺</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i2.p1.1.m1.1c">G</annotation></semantics></math><span id="S2.I1.i2.p1.1.2" class="ltx_text" style="font-size:90%;"> is sent to each available clients.</span></p>
+</div>
+</li>
+<li id="S2.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">3.</span> 
+<div id="S2.I1.i3.p1" class="ltx_para">
+<p id="S2.I1.i3.p1.2" class="ltx_p"><span id="S2.I1.i3.p1.2.1" class="ltx_text" style="font-size:90%;">Each client </span><math id="S2.I1.i3.p1.1.m1.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S2.I1.i3.p1.1.m1.1a"><mi mathsize="90%" id="S2.I1.i3.p1.1.m1.1.1" xref="S2.I1.i3.p1.1.m1.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i3.p1.1.m1.1b"><ci id="S2.I1.i3.p1.1.m1.1.1.cmml" xref="S2.I1.i3.p1.1.m1.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i3.p1.1.m1.1c">c</annotation></semantics></math><span id="S2.I1.i3.p1.2.2" class="ltx_text" style="font-size:90%;"> fine-tunes the global model on its local data to obtain the updated model </span><math id="S2.I1.i3.p1.2.m2.1" class="ltx_Math" alttext="M_{c}" display="inline"><semantics id="S2.I1.i3.p1.2.m2.1a"><msub id="S2.I1.i3.p1.2.m2.1.1" xref="S2.I1.i3.p1.2.m2.1.1.cmml"><mi mathsize="90%" id="S2.I1.i3.p1.2.m2.1.1.2" xref="S2.I1.i3.p1.2.m2.1.1.2.cmml">M</mi><mi mathsize="90%" id="S2.I1.i3.p1.2.m2.1.1.3" xref="S2.I1.i3.p1.2.m2.1.1.3.cmml">c</mi></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i3.p1.2.m2.1b"><apply id="S2.I1.i3.p1.2.m2.1.1.cmml" xref="S2.I1.i3.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.I1.i3.p1.2.m2.1.1.1.cmml" xref="S2.I1.i3.p1.2.m2.1.1">subscript</csymbol><ci id="S2.I1.i3.p1.2.m2.1.1.2.cmml" xref="S2.I1.i3.p1.2.m2.1.1.2">𝑀</ci><ci id="S2.I1.i3.p1.2.m2.1.1.3.cmml" xref="S2.I1.i3.p1.2.m2.1.1.3">𝑐</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i3.p1.2.m2.1c">M_{c}</annotation></semantics></math><span id="S2.I1.i3.p1.2.3" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</li>
+<li id="S2.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">4.</span> 
+<div id="S2.I1.i4.p1" class="ltx_para">
+<p id="S2.I1.i4.p1.2" class="ltx_p"><span id="S2.I1.i4.p1.2.1" class="ltx_text" style="font-size:90%;">All the updated models </span><math id="S2.I1.i4.p1.1.m1.1" class="ltx_Math" alttext="M_{c}" display="inline"><semantics id="S2.I1.i4.p1.1.m1.1a"><msub id="S2.I1.i4.p1.1.m1.1.1" xref="S2.I1.i4.p1.1.m1.1.1.cmml"><mi mathsize="90%" id="S2.I1.i4.p1.1.m1.1.1.2" xref="S2.I1.i4.p1.1.m1.1.1.2.cmml">M</mi><mi mathsize="90%" id="S2.I1.i4.p1.1.m1.1.1.3" xref="S2.I1.i4.p1.1.m1.1.1.3.cmml">c</mi></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i4.p1.1.m1.1b"><apply id="S2.I1.i4.p1.1.m1.1.1.cmml" xref="S2.I1.i4.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.I1.i4.p1.1.m1.1.1.1.cmml" xref="S2.I1.i4.p1.1.m1.1.1">subscript</csymbol><ci id="S2.I1.i4.p1.1.m1.1.1.2.cmml" xref="S2.I1.i4.p1.1.m1.1.1.2">𝑀</ci><ci id="S2.I1.i4.p1.1.m1.1.1.3.cmml" xref="S2.I1.i4.p1.1.m1.1.1.3">𝑐</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i4.p1.1.m1.1c">M_{c}</annotation></semantics></math><span id="S2.I1.i4.p1.2.2" class="ltx_text" style="font-size:90%;"> from clients </span><math id="S2.I1.i4.p1.2.m2.1" class="ltx_Math" alttext="c_{k}" display="inline"><semantics id="S2.I1.i4.p1.2.m2.1a"><msub id="S2.I1.i4.p1.2.m2.1.1" xref="S2.I1.i4.p1.2.m2.1.1.cmml"><mi mathsize="90%" id="S2.I1.i4.p1.2.m2.1.1.2" xref="S2.I1.i4.p1.2.m2.1.1.2.cmml">c</mi><mi mathsize="90%" id="S2.I1.i4.p1.2.m2.1.1.3" xref="S2.I1.i4.p1.2.m2.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.I1.i4.p1.2.m2.1b"><apply id="S2.I1.i4.p1.2.m2.1.1.cmml" xref="S2.I1.i4.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.I1.i4.p1.2.m2.1.1.1.cmml" xref="S2.I1.i4.p1.2.m2.1.1">subscript</csymbol><ci id="S2.I1.i4.p1.2.m2.1.1.2.cmml" xref="S2.I1.i4.p1.2.m2.1.1.2">𝑐</ci><ci id="S2.I1.i4.p1.2.m2.1.1.3.cmml" xref="S2.I1.i4.p1.2.m2.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i4.p1.2.m2.1c">c_{k}</annotation></semantics></math><span id="S2.I1.i4.p1.2.3" class="ltx_text" style="font-size:90%;"> are sent back to the server and being aggregated to form a new model.</span></p>
+</div>
+</li>
+<li id="S2.I1.i5" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">5.</span> 
+<div id="S2.I1.i5.p1" class="ltx_para">
+<p id="S2.I1.i5.p1.3" class="ltx_p"><span id="S2.I1.i5.p1.3.1" class="ltx_text" style="font-size:90%;">The process restarts again from </span><math id="S2.I1.i5.p1.1.m1.1" class="ltx_Math" alttext="2^{nd}" display="inline"><semantics id="S2.I1.i5.p1.1.m1.1a"><msup id="S2.I1.i5.p1.1.m1.1.1" xref="S2.I1.i5.p1.1.m1.1.1.cmml"><mn mathsize="90%" id="S2.I1.i5.p1.1.m1.1.1.2" xref="S2.I1.i5.p1.1.m1.1.1.2.cmml">2</mn><mrow id="S2.I1.i5.p1.1.m1.1.1.3" xref="S2.I1.i5.p1.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S2.I1.i5.p1.1.m1.1.1.3.2" xref="S2.I1.i5.p1.1.m1.1.1.3.2.cmml">n</mi><mo lspace="0em" rspace="0em" id="S2.I1.i5.p1.1.m1.1.1.3.1" xref="S2.I1.i5.p1.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S2.I1.i5.p1.1.m1.1.1.3.3" xref="S2.I1.i5.p1.1.m1.1.1.3.3.cmml">d</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S2.I1.i5.p1.1.m1.1b"><apply id="S2.I1.i5.p1.1.m1.1.1.cmml" xref="S2.I1.i5.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.I1.i5.p1.1.m1.1.1.1.cmml" xref="S2.I1.i5.p1.1.m1.1.1">superscript</csymbol><cn type="integer" id="S2.I1.i5.p1.1.m1.1.1.2.cmml" xref="S2.I1.i5.p1.1.m1.1.1.2">2</cn><apply id="S2.I1.i5.p1.1.m1.1.1.3.cmml" xref="S2.I1.i5.p1.1.m1.1.1.3"><times id="S2.I1.i5.p1.1.m1.1.1.3.1.cmml" xref="S2.I1.i5.p1.1.m1.1.1.3.1"></times><ci id="S2.I1.i5.p1.1.m1.1.1.3.2.cmml" xref="S2.I1.i5.p1.1.m1.1.1.3.2">𝑛</ci><ci id="S2.I1.i5.p1.1.m1.1.1.3.3.cmml" xref="S2.I1.i5.p1.1.m1.1.1.3.3">𝑑</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i5.p1.1.m1.1c">2^{nd}</annotation></semantics></math><span id="S2.I1.i5.p1.3.2" class="ltx_text" style="font-size:90%;"> step to </span><math id="S2.I1.i5.p1.2.m2.1" class="ltx_Math" alttext="4^{th}" display="inline"><semantics id="S2.I1.i5.p1.2.m2.1a"><msup id="S2.I1.i5.p1.2.m2.1.1" xref="S2.I1.i5.p1.2.m2.1.1.cmml"><mn mathsize="90%" id="S2.I1.i5.p1.2.m2.1.1.2" xref="S2.I1.i5.p1.2.m2.1.1.2.cmml">4</mn><mrow id="S2.I1.i5.p1.2.m2.1.1.3" xref="S2.I1.i5.p1.2.m2.1.1.3.cmml"><mi mathsize="90%" id="S2.I1.i5.p1.2.m2.1.1.3.2" xref="S2.I1.i5.p1.2.m2.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.I1.i5.p1.2.m2.1.1.3.1" xref="S2.I1.i5.p1.2.m2.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S2.I1.i5.p1.2.m2.1.1.3.3" xref="S2.I1.i5.p1.2.m2.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S2.I1.i5.p1.2.m2.1b"><apply id="S2.I1.i5.p1.2.m2.1.1.cmml" xref="S2.I1.i5.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.I1.i5.p1.2.m2.1.1.1.cmml" xref="S2.I1.i5.p1.2.m2.1.1">superscript</csymbol><cn type="integer" id="S2.I1.i5.p1.2.m2.1.1.2.cmml" xref="S2.I1.i5.p1.2.m2.1.1.2">4</cn><apply id="S2.I1.i5.p1.2.m2.1.1.3.cmml" xref="S2.I1.i5.p1.2.m2.1.1.3"><times id="S2.I1.i5.p1.2.m2.1.1.3.1.cmml" xref="S2.I1.i5.p1.2.m2.1.1.3.1"></times><ci id="S2.I1.i5.p1.2.m2.1.1.3.2.cmml" xref="S2.I1.i5.p1.2.m2.1.1.3.2">𝑡</ci><ci id="S2.I1.i5.p1.2.m2.1.1.3.3.cmml" xref="S2.I1.i5.p1.2.m2.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i5.p1.2.m2.1c">4^{th}</annotation></semantics></math><span id="S2.I1.i5.p1.3.3" class="ltx_text" style="font-size:90%;"> step until the convergence or number of rounds </span><math id="S2.I1.i5.p1.3.m3.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.I1.i5.p1.3.m3.1a"><mi mathsize="90%" id="S2.I1.i5.p1.3.m3.1.1" xref="S2.I1.i5.p1.3.m3.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i5.p1.3.m3.1b"><ci id="S2.I1.i5.p1.3.m3.1.1.cmml" xref="S2.I1.i5.p1.3.m3.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i5.p1.3.m3.1c">T</annotation></semantics></math><span id="S2.I1.i5.p1.3.4" class="ltx_text" style="font-size:90%;"> is reached.</span></p>
+</div>
+</li>
+</ol>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.5" class="ltx_p"><span id="S2.SS1.p2.5.1" class="ltx_text" style="font-size:90%;">In recent years, more and more studies have been conducted to find the most proper weight aggregation strategy for FL </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.5.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib21" title="" class="ltx_ref">21</a>, <a href="#bib.bib22" title="" class="ltx_ref">22</a><span id="S2.SS1.p2.5.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.5.4" class="ltx_text" style="font-size:90%;">.
+Among them, Federated Averaging (FedAvg) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.5.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a><span id="S2.SS1.p2.5.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.5.7" class="ltx_text" style="font-size:90%;"> is the fundamental and the most well-known FL algorithm.
+FedAvg is based on FedSGD </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.5.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib23" title="" class="ltx_ref">23</a><span id="S2.SS1.p2.5.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.5.10" class="ltx_text" style="font-size:90%;"> algorithm.
+Instead of exchange the gradients after batch updated, FedAvg clients send the updated weights.
+At each round, a number </span><math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><mi mathsize="90%" id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><ci id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">m</annotation></semantics></math><span id="S2.SS1.p2.5.11" class="ltx_text" style="font-size:90%;"> of clients are chosen among </span><math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><ci id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">K</annotation></semantics></math><span id="S2.SS1.p2.5.12" class="ltx_text" style="font-size:90%;"> total clients to send their updated model to server.
+From here, server weights each of clients’ parameters </span><math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="F_{k}(w)" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mrow id="S2.SS1.p2.3.m3.1.2" xref="S2.SS1.p2.3.m3.1.2.cmml"><msub id="S2.SS1.p2.3.m3.1.2.2" xref="S2.SS1.p2.3.m3.1.2.2.cmml"><mi mathsize="90%" id="S2.SS1.p2.3.m3.1.2.2.2" xref="S2.SS1.p2.3.m3.1.2.2.2.cmml">F</mi><mi mathsize="90%" id="S2.SS1.p2.3.m3.1.2.2.3" xref="S2.SS1.p2.3.m3.1.2.2.3.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p2.3.m3.1.2.1" xref="S2.SS1.p2.3.m3.1.2.1.cmml">​</mo><mrow id="S2.SS1.p2.3.m3.1.2.3.2" xref="S2.SS1.p2.3.m3.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.3.m3.1.2.3.2.1" xref="S2.SS1.p2.3.m3.1.2.cmml">(</mo><mi mathsize="90%" id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml">w</mi><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.3.m3.1.2.3.2.2" xref="S2.SS1.p2.3.m3.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><apply id="S2.SS1.p2.3.m3.1.2.cmml" xref="S2.SS1.p2.3.m3.1.2"><times id="S2.SS1.p2.3.m3.1.2.1.cmml" xref="S2.SS1.p2.3.m3.1.2.1"></times><apply id="S2.SS1.p2.3.m3.1.2.2.cmml" xref="S2.SS1.p2.3.m3.1.2.2"><csymbol cd="ambiguous" id="S2.SS1.p2.3.m3.1.2.2.1.cmml" xref="S2.SS1.p2.3.m3.1.2.2">subscript</csymbol><ci id="S2.SS1.p2.3.m3.1.2.2.2.cmml" xref="S2.SS1.p2.3.m3.1.2.2.2">𝐹</ci><ci id="S2.SS1.p2.3.m3.1.2.2.3.cmml" xref="S2.SS1.p2.3.m3.1.2.2.3">𝑘</ci></apply><ci id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1">𝑤</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">F_{k}(w)</annotation></semantics></math><span id="S2.SS1.p2.5.13" class="ltx_text" style="font-size:90%;"> by their size of dataset </span><math id="S2.SS1.p2.4.m4.1" class="ltx_Math" alttext="n_{k}" display="inline"><semantics id="S2.SS1.p2.4.m4.1a"><msub id="S2.SS1.p2.4.m4.1.1" xref="S2.SS1.p2.4.m4.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p2.4.m4.1.1.2" xref="S2.SS1.p2.4.m4.1.1.2.cmml">n</mi><mi mathsize="90%" id="S2.SS1.p2.4.m4.1.1.3" xref="S2.SS1.p2.4.m4.1.1.3.cmml">k</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.4.m4.1b"><apply id="S2.SS1.p2.4.m4.1.1.cmml" xref="S2.SS1.p2.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.4.m4.1.1.1.cmml" xref="S2.SS1.p2.4.m4.1.1">subscript</csymbol><ci id="S2.SS1.p2.4.m4.1.1.2.cmml" xref="S2.SS1.p2.4.m4.1.1.2">𝑛</ci><ci id="S2.SS1.p2.4.m4.1.1.3.cmml" xref="S2.SS1.p2.4.m4.1.1.3">𝑘</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.4.m4.1c">n_{k}</annotation></semantics></math><span id="S2.SS1.p2.5.14" class="ltx_text" style="font-size:90%;"> over the total data </span><math id="S2.SS1.p2.5.m5.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S2.SS1.p2.5.m5.1a"><mi mathsize="90%" id="S2.SS1.p2.5.m5.1.1" xref="S2.SS1.p2.5.m5.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.5.m5.1b"><ci id="S2.SS1.p2.5.m5.1.1.cmml" xref="S2.SS1.p2.5.m5.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.5.m5.1c">n</annotation></semantics></math><span id="S2.SS1.p2.5.15" class="ltx_text" style="font-size:90%;"> are used in the given round and then aggregates them:</span></p>
+</div>
+<div id="S2.SS1.p3" class="ltx_para">
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.14" class="ltx_Math" alttext="\begin{split}f(w)=\sum_{k=1}^{m}\frac{n_{k}}{n}F_{k}(w)\end{split}" display="block"><semantics id="S2.E1.m1.14a"><mtable displaystyle="true" id="S2.E1.m1.14.14" xref="S2.E1.m1.14.15.1.cmml"><mtr id="S2.E1.m1.14.14a" xref="S2.E1.m1.14.15.1.cmml"><mtd class="ltx_align_right" columnalign="right" id="S2.E1.m1.14.14b" xref="S2.E1.m1.14.15.1.cmml"><mrow id="S2.E1.m1.14.14.14.14.14" xref="S2.E1.m1.14.15.1.cmml"><mrow id="S2.E1.m1.14.14.14.14.14.15" xref="S2.E1.m1.14.15.1.cmml"><mi mathsize="90%" id="S2.E1.m1.1.1.1.1.1.1" xref="S2.E1.m1.1.1.1.1.1.1.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.E1.m1.14.14.14.14.14.15.1" xref="S2.E1.m1.14.15.1.cmml">​</mo><mrow id="S2.E1.m1.14.14.14.14.14.15.2" xref="S2.E1.m1.14.15.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.E1.m1.2.2.2.2.2.2" xref="S2.E1.m1.14.15.1.cmml">(</mo><mi mathsize="90%" id="S2.E1.m1.3.3.3.3.3.3" xref="S2.E1.m1.3.3.3.3.3.3.cmml">w</mi><mo maxsize="90%" minsize="90%" id="S2.E1.m1.4.4.4.4.4.4" xref="S2.E1.m1.14.15.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" rspace="0.111em" id="S2.E1.m1.5.5.5.5.5.5" xref="S2.E1.m1.5.5.5.5.5.5.cmml">=</mo><mrow id="S2.E1.m1.14.14.14.14.14.16" xref="S2.E1.m1.14.15.1.cmml"><munderover id="S2.E1.m1.14.14.14.14.14.16.1" xref="S2.E1.m1.14.15.1.cmml"><mo maxsize="90%" minsize="90%" movablelimits="false" stretchy="true" id="S2.E1.m1.6.6.6.6.6.6" xref="S2.E1.m1.6.6.6.6.6.6.cmml">∑</mo><mrow id="S2.E1.m1.7.7.7.7.7.7.1" xref="S2.E1.m1.7.7.7.7.7.7.1.cmml"><mi mathsize="90%" id="S2.E1.m1.7.7.7.7.7.7.1.2" xref="S2.E1.m1.7.7.7.7.7.7.1.2.cmml">k</mi><mo mathsize="90%" id="S2.E1.m1.7.7.7.7.7.7.1.1" xref="S2.E1.m1.7.7.7.7.7.7.1.1.cmml">=</mo><mn mathsize="90%" id="S2.E1.m1.7.7.7.7.7.7.1.3" xref="S2.E1.m1.7.7.7.7.7.7.1.3.cmml">1</mn></mrow><mi mathsize="90%" id="S2.E1.m1.8.8.8.8.8.8.1" xref="S2.E1.m1.8.8.8.8.8.8.1.cmml">m</mi></munderover><mrow id="S2.E1.m1.14.14.14.14.14.16.2" xref="S2.E1.m1.14.15.1.cmml"><mfrac id="S2.E1.m1.9.9.9.9.9.9" xref="S2.E1.m1.9.9.9.9.9.9.cmml"><msub id="S2.E1.m1.9.9.9.9.9.9.2" xref="S2.E1.m1.9.9.9.9.9.9.2.cmml"><mi mathsize="90%" id="S2.E1.m1.9.9.9.9.9.9.2.2" xref="S2.E1.m1.9.9.9.9.9.9.2.2.cmml">n</mi><mi mathsize="90%" id="S2.E1.m1.9.9.9.9.9.9.2.3" xref="S2.E1.m1.9.9.9.9.9.9.2.3.cmml">k</mi></msub><mi mathsize="90%" id="S2.E1.m1.9.9.9.9.9.9.3" xref="S2.E1.m1.9.9.9.9.9.9.3.cmml">n</mi></mfrac><mo lspace="0em" rspace="0em" id="S2.E1.m1.14.14.14.14.14.16.2.1" xref="S2.E1.m1.14.15.1.cmml">​</mo><msub id="S2.E1.m1.14.14.14.14.14.16.2.2" xref="S2.E1.m1.14.15.1.cmml"><mi mathsize="90%" id="S2.E1.m1.10.10.10.10.10.10" xref="S2.E1.m1.10.10.10.10.10.10.cmml">F</mi><mi mathsize="90%" id="S2.E1.m1.11.11.11.11.11.11.1" xref="S2.E1.m1.11.11.11.11.11.11.1.cmml">k</mi></msub><mo lspace="0em" rspace="0em" id="S2.E1.m1.14.14.14.14.14.16.2.1a" xref="S2.E1.m1.14.15.1.cmml">​</mo><mrow id="S2.E1.m1.14.14.14.14.14.16.2.3" xref="S2.E1.m1.14.15.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.E1.m1.12.12.12.12.12.12" xref="S2.E1.m1.14.15.1.cmml">(</mo><mi mathsize="90%" id="S2.E1.m1.13.13.13.13.13.13" xref="S2.E1.m1.13.13.13.13.13.13.cmml">w</mi><mo maxsize="90%" minsize="90%" id="S2.E1.m1.14.14.14.14.14.14" xref="S2.E1.m1.14.15.1.cmml">)</mo></mrow></mrow></mrow></mrow></mtd></mtr></mtable><annotation-xml encoding="MathML-Content" id="S2.E1.m1.14b"><apply id="S2.E1.m1.14.15.1.cmml" xref="S2.E1.m1.14.14"><eq id="S2.E1.m1.5.5.5.5.5.5.cmml" xref="S2.E1.m1.5.5.5.5.5.5"></eq><apply id="S2.E1.m1.14.15.1.2.cmml" xref="S2.E1.m1.14.14"><times id="S2.E1.m1.14.15.1.2.1.cmml" xref="S2.E1.m1.14.14"></times><ci id="S2.E1.m1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.1.1.1.1.1.1">𝑓</ci><ci id="S2.E1.m1.3.3.3.3.3.3.cmml" xref="S2.E1.m1.3.3.3.3.3.3">𝑤</ci></apply><apply id="S2.E1.m1.14.15.1.3.cmml" xref="S2.E1.m1.14.14"><apply id="S2.E1.m1.14.15.1.3.1.cmml" xref="S2.E1.m1.14.14"><csymbol cd="ambiguous" id="S2.E1.m1.14.15.1.3.1.1.cmml" xref="S2.E1.m1.14.14">superscript</csymbol><apply id="S2.E1.m1.14.15.1.3.1.2.cmml" xref="S2.E1.m1.14.14"><csymbol cd="ambiguous" id="S2.E1.m1.14.15.1.3.1.2.1.cmml" xref="S2.E1.m1.14.14">subscript</csymbol><sum id="S2.E1.m1.6.6.6.6.6.6.cmml" xref="S2.E1.m1.6.6.6.6.6.6"></sum><apply id="S2.E1.m1.7.7.7.7.7.7.1.cmml" xref="S2.E1.m1.7.7.7.7.7.7.1"><eq id="S2.E1.m1.7.7.7.7.7.7.1.1.cmml" xref="S2.E1.m1.7.7.7.7.7.7.1.1"></eq><ci id="S2.E1.m1.7.7.7.7.7.7.1.2.cmml" xref="S2.E1.m1.7.7.7.7.7.7.1.2">𝑘</ci><cn type="integer" id="S2.E1.m1.7.7.7.7.7.7.1.3.cmml" xref="S2.E1.m1.7.7.7.7.7.7.1.3">1</cn></apply></apply><ci id="S2.E1.m1.8.8.8.8.8.8.1.cmml" xref="S2.E1.m1.8.8.8.8.8.8.1">𝑚</ci></apply><apply id="S2.E1.m1.14.15.1.3.2.cmml" xref="S2.E1.m1.14.14"><times id="S2.E1.m1.14.15.1.3.2.1.cmml" xref="S2.E1.m1.14.14"></times><apply id="S2.E1.m1.9.9.9.9.9.9.cmml" xref="S2.E1.m1.9.9.9.9.9.9"><divide id="S2.E1.m1.9.9.9.9.9.9.1.cmml" xref="S2.E1.m1.9.9.9.9.9.9"></divide><apply id="S2.E1.m1.9.9.9.9.9.9.2.cmml" xref="S2.E1.m1.9.9.9.9.9.9.2"><csymbol cd="ambiguous" id="S2.E1.m1.9.9.9.9.9.9.2.1.cmml" xref="S2.E1.m1.9.9.9.9.9.9.2">subscript</csymbol><ci id="S2.E1.m1.9.9.9.9.9.9.2.2.cmml" xref="S2.E1.m1.9.9.9.9.9.9.2.2">𝑛</ci><ci id="S2.E1.m1.9.9.9.9.9.9.2.3.cmml" xref="S2.E1.m1.9.9.9.9.9.9.2.3">𝑘</ci></apply><ci id="S2.E1.m1.9.9.9.9.9.9.3.cmml" xref="S2.E1.m1.9.9.9.9.9.9.3">𝑛</ci></apply><apply id="S2.E1.m1.14.15.1.3.2.3.cmml" xref="S2.E1.m1.14.14"><csymbol cd="ambiguous" id="S2.E1.m1.14.15.1.3.2.3.1.cmml" xref="S2.E1.m1.14.14">subscript</csymbol><ci id="S2.E1.m1.10.10.10.10.10.10.cmml" xref="S2.E1.m1.10.10.10.10.10.10">𝐹</ci><ci id="S2.E1.m1.11.11.11.11.11.11.1.cmml" xref="S2.E1.m1.11.11.11.11.11.11.1">𝑘</ci></apply><ci id="S2.E1.m1.13.13.13.13.13.13.cmml" xref="S2.E1.m1.13.13.13.13.13.13">𝑤</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.14c">\begin{split}f(w)=\sum_{k=1}^{m}\frac{n_{k}}{n}F_{k}(w)\end{split}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Wav2vec 2.0 model</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p"><span id="S2.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">Wav2vec 2.0 </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib17" title="" class="ltx_ref">17</a><span id="S2.SS2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS2.p1.1.4" class="ltx_text" style="font-size:90%;"> is a model pre-trained through self-supervision. It takes raw audio as input and computes speech representations.
+Such pre-trained models can be fine-tuned by supervision to build speech recognition systems.
+Wav2vec 2.0 contains three main components: a convolutional feature encoder, a context network and a quantization block.
+The convolutional feature encoder converts the raw waveform into a latent representation.
+This representation is given to the context network which takes care of the context.
+The context network architecture consists of a succession of several transformer encoder blocks.
+The quantization network is used to map the latent representation to quantized representation.
+Facebook AI released self supervised pre-trained wav2vec 2.0 models.
+In this study, we use the model LS960-LV60 </span><span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>https://huggingface.co/facebook/wav2vec2-large-960h-lv60</span></span></span><span id="S2.SS2.p1.1.5" class="ltx_text" style="font-size:90%;"> pre-trained on English.</span></p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Implementation with SpeechBrain and Flower toolkits</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p"><span id="S2.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">The purpose of this research is to train an ASR with a federated learning paradigm.
+To attain this objective, </span><span id="S2.SS3.p1.1.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Flower</span><span id="S2.SS3.p1.1.3" class="ltx_text" style="font-size:90%;"> </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS3.p1.1.4.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib24" title="" class="ltx_ref">24</a><span id="S2.SS3.p1.1.5.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS3.p1.1.6" class="ltx_text" style="font-size:90%;"> and </span><span id="S2.SS3.p1.1.7" class="ltx_text ltx_font_italic" style="font-size:90%;">SpeechBrain</span><span id="S2.SS3.p1.1.8" class="ltx_text" style="font-size:90%;"> </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS3.p1.1.9.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib25" title="" class="ltx_ref">25</a><span id="S2.SS3.p1.1.10.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS3.p1.1.11" class="ltx_text" style="font-size:90%;"> have been used.
+Flower is an open-source framework that allows us to build FL experiments and considers the highly varied FL facility scenarios.
+The framework is composed of three main components: a client, a server and a strategy.
+The client and the server implement the basic functionalities of the clients and a server in a FL training.
+SpeechBrain is an open source toolkit for automatic speech processing. This toolkit is a simple and flexible end-to-end ASR framework. </span></p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Data</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.5" class="ltx_p"><span id="S3.SS1.p1.5.1" class="ltx_text" style="font-size:90%;">The experiments were conducted on the TED-LIUM 3 corpus </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p1.5.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib26" title="" class="ltx_ref">26</a><span id="S3.SS1.p1.5.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p1.5.4" class="ltx_text" style="font-size:90%;"> that contains TED talks with the total amount of 452 hours of speech data in English from about 2K speakers.
+This dataset has been used in some research works in the context of collaborative learning experiments </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p1.5.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib27" title="" class="ltx_ref">27</a><span id="S3.SS1.p1.5.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p1.5.7" class="ltx_text" style="font-size:90%;">.
+We organized the TED-LIUM 3 training dataset in order to simulate a realistic federated learning framework.
+Each speaker in the TED-LIUM 3 training set acts as a client in this FL scenario.
+For speakers </span><math id="S3.SS1.p1.1.m1.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S3.SS1.p1.1.m1.1a"><mi mathsize="90%" id="S3.SS1.p1.1.m1.1.1" xref="S3.SS1.p1.1.m1.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.1.m1.1b"><ci id="S3.SS1.p1.1.m1.1.1.cmml" xref="S3.SS1.p1.1.m1.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.1.m1.1c">s</annotation></semantics></math><span id="S3.SS1.p1.5.8" class="ltx_text" style="font-size:90%;"> in the training set with duration </span><math id="S3.SS1.p1.2.m2.1" class="ltx_Math" alttext="&gt;" display="inline"><semantics id="S3.SS1.p1.2.m2.1a"><mo mathsize="90%" id="S3.SS1.p1.2.m2.1.1" xref="S3.SS1.p1.2.m2.1.1.cmml">&gt;</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.2.m2.1b"><gt id="S3.SS1.p1.2.m2.1.1.cmml" xref="S3.SS1.p1.2.m2.1.1"></gt></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.2.m2.1c">&gt;</annotation></semantics></math><span id="S3.SS1.p1.5.9" class="ltx_text" style="font-size:90%;"> 10 minutes, we consider a subset of 5 minutes of speech data called </span><math id="S3.SS1.p1.3.m3.1" class="ltx_Math" alttext="analysis^{s}" display="inline"><semantics id="S3.SS1.p1.3.m3.1a"><mrow id="S3.SS1.p1.3.m3.1.1" xref="S3.SS1.p1.3.m3.1.1.cmml"><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.2" xref="S3.SS1.p1.3.m3.1.1.2.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.3" xref="S3.SS1.p1.3.m3.1.1.3.cmml">n</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1a" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.4" xref="S3.SS1.p1.3.m3.1.1.4.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1b" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.5" xref="S3.SS1.p1.3.m3.1.1.5.cmml">l</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1c" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.6" xref="S3.SS1.p1.3.m3.1.1.6.cmml">y</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1d" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.7" xref="S3.SS1.p1.3.m3.1.1.7.cmml">s</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1e" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.8" xref="S3.SS1.p1.3.m3.1.1.8.cmml">i</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.3.m3.1.1.1f" xref="S3.SS1.p1.3.m3.1.1.1.cmml">​</mo><msup id="S3.SS1.p1.3.m3.1.1.9" xref="S3.SS1.p1.3.m3.1.1.9.cmml"><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.9.2" xref="S3.SS1.p1.3.m3.1.1.9.2.cmml">s</mi><mi mathsize="90%" id="S3.SS1.p1.3.m3.1.1.9.3" xref="S3.SS1.p1.3.m3.1.1.9.3.cmml">s</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.3.m3.1b"><apply id="S3.SS1.p1.3.m3.1.1.cmml" xref="S3.SS1.p1.3.m3.1.1"><times id="S3.SS1.p1.3.m3.1.1.1.cmml" xref="S3.SS1.p1.3.m3.1.1.1"></times><ci id="S3.SS1.p1.3.m3.1.1.2.cmml" xref="S3.SS1.p1.3.m3.1.1.2">𝑎</ci><ci id="S3.SS1.p1.3.m3.1.1.3.cmml" xref="S3.SS1.p1.3.m3.1.1.3">𝑛</ci><ci id="S3.SS1.p1.3.m3.1.1.4.cmml" xref="S3.SS1.p1.3.m3.1.1.4">𝑎</ci><ci id="S3.SS1.p1.3.m3.1.1.5.cmml" xref="S3.SS1.p1.3.m3.1.1.5">𝑙</ci><ci id="S3.SS1.p1.3.m3.1.1.6.cmml" xref="S3.SS1.p1.3.m3.1.1.6">𝑦</ci><ci id="S3.SS1.p1.3.m3.1.1.7.cmml" xref="S3.SS1.p1.3.m3.1.1.7">𝑠</ci><ci id="S3.SS1.p1.3.m3.1.1.8.cmml" xref="S3.SS1.p1.3.m3.1.1.8">𝑖</ci><apply id="S3.SS1.p1.3.m3.1.1.9.cmml" xref="S3.SS1.p1.3.m3.1.1.9"><csymbol cd="ambiguous" id="S3.SS1.p1.3.m3.1.1.9.1.cmml" xref="S3.SS1.p1.3.m3.1.1.9">superscript</csymbol><ci id="S3.SS1.p1.3.m3.1.1.9.2.cmml" xref="S3.SS1.p1.3.m3.1.1.9.2">𝑠</ci><ci id="S3.SS1.p1.3.m3.1.1.9.3.cmml" xref="S3.SS1.p1.3.m3.1.1.9.3">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.3.m3.1c">analysis^{s}</annotation></semantics></math><span id="S3.SS1.p1.5.10" class="ltx_text" style="font-size:90%;"> to analyse some FL behaviours.
+The remaining is called </span><math id="S3.SS1.p1.4.m4.1" class="ltx_Math" alttext="train^{s}" display="inline"><semantics id="S3.SS1.p1.4.m4.1a"><mrow id="S3.SS1.p1.4.m4.1.1" xref="S3.SS1.p1.4.m4.1.1.cmml"><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.2" xref="S3.SS1.p1.4.m4.1.1.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.4.m4.1.1.1" xref="S3.SS1.p1.4.m4.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.3" xref="S3.SS1.p1.4.m4.1.1.3.cmml">r</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.4.m4.1.1.1a" xref="S3.SS1.p1.4.m4.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.4" xref="S3.SS1.p1.4.m4.1.1.4.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.4.m4.1.1.1b" xref="S3.SS1.p1.4.m4.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.5" xref="S3.SS1.p1.4.m4.1.1.5.cmml">i</mi><mo lspace="0em" rspace="0em" id="S3.SS1.p1.4.m4.1.1.1c" xref="S3.SS1.p1.4.m4.1.1.1.cmml">​</mo><msup id="S3.SS1.p1.4.m4.1.1.6" xref="S3.SS1.p1.4.m4.1.1.6.cmml"><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.6.2" xref="S3.SS1.p1.4.m4.1.1.6.2.cmml">n</mi><mi mathsize="90%" id="S3.SS1.p1.4.m4.1.1.6.3" xref="S3.SS1.p1.4.m4.1.1.6.3.cmml">s</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.4.m4.1b"><apply id="S3.SS1.p1.4.m4.1.1.cmml" xref="S3.SS1.p1.4.m4.1.1"><times id="S3.SS1.p1.4.m4.1.1.1.cmml" xref="S3.SS1.p1.4.m4.1.1.1"></times><ci id="S3.SS1.p1.4.m4.1.1.2.cmml" xref="S3.SS1.p1.4.m4.1.1.2">𝑡</ci><ci id="S3.SS1.p1.4.m4.1.1.3.cmml" xref="S3.SS1.p1.4.m4.1.1.3">𝑟</ci><ci id="S3.SS1.p1.4.m4.1.1.4.cmml" xref="S3.SS1.p1.4.m4.1.1.4">𝑎</ci><ci id="S3.SS1.p1.4.m4.1.1.5.cmml" xref="S3.SS1.p1.4.m4.1.1.5">𝑖</ci><apply id="S3.SS1.p1.4.m4.1.1.6.cmml" xref="S3.SS1.p1.4.m4.1.1.6"><csymbol cd="ambiguous" id="S3.SS1.p1.4.m4.1.1.6.1.cmml" xref="S3.SS1.p1.4.m4.1.1.6">superscript</csymbol><ci id="S3.SS1.p1.4.m4.1.1.6.2.cmml" xref="S3.SS1.p1.4.m4.1.1.6.2">𝑛</ci><ci id="S3.SS1.p1.4.m4.1.1.6.3.cmml" xref="S3.SS1.p1.4.m4.1.1.6.3">𝑠</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.4.m4.1c">train^{s}</annotation></semantics></math><span id="S3.SS1.p1.5.11" class="ltx_text" style="font-size:90%;"> and represents the local dataset for the client.
+For speakers in the training set with duration </span><math id="S3.SS1.p1.5.m5.1" class="ltx_Math" alttext="&lt;" display="inline"><semantics id="S3.SS1.p1.5.m5.1a"><mo mathsize="90%" id="S3.SS1.p1.5.m5.1.1" xref="S3.SS1.p1.5.m5.1.1.cmml">&lt;</mo><annotation-xml encoding="MathML-Content" id="S3.SS1.p1.5.m5.1b"><lt id="S3.SS1.p1.5.m5.1.1.cmml" xref="S3.SS1.p1.5.m5.1.1"></lt></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p1.5.m5.1c">&lt;</annotation></semantics></math><span id="S3.SS1.p1.5.12" class="ltx_text" style="font-size:90%;"> 10 minutes, all the speaker data will represent the local dataset for the client.
+For the test and development sets, we use the official test and development sets (legacy distribution) of the TED-LIUM 3 release.
+The </span><span id="S3.SS1.p1.5.13" class="ltx_text ltx_font_italic" style="font-size:90%;">indicator</span><span id="S3.SS1.p1.5.14" class="ltx_text" style="font-size:90%;"> dataset </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS1.p1.5.15.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S3.SS1.p1.5.16.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS1.p1.5.17" class="ltx_text" style="font-size:90%;"> is used to analyse the speaker information contained in the models exchanged between the server and clients.
+The speakers in the test, development, train, and indicator dataset are disjoint.
+Table </span><a href="#S3.T1" title="Table 1 ‣ 3.1 Data ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS1.p1.5.18" class="ltx_text" style="font-size:90%;"> presents the statistics of the data </span><span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>https://github.com/tuanct1997/Federated-Learning-ASR-based-on-wav2vec-2.0</span></span></span><span id="S3.SS1.p1.5.19" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<table id="S3.T1.2" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.2.3.1" class="ltx_tr">
+<th id="S3.T1.2.3.1.1" class="ltx_td ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_tt"></th>
+<th id="S3.T1.2.3.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_tt">
+<table id="S3.T1.2.3.1.2.1" class="ltx_tabular ltx_align_middle">
+<tr id="S3.T1.2.3.1.2.1.1" class="ltx_tr">
+<td id="S3.T1.2.3.1.2.1.1.1" class="ltx_td ltx_nopad_r ltx_align_left"><span id="S3.T1.2.3.1.2.1.1.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Train</span></td>
+</tr>
+<tr id="S3.T1.2.3.1.2.1.2" class="ltx_tr">
+<td id="S3.T1.2.3.1.2.1.2.1" class="ltx_td ltx_nopad_r ltx_align_left">
+<span id="S3.T1.2.3.1.2.1.2.1.1" class="ltx_text" style="font-size:90%;">(</span><span id="S3.T1.2.3.1.2.1.2.1.2" class="ltx_text ltx_font_bold" style="font-size:90%;">clients</span><span id="S3.T1.2.3.1.2.1.2.1.3" class="ltx_text" style="font-size:90%;">)</span>
+</td>
+</tr>
+</table>
+</th>
+<th id="S3.T1.2.3.1.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_tt"><span id="S3.T1.2.3.1.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Analysis</span></th>
+<th id="S3.T1.2.3.1.4" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_tt"><span id="S3.T1.2.3.1.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Dev</span></th>
+<th id="S3.T1.2.3.1.5" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_tt"><span id="S3.T1.2.3.1.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Test</span></th>
+<th id="S3.T1.2.3.1.6" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_tt"><span id="S3.T1.2.3.1.6.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Indicator</span></th>
+</tr>
+<tr id="S3.T1.2.4.2" class="ltx_tr">
+<th id="S3.T1.2.4.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T1.2.4.2.1.1" class="ltx_text" style="font-size:90%;">Duration, hours</span></th>
+<th id="S3.T1.2.4.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r ltx_border_t"><span id="S3.T1.2.4.2.2.1" class="ltx_text" style="font-size:90%;">252.17</span></th>
+<th id="S3.T1.2.4.2.3" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.2.4.2.3.1" class="ltx_text" style="font-size:90%;">110.34</span></th>
+<th id="S3.T1.2.4.2.4" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.2.4.2.4.1" class="ltx_text" style="font-size:90%;">3.76</span></th>
+<th id="S3.T1.2.4.2.5" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_r ltx_border_t"><span id="S3.T1.2.4.2.5.1" class="ltx_text" style="font-size:90%;">3.73</span></th>
+<th id="S3.T1.2.4.2.6" class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_border_t"><span id="S3.T1.2.4.2.6.1" class="ltx_text" style="font-size:90%;">0.51</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r">
+<math id="S3.T1.1.1.1.m1.1" class="ltx_Math" alttext="\#" display="inline"><semantics id="S3.T1.1.1.1.m1.1a"><mi mathsize="90%" mathvariant="normal" id="S3.T1.1.1.1.m1.1.1" xref="S3.T1.1.1.1.m1.1.1.cmml">#</mi><annotation-xml encoding="MathML-Content" id="S3.T1.1.1.1.m1.1b"><ci id="S3.T1.1.1.1.m1.1.1.cmml" xref="S3.T1.1.1.1.m1.1.1">#</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.1.1.1.m1.1c">\#</annotation></semantics></math><span id="S3.T1.1.1.1.1" class="ltx_text" style="font-size:90%;"> speakers</span>
+</th>
+<th id="S3.T1.1.1.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r"><span id="S3.T1.1.1.2.1" class="ltx_text" style="font-size:90%;">1943</span></th>
+<td id="S3.T1.1.1.3" class="ltx_td ltx_align_left ltx_border_r"><span id="S3.T1.1.1.3.1" class="ltx_text" style="font-size:90%;">1341</span></td>
+<td id="S3.T1.1.1.4" class="ltx_td ltx_align_left ltx_border_r"><span id="S3.T1.1.1.4.1" class="ltx_text" style="font-size:90%;">16</span></td>
+<td id="S3.T1.1.1.5" class="ltx_td ltx_align_left ltx_border_r"><span id="S3.T1.1.1.5.1" class="ltx_text" style="font-size:90%;">16</span></td>
+<td id="S3.T1.1.1.6" class="ltx_td ltx_align_left"><span id="S3.T1.1.1.6.1" class="ltx_text" style="font-size:90%;">40</span></td>
+</tr>
+<tr id="S3.T1.2.2" class="ltx_tr">
+<th id="S3.T1.2.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r">
+<math id="S3.T1.2.2.1.m1.1" class="ltx_Math" alttext="\#" display="inline"><semantics id="S3.T1.2.2.1.m1.1a"><mi mathsize="90%" mathvariant="normal" id="S3.T1.2.2.1.m1.1.1" xref="S3.T1.2.2.1.m1.1.1.cmml">#</mi><annotation-xml encoding="MathML-Content" id="S3.T1.2.2.1.m1.1b"><ci id="S3.T1.2.2.1.m1.1.1.cmml" xref="S3.T1.2.2.1.m1.1.1">#</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.T1.2.2.1.m1.1c">\#</annotation></semantics></math><span id="S3.T1.2.2.1.1" class="ltx_text" style="font-size:90%;"> utterances</span>
+</th>
+<th id="S3.T1.2.2.2" class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb ltx_border_r"><span id="S3.T1.2.2.2.1" class="ltx_text" style="font-size:90%;">148332</span></th>
+<td id="S3.T1.2.2.3" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r"><span id="S3.T1.2.2.3.1" class="ltx_text" style="font-size:90%;">65430</span></td>
+<td id="S3.T1.2.2.4" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r"><span id="S3.T1.2.2.4.1" class="ltx_text" style="font-size:90%;">1155</span></td>
+<td id="S3.T1.2.2.5" class="ltx_td ltx_align_left ltx_border_bb ltx_border_r"><span id="S3.T1.2.2.5.1" class="ltx_text" style="font-size:90%;">507</span></td>
+<td id="S3.T1.2.2.6" class="ltx_td ltx_align_left ltx_border_bb"><span id="S3.T1.2.2.6.1" class="ltx_text" style="font-size:90%;">342</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table"><span id="S3.T1.6.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Data sets statistics</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Models </h3>
+
+<section id="S3.SS2.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.2.1 </span>ASR model based on CRDNN </h4>
+
+<div id="S3.SS2.SSS1.p1" class="ltx_para">
+<p id="S3.SS2.SSS1.p1.1" class="ltx_p"><span id="S3.SS2.SSS1.p1.1.1" class="ltx_text" style="font-size:90%;">In our experiments, we use an attention-based encoder-decoder </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.SSS1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib28" title="" class="ltx_ref">28</a><span id="S3.SS2.SSS1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS2.SSS1.p1.1.4" class="ltx_text" style="font-size:90%;"> neural network.
+The encoder is a convolutional, recurrent and deep neural network (CRDNN) block.
+This CRDNN is composed of three blocks of convolutional neural networks (with respectively 128, 200 and 256 channels) with pooling layers, followed by five bidirectional 1024-dimensional LSTM layers connected to two dense 1024-dimensional layers to obtain the final acoustic representation.
+The input signal representation is composed of 80-dimensional filter-banks.
+The encoder maps these filter-banks to a higher-level feature representation that are
+then passed to a 1024-dimension attention module that identifies which parts of high level speech representations are relevant to each step of the decoding process.
+The attention module output is used to compute a context vector used as the input of an RNN decoder. This RNN decoder is composed of 1024-dimensional GRU layer before the output softmax layer.
+The neural network output corresponds to 500 byte pair encoding unigram units, that are a mix between characters and words.
+An initial end-to-end ASR model pre-trained on the CommonVoice dataset</span><span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span>https://github.com/speechbrain/speechbrain/tree/develop/recipes/
+<br class="ltx_break">CommonVoice/ASR/seq2seq</span></span></span><span id="S3.SS2.SSS1.p1.1.5" class="ltx_text" style="font-size:90%;"> is used to initialize weights for the server model.
+The client’s models, trained on the local speaker set for 20 epochs, uses the same model configuration and hyperparameter settings.</span></p>
+</div>
+</section>
+<section id="S3.SS2.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.2.2 </span>ASR model based on Wav2vec 2.0 </h4>
+
+<div id="S3.SS2.SSS2.p1" class="ltx_para">
+<p id="S3.SS2.SSS2.p1.1" class="ltx_p"><span id="S3.SS2.SSS2.p1.1.1" class="ltx_text" style="font-size:90%;">The architecture is based on an end-to-end approach with SSL.
+The system is composed of the large pre-trained English wav2vec 2.0 model, a linear layer of 1024 units, and the softmax output layer.
+Connectionist temporal classification (CTC) loss function </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS2.SSS2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib29" title="" class="ltx_ref">29</a><span id="S3.SS2.SSS2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS2.SSS2.p1.1.4" class="ltx_text" style="font-size:90%;"> is used as a loss function.</span></p>
+</div>
+<div id="S3.SS2.SSS2.p2" class="ltx_para">
+<p id="S3.SS2.SSS2.p2.1" class="ltx_p"><span id="S3.SS2.SSS2.p2.1.1" class="ltx_text" style="font-size:90%;">We conduct our experiments using randomly initialized weights for the server model.
+The final model is trained on 5 V100 GPUs, each with 32 GB memory, for 100 rounds at a batch size of 4.
+The clients’ models, trained on the local speaker set for 20 epochs, use the same model configuration and hyperparameter settings.</span></p>
+</div>
+</section>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>FL for ASR</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p"><span id="S3.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">With the data set split described in Section </span><a href="#S3.SS1" title="3.1 Data ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.1</span></a><span id="S3.SS3.p1.1.2" class="ltx_text" style="font-size:90%;">, FL’s clients mostly cover only a small amount of audio. This is a big challenge to train an ASR model since normally, in this domain the dataset size is a critical point. Moreover, between these clients, a big difference in voice, audio quality, utterances or data size leads to an extreme non independent and identically distributed (non-IID) case. As being seen in different studies </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS3.p1.1.3.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib30" title="" class="ltx_ref">30</a><span id="S3.SS3.p1.1.4.2" class="ltx_text" style="font-size:90%;">]</span></cite><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS3.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib31" title="" class="ltx_ref">31</a><span id="S3.SS3.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS3.p1.1.7.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S3.SS3.p1.1.8.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS3.p1.1.9" class="ltx_text" style="font-size:90%;">, non-IID is a big challenge for FL.
+For end-to-end ASR, Yan Gao et al </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS3.p1.1.10.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S3.SS3.p1.1.11.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS3.p1.1.12" class="ltx_text" style="font-size:90%;"> also found that it is nearly impossible to start the training from scratch.
+In their work, they started the training from a pre-trained model on half of same dataset. Described in Section </span><a href="#S3.SS2" title="3.2 Models ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.2</span></a><span id="S3.SS3.p1.1.13" class="ltx_text" style="font-size:90%;">, for both CRDNN and wav2vec 2.0 architectures, a pre-trained model is used as an initialised global model. The difference is that for CRDNN, the pre-trained model is already specialised for the ASR task.
+For wav2vec 2.0, the initialised model is only pre-trained to learn the representation from audio of LibriSpeech data.</span></p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.5" class="ltx_p"><span id="S3.SS3.p2.5.1" class="ltx_text" style="font-size:90%;">To set up a FL ASR experiment, a simulation has been created and executed on the same machine. Within the simulation, we have 1 server and 1943 clients corresponding to speakers in the TED-LIUM 3. In a normal FL scenario, as can be seen in equation </span><a href="#S2.E1" title="In 2.1 Federated learning ‣ 2 Federated learning for wav2vec 2.0 models ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS3.p2.5.2" class="ltx_text" style="font-size:90%;">, only </span><math id="S3.SS3.p2.1.m1.1" class="ltx_Math" alttext="m" display="inline"><semantics id="S3.SS3.p2.1.m1.1a"><mi mathsize="90%" id="S3.SS3.p2.1.m1.1.1" xref="S3.SS3.p2.1.m1.1.1.cmml">m</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.1.m1.1b"><ci id="S3.SS3.p2.1.m1.1.1.cmml" xref="S3.SS3.p2.1.m1.1.1">𝑚</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.1.m1.1c">m</annotation></semantics></math><span id="S3.SS3.p2.5.3" class="ltx_text" style="font-size:90%;"> out of </span><math id="S3.SS3.p2.2.m2.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.SS3.p2.2.m2.1a"><mi mathsize="90%" id="S3.SS3.p2.2.m2.1.1" xref="S3.SS3.p2.2.m2.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.2.m2.1b"><ci id="S3.SS3.p2.2.m2.1.1.cmml" xref="S3.SS3.p2.2.m2.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.2.m2.1c">K</annotation></semantics></math><span id="S3.SS3.p2.5.4" class="ltx_text" style="font-size:90%;"> clients will participate in aggregation process because </span><math id="S3.SS3.p2.3.m3.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.SS3.p2.3.m3.1a"><mi mathsize="90%" id="S3.SS3.p2.3.m3.1.1" xref="S3.SS3.p2.3.m3.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.3.m3.1b"><ci id="S3.SS3.p2.3.m3.1.1.cmml" xref="S3.SS3.p2.3.m3.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.3.m3.1c">K</annotation></semantics></math><span id="S3.SS3.p2.5.5" class="ltx_text" style="font-size:90%;"> can be very large and using all </span><math id="S3.SS3.p2.4.m4.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S3.SS3.p2.4.m4.1a"><mi mathsize="90%" id="S3.SS3.p2.4.m4.1.1" xref="S3.SS3.p2.4.m4.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.4.m4.1b"><ci id="S3.SS3.p2.4.m4.1.1.cmml" xref="S3.SS3.p2.4.m4.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.4.m4.1c">K</annotation></semantics></math><span id="S3.SS3.p2.5.6" class="ltx_text" style="font-size:90%;"> clients can be unmanageable.
+In our experiments, 20 clients per round are chose to participate for both CRDNN and wav2vec 2.0 architectures.
+Indeed, during our experiments we found that </span><math id="S3.SS3.p2.5.m5.1" class="ltx_Math" alttext="m=20" display="inline"><semantics id="S3.SS3.p2.5.m5.1a"><mrow id="S3.SS3.p2.5.m5.1.1" xref="S3.SS3.p2.5.m5.1.1.cmml"><mi mathsize="90%" id="S3.SS3.p2.5.m5.1.1.2" xref="S3.SS3.p2.5.m5.1.1.2.cmml">m</mi><mo mathsize="90%" id="S3.SS3.p2.5.m5.1.1.1" xref="S3.SS3.p2.5.m5.1.1.1.cmml">=</mo><mn mathsize="90%" id="S3.SS3.p2.5.m5.1.1.3" xref="S3.SS3.p2.5.m5.1.1.3.cmml">20</mn></mrow><annotation-xml encoding="MathML-Content" id="S3.SS3.p2.5.m5.1b"><apply id="S3.SS3.p2.5.m5.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1"><eq id="S3.SS3.p2.5.m5.1.1.1.cmml" xref="S3.SS3.p2.5.m5.1.1.1"></eq><ci id="S3.SS3.p2.5.m5.1.1.2.cmml" xref="S3.SS3.p2.5.m5.1.1.2">𝑚</ci><cn type="integer" id="S3.SS3.p2.5.m5.1.1.3.cmml" xref="S3.SS3.p2.5.m5.1.1.3">20</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS3.p2.5.m5.1c">m=20</annotation></semantics></math><span id="S3.SS3.p2.5.7" class="ltx_text" style="font-size:90%;"> is the best trade-off point for our resource</span><span id="footnote4" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">4</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">4</sup><span class="ltx_tag ltx_tag_note">4</span>To facilitate research in FL using TED-LIUM 3 dataset, the recipe including data preparation, FL training and evaluation scripts will be released open source upon paper acceptance</span></span></span><span id="S3.SS3.p2.5.8" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</section>
+<section id="S3.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.4 </span>ASR performance</h3>
+
+<section id="S3.SS4.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.4.1 </span>General performance </h4>
+
+<div id="S3.SS4.SSS1.p1" class="ltx_para">
+<p id="S3.SS4.SSS1.p1.1" class="ltx_p"><span id="S3.SS4.SSS1.p1.1.1" class="ltx_text" style="font-size:90%;">To analyze the performance of the FL ASR system, the global model was tested on the TED-LIUM 3 test set where speakers of this set were never exposed during the training phase.
+Results in Figure </span><a href="#S3.F1" title="Figure 1 ‣ 3.4.2 Longitudinal speaker-level ASR performance ‣ 3.4 ASR performance ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS4.SSS1.p1.1.2" class="ltx_text" style="font-size:90%;"> show that it is possible to improve the ASR performance in terms of word error rate (WER) for speakers unseen during the FL training (speakers in the test set).</span></p>
+</div>
+<div id="S3.SS4.SSS1.p2" class="ltx_para">
+<p id="S3.SS4.SSS1.p2.1" class="ltx_p"><span id="S3.SS4.SSS1.p2.1.1" class="ltx_text" style="font-size:90%;">Having a better start in terms of WER (WER = 37.04% at first round), CRDNN still struggles to converged compared to wav2vec 2.0.
+Despite the CommonVoice pre-trained model is good at the ASR task, we noticed this is not enough since there is a large gap between CommonVoice and TED-LIUM 3.
+WER of CRDNN stays at around </span><math id="S3.SS4.SSS1.p2.1.m1.1" class="ltx_Math" alttext="35\%" display="inline"><semantics id="S3.SS4.SSS1.p2.1.m1.1a"><mrow id="S3.SS4.SSS1.p2.1.m1.1.1" xref="S3.SS4.SSS1.p2.1.m1.1.1.cmml"><mn mathsize="90%" id="S3.SS4.SSS1.p2.1.m1.1.1.2" xref="S3.SS4.SSS1.p2.1.m1.1.1.2.cmml">35</mn><mo mathsize="90%" id="S3.SS4.SSS1.p2.1.m1.1.1.1" xref="S3.SS4.SSS1.p2.1.m1.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS1.p2.1.m1.1b"><apply id="S3.SS4.SSS1.p2.1.m1.1.1.cmml" xref="S3.SS4.SSS1.p2.1.m1.1.1"><csymbol cd="latexml" id="S3.SS4.SSS1.p2.1.m1.1.1.1.cmml" xref="S3.SS4.SSS1.p2.1.m1.1.1.1">percent</csymbol><cn type="integer" id="S3.SS4.SSS1.p2.1.m1.1.1.2.cmml" xref="S3.SS4.SSS1.p2.1.m1.1.1.2">35</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS1.p2.1.m1.1c">35\%</annotation></semantics></math><span id="S3.SS4.SSS1.p2.1.2" class="ltx_text" style="font-size:90%;"> for the rest of rounds (best performance is reached at round 45 WER = 34.33%).</span></p>
+</div>
+<div id="S3.SS4.SSS1.p3" class="ltx_para">
+<p id="S3.SS4.SSS1.p3.3" class="ltx_p"><span id="S3.SS4.SSS1.p3.3.1" class="ltx_text" style="font-size:90%;">By using only a small dataset at local level, it’s not enough to learn the information of TED-LIUM 3 using the CRDNN pre-trained models.
+On the other hand, with wav2vec 2.0 the problem seems to be overcome.
+Just within 4 rounds, wav2vec 2.0 caches up with CRDNN and keeps improving.
+The best performance is recorded at </span><math id="S3.SS4.SSS1.p3.1.m1.1" class="ltx_Math" alttext="85^{th}" display="inline"><semantics id="S3.SS4.SSS1.p3.1.m1.1a"><msup id="S3.SS4.SSS1.p3.1.m1.1.1" xref="S3.SS4.SSS1.p3.1.m1.1.1.cmml"><mn mathsize="90%" id="S3.SS4.SSS1.p3.1.m1.1.1.2" xref="S3.SS4.SSS1.p3.1.m1.1.1.2.cmml">85</mn><mrow id="S3.SS4.SSS1.p3.1.m1.1.1.3" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S3.SS4.SSS1.p3.1.m1.1.1.3.2" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS1.p3.1.m1.1.1.3.1" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS1.p3.1.m1.1.1.3.3" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS1.p3.1.m1.1b"><apply id="S3.SS4.SSS1.p3.1.m1.1.1.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS1.p3.1.m1.1.1.1.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1">superscript</csymbol><cn type="integer" id="S3.SS4.SSS1.p3.1.m1.1.1.2.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1.2">85</cn><apply id="S3.SS4.SSS1.p3.1.m1.1.1.3.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1.3"><times id="S3.SS4.SSS1.p3.1.m1.1.1.3.1.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.1"></times><ci id="S3.SS4.SSS1.p3.1.m1.1.1.3.2.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.2">𝑡</ci><ci id="S3.SS4.SSS1.p3.1.m1.1.1.3.3.cmml" xref="S3.SS4.SSS1.p3.1.m1.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS1.p3.1.m1.1c">85^{th}</annotation></semantics></math><span id="S3.SS4.SSS1.p3.3.2" class="ltx_text" style="font-size:90%;"> round with </span><math id="S3.SS4.SSS1.p3.2.m2.1" class="ltx_Math" alttext="10.92\%" display="inline"><semantics id="S3.SS4.SSS1.p3.2.m2.1a"><mrow id="S3.SS4.SSS1.p3.2.m2.1.1" xref="S3.SS4.SSS1.p3.2.m2.1.1.cmml"><mn mathsize="90%" id="S3.SS4.SSS1.p3.2.m2.1.1.2" xref="S3.SS4.SSS1.p3.2.m2.1.1.2.cmml">10.92</mn><mo mathsize="90%" id="S3.SS4.SSS1.p3.2.m2.1.1.1" xref="S3.SS4.SSS1.p3.2.m2.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS1.p3.2.m2.1b"><apply id="S3.SS4.SSS1.p3.2.m2.1.1.cmml" xref="S3.SS4.SSS1.p3.2.m2.1.1"><csymbol cd="latexml" id="S3.SS4.SSS1.p3.2.m2.1.1.1.cmml" xref="S3.SS4.SSS1.p3.2.m2.1.1.1">percent</csymbol><cn type="float" id="S3.SS4.SSS1.p3.2.m2.1.1.2.cmml" xref="S3.SS4.SSS1.p3.2.m2.1.1.2">10.92</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS1.p3.2.m2.1c">10.92\%</annotation></semantics></math><span id="S3.SS4.SSS1.p3.3.3" class="ltx_text" style="font-size:90%;"> of WER.
+In addition, for 100 rounds, the FL is only contributed by 1209 speakers (which equal to </span><math id="S3.SS4.SSS1.p3.3.m3.1" class="ltx_Math" alttext="62\%" display="inline"><semantics id="S3.SS4.SSS1.p3.3.m3.1a"><mrow id="S3.SS4.SSS1.p3.3.m3.1.1" xref="S3.SS4.SSS1.p3.3.m3.1.1.cmml"><mn mathsize="90%" id="S3.SS4.SSS1.p3.3.m3.1.1.2" xref="S3.SS4.SSS1.p3.3.m3.1.1.2.cmml">62</mn><mo mathsize="90%" id="S3.SS4.SSS1.p3.3.m3.1.1.1" xref="S3.SS4.SSS1.p3.3.m3.1.1.1.cmml">%</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS1.p3.3.m3.1b"><apply id="S3.SS4.SSS1.p3.3.m3.1.1.cmml" xref="S3.SS4.SSS1.p3.3.m3.1.1"><csymbol cd="latexml" id="S3.SS4.SSS1.p3.3.m3.1.1.1.cmml" xref="S3.SS4.SSS1.p3.3.m3.1.1.1">percent</csymbol><cn type="integer" id="S3.SS4.SSS1.p3.3.m3.1.1.2.cmml" xref="S3.SS4.SSS1.p3.3.m3.1.1.2">62</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS1.p3.3.m3.1c">62\%</annotation></semantics></math><span id="S3.SS4.SSS1.p3.3.4" class="ltx_text" style="font-size:90%;"> of total speakers) to reach this performance.</span></p>
+</div>
+</section>
+<section id="S3.SS4.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.4.2 </span>Longitudinal speaker-level ASR performance </h4>
+
+<div id="S3.SS4.SSS2.p1" class="ltx_para">
+<p id="S3.SS4.SSS2.p1.1" class="ltx_p"><span id="S3.SS4.SSS2.p1.1.1" class="ltx_text" style="font-size:90%;">Our hypothesis is that performance of FL in each round is still affected by the speaker’s participation in each round.
+At each round, a fixed number of clients participate in the training by sending to the server a model trained using their private data, this may
+cause </span><span id="S3.SS4.SSS2.p1.1.2" class="ltx_text ltx_font_italic" style="font-size:90%;">forgetting</span><span id="S3.SS4.SSS2.p1.1.3" class="ltx_text" style="font-size:90%;"> of previously-learnt knowledge related to the speakers seen in previous rounds.
+In contrast, in a centralized training process, all speaker data is used simultaneously, eliminating the risk of forgetting previously learned speaker information.</span></p>
+</div>
+<div id="S3.SS4.SSS2.p2" class="ltx_para">
+<p id="S3.SS4.SSS2.p2.1" class="ltx_p"><span id="S3.SS4.SSS2.p2.1.1" class="ltx_text" style="font-size:90%;">To address this aspect, we propose to analyze the evolution of WER per speaker according to the different rounds.
+As described in Section </span><a href="#S3.SS1" title="3.1 Data ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.1</span></a><span id="S3.SS4.SSS2.p2.1.2" class="ltx_text" style="font-size:90%;">, 5 minutes of speech have been removed from the training data for some speakers and included into an </span><math id="S3.SS4.SSS2.p2.1.m1.1" class="ltx_Math" alttext="analysis" display="inline"><semantics id="S3.SS4.SSS2.p2.1.m1.1a"><mrow id="S3.SS4.SSS2.p2.1.m1.1.1" xref="S3.SS4.SSS2.p2.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.2" xref="S3.SS4.SSS2.p2.1.m1.1.1.2.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.3" xref="S3.SS4.SSS2.p2.1.m1.1.1.3.cmml">n</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1a" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.4" xref="S3.SS4.SSS2.p2.1.m1.1.1.4.cmml">a</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1b" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.5" xref="S3.SS4.SSS2.p2.1.m1.1.1.5.cmml">l</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1c" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.6" xref="S3.SS4.SSS2.p2.1.m1.1.1.6.cmml">y</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1d" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.7" xref="S3.SS4.SSS2.p2.1.m1.1.1.7.cmml">s</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1e" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.8" xref="S3.SS4.SSS2.p2.1.m1.1.1.8.cmml">i</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p2.1.m1.1.1.1f" xref="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p2.1.m1.1.1.9" xref="S3.SS4.SSS2.p2.1.m1.1.1.9.cmml">s</mi></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p2.1.m1.1b"><apply id="S3.SS4.SSS2.p2.1.m1.1.1.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1"><times id="S3.SS4.SSS2.p2.1.m1.1.1.1.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.1"></times><ci id="S3.SS4.SSS2.p2.1.m1.1.1.2.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.2">𝑎</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.3.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.3">𝑛</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.4.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.4">𝑎</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.5.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.5">𝑙</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.6.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.6">𝑦</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.7.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.7">𝑠</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.8.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.8">𝑖</ci><ci id="S3.SS4.SSS2.p2.1.m1.1.1.9.cmml" xref="S3.SS4.SSS2.p2.1.m1.1.1.9">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p2.1.m1.1c">analysis</annotation></semantics></math><span id="S3.SS4.SSS2.p2.1.3" class="ltx_text" style="font-size:90%;"> dataset.</span></p>
+</div>
+<figure id="S3.F1" class="ltx_figure"><img src="/html/2302.10790/assets/picture/WER_FB_W2V.png" id="S3.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="337" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F1.4.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Performance evolution (WER,%) of end-to-end models ASR based on wav2vec 2.0 (SSL) compared to end-to-end ASR models based on CRDNN (no SSL) on the TED-LIUM 3 test dataset
+</figcaption>
+</figure>
+<div id="S3.SS4.SSS2.p3" class="ltx_para">
+<p id="S3.SS4.SSS2.p3.3" class="ltx_p"><span id="S3.SS4.SSS2.p3.3.1" class="ltx_text" style="font-size:90%;">Let us denote </span><math id="S3.SS4.SSS2.p3.1.m1.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS4.SSS2.p3.1.m1.1a"><msub id="S3.SS4.SSS2.p3.1.m1.1.1" xref="S3.SS4.SSS2.p3.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p3.1.m1.1.1.2" xref="S3.SS4.SSS2.p3.1.m1.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS4.SSS2.p3.1.m1.1.1.3" xref="S3.SS4.SSS2.p3.1.m1.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p3.1.m1.1b"><apply id="S3.SS4.SSS2.p3.1.m1.1.1.cmml" xref="S3.SS4.SSS2.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p3.1.m1.1.1.1.cmml" xref="S3.SS4.SSS2.p3.1.m1.1.1">subscript</csymbol><ci id="S3.SS4.SSS2.p3.1.m1.1.1.2.cmml" xref="S3.SS4.SSS2.p3.1.m1.1.1.2">𝐺</ci><ci id="S3.SS4.SSS2.p3.1.m1.1.1.3.cmml" xref="S3.SS4.SSS2.p3.1.m1.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p3.1.m1.1c">G_{r}</annotation></semantics></math><span id="S3.SS4.SSS2.p3.3.2" class="ltx_text" style="font-size:90%;"> the general model at communication round </span><math id="S3.SS4.SSS2.p3.2.m2.1" class="ltx_Math" alttext="r" display="inline"><semantics id="S3.SS4.SSS2.p3.2.m2.1a"><mi mathsize="90%" id="S3.SS4.SSS2.p3.2.m2.1.1" xref="S3.SS4.SSS2.p3.2.m2.1.1.cmml">r</mi><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p3.2.m2.1b"><ci id="S3.SS4.SSS2.p3.2.m2.1.1.cmml" xref="S3.SS4.SSS2.p3.2.m2.1.1">𝑟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p3.2.m2.1c">r</annotation></semantics></math><span id="S3.SS4.SSS2.p3.3.3" class="ltx_text" style="font-size:90%;"> and consider the speakers that share their models during the FL run at round 5.
+To facilitate the analysis, we pick a subset of 5 speakers at this round to test the performance of </span><math id="S3.SS4.SSS2.p3.3.m3.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS4.SSS2.p3.3.m3.1a"><msub id="S3.SS4.SSS2.p3.3.m3.1.1" xref="S3.SS4.SSS2.p3.3.m3.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p3.3.m3.1.1.2" xref="S3.SS4.SSS2.p3.3.m3.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS4.SSS2.p3.3.m3.1.1.3" xref="S3.SS4.SSS2.p3.3.m3.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p3.3.m3.1b"><apply id="S3.SS4.SSS2.p3.3.m3.1.1.cmml" xref="S3.SS4.SSS2.p3.3.m3.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p3.3.m3.1.1.1.cmml" xref="S3.SS4.SSS2.p3.3.m3.1.1">subscript</csymbol><ci id="S3.SS4.SSS2.p3.3.m3.1.1.2.cmml" xref="S3.SS4.SSS2.p3.3.m3.1.1.2">𝐺</ci><ci id="S3.SS4.SSS2.p3.3.m3.1.1.3.cmml" xref="S3.SS4.SSS2.p3.3.m3.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p3.3.m3.1c">G_{r}</annotation></semantics></math><span id="S3.SS4.SSS2.p3.3.4" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<figure id="S3.F2" class="ltx_figure"><img src="/html/2302.10790/assets/picture/wer_contributed.png" id="S3.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="197" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F2.6.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>Global model performance on speaker’s <span id="S3.F2.7.2" class="ltx_text ltx_font_italic">analysis</span> dataset </figcaption>
+</figure>
+<figure id="S3.F3" class="ltx_figure"><img src="/html/2302.10790/assets/picture/WER_before_after.png" id="S3.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="197" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F3.6.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>Performance of speaker local models on corresponding <span id="S3.F3.7.2" class="ltx_text ltx_font_italic">analysis</span> datasets compared to the global model</figcaption>
+</figure>
+<div id="S3.SS4.SSS2.p4" class="ltx_para">
+<p id="S3.SS4.SSS2.p4.2" class="ltx_p"><span id="S3.SS4.SSS2.p4.2.1" class="ltx_text" style="font-size:90%;">Figure </span><a href="#S3.F2" title="Figure 2 ‣ 3.4.2 Longitudinal speaker-level ASR performance ‣ 3.4 ASR performance ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S3.SS4.SSS2.p4.2.2" class="ltx_text" style="font-size:90%;"> shows how the general model </span><math id="S3.SS4.SSS2.p4.1.m1.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS4.SSS2.p4.1.m1.1a"><msub id="S3.SS4.SSS2.p4.1.m1.1.1" xref="S3.SS4.SSS2.p4.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p4.1.m1.1.1.2" xref="S3.SS4.SSS2.p4.1.m1.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS4.SSS2.p4.1.m1.1.1.3" xref="S3.SS4.SSS2.p4.1.m1.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p4.1.m1.1b"><apply id="S3.SS4.SSS2.p4.1.m1.1.1.cmml" xref="S3.SS4.SSS2.p4.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p4.1.m1.1.1.1.cmml" xref="S3.SS4.SSS2.p4.1.m1.1.1">subscript</csymbol><ci id="S3.SS4.SSS2.p4.1.m1.1.1.2.cmml" xref="S3.SS4.SSS2.p4.1.m1.1.1.2">𝐺</ci><ci id="S3.SS4.SSS2.p4.1.m1.1.1.3.cmml" xref="S3.SS4.SSS2.p4.1.m1.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p4.1.m1.1c">G_{r}</annotation></semantics></math><span id="S3.SS4.SSS2.p4.2.3" class="ltx_text" style="font-size:90%;"> performs on these five </span><span id="S3.SS4.SSS2.p4.2.4" class="ltx_text ltx_font_italic" style="font-size:90%;">analysis</span><span id="S3.SS4.SSS2.p4.2.5" class="ltx_text" style="font-size:90%;"> datasets at each round.
+A dotted segment means that the speaker was not involved between two rounds, while a solid line means that the speaker contributed for one round during the two ones connected by the segment.
+First, we observe similar trends between different speakers and between solid and dotted segments.
+Figure </span><a href="#S3.F2" title="Figure 2 ‣ 3.4.2 Longitudinal speaker-level ASR performance ‣ 3.4 ASR performance ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S3.SS4.SSS2.p4.2.6" class="ltx_text" style="font-size:90%;"> shows a significant improvement in WER for first rounds (from round 5 to round 22).
+Then, for next rounds, WER for different speakers does not vary significantly.
+Therefore it can be seen that </span><math id="S3.SS4.SSS2.p4.2.m2.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS4.SSS2.p4.2.m2.1a"><msub id="S3.SS4.SSS2.p4.2.m2.1.1" xref="S3.SS4.SSS2.p4.2.m2.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p4.2.m2.1.1.2" xref="S3.SS4.SSS2.p4.2.m2.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS4.SSS2.p4.2.m2.1.1.3" xref="S3.SS4.SSS2.p4.2.m2.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p4.2.m2.1b"><apply id="S3.SS4.SSS2.p4.2.m2.1.1.cmml" xref="S3.SS4.SSS2.p4.2.m2.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p4.2.m2.1.1.1.cmml" xref="S3.SS4.SSS2.p4.2.m2.1.1">subscript</csymbol><ci id="S3.SS4.SSS2.p4.2.m2.1.1.2.cmml" xref="S3.SS4.SSS2.p4.2.m2.1.1.2">𝐺</ci><ci id="S3.SS4.SSS2.p4.2.m2.1.1.3.cmml" xref="S3.SS4.SSS2.p4.2.m2.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p4.2.m2.1c">G_{r}</annotation></semantics></math><span id="S3.SS4.SSS2.p4.2.7" class="ltx_text" style="font-size:90%;"> contains relevant information for these speakers and does not bring any bias based on the number of participations.</span></p>
+</div>
+<div id="S3.SS4.SSS2.p5" class="ltx_para">
+<p id="S3.SS4.SSS2.p5.4" class="ltx_p"><span id="S3.SS4.SSS2.p5.4.1" class="ltx_text" style="font-size:90%;">Another important aspect of FL to be considered is the performance of a speaker’s local model. Figure </span><a href="#S3.F3" title="Figure 3 ‣ 3.4.2 Longitudinal speaker-level ASR performance ‣ 3.4 ASR performance ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S3.SS4.SSS2.p5.4.2" class="ltx_text" style="font-size:90%;"> reports a test performed using the best round (round </span><math id="S3.SS4.SSS2.p5.1.m1.1" class="ltx_Math" alttext="85^{th}" display="inline"><semantics id="S3.SS4.SSS2.p5.1.m1.1a"><msup id="S3.SS4.SSS2.p5.1.m1.1.1" xref="S3.SS4.SSS2.p5.1.m1.1.1.cmml"><mn mathsize="90%" id="S3.SS4.SSS2.p5.1.m1.1.1.2" xref="S3.SS4.SSS2.p5.1.m1.1.1.2.cmml">85</mn><mrow id="S3.SS4.SSS2.p5.1.m1.1.1.3" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p5.1.m1.1.1.3.2" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S3.SS4.SSS2.p5.1.m1.1.1.3.1" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.1.cmml">​</mo><mi mathsize="90%" id="S3.SS4.SSS2.p5.1.m1.1.1.3.3" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.3.cmml">h</mi></mrow></msup><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p5.1.m1.1b"><apply id="S3.SS4.SSS2.p5.1.m1.1.1.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p5.1.m1.1.1.1.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1">superscript</csymbol><cn type="integer" id="S3.SS4.SSS2.p5.1.m1.1.1.2.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1.2">85</cn><apply id="S3.SS4.SSS2.p5.1.m1.1.1.3.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1.3"><times id="S3.SS4.SSS2.p5.1.m1.1.1.3.1.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.1"></times><ci id="S3.SS4.SSS2.p5.1.m1.1.1.3.2.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.2">𝑡</ci><ci id="S3.SS4.SSS2.p5.1.m1.1.1.3.3.cmml" xref="S3.SS4.SSS2.p5.1.m1.1.1.3.3">ℎ</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p5.1.m1.1c">85^{th}</annotation></semantics></math><span id="S3.SS4.SSS2.p5.4.3" class="ltx_text" style="font-size:90%;">).
+The figure shows that the local speaker model (represented by the gray columns) is enhanced after fine-tuning on its own dataset, as expected.
+Then we tested all these speaker models on the TED-LIUM 3 test set and obtained the average WER </span><math id="S3.SS4.SSS2.p5.2.m2.1" class="ltx_Math" alttext="=13.04\%" display="inline"><semantics id="S3.SS4.SSS2.p5.2.m2.1a"><mrow id="S3.SS4.SSS2.p5.2.m2.1.1" xref="S3.SS4.SSS2.p5.2.m2.1.1.cmml"><mi id="S3.SS4.SSS2.p5.2.m2.1.1.2" xref="S3.SS4.SSS2.p5.2.m2.1.1.2.cmml"></mi><mo mathsize="90%" id="S3.SS4.SSS2.p5.2.m2.1.1.1" xref="S3.SS4.SSS2.p5.2.m2.1.1.1.cmml">=</mo><mrow id="S3.SS4.SSS2.p5.2.m2.1.1.3" xref="S3.SS4.SSS2.p5.2.m2.1.1.3.cmml"><mn mathsize="90%" id="S3.SS4.SSS2.p5.2.m2.1.1.3.2" xref="S3.SS4.SSS2.p5.2.m2.1.1.3.2.cmml">13.04</mn><mo mathsize="90%" id="S3.SS4.SSS2.p5.2.m2.1.1.3.1" xref="S3.SS4.SSS2.p5.2.m2.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p5.2.m2.1b"><apply id="S3.SS4.SSS2.p5.2.m2.1.1.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1"><eq id="S3.SS4.SSS2.p5.2.m2.1.1.1.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1.1"></eq><csymbol cd="latexml" id="S3.SS4.SSS2.p5.2.m2.1.1.2.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1.2">absent</csymbol><apply id="S3.SS4.SSS2.p5.2.m2.1.1.3.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1.3"><csymbol cd="latexml" id="S3.SS4.SSS2.p5.2.m2.1.1.3.1.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1.3.1">percent</csymbol><cn type="float" id="S3.SS4.SSS2.p5.2.m2.1.1.3.2.cmml" xref="S3.SS4.SSS2.p5.2.m2.1.1.3.2">13.04</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p5.2.m2.1c">=13.04\%</annotation></semantics></math><span id="S3.SS4.SSS2.p5.4.4" class="ltx_text" style="font-size:90%;">, to be compared with WER </span><math id="S3.SS4.SSS2.p5.3.m3.1" class="ltx_Math" alttext="=10.92\%" display="inline"><semantics id="S3.SS4.SSS2.p5.3.m3.1a"><mrow id="S3.SS4.SSS2.p5.3.m3.1.1" xref="S3.SS4.SSS2.p5.3.m3.1.1.cmml"><mi id="S3.SS4.SSS2.p5.3.m3.1.1.2" xref="S3.SS4.SSS2.p5.3.m3.1.1.2.cmml"></mi><mo mathsize="90%" id="S3.SS4.SSS2.p5.3.m3.1.1.1" xref="S3.SS4.SSS2.p5.3.m3.1.1.1.cmml">=</mo><mrow id="S3.SS4.SSS2.p5.3.m3.1.1.3" xref="S3.SS4.SSS2.p5.3.m3.1.1.3.cmml"><mn mathsize="90%" id="S3.SS4.SSS2.p5.3.m3.1.1.3.2" xref="S3.SS4.SSS2.p5.3.m3.1.1.3.2.cmml">10.92</mn><mo mathsize="90%" id="S3.SS4.SSS2.p5.3.m3.1.1.3.1" xref="S3.SS4.SSS2.p5.3.m3.1.1.3.1.cmml">%</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p5.3.m3.1b"><apply id="S3.SS4.SSS2.p5.3.m3.1.1.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1"><eq id="S3.SS4.SSS2.p5.3.m3.1.1.1.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1.1"></eq><csymbol cd="latexml" id="S3.SS4.SSS2.p5.3.m3.1.1.2.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1.2">absent</csymbol><apply id="S3.SS4.SSS2.p5.3.m3.1.1.3.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1.3"><csymbol cd="latexml" id="S3.SS4.SSS2.p5.3.m3.1.1.3.1.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1.3.1">percent</csymbol><cn type="float" id="S3.SS4.SSS2.p5.3.m3.1.1.3.2.cmml" xref="S3.SS4.SSS2.p5.3.m3.1.1.3.2">10.92</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p5.3.m3.1c">=10.92\%</annotation></semantics></math><span id="S3.SS4.SSS2.p5.4.5" class="ltx_text" style="font-size:90%;"> of global model as been reported in Section </span><a href="#S3.SS4.SSS2" title="3.4.2 Longitudinal speaker-level ASR performance ‣ 3.4 ASR performance ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.4.2</span></a><span id="S3.SS4.SSS2.p5.4.6" class="ltx_text" style="font-size:90%;">.
+These results show that the global model </span><math id="S3.SS4.SSS2.p5.4.m4.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS4.SSS2.p5.4.m4.1a"><msub id="S3.SS4.SSS2.p5.4.m4.1.1" xref="S3.SS4.SSS2.p5.4.m4.1.1.cmml"><mi mathsize="90%" id="S3.SS4.SSS2.p5.4.m4.1.1.2" xref="S3.SS4.SSS2.p5.4.m4.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS4.SSS2.p5.4.m4.1.1.3" xref="S3.SS4.SSS2.p5.4.m4.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS4.SSS2.p5.4.m4.1b"><apply id="S3.SS4.SSS2.p5.4.m4.1.1.cmml" xref="S3.SS4.SSS2.p5.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS4.SSS2.p5.4.m4.1.1.1.cmml" xref="S3.SS4.SSS2.p5.4.m4.1.1">subscript</csymbol><ci id="S3.SS4.SSS2.p5.4.m4.1.1.2.cmml" xref="S3.SS4.SSS2.p5.4.m4.1.1.2">𝐺</ci><ci id="S3.SS4.SSS2.p5.4.m4.1.1.3.cmml" xref="S3.SS4.SSS2.p5.4.m4.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS4.SSS2.p5.4.m4.1c">G_{r}</annotation></semantics></math><span id="S3.SS4.SSS2.p5.4.7" class="ltx_text" style="font-size:90%;"> is well designed to process not only speakers involved in the federated learning but also new speakers.</span></p>
+</div>
+</section>
+</section>
+<section id="S3.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.5 </span>Protection of speaker identity</h3>
+
+<section id="S3.SS5.SSS1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.5.1 </span>Privacy preservation scenario and attack model</h4>
+
+<div id="S3.SS5.SSS1.p1" class="ltx_para">
+<p id="S3.SS5.SSS1.p1.1" class="ltx_p"><span id="S3.SS5.SSS1.p1.1.1" class="ltx_text" style="font-size:90%;">Privacy preservation can be formulated as a game between </span><span id="S3.SS5.SSS1.p1.1.2" class="ltx_text ltx_font_italic" style="font-size:90%;">users</span><span id="S3.SS5.SSS1.p1.1.3" class="ltx_text" style="font-size:90%;"> who share some data and </span><span id="S3.SS5.SSS1.p1.1.4" class="ltx_text ltx_font_italic" style="font-size:90%;">attackers</span><span id="S3.SS5.SSS1.p1.1.5" class="ltx_text" style="font-size:90%;"> who access this data or data extracted from it and want to get information about the users </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS5.SSS1.p1.1.6.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib32" title="" class="ltx_ref">32</a>, <a href="#bib.bib33" title="" class="ltx_ref">33</a><span id="S3.SS5.SSS1.p1.1.7.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS5.SSS1.p1.1.8" class="ltx_text" style="font-size:90%;">.
+In FL, to preserve the user’s data, only model updates are transmitted between the clients and server. An attacker aims to attack users using information received from the server about the models’ updates.</span></p>
+</div>
+<div id="S3.SS5.SSS1.p2" class="ltx_para">
+<p id="S3.SS5.SSS1.p2.10" class="ltx_p"><span id="S3.SS5.SSS1.p2.10.1" class="ltx_text" style="font-size:90%;">In this work, we consider the following privacy preservation scenario.
+We assume that an attacker has access to the following data and models: (i) a global model </span><math id="S3.SS5.SSS1.p2.1.m1.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p2.1.m1.1a"><msub id="S3.SS5.SSS1.p2.1.m1.1.1" xref="S3.SS5.SSS1.p2.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.1.m1.1.1.2" xref="S3.SS5.SSS1.p2.1.m1.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p2.1.m1.1.1.3" xref="S3.SS5.SSS1.p2.1.m1.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.1.m1.1b"><apply id="S3.SS5.SSS1.p2.1.m1.1.1.cmml" xref="S3.SS5.SSS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.1.m1.1.1.1.cmml" xref="S3.SS5.SSS1.p2.1.m1.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p2.1.m1.1.1.2.cmml" xref="S3.SS5.SSS1.p2.1.m1.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p2.1.m1.1.1.3.cmml" xref="S3.SS5.SSS1.p2.1.m1.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.1.m1.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.2" class="ltx_text" style="font-size:90%;"> shared with the clients at communication round </span><math id="S3.SS5.SSS1.p2.2.m2.1" class="ltx_Math" alttext="r" display="inline"><semantics id="S3.SS5.SSS1.p2.2.m2.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.2.m2.1.1" xref="S3.SS5.SSS1.p2.2.m2.1.1.cmml">r</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.2.m2.1b"><ci id="S3.SS5.SSS1.p2.2.m2.1.1.cmml" xref="S3.SS5.SSS1.p2.2.m2.1.1">𝑟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.2.m2.1c">r</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.3" class="ltx_text" style="font-size:90%;">; (ii) a personalised model </span><math id="S3.SS5.SSS1.p2.3.m3.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p2.3.m3.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.3.m3.1.1" xref="S3.SS5.SSS1.p2.3.m3.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.3.m3.1b"><ci id="S3.SS5.SSS1.p2.3.m3.1.1.cmml" xref="S3.SS5.SSS1.p2.3.m3.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.3.m3.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.4" class="ltx_text" style="font-size:90%;"> of some speaker obtained at round </span><math id="S3.SS5.SSS1.p2.4.m4.1" class="ltx_Math" alttext="r" display="inline"><semantics id="S3.SS5.SSS1.p2.4.m4.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.4.m4.1.1" xref="S3.SS5.SSS1.p2.4.m4.1.1.cmml">r</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.4.m4.1b"><ci id="S3.SS5.SSS1.p2.4.m4.1.1.cmml" xref="S3.SS5.SSS1.p2.4.m4.1.1">𝑟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.4.m4.1c">r</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.5" class="ltx_text" style="font-size:90%;"> from </span><math id="S3.SS5.SSS1.p2.5.m5.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p2.5.m5.1a"><msub id="S3.SS5.SSS1.p2.5.m5.1.1" xref="S3.SS5.SSS1.p2.5.m5.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.5.m5.1.1.2" xref="S3.SS5.SSS1.p2.5.m5.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p2.5.m5.1.1.3" xref="S3.SS5.SSS1.p2.5.m5.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.5.m5.1b"><apply id="S3.SS5.SSS1.p2.5.m5.1.1.cmml" xref="S3.SS5.SSS1.p2.5.m5.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.5.m5.1.1.1.cmml" xref="S3.SS5.SSS1.p2.5.m5.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p2.5.m5.1.1.2.cmml" xref="S3.SS5.SSS1.p2.5.m5.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p2.5.m5.1.1.3.cmml" xref="S3.SS5.SSS1.p2.5.m5.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.5.m5.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.6" class="ltx_text" style="font-size:90%;">; (iii) speech data (utterances </span><math id="S3.SS5.SSS1.p2.6.m6.3" class="ltx_Math" alttext="u_{1},\ldots,u_{T}" display="inline"><semantics id="S3.SS5.SSS1.p2.6.m6.3a"><mrow id="S3.SS5.SSS1.p2.6.m6.3.3.2" xref="S3.SS5.SSS1.p2.6.m6.3.3.3.cmml"><msub id="S3.SS5.SSS1.p2.6.m6.2.2.1.1" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.2" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1.2.cmml">u</mi><mn mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.3" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1.3.cmml">1</mn></msub><mo mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.3.3.2.3" xref="S3.SS5.SSS1.p2.6.m6.3.3.3.cmml">,</mo><mi mathsize="90%" mathvariant="normal" id="S3.SS5.SSS1.p2.6.m6.1.1" xref="S3.SS5.SSS1.p2.6.m6.1.1.cmml">…</mi><mo mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.3.3.2.4" xref="S3.SS5.SSS1.p2.6.m6.3.3.3.cmml">,</mo><msub id="S3.SS5.SSS1.p2.6.m6.3.3.2.2" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.2" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2.2.cmml">u</mi><mi mathsize="90%" id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.3" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2.3.cmml">T</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.6.m6.3b"><list id="S3.SS5.SSS1.p2.6.m6.3.3.3.cmml" xref="S3.SS5.SSS1.p2.6.m6.3.3.2"><apply id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.cmml" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.1.cmml" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.2.cmml" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1.2">𝑢</ci><cn type="integer" id="S3.SS5.SSS1.p2.6.m6.2.2.1.1.3.cmml" xref="S3.SS5.SSS1.p2.6.m6.2.2.1.1.3">1</cn></apply><ci id="S3.SS5.SSS1.p2.6.m6.1.1.cmml" xref="S3.SS5.SSS1.p2.6.m6.1.1">…</ci><apply id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.cmml" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.1.cmml" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2">subscript</csymbol><ci id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.2.cmml" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2.2">𝑢</ci><ci id="S3.SS5.SSS1.p2.6.m6.3.3.2.2.3.cmml" xref="S3.SS5.SSS1.p2.6.m6.3.3.2.2.3">𝑇</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.6.m6.3c">u_{1},\ldots,u_{T}</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.7" class="ltx_text" style="font-size:90%;">) of a known speaker which will be referred to as </span><span id="S3.SS5.SSS1.p2.10.8" class="ltx_text ltx_font_italic" style="font-size:90%;">enrollment</span><span id="S3.SS5.SSS1.p2.10.9" class="ltx_text" style="font-size:90%;"> data following the traditional ASV terminology data.
+The attacker does not know the identity of the speaker corresponding to </span><math id="S3.SS5.SSS1.p2.7.m7.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p2.7.m7.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.7.m7.1.1" xref="S3.SS5.SSS1.p2.7.m7.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.7.m7.1b"><ci id="S3.SS5.SSS1.p2.7.m7.1.1.cmml" xref="S3.SS5.SSS1.p2.7.m7.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.7.m7.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.10" class="ltx_text" style="font-size:90%;"> and aims to perform an automatic speaker verification (ASV) task using i–iii to verify if the model </span><math id="S3.SS5.SSS1.p2.8.m8.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p2.8.m8.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.8.m8.1.1" xref="S3.SS5.SSS1.p2.8.m8.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.8.m8.1b"><ci id="S3.SS5.SSS1.p2.8.m8.1.1.cmml" xref="S3.SS5.SSS1.p2.8.m8.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.8.m8.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.11" class="ltx_text" style="font-size:90%;"> and data </span><math id="S3.SS5.SSS1.p2.9.m9.3" class="ltx_Math" alttext="u_{1},\ldots,u_{T}" display="inline"><semantics id="S3.SS5.SSS1.p2.9.m9.3a"><mrow id="S3.SS5.SSS1.p2.9.m9.3.3.2" xref="S3.SS5.SSS1.p2.9.m9.3.3.3.cmml"><msub id="S3.SS5.SSS1.p2.9.m9.2.2.1.1" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.2" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1.2.cmml">u</mi><mn mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.3" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1.3.cmml">1</mn></msub><mo mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.3.3.2.3" xref="S3.SS5.SSS1.p2.9.m9.3.3.3.cmml">,</mo><mi mathsize="90%" mathvariant="normal" id="S3.SS5.SSS1.p2.9.m9.1.1" xref="S3.SS5.SSS1.p2.9.m9.1.1.cmml">…</mi><mo mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.3.3.2.4" xref="S3.SS5.SSS1.p2.9.m9.3.3.3.cmml">,</mo><msub id="S3.SS5.SSS1.p2.9.m9.3.3.2.2" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.2" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2.2.cmml">u</mi><mi mathsize="90%" id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.3" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2.3.cmml">T</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.9.m9.3b"><list id="S3.SS5.SSS1.p2.9.m9.3.3.3.cmml" xref="S3.SS5.SSS1.p2.9.m9.3.3.2"><apply id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.cmml" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.1.cmml" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.2.cmml" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1.2">𝑢</ci><cn type="integer" id="S3.SS5.SSS1.p2.9.m9.2.2.1.1.3.cmml" xref="S3.SS5.SSS1.p2.9.m9.2.2.1.1.3">1</cn></apply><ci id="S3.SS5.SSS1.p2.9.m9.1.1.cmml" xref="S3.SS5.SSS1.p2.9.m9.1.1">…</ci><apply id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.cmml" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.1.cmml" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2">subscript</csymbol><ci id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.2.cmml" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2.2">𝑢</ci><ci id="S3.SS5.SSS1.p2.9.m9.3.3.2.2.3.cmml" xref="S3.SS5.SSS1.p2.9.m9.3.3.2.2.3">𝑇</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.9.m9.3c">u_{1},\ldots,u_{T}</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.12" class="ltx_text" style="font-size:90%;"> correspond to the same speaker. We will refer to </span><math id="S3.SS5.SSS1.p2.10.m10.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p2.10.m10.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p2.10.m10.1.1" xref="S3.SS5.SSS1.p2.10.m10.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p2.10.m10.1b"><ci id="S3.SS5.SSS1.p2.10.m10.1.1.cmml" xref="S3.SS5.SSS1.p2.10.m10.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p2.10.m10.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p2.10.13" class="ltx_text" style="font-size:90%;"> as </span><span id="S3.SS5.SSS1.p2.10.14" class="ltx_text ltx_font_italic" style="font-size:90%;">test trial</span><span id="S3.SS5.SSS1.p2.10.15" class="ltx_text" style="font-size:90%;"> model.</span></p>
+</div>
+<div id="S3.SS5.SSS1.p3" class="ltx_para">
+<p id="S3.SS5.SSS1.p3.3" class="ltx_p"><span id="S3.SS5.SSS1.p3.3.1" class="ltx_text" style="font-size:90%;">In this work, we use an attack model that is similar to the one proposed in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS5.SSS1.p3.3.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S3.SS5.SSS1.p3.3.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS5.SSS1.p3.3.4" class="ltx_text" style="font-size:90%;">.
+The idea is based on capturing information about the speaker identity from the corresponding personalised model </span><math id="S3.SS5.SSS1.p3.1.m1.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p3.1.m1.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p3.1.m1.1.1" xref="S3.SS5.SSS1.p3.1.m1.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p3.1.m1.1b"><ci id="S3.SS5.SSS1.p3.1.m1.1.1.cmml" xref="S3.SS5.SSS1.p3.1.m1.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p3.1.m1.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p3.3.5" class="ltx_text" style="font-size:90%;"> and the global model </span><math id="S3.SS5.SSS1.p3.2.m2.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p3.2.m2.1a"><msub id="S3.SS5.SSS1.p3.2.m2.1.1" xref="S3.SS5.SSS1.p3.2.m2.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p3.2.m2.1.1.2" xref="S3.SS5.SSS1.p3.2.m2.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p3.2.m2.1.1.3" xref="S3.SS5.SSS1.p3.2.m2.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p3.2.m2.1b"><apply id="S3.SS5.SSS1.p3.2.m2.1.1.cmml" xref="S3.SS5.SSS1.p3.2.m2.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p3.2.m2.1.1.1.cmml" xref="S3.SS5.SSS1.p3.2.m2.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p3.2.m2.1.1.2.cmml" xref="S3.SS5.SSS1.p3.2.m2.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p3.2.m2.1.1.3.cmml" xref="S3.SS5.SSS1.p3.2.m2.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p3.2.m2.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p3.3.6" class="ltx_text" style="font-size:90%;">
+by comparing the outputs of these two neural acoustic models (AM) taken from hidden layers </span><math id="S3.SS5.SSS1.p3.3.m3.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S3.SS5.SSS1.p3.3.m3.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p3.3.m3.1.1" xref="S3.SS5.SSS1.p3.3.m3.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p3.3.m3.1b"><ci id="S3.SS5.SSS1.p3.3.m3.1.1.cmml" xref="S3.SS5.SSS1.p3.3.m3.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p3.3.m3.1c">h</annotation></semantics></math><span id="S3.SS5.SSS1.p3.3.7" class="ltx_text" style="font-size:90%;"> on some speech data (called </span><span id="S3.SS5.SSS1.p3.3.8" class="ltx_text ltx_font_italic" style="font-size:90%;">indicator</span><span id="S3.SS5.SSS1.p3.3.9" class="ltx_text" style="font-size:90%;"> in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS5.SSS1.p3.3.10.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S3.SS5.SSS1.p3.3.11.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.SS5.SSS1.p3.3.12" class="ltx_text" style="font-size:90%;">). The </span><span id="S3.SS5.SSS1.p3.3.13" class="ltx_text ltx_font_italic" style="font-size:90%;">indicator</span><span id="S3.SS5.SSS1.p3.3.14" class="ltx_text" style="font-size:90%;"> data is not related to test or training data and can be chosen arbitrarily from any speakers.</span></p>
+</div>
+<div id="S3.SS5.SSS1.p4" class="ltx_para">
+<p id="S3.SS5.SSS1.p4.16" class="ltx_p"><span id="S3.SS5.SSS1.p4.16.1" class="ltx_text" style="font-size:90%;">The method consists in the following steps:
+(1) get a personalised model </span><math id="S3.SS5.SSS1.p4.1.m1.1" class="ltx_Math" alttext="M_{e}" display="inline"><semantics id="S3.SS5.SSS1.p4.1.m1.1a"><msub id="S3.SS5.SSS1.p4.1.m1.1.1" xref="S3.SS5.SSS1.p4.1.m1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.1.m1.1.1.2" xref="S3.SS5.SSS1.p4.1.m1.1.1.2.cmml">M</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.1.m1.1.1.3" xref="S3.SS5.SSS1.p4.1.m1.1.1.3.cmml">e</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.1.m1.1b"><apply id="S3.SS5.SSS1.p4.1.m1.1.1.cmml" xref="S3.SS5.SSS1.p4.1.m1.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.1.m1.1.1.1.cmml" xref="S3.SS5.SSS1.p4.1.m1.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.1.m1.1.1.2.cmml" xref="S3.SS5.SSS1.p4.1.m1.1.1.2">𝑀</ci><ci id="S3.SS5.SSS1.p4.1.m1.1.1.3.cmml" xref="S3.SS5.SSS1.p4.1.m1.1.1.3">𝑒</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.1.m1.1c">M_{e}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.2" class="ltx_text" style="font-size:90%;"> for enrollment speaker </span><math id="S3.SS5.SSS1.p4.2.m2.1" class="ltx_Math" alttext="e" display="inline"><semantics id="S3.SS5.SSS1.p4.2.m2.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.2.m2.1.1" xref="S3.SS5.SSS1.p4.2.m2.1.1.cmml">e</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.2.m2.1b"><ci id="S3.SS5.SSS1.p4.2.m2.1.1.cmml" xref="S3.SS5.SSS1.p4.2.m2.1.1">𝑒</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.2.m2.1c">e</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.3" class="ltx_text" style="font-size:90%;"> from the enrollment data (iii): </span><math id="S3.SS5.SSS1.p4.3.m3.3" class="ltx_Math" alttext="u_{1},\ldots,u_{T}" display="inline"><semantics id="S3.SS5.SSS1.p4.3.m3.3a"><mrow id="S3.SS5.SSS1.p4.3.m3.3.3.2" xref="S3.SS5.SSS1.p4.3.m3.3.3.3.cmml"><msub id="S3.SS5.SSS1.p4.3.m3.2.2.1.1" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.2" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1.2.cmml">u</mi><mn mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.3" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1.3.cmml">1</mn></msub><mo mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.3.3.2.3" xref="S3.SS5.SSS1.p4.3.m3.3.3.3.cmml">,</mo><mi mathsize="90%" mathvariant="normal" id="S3.SS5.SSS1.p4.3.m3.1.1" xref="S3.SS5.SSS1.p4.3.m3.1.1.cmml">…</mi><mo mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.3.3.2.4" xref="S3.SS5.SSS1.p4.3.m3.3.3.3.cmml">,</mo><msub id="S3.SS5.SSS1.p4.3.m3.3.3.2.2" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.2" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2.2.cmml">u</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.3" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2.3.cmml">T</mi></msub></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.3.m3.3b"><list id="S3.SS5.SSS1.p4.3.m3.3.3.3.cmml" xref="S3.SS5.SSS1.p4.3.m3.3.3.2"><apply id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.cmml" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.1.cmml" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.2.cmml" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1.2">𝑢</ci><cn type="integer" id="S3.SS5.SSS1.p4.3.m3.2.2.1.1.3.cmml" xref="S3.SS5.SSS1.p4.3.m3.2.2.1.1.3">1</cn></apply><ci id="S3.SS5.SSS1.p4.3.m3.1.1.cmml" xref="S3.SS5.SSS1.p4.3.m3.1.1">…</ci><apply id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.cmml" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.1.cmml" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2">subscript</csymbol><ci id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.2.cmml" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2.2">𝑢</ci><ci id="S3.SS5.SSS1.p4.3.m3.3.3.2.2.3.cmml" xref="S3.SS5.SSS1.p4.3.m3.3.3.2.2.3">𝑇</ci></apply></list></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.3.m3.3c">u_{1},\ldots,u_{T}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.4" class="ltx_text" style="font-size:90%;">, by finetuning </span><math id="S3.SS5.SSS1.p4.4.m4.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p4.4.m4.1a"><msub id="S3.SS5.SSS1.p4.4.m4.1.1" xref="S3.SS5.SSS1.p4.4.m4.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.4.m4.1.1.2" xref="S3.SS5.SSS1.p4.4.m4.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.4.m4.1.1.3" xref="S3.SS5.SSS1.p4.4.m4.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.4.m4.1b"><apply id="S3.SS5.SSS1.p4.4.m4.1.1.cmml" xref="S3.SS5.SSS1.p4.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.4.m4.1.1.1.cmml" xref="S3.SS5.SSS1.p4.4.m4.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.4.m4.1.1.2.cmml" xref="S3.SS5.SSS1.p4.4.m4.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p4.4.m4.1.1.3.cmml" xref="S3.SS5.SSS1.p4.4.m4.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.4.m4.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.5" class="ltx_text" style="font-size:90%;"> on this data;
+(2) using </span><math id="S3.SS5.SSS1.p4.5.m5.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p4.5.m5.1a"><msub id="S3.SS5.SSS1.p4.5.m5.1.1" xref="S3.SS5.SSS1.p4.5.m5.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.5.m5.1.1.2" xref="S3.SS5.SSS1.p4.5.m5.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.5.m5.1.1.3" xref="S3.SS5.SSS1.p4.5.m5.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.5.m5.1b"><apply id="S3.SS5.SSS1.p4.5.m5.1.1.cmml" xref="S3.SS5.SSS1.p4.5.m5.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.5.m5.1.1.1.cmml" xref="S3.SS5.SSS1.p4.5.m5.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.5.m5.1.1.2.cmml" xref="S3.SS5.SSS1.p4.5.m5.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p4.5.m5.1.1.3.cmml" xref="S3.SS5.SSS1.p4.5.m5.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.5.m5.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.6" class="ltx_text" style="font-size:90%;"> and </span><math id="S3.SS5.SSS1.p4.6.m6.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p4.6.m6.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.6.m6.1.1" xref="S3.SS5.SSS1.p4.6.m6.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.6.m6.1b"><ci id="S3.SS5.SSS1.p4.6.m6.1.1.cmml" xref="S3.SS5.SSS1.p4.6.m6.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.6.m6.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.7" class="ltx_text" style="font-size:90%;"> compute per-frame differences between activation values of these two models from some hidden layer </span><math id="S3.SS5.SSS1.p4.7.m7.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S3.SS5.SSS1.p4.7.m7.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.7.m7.1.1" xref="S3.SS5.SSS1.p4.7.m7.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.7.m7.1b"><ci id="S3.SS5.SSS1.p4.7.m7.1.1.cmml" xref="S3.SS5.SSS1.p4.7.m7.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.7.m7.1c">h</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.8" class="ltx_text" style="font-size:90%;"> for all utterances of the indicator dataset; then for these differences compute a mean vector </span><math id="S3.SS5.SSS1.p4.8.m8.1" class="ltx_Math" alttext="\mu" display="inline"><semantics id="S3.SS5.SSS1.p4.8.m8.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.8.m8.1.1" xref="S3.SS5.SSS1.p4.8.m8.1.1.cmml">μ</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.8.m8.1b"><ci id="S3.SS5.SSS1.p4.8.m8.1.1.cmml" xref="S3.SS5.SSS1.p4.8.m8.1.1">𝜇</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.8.m8.1c">\mu</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.9" class="ltx_text" style="font-size:90%;"> over all frames;
+(3) using </span><math id="S3.SS5.SSS1.p4.9.m9.1" class="ltx_Math" alttext="G_{r}" display="inline"><semantics id="S3.SS5.SSS1.p4.9.m9.1a"><msub id="S3.SS5.SSS1.p4.9.m9.1.1" xref="S3.SS5.SSS1.p4.9.m9.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.9.m9.1.1.2" xref="S3.SS5.SSS1.p4.9.m9.1.1.2.cmml">G</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.9.m9.1.1.3" xref="S3.SS5.SSS1.p4.9.m9.1.1.3.cmml">r</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.9.m9.1b"><apply id="S3.SS5.SSS1.p4.9.m9.1.1.cmml" xref="S3.SS5.SSS1.p4.9.m9.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.9.m9.1.1.1.cmml" xref="S3.SS5.SSS1.p4.9.m9.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.9.m9.1.1.2.cmml" xref="S3.SS5.SSS1.p4.9.m9.1.1.2">𝐺</ci><ci id="S3.SS5.SSS1.p4.9.m9.1.1.3.cmml" xref="S3.SS5.SSS1.p4.9.m9.1.1.3">𝑟</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.9.m9.1c">G_{r}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.10" class="ltx_text" style="font-size:90%;"> and </span><math id="S3.SS5.SSS1.p4.10.m10.1" class="ltx_Math" alttext="M_{e}" display="inline"><semantics id="S3.SS5.SSS1.p4.10.m10.1a"><msub id="S3.SS5.SSS1.p4.10.m10.1.1" xref="S3.SS5.SSS1.p4.10.m10.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.10.m10.1.1.2" xref="S3.SS5.SSS1.p4.10.m10.1.1.2.cmml">M</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.10.m10.1.1.3" xref="S3.SS5.SSS1.p4.10.m10.1.1.3.cmml">e</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.10.m10.1b"><apply id="S3.SS5.SSS1.p4.10.m10.1.1.cmml" xref="S3.SS5.SSS1.p4.10.m10.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.10.m10.1.1.1.cmml" xref="S3.SS5.SSS1.p4.10.m10.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.10.m10.1.1.2.cmml" xref="S3.SS5.SSS1.p4.10.m10.1.1.2">𝑀</ci><ci id="S3.SS5.SSS1.p4.10.m10.1.1.3.cmml" xref="S3.SS5.SSS1.p4.10.m10.1.1.3">𝑒</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.10.m10.1c">M_{e}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.11" class="ltx_text" style="font-size:90%;"> compute per-frame differences between activation values of these two models from layer </span><math id="S3.SS5.SSS1.p4.11.m11.1" class="ltx_Math" alttext="h" display="inline"><semantics id="S3.SS5.SSS1.p4.11.m11.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.11.m11.1.1" xref="S3.SS5.SSS1.p4.11.m11.1.1.cmml">h</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.11.m11.1b"><ci id="S3.SS5.SSS1.p4.11.m11.1.1.cmml" xref="S3.SS5.SSS1.p4.11.m11.1.1">ℎ</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.11.m11.1c">h</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.12" class="ltx_text" style="font-size:90%;"> for all utterances of the indicator dataset; then for these differences compute a mean vector </span><math id="S3.SS5.SSS1.p4.12.m12.1" class="ltx_Math" alttext="\mu_{e}" display="inline"><semantics id="S3.SS5.SSS1.p4.12.m12.1a"><msub id="S3.SS5.SSS1.p4.12.m12.1.1" xref="S3.SS5.SSS1.p4.12.m12.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.12.m12.1.1.2" xref="S3.SS5.SSS1.p4.12.m12.1.1.2.cmml">μ</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.12.m12.1.1.3" xref="S3.SS5.SSS1.p4.12.m12.1.1.3.cmml">e</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.12.m12.1b"><apply id="S3.SS5.SSS1.p4.12.m12.1.1.cmml" xref="S3.SS5.SSS1.p4.12.m12.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.12.m12.1.1.1.cmml" xref="S3.SS5.SSS1.p4.12.m12.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.12.m12.1.1.2.cmml" xref="S3.SS5.SSS1.p4.12.m12.1.1.2">𝜇</ci><ci id="S3.SS5.SSS1.p4.12.m12.1.1.3.cmml" xref="S3.SS5.SSS1.p4.12.m12.1.1.3">𝑒</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.12.m12.1c">\mu_{e}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.13" class="ltx_text" style="font-size:90%;"> over all frames;
+(4) compute similarity score </span><math id="S3.SS5.SSS1.p4.13.m13.1" class="ltx_Math" alttext="\rho" display="inline"><semantics id="S3.SS5.SSS1.p4.13.m13.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.13.m13.1.1" xref="S3.SS5.SSS1.p4.13.m13.1.1.cmml">ρ</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.13.m13.1b"><ci id="S3.SS5.SSS1.p4.13.m13.1.1.cmml" xref="S3.SS5.SSS1.p4.13.m13.1.1">𝜌</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.13.m13.1c">\rho</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.14" class="ltx_text" style="font-size:90%;"> between enrollment model </span><math id="S3.SS5.SSS1.p4.14.m14.1" class="ltx_Math" alttext="M_{e}" display="inline"><semantics id="S3.SS5.SSS1.p4.14.m14.1a"><msub id="S3.SS5.SSS1.p4.14.m14.1.1" xref="S3.SS5.SSS1.p4.14.m14.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.14.m14.1.1.2" xref="S3.SS5.SSS1.p4.14.m14.1.1.2.cmml">M</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.14.m14.1.1.3" xref="S3.SS5.SSS1.p4.14.m14.1.1.3.cmml">e</mi></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.14.m14.1b"><apply id="S3.SS5.SSS1.p4.14.m14.1.1.cmml" xref="S3.SS5.SSS1.p4.14.m14.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.14.m14.1.1.1.cmml" xref="S3.SS5.SSS1.p4.14.m14.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.14.m14.1.1.2.cmml" xref="S3.SS5.SSS1.p4.14.m14.1.1.2">𝑀</ci><ci id="S3.SS5.SSS1.p4.14.m14.1.1.3.cmml" xref="S3.SS5.SSS1.p4.14.m14.1.1.3">𝑒</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.14.m14.1c">M_{e}</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.15" class="ltx_text" style="font-size:90%;"> and test trial model </span><math id="S3.SS5.SSS1.p4.15.m15.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S3.SS5.SSS1.p4.15.m15.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p4.15.m15.1.1" xref="S3.SS5.SSS1.p4.15.m15.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.15.m15.1b"><ci id="S3.SS5.SSS1.p4.15.m15.1.1.cmml" xref="S3.SS5.SSS1.p4.15.m15.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.15.m15.1c">M</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.16" class="ltx_text" style="font-size:90%;"> as cosine similarity between corresponding mean vectors:
+</span><math id="S3.SS5.SSS1.p4.16.m16.5" class="ltx_Math" alttext="\rho(M_{e},M)=\cos(\mu,\mu_{e})" display="inline"><semantics id="S3.SS5.SSS1.p4.16.m16.5a"><mrow id="S3.SS5.SSS1.p4.16.m16.5.5" xref="S3.SS5.SSS1.p4.16.m16.5.5.cmml"><mrow id="S3.SS5.SSS1.p4.16.m16.4.4.1" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.3" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.3.cmml">ρ</mi><mo lspace="0em" rspace="0em" id="S3.SS5.SSS1.p4.16.m16.4.4.1.2" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.2.cmml">​</mo><mrow id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.2" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.2.cmml">(</mo><msub id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.2" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.2.cmml">M</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.3" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.3.cmml">e</mi></msub><mo mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.3" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.2.cmml">,</mo><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.1.1" xref="S3.SS5.SSS1.p4.16.m16.1.1.cmml">M</mi><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.4" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.2.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.3" xref="S3.SS5.SSS1.p4.16.m16.5.5.3.cmml">=</mo><mrow id="S3.SS5.SSS1.p4.16.m16.5.5.2.1" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.2.2" xref="S3.SS5.SSS1.p4.16.m16.2.2.cmml">cos</mi><mo id="S3.SS5.SSS1.p4.16.m16.5.5.2.1a" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml">⁡</mo><mrow id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.2" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml">(</mo><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.3.3" xref="S3.SS5.SSS1.p4.16.m16.3.3.cmml">μ</mi><mo mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.3" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml">,</mo><msub id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.2" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.2.cmml">μ</mi><mi mathsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.3" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.3.cmml">e</mi></msub><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.4" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p4.16.m16.5b"><apply id="S3.SS5.SSS1.p4.16.m16.5.5.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5"><eq id="S3.SS5.SSS1.p4.16.m16.5.5.3.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.3"></eq><apply id="S3.SS5.SSS1.p4.16.m16.4.4.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1"><times id="S3.SS5.SSS1.p4.16.m16.4.4.1.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.2"></times><ci id="S3.SS5.SSS1.p4.16.m16.4.4.1.3.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.3">𝜌</ci><interval closure="open" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1"><apply id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.2">𝑀</ci><ci id="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.3.cmml" xref="S3.SS5.SSS1.p4.16.m16.4.4.1.1.1.1.3">𝑒</ci></apply><ci id="S3.SS5.SSS1.p4.16.m16.1.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.1.1">𝑀</ci></interval></apply><apply id="S3.SS5.SSS1.p4.16.m16.5.5.2.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1"><cos id="S3.SS5.SSS1.p4.16.m16.2.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.2.2"></cos><ci id="S3.SS5.SSS1.p4.16.m16.3.3.cmml" xref="S3.SS5.SSS1.p4.16.m16.3.3">𝜇</ci><apply id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.1.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.2.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.2">𝜇</ci><ci id="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.3.cmml" xref="S3.SS5.SSS1.p4.16.m16.5.5.2.1.1.1.3">𝑒</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p4.16.m16.5c">\rho(M_{e},M)=\cos(\mu,\mu_{e})</annotation></semantics></math><span id="S3.SS5.SSS1.p4.16.17" class="ltx_text" style="font-size:90%;"> and perform an ASV task using these scores.
+More details can be found in </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.SS5.SSS1.p4.16.18.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S3.SS5.SSS1.p4.16.19.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="footnote5" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">5</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">5</sup><span class="ltx_tag ltx_tag_note">5</span> The differences with respect to the work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> are in the way the similarity scores are computed: (1) only mean values (without standard deviation components as in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite>) are used; and (2) cosine distance instead of Euclidean-based metric is applied.</span></span></span><span id="S3.SS5.SSS1.p4.16.20" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<div id="S3.SS5.SSS1.p5" class="ltx_para">
+<p id="S3.SS5.SSS1.p5.5" class="ltx_p"><span id="S3.SS5.SSS1.p5.5.1" class="ltx_text" style="font-size:90%;">As a privacy evaluation metric, in this work, we use equal error rate (EER).
+Denoting by </span><math id="S3.SS5.SSS1.p5.1.m1.1" class="ltx_Math" alttext="P_{\text{fa}}(\theta)" display="inline"><semantics id="S3.SS5.SSS1.p5.1.m1.1a"><mrow id="S3.SS5.SSS1.p5.1.m1.1.2" xref="S3.SS5.SSS1.p5.1.m1.1.2.cmml"><msub id="S3.SS5.SSS1.p5.1.m1.1.2.2" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.1.m1.1.2.2.2" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.2.cmml">P</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.1.m1.1.2.2.3" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.3a.cmml">fa</mtext></msub><mo lspace="0em" rspace="0em" id="S3.SS5.SSS1.p5.1.m1.1.2.1" xref="S3.SS5.SSS1.p5.1.m1.1.2.1.cmml">​</mo><mrow id="S3.SS5.SSS1.p5.1.m1.1.2.3.2" xref="S3.SS5.SSS1.p5.1.m1.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.1.m1.1.2.3.2.1" xref="S3.SS5.SSS1.p5.1.m1.1.2.cmml">(</mo><mi mathsize="90%" id="S3.SS5.SSS1.p5.1.m1.1.1" xref="S3.SS5.SSS1.p5.1.m1.1.1.cmml">θ</mi><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.1.m1.1.2.3.2.2" xref="S3.SS5.SSS1.p5.1.m1.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p5.1.m1.1b"><apply id="S3.SS5.SSS1.p5.1.m1.1.2.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2"><times id="S3.SS5.SSS1.p5.1.m1.1.2.1.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.1"></times><apply id="S3.SS5.SSS1.p5.1.m1.1.2.2.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.2"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.1.m1.1.2.2.1.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.2">subscript</csymbol><ci id="S3.SS5.SSS1.p5.1.m1.1.2.2.2.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.2">𝑃</ci><ci id="S3.SS5.SSS1.p5.1.m1.1.2.2.3a.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.1.m1.1.2.2.3.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.2.2.3">fa</mtext></ci></apply><ci id="S3.SS5.SSS1.p5.1.m1.1.1.cmml" xref="S3.SS5.SSS1.p5.1.m1.1.1">𝜃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p5.1.m1.1c">P_{\text{fa}}(\theta)</annotation></semantics></math><span id="S3.SS5.SSS1.p5.5.2" class="ltx_text" style="font-size:90%;"> and </span><math id="S3.SS5.SSS1.p5.2.m2.1" class="ltx_Math" alttext="P_{\text{miss}}(\theta)" display="inline"><semantics id="S3.SS5.SSS1.p5.2.m2.1a"><mrow id="S3.SS5.SSS1.p5.2.m2.1.2" xref="S3.SS5.SSS1.p5.2.m2.1.2.cmml"><msub id="S3.SS5.SSS1.p5.2.m2.1.2.2" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.2.m2.1.2.2.2" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.2.cmml">P</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.2.m2.1.2.2.3" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.3a.cmml">miss</mtext></msub><mo lspace="0em" rspace="0em" id="S3.SS5.SSS1.p5.2.m2.1.2.1" xref="S3.SS5.SSS1.p5.2.m2.1.2.1.cmml">​</mo><mrow id="S3.SS5.SSS1.p5.2.m2.1.2.3.2" xref="S3.SS5.SSS1.p5.2.m2.1.2.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.2.m2.1.2.3.2.1" xref="S3.SS5.SSS1.p5.2.m2.1.2.cmml">(</mo><mi mathsize="90%" id="S3.SS5.SSS1.p5.2.m2.1.1" xref="S3.SS5.SSS1.p5.2.m2.1.1.cmml">θ</mi><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.2.m2.1.2.3.2.2" xref="S3.SS5.SSS1.p5.2.m2.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p5.2.m2.1b"><apply id="S3.SS5.SSS1.p5.2.m2.1.2.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2"><times id="S3.SS5.SSS1.p5.2.m2.1.2.1.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.1"></times><apply id="S3.SS5.SSS1.p5.2.m2.1.2.2.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.2"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.2.m2.1.2.2.1.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.2">subscript</csymbol><ci id="S3.SS5.SSS1.p5.2.m2.1.2.2.2.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.2">𝑃</ci><ci id="S3.SS5.SSS1.p5.2.m2.1.2.2.3a.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.2.m2.1.2.2.3.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.2.2.3">miss</mtext></ci></apply><ci id="S3.SS5.SSS1.p5.2.m2.1.1.cmml" xref="S3.SS5.SSS1.p5.2.m2.1.1">𝜃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p5.2.m2.1c">P_{\text{miss}}(\theta)</annotation></semantics></math><span id="S3.SS5.SSS1.p5.5.3" class="ltx_text" style="font-size:90%;"> the false alarm and miss rates at threshold </span><math id="S3.SS5.SSS1.p5.3.m3.1" class="ltx_Math" alttext="\theta" display="inline"><semantics id="S3.SS5.SSS1.p5.3.m3.1a"><mi mathsize="90%" id="S3.SS5.SSS1.p5.3.m3.1.1" xref="S3.SS5.SSS1.p5.3.m3.1.1.cmml">θ</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p5.3.m3.1b"><ci id="S3.SS5.SSS1.p5.3.m3.1.1.cmml" xref="S3.SS5.SSS1.p5.3.m3.1.1">𝜃</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p5.3.m3.1c">\theta</annotation></semantics></math><span id="S3.SS5.SSS1.p5.5.4" class="ltx_text" style="font-size:90%;">, the EER corresponds to the threshold </span><math id="S3.SS5.SSS1.p5.4.m4.1" class="ltx_Math" alttext="\theta_{\text{EER}}" display="inline"><semantics id="S3.SS5.SSS1.p5.4.m4.1a"><msub id="S3.SS5.SSS1.p5.4.m4.1.1" xref="S3.SS5.SSS1.p5.4.m4.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.4.m4.1.1.2" xref="S3.SS5.SSS1.p5.4.m4.1.1.2.cmml">θ</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.4.m4.1.1.3" xref="S3.SS5.SSS1.p5.4.m4.1.1.3a.cmml">EER</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p5.4.m4.1b"><apply id="S3.SS5.SSS1.p5.4.m4.1.1.cmml" xref="S3.SS5.SSS1.p5.4.m4.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.4.m4.1.1.1.cmml" xref="S3.SS5.SSS1.p5.4.m4.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p5.4.m4.1.1.2.cmml" xref="S3.SS5.SSS1.p5.4.m4.1.1.2">𝜃</ci><ci id="S3.SS5.SSS1.p5.4.m4.1.1.3a.cmml" xref="S3.SS5.SSS1.p5.4.m4.1.1.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.4.m4.1.1.3.cmml" xref="S3.SS5.SSS1.p5.4.m4.1.1.3">EER</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p5.4.m4.1c">\theta_{\text{EER}}</annotation></semantics></math><span id="S3.SS5.SSS1.p5.5.5" class="ltx_text" style="font-size:90%;"> at which the two detection error rates are equal, i.e., </span><math id="S3.SS5.SSS1.p5.5.m5.2" class="ltx_Math" alttext="\text{EER}=P_{\text{fa}}(\theta_{\text{EER}})=P_{\text{miss}}(\theta_{\text{EER}})" display="inline"><semantics id="S3.SS5.SSS1.p5.5.m5.2a"><mrow id="S3.SS5.SSS1.p5.5.m5.2.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.cmml"><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.4" xref="S3.SS5.SSS1.p5.5.m5.2.2.4a.cmml">EER</mtext><mo mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.5" xref="S3.SS5.SSS1.p5.5.m5.2.2.5.cmml">=</mo><mrow id="S3.SS5.SSS1.p5.5.m5.1.1.1" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.cmml"><msub id="S3.SS5.SSS1.p5.5.m5.1.1.1.3" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.2" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.2.cmml">P</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3a.cmml">fa</mtext></msub><mo lspace="0em" rspace="0em" id="S3.SS5.SSS1.p5.5.m5.1.1.1.2" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.2.cmml">​</mo><mrow id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.2" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.cmml">(</mo><msub id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.2" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.2.cmml">θ</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3a.cmml">EER</mtext></msub><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.3" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.6" xref="S3.SS5.SSS1.p5.5.m5.2.2.6.cmml">=</mo><mrow id="S3.SS5.SSS1.p5.5.m5.2.2.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.cmml"><msub id="S3.SS5.SSS1.p5.5.m5.2.2.2.3" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.2.cmml">P</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3a.cmml">miss</mtext></msub><mo lspace="0em" rspace="0em" id="S3.SS5.SSS1.p5.5.m5.2.2.2.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.2.cmml">​</mo><mrow id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.cmml">(</mo><msub id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.cmml"><mi mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.2" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.2.cmml">θ</mi><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3a.cmml">EER</mtext></msub><mo maxsize="90%" minsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.3" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS1.p5.5.m5.2b"><apply id="S3.SS5.SSS1.p5.5.m5.2.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2"><and id="S3.SS5.SSS1.p5.5.m5.2.2a.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2"></and><apply id="S3.SS5.SSS1.p5.5.m5.2.2b.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2"><eq id="S3.SS5.SSS1.p5.5.m5.2.2.5.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.5"></eq><ci id="S3.SS5.SSS1.p5.5.m5.2.2.4a.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.4"><mtext mathsize="90%" id="S3.SS5.SSS1.p5.5.m5.2.2.4.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.4">EER</mtext></ci><apply id="S3.SS5.SSS1.p5.5.m5.1.1.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1"><times id="S3.SS5.SSS1.p5.5.m5.1.1.1.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.2"></times><apply id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3">subscript</csymbol><ci id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.2">𝑃</ci><ci id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3a.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.3.3">fa</mtext></ci></apply><apply id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.2">𝜃</ci><ci id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3a.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.1.1.1.1.1.1.3">EER</mtext></ci></apply></apply></apply><apply id="S3.SS5.SSS1.p5.5.m5.2.2c.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2"><eq id="S3.SS5.SSS1.p5.5.m5.2.2.6.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.6"></eq><share href="#S3.SS5.SSS1.p5.5.m5.1.1.1.cmml" id="S3.SS5.SSS1.p5.5.m5.2.2d.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2"></share><apply id="S3.SS5.SSS1.p5.5.m5.2.2.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2"><times id="S3.SS5.SSS1.p5.5.m5.2.2.2.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.2"></times><apply id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3">subscript</csymbol><ci id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.2">𝑃</ci><ci id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3a.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.3.3">miss</mtext></ci></apply><apply id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1"><csymbol cd="ambiguous" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.1.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1">subscript</csymbol><ci id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.2.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.2">𝜃</ci><ci id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3a.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3"><mtext mathsize="63%" id="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3.cmml" xref="S3.SS5.SSS1.p5.5.m5.2.2.2.1.1.1.3">EER</mtext></ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS1.p5.5.m5.2c">\text{EER}=P_{\text{fa}}(\theta_{\text{EER}})=P_{\text{miss}}(\theta_{\text{EER}})</annotation></semantics></math><span id="S3.SS5.SSS1.p5.5.6" class="ltx_text" style="font-size:90%;">.
+The higher EER the better is privacy preservation.</span></p>
+</div>
+<figure id="S3.F4" class="ltx_figure"><img src="/html/2302.10790/assets/picture/eer2.png" id="S3.F4.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="598" height="337" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F4.4.1.1" class="ltx_text ltx_font_bold">Fig. 4</span>: </span>Privacy evaluation (EER,%) for different computational rounds and layers of the ASR models</figcaption>
+</figure>
+</section>
+<section id="S3.SS5.SSS2" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsubsection">3.5.2 </span>Results</h4>
+
+<div id="S3.SS5.SSS2.p1" class="ltx_para">
+<p id="S3.SS5.SSS2.p1.1" class="ltx_p"><span id="S3.SS5.SSS2.p1.1.1" class="ltx_text" style="font-size:90%;">The speaker privacy has been evaluated for the ASR models with the wav2vec 2.0-based architecture (Section </span><a href="#S3.SS2.SSS2" title="3.2.2 ASR model based on Wav2vec 2.0 ‣ 3.2 Models ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.2.2</span></a><span id="S3.SS5.SSS2.p1.1.2" class="ltx_text" style="font-size:90%;">).
+We applied the attack model described in Section </span><a href="#S3.SS5.SSS1" title="3.5.1 Privacy preservation scenario and attack model ‣ 3.5 Protection of speaker identity ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.5.1</span></a><span id="S3.SS5.SSS2.p1.1.3" class="ltx_text" style="font-size:90%;"> for different computational rounds </span><math id="S3.SS5.SSS2.p1.1.m1.1" class="ltx_Math" alttext="r" display="inline"><semantics id="S3.SS5.SSS2.p1.1.m1.1a"><mi mathsize="90%" id="S3.SS5.SSS2.p1.1.m1.1.1" xref="S3.SS5.SSS2.p1.1.m1.1.1.cmml">r</mi><annotation-xml encoding="MathML-Content" id="S3.SS5.SSS2.p1.1.m1.1b"><ci id="S3.SS5.SSS2.p1.1.m1.1.1.cmml" xref="S3.SS5.SSS2.p1.1.m1.1.1">𝑟</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS5.SSS2.p1.1.m1.1c">r</annotation></semantics></math><span id="S3.SS5.SSS2.p1.1.4" class="ltx_text" style="font-size:90%;">.
+For each round, we used 50 enrollment speakers and perform an ASV task for all clients of the given round (performing in average 15 target and 986 non-target trials per round). The amount of enrollment data for each model ((iii) in Section </span><a href="#S3.SS5.SSS1" title="3.5.1 Privacy preservation scenario and attack model ‣ 3.5 Protection of speaker identity ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3.5.1</span></a><span id="S3.SS5.SSS2.p1.1.5" class="ltx_text" style="font-size:90%;">) is about 5 minutes.
+Experimental results are presented in Figure </span><a href="#S3.F4" title="Figure 4 ‣ 3.5.1 Privacy preservation scenario and attack model ‣ 3.5 Protection of speaker identity ‣ 3 Experiments ‣ Federated Learning for ASR based on Wav2vec 2.0" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4</span></a><span id="S3.SS5.SSS2.p1.1.6" class="ltx_text" style="font-size:90%;"> for different hidden layers of the ASR models and rounds {3,5,10,20,30}.
+The green dashed curve represents the EER averaged over selected rounds.
+In general, EER increases when the number of computational rounds increases, so it is more difficult for the attacker to retrieve information about the speaker identity from the personalised models on the later rounds than on the earlier ones.
+For lower hidden layers, the EER in average is lower than for upper layers.
+</span></p>
+</div>
+</section>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text" style="font-size:90%;">This paper presents a study on the use of federated learning to train an ASR model based on the wav2vec 2.0 model.
+The experimental results, carried out on the well-known TED-LIUM 3 dataset, showed the capability of federated learning to train an effective ASR model without sharing any speech data when federated learning is applied to fine-tune a wav2vec 2.0 model.
+Our experiments demonstrated that the general model contains relevant information for those speakers who have participated in the federated learning by sharing their local models, but we did not observe any bias based on the number of participations.
+The general model built through federated learning is also very effective to process unseen speakers.
+Finally, we have evaluated the privacy level achieved for the proposed federated learning framework by exploiting an approach to analyse information contained in personalised models based on a neural network footprint on an indicator dataset. The layer-wise analysis has demonstrated that speaker information can be retrieved from all the considered rounds of the FL process. EER is lower on the earlier stages of the process and varies from 5 up to 20%, for different rounds for hidden layers #2–#6).
+In a future work, we could also investigate which amount of linguistic information is brought by the shared local speaker models.</span></p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="font-size:90%;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="font-size:90%;">
+Jakub Konečnỳ, H Brendan McMahan, Felix X Yu, Peter Richtárik,
+Ananda Theertha Suresh, and Dave Bacon,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.2.1" class="ltx_text" style="font-size:90%;">“Federated learning: Strategies for improving communication
+efficiency,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:1610.05492</span><span id="bib.bib1.4.2" class="ltx_text" style="font-size:90%;">, 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="font-size:90%;">
+H. Brendan McMahan, Eider Moore, Daniel Ramage, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.2.1" class="ltx_text" style="font-size:90%;">“Communication-efficient learning of deep networks from
+decentralized data,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.3.1" class="ltx_text" style="font-size:90%;">2016.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="font-size:90%;">
+Dimitrios Dimitriadis, Ken’ichi Kumatani, Robert Gmyr, Yashesh Gaur, and
+Sefik Emre Eskimez,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.2.1" class="ltx_text" style="font-size:90%;">“A federated approach in training acoustic models.,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib3.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech</span><span id="bib.bib3.5.3" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="font-size:90%;">
+Natalia Tomashenko, Salima Mdhaffar, Marc Tommasi, Yannick Estève, and
+Jean-François Bonastre,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.2.1" class="ltx_text" style="font-size:90%;">“Privacy attacks for automatic speech recognition acoustic models in
+a federated learning framework,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib4.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP 2022</span><span id="bib.bib4.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="font-size:90%;">
+Yan Gao, Titouan Parcollet, Salah Zaiem, Javier Fernandez-Marques, Pedro P. B.
+de Gusmao, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.2.1" class="ltx_text" style="font-size:90%;">“End-to-end speech recognition from federated acoustic models,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib5.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP</span><span id="bib.bib5.5.3" class="ltx_text" style="font-size:90%;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="font-size:90%;">
+Han Zhu, Jindong Wang, Gaofeng Cheng, Pengyuan Zhang, and Yonghong Yan,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.2.1" class="ltx_text" style="font-size:90%;">“Decoupled Federated Learning for ASR with Non-IID Data,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib6.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2022</span><span id="bib.bib6.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="font-size:90%;">
+Junteng Jia, Jay Mahadeokar, Weiyi Zheng, Yuan Shangguan, Ozlem Kalinli, and
+Frank Seide,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.2.1" class="ltx_text" style="font-size:90%;">“Federated Domain Adaptation for ASR with Full Self-Supervision,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib7.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2022</span><span id="bib.bib7.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="font-size:90%;">
+Haaris Mehmood, Agnieszka Dobrowolska, Karthikeyan Saravanan, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.2.1" class="ltx_text" style="font-size:90%;">“FedNST: Federated Noisy Student Training for Automatic Speech
+Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib8.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2022</span><span id="bib.bib8.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="font-size:90%;">
+David Leroy, Alice Coucke, Thibaut Lavril, Thibault Gisselbrecht, and Joseph
+Dureau,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.2.1" class="ltx_text" style="font-size:90%;">“Federated learning for keyword spotting,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib9.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP</span><span id="bib.bib9.5.3" class="ltx_text" style="font-size:90%;">, 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="font-size:90%;">
+Andrew Hard, Kurt Partridge, Cameron Nguyen, Niranjan Subrahmanya, Aishanee
+Shah, Pai Zhu, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.2.1" class="ltx_text" style="font-size:90%;">“Training keyword spotting models on non-iid data with federated
+learning,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib10.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech</span><span id="bib.bib10.5.3" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="font-size:90%;">
+Andrew Hard, Kurt Partridge, Neng Chen, Sean Augenstein, Aishanee Shah,
+Hyun Jin Park, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.2.1" class="ltx_text" style="font-size:90%;">“Production federated keyword spotting via distillation, filtering,
+and joint federated-centralized training,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib11.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2022</span><span id="bib.bib11.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="font-size:90%;">
+Abraham Woubie and Tom Bäckström,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.2.1" class="ltx_text" style="font-size:90%;">“Federated learning for privacy-preserving speaker recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">IEEE Access</span><span id="bib.bib12.4.2" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="font-size:90%;">
+Filip Granqvist, Matt Seigel, Rogier van Dalen, Áine Cahill, Stephen Shum, and
+Matthias Paulik,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.2.1" class="ltx_text" style="font-size:90%;">“Improving On-Device Speaker Verification Using Federated Learning
+with Privacy,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib13.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2020</span><span id="bib.bib13.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="font-size:90%;">
+Siddique Latif, Sara Khalifa, Rajib Rana, and Raja Jurdak,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.2.1" class="ltx_text" style="font-size:90%;">“Federated learning for speech emotion recognition applications,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib14.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">IEEE International Conference on Information Processing in
+Sensor Networks 2020</span><span id="bib.bib14.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="font-size:90%;">
+Yan Gao, Javier Fernandez-Marques, Titouan Parcollet, Abhinav Mehrotra, and
+Nicholas Lane,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.2.1" class="ltx_text" style="font-size:90%;">“Federated Self-supervised Speech Representations: Are We There
+Yet?,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib15.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2022</span><span id="bib.bib15.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="font-size:90%;">
+Wentao Yu, Jan Freiwald, Sören Tewes, Fabien Huennemeyer, and Dorothea
+Kolossa,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.2.1" class="ltx_text" style="font-size:90%;">“Federated learning in asr: Not as easy as you think,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib16.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Speech Communication</span><span id="bib.bib16.5.3" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="font-size:90%;">
+Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.2.1" class="ltx_text" style="font-size:90%;">“wav2vec 2.0: A framework for self-supervised learning of speech
+representations,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">Advances in Neural Information Processing Systems</span><span id="bib.bib17.4.2" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="font-size:90%;">
+Shu-wen Yang, Po-Han Chi, Yung-Sung Chuang, Cheng-I Jeff Lai, Kushal Lakhotia,
+Yist Y Lin, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.2.1" class="ltx_text" style="font-size:90%;">“Superb: Speech processing universal performance benchmark,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">arXiv preprint arXiv:2105.01051</span><span id="bib.bib18.4.2" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="font-size:90%;">
+Solène Evain, Ha Nguyen, Hang Le, Marcely Zanon Boito, Salima Mdhaffar,
+Sina Alisamir, Ziyi Tong, Natalia Tomashenko, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.2.1" class="ltx_text" style="font-size:90%;">“Lebenchmark: A reproducible framework for assessing self-supervised
+representation learning from speech,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib19.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech 2021</span><span id="bib.bib19.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="font-size:90%;">
+Salima Mdhaffar, Jean-François Bonastre, Marc Tommasi, Natalia Tomashenko, and
+Yannick Estève,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.2.1" class="ltx_text" style="font-size:90%;">“Retrieving speaker information from personalized acoustic models
+for speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib20.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP</span><span id="bib.bib20.5.3" class="ltx_text" style="font-size:90%;">, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="font-size:90%;">
+Tian Li, Anit Kumar Sahu, Manzil Zaheer, Maziar Sanjabi, Ameet Talwalkar, and
+Virginia Smith,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.2.1" class="ltx_text" style="font-size:90%;">“Federated optimization in heterogeneous networks,” 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="font-size:90%;">
+Tian Li, Maziar Sanjabi, Ahmad Beirami, and Virginia Smith,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.2.1" class="ltx_text" style="font-size:90%;">“Fair resource allocation in federated learning,” 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text" style="font-size:90%;">
+Reza Shokri and Vitaly Shmatikov,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.2.1" class="ltx_text" style="font-size:90%;">“Privacy-preserving deep learning,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib23.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of the 22nd ACM SIGSAC Conference on Computer and
+Communications Security</span><span id="bib.bib23.5.3" class="ltx_text" style="font-size:90%;">, New York, NY, USA, 2015, CCS ’15, Association for
+Computing Machinery.
+</span>
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text" style="font-size:90%;">
+Daniel J Beutel, Taner Topal, Akhil Mathur, Xinchi Qiu, Javier
+Fernandez-Marques, Yan Gao, Lorenzo Sani, Kwing Hei Li, Titouan Parcollet,
+et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.2.1" class="ltx_text" style="font-size:90%;">“Flower: A friendly federated learning framework,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.3.1" class="ltx_text" style="font-size:90%;">2022.
+</span>
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text" style="font-size:90%;">
+Mirco Ravanelli, Titouan Parcollet, Peter Plantinga, Aku Rouhe, Samuele
+Cornell, Loren Lugosch, Cem Subakan, Nauman Dawalatabad, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.2.1" class="ltx_text" style="font-size:90%;">“Speechbrain: A general-purpose speech toolkit,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.3.1" class="ltx_text" style="font-size:90%;">2021.
+</span>
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text" style="font-size:90%;">
+François Hernandez, Vincent Nguyen, Sahar Ghannay, Natalia Tomashenko,
+and Yannick Estève,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.2.1" class="ltx_text" style="font-size:90%;">“TED-LIUM 3: twice as much data and corpus repartition for
+experiments on speaker adaptation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib26.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Speech and Computer</span><span id="bib.bib26.5.3" class="ltx_text" style="font-size:90%;">, 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text" style="font-size:90%;">
+Salima Mdhaffar, Marc Tommasi, and Yannick Estève,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.2.1" class="ltx_text" style="font-size:90%;">“Study on acoustic model personalization in a context of
+collaborative learning constrained by privacy preservation,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib27.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">SPECOM</span><span id="bib.bib27.5.3" class="ltx_text" style="font-size:90%;">, 2021.
+</span>
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text" style="font-size:90%;">
+Chung-Cheng Chiu, Tara N Sainath, Yonghui Wu, Rohit Prabhavalkar, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.2.1" class="ltx_text" style="font-size:90%;">“State-of-the-art speech recognition with sequence-to-sequence
+models,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib28.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">ICASSP 2018</span><span id="bib.bib28.5.3" class="ltx_text" style="font-size:90%;">.
+</span>
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock"><span id="bib.bib29.1.1" class="ltx_text" style="font-size:90%;">
+Alex Graves, Santiago Fernández, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib29.2.1" class="ltx_text" style="font-size:90%;">“Connectionist temporal classification: labelling unsegmented
+sequence data with recurrent neural networks,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib29.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib29.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Proceedings of the 23rd international conference on Machine
+learning</span><span id="bib.bib29.5.3" class="ltx_text" style="font-size:90%;">, 2006.
+</span>
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock"><span id="bib.bib30.1.1" class="ltx_text" style="font-size:90%;">
+Yue Zhao, Meng Li, Liangzhen Lai, Naveen Suda, Damon Civin, and Vikas Chandra,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib30.2.1" class="ltx_text" style="font-size:90%;">“Federated learning with non-iid data,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib30.3.1" class="ltx_text" style="font-size:90%;">2018.
+</span>
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock"><span id="bib.bib31.1.1" class="ltx_text" style="font-size:90%;">
+Chao Huang, Jianwei Huang, and Xin Liu,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib31.2.1" class="ltx_text" style="font-size:90%;">“Cross-silo federated learning: Challenges and opportunities,”
+2022.
+</span>
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[32]</span>
+<span class="ltx_bibblock"><span id="bib.bib32.1.1" class="ltx_text" style="font-size:90%;">
+Natalia Tomashenko, Xin Wang, Emmanuel Vincent, Jose Patino, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib32.2.1" class="ltx_text" style="font-size:90%;">“The VoicePrivacy 2020 Challenge: Results and findings,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib32.3.1" class="ltx_text ltx_font_italic" style="font-size:90%;">Computer Speech and Language</span><span id="bib.bib32.4.2" class="ltx_text" style="font-size:90%;">, vol. 74, 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[33]</span>
+<span class="ltx_bibblock"><span id="bib.bib33.1.1" class="ltx_text" style="font-size:90%;">
+Natalia Tomashenko, Brij Mohan Lal Srivastava, Xin Wang, Emmanuel Vincent,
+Andreas Nautsch, Junichi Yamagishi, Nicholas Evans, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib33.2.1" class="ltx_text" style="font-size:90%;">“Introducing the VoicePrivacy initiative,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib33.3.1" class="ltx_text" style="font-size:90%;">in </span><span id="bib.bib33.4.2" class="ltx_text ltx_font_italic" style="font-size:90%;">Interspeech</span><span id="bib.bib33.5.3" class="ltx_text" style="font-size:90%;">, 2020.
+</span>
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2302.10789" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2302.10790" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2302.10790">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2302.10790" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2302.10793" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Fri Mar  1 01:30:37 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

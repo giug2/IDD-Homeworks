@@ -1,0 +1,1787 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[1906.08092] A survey of OpenRefine reconciliation services</title><meta property="og:description" content="We review the services implementing the OpenRefine reconciliation API,
+comparing their design to the state of the art in record linkage.
+Due to the design of the API, the matching scores returned by the services
+are of…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="A survey of OpenRefine reconciliation services">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="A survey of OpenRefine reconciliation services">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/1906.08092">
+
+<!--Generated on Sun Mar 17 07:15:19 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">A survey of OpenRefine reconciliation services</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Antonin Delpeuch 
+<br class="ltx_break">Department of Computer Science 
+<br class="ltx_break">University of Oxford, UK 
+<br class="ltx_break"><a target="_blank" href="https://orcid.org/0000-0002-8612-8827" title="" class="ltx_ref ltx_href" style="font-size:90%;"><img src="/html/1906.08092/assets/figures/orcid-small.png" id="id1.1.1.g1" class="ltx_graphics ltx_img_square" width="9" height="9" alt="[Uncaptioned image]"> <span id="id2.2.2.id1" class="ltx_text ltx_font_typewriter">0000-0002-8612-8827</span></a>
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id3.id1" class="ltx_p">We review the services implementing the OpenRefine reconciliation API,
+comparing their design to the state of the art in record linkage.
+Due to the design of the API, the matching scores returned by the services
+are of little help to guide matching decisions.
+This suggests possible improvements to the specifications of the API,
+which could improve user workflows by giving more control over the scoring
+mechanism to the client.</p>
+</div>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Introduction</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">Integrating data from sources which do not share common unique
+identifiers often requires matching (or <em id="Sx1.p1.1.1" class="ltx_emph ltx_font_italic">reconciling</em>,
+<em id="Sx1.p1.1.2" class="ltx_emph ltx_font_italic">merging</em>) records which refer to the same entities.
+This problem has been extensively studied and many heuristics have been
+proposed to tackle it <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="Sx1.p2" class="ltx_para">
+<p id="Sx1.p2.1" class="ltx_p">The OpenRefine reconciliation API<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span><a target="_blank" href="https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API</a></span></span></span> is a web protocol designed for this task,
+which was initially implemented by the Freebase knowledge base. While most
+software packages for record linkage assume that the entire data is available
+locally, and can be indexed and queried at will, this API proposes a workflow
+for the case where one of the data souces to be matched is held in an online
+database. By implementing such an interface, the database lets users match their
+own datasets (which are typically smaller in size) to the identifiers
+it holds.</p>
+</div>
+<div id="Sx1.p3" class="ltx_para">
+<p id="Sx1.p3.1" class="ltx_p">As entity matching often relies on names, the reconciliation API is
+essentially a search API tailored to the reconciliation problem. A
+typical query to a reconciliation interface consists of the name of
+the entity to search for, an entity type to restrict the search to a
+certain category of entities and a couple of other attributes to
+refine the search by field values. The service responds by returning
+matching candidates with their identifiers.</p>
+</div>
+<div id="Sx1.p4" class="ltx_para">
+<p id="Sx1.p4.1" class="ltx_p">The canonical client for this API is
+OpenRefine<span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span><a target="_blank" href="http://openrefine.org/" title="" class="ltx_ref ltx_url ltx_font_typewriter">http://openrefine.org/</a></span></span></span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>, an
+Extract-Transform-Load tool which can be used to transform raw tabular
+data into linked data. The tool proposes a semi-automatic approach to
+reconciliation, making it possible for the user to review the quality
+of the reconciliation candidates returned by the service. To that
+end, the reconcilation API lets services expose auto-complete
+endpoints and HTML previews for the entities they store, easing
+integration in the user interface of the client.</p>
+</div>
+<div id="Sx1.p5" class="ltx_para">
+<p id="Sx1.p5.1" class="ltx_p">In this survey, we review the current ecosystem of reconciliation
+services. We analyze how they use the various features of the
+reconciliation API, review their underlying implementation when
+available, and propose possible changes to the protocol, making it
+more useful to data providers and consumers.</p>
+</div>
+<section id="Sx1.SSx1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">Acknowledgements</h3>
+
+<div id="Sx1.SSx1.p1" class="ltx_para">
+<p id="Sx1.SSx1.p1.1" class="ltx_p">We thank the OpenCorporates team and Vladimir Alexiev for their
+feedback on this project.
+This work was supported by
+<a target="_blank" href="https://opencorporates.com/" title="" class="ltx_ref ltx_href">OpenCorporates</a> as part of the
+“TheyBuyForYou” project on EU procurement data. This project has
+received funding from the European Commission’s Horizon 2020 research
+and innovation programme (grant agreement n°780247).</p>
+</div>
+</section>
+</section>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Overview of reconciliation</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">We first explain what reconciliation means and how
+the OpenRefine reconciliation API can be used for this process.</p>
+</div>
+<section id="S1.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.1 </span>Goals and scope</h3>
+
+<div id="S1.SS1.p1" class="ltx_para">
+<p id="S1.SS1.p1.1" class="ltx_p">Reconciliation consists in establishing a mapping between two
+sets of entities:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">the entries of a dataset <math id="S1.I1.i1.p1.1.m1.1" class="ltx_Math" alttext="U" display="inline"><semantics id="S1.I1.i1.p1.1.m1.1a"><mi id="S1.I1.i1.p1.1.m1.1.1" xref="S1.I1.i1.p1.1.m1.1.1.cmml">U</mi><annotation-xml encoding="MathML-Content" id="S1.I1.i1.p1.1.m1.1b"><ci id="S1.I1.i1.p1.1.m1.1.1.cmml" xref="S1.I1.i1.p1.1.m1.1.1">𝑈</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.I1.i1.p1.1.m1.1c">U</annotation></semantics></math> provided by the user. Such a
+dataset would typically contain a few hundreds or thousands of
+entries. For instance, the dataset could list procurement contracts
+between some administration and its suppliers, or a list of
+endangered plants in a national park, or an inventory of coins found
+on an archeological site.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">the records of an authoritative online database <math id="S1.I1.i2.p1.1.m1.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.I1.i2.p1.1.m1.1a"><mi id="S1.I1.i2.p1.1.m1.1.1" xref="S1.I1.i2.p1.1.m1.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.I1.i2.p1.1.m1.1b"><ci id="S1.I1.i2.p1.1.m1.1.1.cmml" xref="S1.I1.i2.p1.1.m1.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.I1.i2.p1.1.m1.1c">D</annotation></semantics></math>. This
+database is typically larger and considered more reliable than the
+user dataset and generally contains unique identifiers for its
+entities. For instance,
+<a target="_blank" href="https://opencorporates.com/" title="" class="ltx_ref ltx_href">OpenCorporates</a> lists about 165
+million companies harvested from company registers, with their
+official identifiers, the <a target="_blank" href="http://www.ipni.org/" title="" class="ltx_ref ltx_href">International
+Plant Names Index</a> stores canonical plant names and the associated
+scholarly information, and <a target="_blank" href="http://nomisma.org/" title="" class="ltx_ref ltx_href">Nomisma</a>
+curates linked open data around numismatics.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.SS1.p2" class="ltx_para">
+<p id="S1.SS1.p2.7" class="ltx_p">The goal of reconciliation is to guess a partial function <math id="S1.SS1.p2.1.m1.1" class="ltx_Math" alttext="f:U\to D" display="inline"><semantics id="S1.SS1.p2.1.m1.1a"><mrow id="S1.SS1.p2.1.m1.1.1" xref="S1.SS1.p2.1.m1.1.1.cmml"><mi id="S1.SS1.p2.1.m1.1.1.2" xref="S1.SS1.p2.1.m1.1.1.2.cmml">f</mi><mo lspace="0.278em" rspace="0.278em" id="S1.SS1.p2.1.m1.1.1.1" xref="S1.SS1.p2.1.m1.1.1.1.cmml">:</mo><mrow id="S1.SS1.p2.1.m1.1.1.3" xref="S1.SS1.p2.1.m1.1.1.3.cmml"><mi id="S1.SS1.p2.1.m1.1.1.3.2" xref="S1.SS1.p2.1.m1.1.1.3.2.cmml">U</mi><mo stretchy="false" id="S1.SS1.p2.1.m1.1.1.3.1" xref="S1.SS1.p2.1.m1.1.1.3.1.cmml">→</mo><mi id="S1.SS1.p2.1.m1.1.1.3.3" xref="S1.SS1.p2.1.m1.1.1.3.3.cmml">D</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.1.m1.1b"><apply id="S1.SS1.p2.1.m1.1.1.cmml" xref="S1.SS1.p2.1.m1.1.1"><ci id="S1.SS1.p2.1.m1.1.1.1.cmml" xref="S1.SS1.p2.1.m1.1.1.1">:</ci><ci id="S1.SS1.p2.1.m1.1.1.2.cmml" xref="S1.SS1.p2.1.m1.1.1.2">𝑓</ci><apply id="S1.SS1.p2.1.m1.1.1.3.cmml" xref="S1.SS1.p2.1.m1.1.1.3"><ci id="S1.SS1.p2.1.m1.1.1.3.1.cmml" xref="S1.SS1.p2.1.m1.1.1.3.1">→</ci><ci id="S1.SS1.p2.1.m1.1.1.3.2.cmml" xref="S1.SS1.p2.1.m1.1.1.3.2">𝑈</ci><ci id="S1.SS1.p2.1.m1.1.1.3.3.cmml" xref="S1.SS1.p2.1.m1.1.1.3.3">𝐷</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.1.m1.1c">f:U\to D</annotation></semantics></math>, mapping each entry from the user dataset to the record in <math id="S1.SS1.p2.2.m2.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p2.2.m2.1a"><mi id="S1.SS1.p2.2.m2.1.1" xref="S1.SS1.p2.2.m2.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.2.m2.1b"><ci id="S1.SS1.p2.2.m2.1.1.cmml" xref="S1.SS1.p2.2.m2.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.2.m2.1c">D</annotation></semantics></math> that
+represents the same entity, if any. This matching process is therefore
+bipartite: it is assumed that both <math id="S1.SS1.p2.3.m3.1" class="ltx_Math" alttext="U" display="inline"><semantics id="S1.SS1.p2.3.m3.1a"><mi id="S1.SS1.p2.3.m3.1.1" xref="S1.SS1.p2.3.m3.1.1.cmml">U</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.3.m3.1b"><ci id="S1.SS1.p2.3.m3.1.1.cmml" xref="S1.SS1.p2.3.m3.1.1">𝑈</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.3.m3.1c">U</annotation></semantics></math> and <math id="S1.SS1.p2.4.m4.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p2.4.m4.1a"><mi id="S1.SS1.p2.4.m4.1.1" xref="S1.SS1.p2.4.m4.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.4.m4.1b"><ci id="S1.SS1.p2.4.m4.1.1.cmml" xref="S1.SS1.p2.4.m4.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.4.m4.1c">D</annotation></semantics></math> are free from
+duplicates and records coming from the same database are not compared
+to each other. The function <math id="S1.SS1.p2.5.m5.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S1.SS1.p2.5.m5.1a"><mi id="S1.SS1.p2.5.m5.1.1" xref="S1.SS1.p2.5.m5.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.5.m5.1b"><ci id="S1.SS1.p2.5.m5.1.1.cmml" xref="S1.SS1.p2.5.m5.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.5.m5.1c">f</annotation></semantics></math> is partial: it is possible that a user
+record does not correspond to any reference entry in <math id="S1.SS1.p2.6.m6.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p2.6.m6.1a"><mi id="S1.SS1.p2.6.m6.1.1" xref="S1.SS1.p2.6.m6.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.6.m6.1b"><ci id="S1.SS1.p2.6.m6.1.1.cmml" xref="S1.SS1.p2.6.m6.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.6.m6.1c">D</annotation></semantics></math>. Each user
+record corresponds to at most one entity in <math id="S1.SS1.p2.7.m7.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p2.7.m7.1a"><mi id="S1.SS1.p2.7.m7.1.1" xref="S1.SS1.p2.7.m7.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p2.7.m7.1b"><ci id="S1.SS1.p2.7.m7.1.1.cmml" xref="S1.SS1.p2.7.m7.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p2.7.m7.1c">D</annotation></semantics></math>.</p>
+</div>
+<div id="S1.SS1.p3" class="ltx_para">
+<p id="S1.SS1.p3.4" class="ltx_p">The two databases <math id="S1.SS1.p3.1.m1.1" class="ltx_Math" alttext="U" display="inline"><semantics id="S1.SS1.p3.1.m1.1a"><mi id="S1.SS1.p3.1.m1.1.1" xref="S1.SS1.p3.1.m1.1.1.cmml">U</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p3.1.m1.1b"><ci id="S1.SS1.p3.1.m1.1.1.cmml" xref="S1.SS1.p3.1.m1.1.1">𝑈</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p3.1.m1.1c">U</annotation></semantics></math> and <math id="S1.SS1.p3.2.m2.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p3.2.m2.1a"><mi id="S1.SS1.p3.2.m2.1.1" xref="S1.SS1.p3.2.m2.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p3.2.m2.1b"><ci id="S1.SS1.p3.2.m2.1.1.cmml" xref="S1.SS1.p3.2.m2.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p3.2.m2.1c">D</annotation></semantics></math> generally contain different fields. For
+reconciliation to be possible, we assume that some of them are shared
+by both databases. For instance, it is often the case that both
+databases contain names for the entities they refer to. The mapping
+<math id="S1.SS1.p3.3.m3.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S1.SS1.p3.3.m3.1a"><mi id="S1.SS1.p3.3.m3.1.1" xref="S1.SS1.p3.3.m3.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p3.3.m3.1b"><ci id="S1.SS1.p3.3.m3.1.1.cmml" xref="S1.SS1.p3.3.m3.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p3.3.m3.1c">f</annotation></semantics></math> is then constructed by comparing the values of these common
+attributes. These values generally differ slightly in both databases,
+and are ambiguous or incomplete, which is why heuristics have to be
+used to construct <math id="S1.SS1.p3.4.m4.1" class="ltx_Math" alttext="f" display="inline"><semantics id="S1.SS1.p3.4.m4.1a"><mi id="S1.SS1.p3.4.m4.1.1" xref="S1.SS1.p3.4.m4.1.1.cmml">f</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p3.4.m4.1b"><ci id="S1.SS1.p3.4.m4.1.1.cmml" xref="S1.SS1.p3.4.m4.1.1">𝑓</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p3.4.m4.1c">f</annotation></semantics></math>.</p>
+</div>
+<div id="S1.SS1.p4" class="ltx_para">
+<p id="S1.SS1.p4.2" class="ltx_p">The motivations for reconciliation vary. One can reconcile to make the
+user dataset more canonical, by normalizing the references to the
+entities to match the authoritative data. One can also enrich the user
+data with additional identifiers and other attributes retrieved from
+the target database. Finally, it is also possible to use
+reconciliation as part of the curation process of the authoritative
+database, for instance to push data from <math id="S1.SS1.p4.1.m1.1" class="ltx_Math" alttext="U" display="inline"><semantics id="S1.SS1.p4.1.m1.1a"><mi id="S1.SS1.p4.1.m1.1.1" xref="S1.SS1.p4.1.m1.1.1.cmml">U</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p4.1.m1.1b"><ci id="S1.SS1.p4.1.m1.1.1.cmml" xref="S1.SS1.p4.1.m1.1.1">𝑈</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p4.1.m1.1c">U</annotation></semantics></math> into <math id="S1.SS1.p4.2.m2.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS1.p4.2.m2.1a"><mi id="S1.SS1.p4.2.m2.1.1" xref="S1.SS1.p4.2.m2.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS1.p4.2.m2.1b"><ci id="S1.SS1.p4.2.m2.1.1.cmml" xref="S1.SS1.p4.2.m2.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS1.p4.2.m2.1c">D</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S1.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">1.2 </span>The OpenRefine reconciliation API</h3>
+
+<div id="S1.SS2.p1" class="ltx_para">
+<p id="S1.SS2.p1.1" class="ltx_p">In this section we give an overview of the specifications of the reconciliation API.
+We are not aware of any formal specification for it, but an informal description
+can be found at <a target="_blank" href="https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API</a>.
+We start by formalizing the data model projected by the API on the reconciliable data source.</p>
+</div>
+<section id="S1.SS2.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Data model</h4>
+
+<div id="S1.SS2.SSS0.Px1.p1" class="ltx_para">
+<p id="S1.SS2.SSS0.Px1.p1.5" class="ltx_p">The data source <math id="S1.SS2.SSS0.Px1.p1.1.m1.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S1.SS2.SSS0.Px1.p1.1.m1.1a"><mi id="S1.SS2.SSS0.Px1.p1.1.m1.1.1" xref="S1.SS2.SSS0.Px1.p1.1.m1.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p1.1.m1.1b"><ci id="S1.SS2.SSS0.Px1.p1.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.1.m1.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p1.1.m1.1c">D</annotation></semantics></math> is assumed to have a set of entities <math id="S1.SS2.SSS0.Px1.p1.2.m2.1" class="ltx_Math" alttext="E" display="inline"><semantics id="S1.SS2.SSS0.Px1.p1.2.m2.1a"><mi id="S1.SS2.SSS0.Px1.p1.2.m2.1.1" xref="S1.SS2.SSS0.Px1.p1.2.m2.1.1.cmml">E</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p1.2.m2.1b"><ci id="S1.SS2.SSS0.Px1.p1.2.m2.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.2.m2.1.1">𝐸</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p1.2.m2.1c">E</annotation></semantics></math>, a set of
+possible entity types <math id="S1.SS2.SSS0.Px1.p1.3.m3.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S1.SS2.SSS0.Px1.p1.3.m3.1a"><mi id="S1.SS2.SSS0.Px1.p1.3.m3.1.1" xref="S1.SS2.SSS0.Px1.p1.3.m3.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p1.3.m3.1b"><ci id="S1.SS2.SSS0.Px1.p1.3.m3.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.3.m3.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p1.3.m3.1c">T</annotation></semantics></math> and a set of possible properties <math id="S1.SS2.SSS0.Px1.p1.4.m4.1" class="ltx_Math" alttext="P" display="inline"><semantics id="S1.SS2.SSS0.Px1.p1.4.m4.1a"><mi id="S1.SS2.SSS0.Px1.p1.4.m4.1.1" xref="S1.SS2.SSS0.Px1.p1.4.m4.1.1.cmml">P</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p1.4.m4.1b"><ci id="S1.SS2.SSS0.Px1.p1.4.m4.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.4.m4.1.1">𝑃</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p1.4.m4.1c">P</annotation></semantics></math>. Types
+provide a way to categorize entities, and properties are predicates
+that can be applied to entities. We will also denote by <math id="S1.SS2.SSS0.Px1.p1.5.m5.1" class="ltx_Math" alttext="\Sigma^{*}" display="inline"><semantics id="S1.SS2.SSS0.Px1.p1.5.m5.1a"><msup id="S1.SS2.SSS0.Px1.p1.5.m5.1.1" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1.cmml"><mi mathvariant="normal" id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.2" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1.2.cmml">Σ</mi><mo id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.3" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1.3.cmml">∗</mo></msup><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p1.5.m5.1b"><apply id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1"><csymbol cd="ambiguous" id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1">superscript</csymbol><ci id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1.2">Σ</ci><times id="S1.SS2.SSS0.Px1.p1.5.m5.1.1.3.cmml" xref="S1.SS2.SSS0.Px1.p1.5.m5.1.1.3"></times></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p1.5.m5.1c">\Sigma^{*}</annotation></semantics></math>
+the set of character strings.</p>
+</div>
+<div id="S1.SS2.SSS0.Px1.p2" class="ltx_para">
+<p id="S1.SS2.SSS0.Px1.p2.7" class="ltx_p">Each entity <math id="S1.SS2.SSS0.Px1.p2.1.m1.1" class="ltx_Math" alttext="e\in E" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.1.m1.1a"><mrow id="S1.SS2.SSS0.Px1.p2.1.m1.1.1" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.cmml"><mi id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.2" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.2.cmml">e</mi><mo id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.1" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.1.cmml">∈</mo><mi id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.3" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.3.cmml">E</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.1.m1.1b"><apply id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1"><in id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.1"></in><ci id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.2">𝑒</ci><ci id="S1.SS2.SSS0.Px1.p2.1.m1.1.1.3.cmml" xref="S1.SS2.SSS0.Px1.p2.1.m1.1.1.3">𝐸</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.1.m1.1c">e\in E</annotation></semantics></math> has a set of types <math id="S1.SS2.SSS0.Px1.p2.2.m2.1" class="ltx_Math" alttext="\text{types}(e)\subseteq T" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.2.m2.1a"><mrow id="S1.SS2.SSS0.Px1.p2.2.m2.1.2" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.cmml"><mrow id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.cmml"><mtext id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2a.cmml">types</mtext><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.1" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.3.2" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.3.2.1" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.cmml">(</mo><mi id="S1.SS2.SSS0.Px1.p2.2.m2.1.1" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.1.cmml">e</mi><mo stretchy="false" id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.3.2.2" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.cmml">)</mo></mrow></mrow><mo id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.1" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.1.cmml">⊆</mo><mi id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.3" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.3.cmml">T</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.2.m2.1b"><apply id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2"><subset id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.1.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.1"></subset><apply id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2"><times id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.1.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.1"></times><ci id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2a.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2"><mtext id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.2.2">types</mtext></ci><ci id="S1.SS2.SSS0.Px1.p2.2.m2.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.1">𝑒</ci></apply><ci id="S1.SS2.SSS0.Px1.p2.2.m2.1.2.3.cmml" xref="S1.SS2.SSS0.Px1.p2.2.m2.1.2.3">𝑇</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.2.m2.1c">\text{types}(e)\subseteq T</annotation></semantics></math>, possibly empty. For each property <math id="S1.SS2.SSS0.Px1.p2.3.m3.1" class="ltx_Math" alttext="p\in P" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.3.m3.1a"><mrow id="S1.SS2.SSS0.Px1.p2.3.m3.1.1" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.cmml"><mi id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.2" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.2.cmml">p</mi><mo id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.1" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.1.cmml">∈</mo><mi id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.3" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.3.cmml">P</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.3.m3.1b"><apply id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1"><in id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.1"></in><ci id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.2">𝑝</ci><ci id="S1.SS2.SSS0.Px1.p2.3.m3.1.1.3.cmml" xref="S1.SS2.SSS0.Px1.p2.3.m3.1.1.3">𝑃</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.3.m3.1c">p\in P</annotation></semantics></math>, there is a set of
+values <math id="S1.SS2.SSS0.Px1.p2.4.m4.2" class="ltx_Math" alttext="\text{eval}(e,p)\subseteq V=\Sigma^{*}\cup E" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.4.m4.2a"><mrow id="S1.SS2.SSS0.Px1.p2.4.m4.2.3" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.cmml"><mrow id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.cmml"><mtext id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2a.cmml">eval</mtext><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.1" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.1.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.2.1" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.1.cmml">(</mo><mi id="S1.SS2.SSS0.Px1.p2.4.m4.1.1" xref="S1.SS2.SSS0.Px1.p2.4.m4.1.1.cmml">e</mi><mo id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.2.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.1.cmml">,</mo><mi id="S1.SS2.SSS0.Px1.p2.4.m4.2.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.2.cmml">p</mi><mo stretchy="false" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.2.3" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.1.cmml">)</mo></mrow></mrow><mo id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.3" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.3.cmml">⊆</mo><mi id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.4" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.4.cmml">V</mi><mo id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.5" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.5.cmml">=</mo><mrow id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.cmml"><msup id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.cmml"><mi mathvariant="normal" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.2" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.2.cmml">Σ</mi><mo id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.3" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.3.cmml">∗</mo></msup><mo id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.1" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.1.cmml">∪</mo><mi id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.3" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.3.cmml">E</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.4.m4.2b"><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3"><and id="S1.SS2.SSS0.Px1.p2.4.m4.2.3a.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3"></and><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3b.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3"><subset id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.3.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.3"></subset><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2"><times id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.1.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.1"></times><ci id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2a.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2"><mtext id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.2">eval</mtext></ci><interval closure="open" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.1.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.2.3.2"><ci id="S1.SS2.SSS0.Px1.p2.4.m4.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.1.1">𝑒</ci><ci id="S1.SS2.SSS0.Px1.p2.4.m4.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.2">𝑝</ci></interval></apply><ci id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.4.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.4">𝑉</ci></apply><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3c.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3"><eq id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.5.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.5"></eq><share href="#S1.SS2.SSS0.Px1.p2.4.m4.2.3.4.cmml" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3d.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3"></share><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6"><union id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.1.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.1"></union><apply id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2"><csymbol cd="ambiguous" id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.1.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2">superscript</csymbol><ci id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.2">Σ</ci><times id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.3.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.2.3"></times></apply><ci id="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.3.cmml" xref="S1.SS2.SSS0.Px1.p2.4.m4.2.3.6.3">𝐸</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.4.m4.2c">\text{eval}(e,p)\subseteq V=\Sigma^{*}\cup E</annotation></semantics></math>, possibly
+empty. A value <math id="S1.SS2.SSS0.Px1.p2.5.m5.1" class="ltx_Math" alttext="v\in V" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.5.m5.1a"><mrow id="S1.SS2.SSS0.Px1.p2.5.m5.1.1" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.cmml"><mi id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.2" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.2.cmml">v</mi><mo id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.1" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.1.cmml">∈</mo><mi id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.3" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.3.cmml">V</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.5.m5.1b"><apply id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1"><in id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.1"></in><ci id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.2">𝑣</ci><ci id="S1.SS2.SSS0.Px1.p2.5.m5.1.1.3.cmml" xref="S1.SS2.SSS0.Px1.p2.5.m5.1.1.3">𝑉</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.5.m5.1c">v\in V</annotation></semantics></math> can either be a character string <math id="S1.SS2.SSS0.Px1.p2.6.m6.1" class="ltx_Math" alttext="s" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.6.m6.1a"><mi id="S1.SS2.SSS0.Px1.p2.6.m6.1.1" xref="S1.SS2.SSS0.Px1.p2.6.m6.1.1.cmml">s</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.6.m6.1b"><ci id="S1.SS2.SSS0.Px1.p2.6.m6.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.6.m6.1.1">𝑠</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.6.m6.1c">s</annotation></semantics></math> or
+another entity <math id="S1.SS2.SSS0.Px1.p2.7.m7.1" class="ltx_Math" alttext="e^{\prime}\in E" display="inline"><semantics id="S1.SS2.SSS0.Px1.p2.7.m7.1a"><mrow id="S1.SS2.SSS0.Px1.p2.7.m7.1.1" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.cmml"><msup id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.cmml"><mi id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.2" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.2.cmml">e</mi><mo id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.3" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.3.cmml">′</mo></msup><mo id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.1" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.1.cmml">∈</mo><mi id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.3" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.3.cmml">E</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p2.7.m7.1b"><apply id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1"><in id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.1"></in><apply id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2"><csymbol cd="ambiguous" id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.1.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2">superscript</csymbol><ci id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.2.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.2">𝑒</ci><ci id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.3.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.2.3">′</ci></apply><ci id="S1.SS2.SSS0.Px1.p2.7.m7.1.1.3.cmml" xref="S1.SS2.SSS0.Px1.p2.7.m7.1.1.3">𝐸</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p2.7.m7.1c">e^{\prime}\in E</annotation></semantics></math>.</p>
+</div>
+<div id="S1.SS2.SSS0.Px1.p3" class="ltx_para">
+<p id="S1.SS2.SSS0.Px1.p3.1" class="ltx_p">For instance, if the data source is structured as a relational
+database, then types could be tables, entities could be table rows and
+properties could be table columns. Each entity would have exactly one
+type (the table the row belongs to) and <math id="S1.SS2.SSS0.Px1.p3.1.m1.2" class="ltx_Math" alttext="\text{eval}(e,p)" display="inline"><semantics id="S1.SS2.SSS0.Px1.p3.1.m1.2a"><mrow id="S1.SS2.SSS0.Px1.p3.1.m1.2.3" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.cmml"><mtext id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2a.cmml">eval</mtext><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.1" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.2" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.1.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.2.1" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.1.cmml">(</mo><mi id="S1.SS2.SSS0.Px1.p3.1.m1.1.1" xref="S1.SS2.SSS0.Px1.p3.1.m1.1.1.cmml">e</mi><mo id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.2.2" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.1.cmml">,</mo><mi id="S1.SS2.SSS0.Px1.p3.1.m1.2.2" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.2.cmml">p</mi><mo stretchy="false" id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.2.3" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p3.1.m1.2b"><apply id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3"><times id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.1.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.1"></times><ci id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2a.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2"><mtext id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.2">eval</mtext></ci><interval closure="open" id="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.1.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.3.3.2"><ci id="S1.SS2.SSS0.Px1.p3.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.1.1">𝑒</ci><ci id="S1.SS2.SSS0.Px1.p3.1.m1.2.2.cmml" xref="S1.SS2.SSS0.Px1.p3.1.m1.2.2">𝑝</ci></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p3.1.m1.2c">\text{eval}(e,p)</annotation></semantics></math> would be
+empty (if the row and the column do not belong to the same table) or
+a singleton (the value in the intersection of the row and column).</p>
+</div>
+<div id="S1.SS2.SSS0.Px1.p4" class="ltx_para">
+<p id="S1.SS2.SSS0.Px1.p4.1" class="ltx_p">If the data source is structured as a graph database, then entities
+could be nodes, types could be some sort of category system on nodes, and
+properties could be graph edges.</p>
+</div>
+<div id="S1.SS2.SSS0.Px1.p5" class="ltx_para">
+<p id="S1.SS2.SSS0.Px1.p5.2" class="ltx_p">Each entity, type and property is designated by an identifier
+<math id="S1.SS2.SSS0.Px1.p5.1.m1.1" class="ltx_Math" alttext="\text{id}(x)\in\Sigma^{*}" display="inline"><semantics id="S1.SS2.SSS0.Px1.p5.1.m1.1a"><mrow id="S1.SS2.SSS0.Px1.p5.1.m1.1.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.cmml"><mrow id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.cmml"><mtext id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2a.cmml">id</mtext><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.1" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.3.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.3.2.1" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.cmml">(</mo><mi id="S1.SS2.SSS0.Px1.p5.1.m1.1.1" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.1.cmml">x</mi><mo stretchy="false" id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.3.2.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.cmml">)</mo></mrow></mrow><mo id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.1" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.1.cmml">∈</mo><msup id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.cmml"><mi mathvariant="normal" id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.2" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.2.cmml">Σ</mi><mo id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.3" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.3.cmml">∗</mo></msup></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p5.1.m1.1b"><apply id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2"><in id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.1.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.1"></in><apply id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2"><times id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.1.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.1"></times><ci id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2a.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2"><mtext id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.2.2">id</mtext></ci><ci id="S1.SS2.SSS0.Px1.p5.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.1">𝑥</ci></apply><apply id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3"><csymbol cd="ambiguous" id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.1.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3">superscript</csymbol><ci id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.2.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.2">Σ</ci><times id="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.3.cmml" xref="S1.SS2.SSS0.Px1.p5.1.m1.1.2.3.3"></times></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p5.1.m1.1c">\text{id}(x)\in\Sigma^{*}</annotation></semantics></math>. It also has a human-readable name
+<math id="S1.SS2.SSS0.Px1.p5.2.m2.1" class="ltx_Math" alttext="\text{name}(x)\in\Sigma^{*}" display="inline"><semantics id="S1.SS2.SSS0.Px1.p5.2.m2.1a"><mrow id="S1.SS2.SSS0.Px1.p5.2.m2.1.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.cmml"><mrow id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.cmml"><mtext id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2a.cmml">name</mtext><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.1" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.3.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.3.2.1" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.cmml">(</mo><mi id="S1.SS2.SSS0.Px1.p5.2.m2.1.1" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.1.cmml">x</mi><mo stretchy="false" id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.3.2.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.cmml">)</mo></mrow></mrow><mo id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.1" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.1.cmml">∈</mo><msup id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.cmml"><mi mathvariant="normal" id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.2" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.2.cmml">Σ</mi><mo id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.3" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.3.cmml">∗</mo></msup></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px1.p5.2.m2.1b"><apply id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2"><in id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.1.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.1"></in><apply id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2"><times id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.1.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.1"></times><ci id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2a.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2"><mtext id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.2.2">name</mtext></ci><ci id="S1.SS2.SSS0.Px1.p5.2.m2.1.1.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.1">𝑥</ci></apply><apply id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3"><csymbol cd="ambiguous" id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.1.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3">superscript</csymbol><ci id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.2.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.2">Σ</ci><times id="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.3.cmml" xref="S1.SS2.SSS0.Px1.p5.2.m2.1.2.3.3"></times></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px1.p5.2.m2.1c">\text{name}(x)\in\Sigma^{*}</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S1.SS2.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Reconciliation queries</h4>
+
+<div id="S1.SS2.SSS0.Px2.p1" class="ltx_para">
+<p id="S1.SS2.SSS0.Px2.p1.1" class="ltx_p">A reconciliation query <math id="S1.SS2.SSS0.Px2.p1.1.m1.1" class="ltx_Math" alttext="q" display="inline"><semantics id="S1.SS2.SSS0.Px2.p1.1.m1.1a"><mi id="S1.SS2.SSS0.Px2.p1.1.m1.1.1" xref="S1.SS2.SSS0.Px2.p1.1.m1.1.1.cmml">q</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px2.p1.1.m1.1b"><ci id="S1.SS2.SSS0.Px2.p1.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px2.p1.1.m1.1.1">𝑞</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px2.p1.1.m1.1c">q</annotation></semantics></math> is given by:</p>
+<ul id="S1.I2" class="ltx_itemize">
+<li id="S1.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I2.i1.p1" class="ltx_para">
+<p id="S1.I2.i1.p1.1" class="ltx_p">a query string <math id="S1.I2.i1.p1.1.m1.1" class="ltx_Math" alttext="s\in\Sigma^{*}" display="inline"><semantics id="S1.I2.i1.p1.1.m1.1a"><mrow id="S1.I2.i1.p1.1.m1.1.1" xref="S1.I2.i1.p1.1.m1.1.1.cmml"><mi id="S1.I2.i1.p1.1.m1.1.1.2" xref="S1.I2.i1.p1.1.m1.1.1.2.cmml">s</mi><mo id="S1.I2.i1.p1.1.m1.1.1.1" xref="S1.I2.i1.p1.1.m1.1.1.1.cmml">∈</mo><msup id="S1.I2.i1.p1.1.m1.1.1.3" xref="S1.I2.i1.p1.1.m1.1.1.3.cmml"><mi mathvariant="normal" id="S1.I2.i1.p1.1.m1.1.1.3.2" xref="S1.I2.i1.p1.1.m1.1.1.3.2.cmml">Σ</mi><mo id="S1.I2.i1.p1.1.m1.1.1.3.3" xref="S1.I2.i1.p1.1.m1.1.1.3.3.cmml">∗</mo></msup></mrow><annotation-xml encoding="MathML-Content" id="S1.I2.i1.p1.1.m1.1b"><apply id="S1.I2.i1.p1.1.m1.1.1.cmml" xref="S1.I2.i1.p1.1.m1.1.1"><in id="S1.I2.i1.p1.1.m1.1.1.1.cmml" xref="S1.I2.i1.p1.1.m1.1.1.1"></in><ci id="S1.I2.i1.p1.1.m1.1.1.2.cmml" xref="S1.I2.i1.p1.1.m1.1.1.2">𝑠</ci><apply id="S1.I2.i1.p1.1.m1.1.1.3.cmml" xref="S1.I2.i1.p1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S1.I2.i1.p1.1.m1.1.1.3.1.cmml" xref="S1.I2.i1.p1.1.m1.1.1.3">superscript</csymbol><ci id="S1.I2.i1.p1.1.m1.1.1.3.2.cmml" xref="S1.I2.i1.p1.1.m1.1.1.3.2">Σ</ci><times id="S1.I2.i1.p1.1.m1.1.1.3.3.cmml" xref="S1.I2.i1.p1.1.m1.1.1.3.3"></times></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I2.i1.p1.1.m1.1c">s\in\Sigma^{*}</annotation></semantics></math>, representing the name of the entity queried for;</p>
+</div>
+</li>
+<li id="S1.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I2.i2.p1" class="ltx_para">
+<p id="S1.I2.i2.p1.1" class="ltx_p">an optional set of types <math id="S1.I2.i2.p1.1.m1.1" class="ltx_Math" alttext="t\subseteq T" display="inline"><semantics id="S1.I2.i2.p1.1.m1.1a"><mrow id="S1.I2.i2.p1.1.m1.1.1" xref="S1.I2.i2.p1.1.m1.1.1.cmml"><mi id="S1.I2.i2.p1.1.m1.1.1.2" xref="S1.I2.i2.p1.1.m1.1.1.2.cmml">t</mi><mo id="S1.I2.i2.p1.1.m1.1.1.1" xref="S1.I2.i2.p1.1.m1.1.1.1.cmml">⊆</mo><mi id="S1.I2.i2.p1.1.m1.1.1.3" xref="S1.I2.i2.p1.1.m1.1.1.3.cmml">T</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.I2.i2.p1.1.m1.1b"><apply id="S1.I2.i2.p1.1.m1.1.1.cmml" xref="S1.I2.i2.p1.1.m1.1.1"><subset id="S1.I2.i2.p1.1.m1.1.1.1.cmml" xref="S1.I2.i2.p1.1.m1.1.1.1"></subset><ci id="S1.I2.i2.p1.1.m1.1.1.2.cmml" xref="S1.I2.i2.p1.1.m1.1.1.2">𝑡</ci><ci id="S1.I2.i2.p1.1.m1.1.1.3.cmml" xref="S1.I2.i2.p1.1.m1.1.1.3">𝑇</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I2.i2.p1.1.m1.1c">t\subseteq T</annotation></semantics></math> to restrict the search to;</p>
+</div>
+</li>
+<li id="S1.I2.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I2.i3.p1" class="ltx_para">
+<p id="S1.I2.i3.p1.1" class="ltx_p">a set <math id="S1.I2.i3.p1.1.m1.1" class="ltx_Math" alttext="m\subseteq P\times V" display="inline"><semantics id="S1.I2.i3.p1.1.m1.1a"><mrow id="S1.I2.i3.p1.1.m1.1.1" xref="S1.I2.i3.p1.1.m1.1.1.cmml"><mi id="S1.I2.i3.p1.1.m1.1.1.2" xref="S1.I2.i3.p1.1.m1.1.1.2.cmml">m</mi><mo id="S1.I2.i3.p1.1.m1.1.1.1" xref="S1.I2.i3.p1.1.m1.1.1.1.cmml">⊆</mo><mrow id="S1.I2.i3.p1.1.m1.1.1.3" xref="S1.I2.i3.p1.1.m1.1.1.3.cmml"><mi id="S1.I2.i3.p1.1.m1.1.1.3.2" xref="S1.I2.i3.p1.1.m1.1.1.3.2.cmml">P</mi><mo lspace="0.222em" rspace="0.222em" id="S1.I2.i3.p1.1.m1.1.1.3.1" xref="S1.I2.i3.p1.1.m1.1.1.3.1.cmml">×</mo><mi id="S1.I2.i3.p1.1.m1.1.1.3.3" xref="S1.I2.i3.p1.1.m1.1.1.3.3.cmml">V</mi></mrow></mrow><annotation-xml encoding="MathML-Content" id="S1.I2.i3.p1.1.m1.1b"><apply id="S1.I2.i3.p1.1.m1.1.1.cmml" xref="S1.I2.i3.p1.1.m1.1.1"><subset id="S1.I2.i3.p1.1.m1.1.1.1.cmml" xref="S1.I2.i3.p1.1.m1.1.1.1"></subset><ci id="S1.I2.i3.p1.1.m1.1.1.2.cmml" xref="S1.I2.i3.p1.1.m1.1.1.2">𝑚</ci><apply id="S1.I2.i3.p1.1.m1.1.1.3.cmml" xref="S1.I2.i3.p1.1.m1.1.1.3"><times id="S1.I2.i3.p1.1.m1.1.1.3.1.cmml" xref="S1.I2.i3.p1.1.m1.1.1.3.1"></times><ci id="S1.I2.i3.p1.1.m1.1.1.3.2.cmml" xref="S1.I2.i3.p1.1.m1.1.1.3.2">𝑃</ci><ci id="S1.I2.i3.p1.1.m1.1.1.3.3.cmml" xref="S1.I2.i3.p1.1.m1.1.1.3.3">𝑉</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I2.i3.p1.1.m1.1c">m\subseteq P\times V</annotation></semantics></math> of property values, possibly empty, giving additional
+information about the entity queried for.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.SS2.SSS0.Px2.p2" class="ltx_para">
+<p id="S1.SS2.SSS0.Px2.p2.1" class="ltx_p">The main task of a reconciliation service is to process reconciliation queries,
+sent over HTTP, and return a set of matching candidates for each query.</p>
+</div>
+<div id="S1.SS2.SSS0.Px2.p3" class="ltx_para">
+<p id="S1.SS2.SSS0.Px2.p3.1" class="ltx_p">A reconciliation candidate <math id="S1.SS2.SSS0.Px2.p3.1.m1.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S1.SS2.SSS0.Px2.p3.1.m1.1a"><mi id="S1.SS2.SSS0.Px2.p3.1.m1.1.1" xref="S1.SS2.SSS0.Px2.p3.1.m1.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px2.p3.1.m1.1b"><ci id="S1.SS2.SSS0.Px2.p3.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px2.p3.1.m1.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px2.p3.1.m1.1c">c</annotation></semantics></math> is given by:</p>
+<ul id="S1.I3" class="ltx_itemize">
+<li id="S1.I3.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I3.i1.p1" class="ltx_para">
+<p id="S1.I3.i1.p1.1" class="ltx_p">an entity <math id="S1.I3.i1.p1.1.m1.1" class="ltx_Math" alttext="e\in E" display="inline"><semantics id="S1.I3.i1.p1.1.m1.1a"><mrow id="S1.I3.i1.p1.1.m1.1.1" xref="S1.I3.i1.p1.1.m1.1.1.cmml"><mi id="S1.I3.i1.p1.1.m1.1.1.2" xref="S1.I3.i1.p1.1.m1.1.1.2.cmml">e</mi><mo id="S1.I3.i1.p1.1.m1.1.1.1" xref="S1.I3.i1.p1.1.m1.1.1.1.cmml">∈</mo><mi id="S1.I3.i1.p1.1.m1.1.1.3" xref="S1.I3.i1.p1.1.m1.1.1.3.cmml">E</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.I3.i1.p1.1.m1.1b"><apply id="S1.I3.i1.p1.1.m1.1.1.cmml" xref="S1.I3.i1.p1.1.m1.1.1"><in id="S1.I3.i1.p1.1.m1.1.1.1.cmml" xref="S1.I3.i1.p1.1.m1.1.1.1"></in><ci id="S1.I3.i1.p1.1.m1.1.1.2.cmml" xref="S1.I3.i1.p1.1.m1.1.1.2">𝑒</ci><ci id="S1.I3.i1.p1.1.m1.1.1.3.cmml" xref="S1.I3.i1.p1.1.m1.1.1.3">𝐸</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I3.i1.p1.1.m1.1c">e\in E</annotation></semantics></math>, serialized with its id, name and types;</p>
+</div>
+</li>
+<li id="S1.I3.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I3.i2.p1" class="ltx_para">
+<p id="S1.I3.i2.p1.1" class="ltx_p">a matching score <math id="S1.I3.i2.p1.1.m1.1" class="ltx_Math" alttext="x\in\mathbb{R}" display="inline"><semantics id="S1.I3.i2.p1.1.m1.1a"><mrow id="S1.I3.i2.p1.1.m1.1.1" xref="S1.I3.i2.p1.1.m1.1.1.cmml"><mi id="S1.I3.i2.p1.1.m1.1.1.2" xref="S1.I3.i2.p1.1.m1.1.1.2.cmml">x</mi><mo id="S1.I3.i2.p1.1.m1.1.1.1" xref="S1.I3.i2.p1.1.m1.1.1.1.cmml">∈</mo><mi id="S1.I3.i2.p1.1.m1.1.1.3" xref="S1.I3.i2.p1.1.m1.1.1.3.cmml">ℝ</mi></mrow><annotation-xml encoding="MathML-Content" id="S1.I3.i2.p1.1.m1.1b"><apply id="S1.I3.i2.p1.1.m1.1.1.cmml" xref="S1.I3.i2.p1.1.m1.1.1"><in id="S1.I3.i2.p1.1.m1.1.1.1.cmml" xref="S1.I3.i2.p1.1.m1.1.1.1"></in><ci id="S1.I3.i2.p1.1.m1.1.1.2.cmml" xref="S1.I3.i2.p1.1.m1.1.1.2">𝑥</ci><ci id="S1.I3.i2.p1.1.m1.1.1.3.cmml" xref="S1.I3.i2.p1.1.m1.1.1.3">ℝ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.I3.i2.p1.1.m1.1c">x\in\mathbb{R}</annotation></semantics></math>. The definition of this score is left to the service,
+but it is expected that the higher it is, the better the candidate matches the query.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.SS2.SSS0.Px2.p4" class="ltx_para">
+<p id="S1.SS2.SSS0.Px2.p4.3" class="ltx_p">If we denote by <math id="S1.SS2.SSS0.Px2.p4.1.m1.1" class="ltx_Math" alttext="Q" display="inline"><semantics id="S1.SS2.SSS0.Px2.p4.1.m1.1a"><mi id="S1.SS2.SSS0.Px2.p4.1.m1.1.1" xref="S1.SS2.SSS0.Px2.p4.1.m1.1.1.cmml">Q</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px2.p4.1.m1.1b"><ci id="S1.SS2.SSS0.Px2.p4.1.m1.1.1.cmml" xref="S1.SS2.SSS0.Px2.p4.1.m1.1.1">𝑄</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px2.p4.1.m1.1c">Q</annotation></semantics></math> the set of reconcilation queries and <math id="S1.SS2.SSS0.Px2.p4.2.m2.1" class="ltx_Math" alttext="C" display="inline"><semantics id="S1.SS2.SSS0.Px2.p4.2.m2.1a"><mi id="S1.SS2.SSS0.Px2.p4.2.m2.1.1" xref="S1.SS2.SSS0.Px2.p4.2.m2.1.1.cmml">C</mi><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px2.p4.2.m2.1b"><ci id="S1.SS2.SSS0.Px2.p4.2.m2.1.1.cmml" xref="S1.SS2.SSS0.Px2.p4.2.m2.1.1">𝐶</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px2.p4.2.m2.1c">C</annotation></semantics></math> the set
+of reconciliation candidates, the task of a reconciliation service is
+therefore to compute a function <math id="S1.SS2.SSS0.Px2.p4.3.m3.1" class="ltx_Math" alttext="Q\rightarrow\mathcal{P}(C)" display="inline"><semantics id="S1.SS2.SSS0.Px2.p4.3.m3.1a"><mrow id="S1.SS2.SSS0.Px2.p4.3.m3.1.2" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.cmml"><mi id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.2" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.2.cmml">Q</mi><mo stretchy="false" id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.1" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.1.cmml">→</mo><mrow id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.2" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.2.cmml">𝒫</mi><mo lspace="0em" rspace="0em" id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.1" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.1.cmml">​</mo><mrow id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.3.2" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.cmml"><mo stretchy="false" id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.3.2.1" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.cmml">(</mo><mi id="S1.SS2.SSS0.Px2.p4.3.m3.1.1" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.1.cmml">C</mi><mo stretchy="false" id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.3.2.2" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S1.SS2.SSS0.Px2.p4.3.m3.1b"><apply id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2"><ci id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.1.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.1">→</ci><ci id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.2.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.2">𝑄</ci><apply id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3"><times id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.1.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.1"></times><ci id="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.2.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.2.3.2">𝒫</ci><ci id="S1.SS2.SSS0.Px2.p4.3.m3.1.1.cmml" xref="S1.SS2.SSS0.Px2.p4.3.m3.1.1">𝐶</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S1.SS2.SSS0.Px2.p4.3.m3.1c">Q\rightarrow\mathcal{P}(C)</annotation></semantics></math>.</p>
+</div>
+</section>
+<section id="S1.SS2.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Suggest, preview and extend services</h4>
+
+<div id="S1.SS2.SSS0.Px3.p1" class="ltx_para">
+<p id="S1.SS2.SSS0.Px3.p1.1" class="ltx_p">In addition to the main querying method, the reconciliation API also
+specifies ways for the service to expose suggest (or auto-complete)
+services, HTML previews of entities and bulk data retrieval, which
+ease the integration of the service in OpenRefine’s user interface.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Analysis of existing reconciliation services</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">In this section, we survey the reconciliation services currently accessible
+online, and outline the main technical choices behind them. We compare
+them to the general techniques found in the literature on record linkage.
+Although there are many different approaches to record linkage,
+most of them broadly follow a common architecture <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.
+Figure <a href="#Sx2.F3" title="Figure 3 ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> provides a summary of the characteristics
+of the reconciliation services studied.</p>
+</div>
+<section id="S2.SS0.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Candidate retrieval</h4>
+
+<div id="S2.SS0.SSS0.Px1.p1" class="ltx_para">
+<p id="S2.SS0.SSS0.Px1.p1.1" class="ltx_p">First, potential matches from the target database <math id="S2.SS0.SSS0.Px1.p1.1.m1.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S2.SS0.SSS0.Px1.p1.1.m1.1a"><mi id="S2.SS0.SSS0.Px1.p1.1.m1.1.1" xref="S2.SS0.SSS0.Px1.p1.1.m1.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S2.SS0.SSS0.Px1.p1.1.m1.1b"><ci id="S2.SS0.SSS0.Px1.p1.1.m1.1.1.cmml" xref="S2.SS0.SSS0.Px1.p1.1.m1.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS0.SSS0.Px1.p1.1.m1.1c">D</annotation></semantics></math> are selected. It
+is generally assumed that the user data contains a name for the
+entity. In the case of companies, this name would ideally be the
+official company name, but could also be an acronym, a trademark or
+any other name under which the company is or was known
+informally. This name is generally the primary discriminative
+information at this stage, if not the only one. A short list of
+candidates with similar names are retrieved from the target database,
+generally using a search index. The approaches for this step are
+reviewed in Section <a href="#S2.SS1" title="2.1 Candidate retrieval ‣ 2 Analysis of existing reconciliation services ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.1</span></a>.</p>
+</div>
+</section>
+<section id="S2.SS0.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Field scoring</h4>
+
+<div id="S2.SS0.SSS0.Px2.p1" class="ltx_para">
+<p id="S2.SS0.SSS0.Px2.p1.1" class="ltx_p">Second, each field supplied by the user is compared against the
+corresponding values in the target database. The degree of similarity
+of each value pairs is usually represented by a boolean or numeric
+score. The nature of the scoring method depends largely on the type of
+information stored in each field. In addition, some entities from the
+database can be assumed to be more prevalent or popular than others,
+so a popularity score can be computed independently of the data
+supplied in the query. In Section <a href="#S2.SS2" title="2.2 Individual field scoring ‣ 2 Analysis of existing reconciliation services ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.2</span></a>, we survey
+field and popularity scoring techniques and their use in
+reconciliation services.</p>
+</div>
+</section>
+<section id="S2.SS0.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Matching decision</h4>
+
+<div id="S2.SS0.SSS0.Px3.p1" class="ltx_para">
+<p id="S2.SS0.SSS0.Px3.p1.1" class="ltx_p">Third, the field scores are used to determine which of the candidates
+(if any) will be retained as the matching entity. This critical step
+is often broken down into two tasks: first, aggregate all the
+field-level scores into one global matching score for each candidate
+in the short list. The crucial decision at this stage is to balance
+the influence of each field on the final matching score. In
+Section <a href="#S2.SS3" title="2.3 Global scoring methods ‣ 2 Analysis of existing reconciliation services ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.3</span></a> we give an overview of the
+wide range of approaches that have been proposed to determine these
+weights. Once this global score is defined, the final decision whether
+to match a candidate to the user data is generally based on a
+threshold for the global score, determined by the risk associated with
+false positives and false negatives.</p>
+</div>
+</section>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Candidate retrieval</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">The choice of restricting the matching heuristics to a short list of
+candidates is a simplification to reduce the computational cost of
+reconciliation. Instead of comparing the user record to each database
+entry, these comparisons are restricted to the most relevant entries,
+fetched by a coarse-grained but computationally efficient filtering
+method.</p>
+</div>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.1" class="ltx_p">The usual way to perform this filtering is by maintaining an index on
+one or more fields of the database. This indexing is often called
+<em id="S2.SS1.p2.1.1" class="ltx_emph ltx_font_italic">blocking</em> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>: the records are
+partitioned into blocks (or buckets) depending on their values. Given
+a query, we compute the corresponding block value (or multiple blocks)
+and only retrieve candidates from these blocks. For instance, indexing
+names with a phonetic transcription such as Soundex will map the names
+“Will” and “Wil” to the same code <span id="S2.SS1.p2.1.2" class="ltx_text ltx_font_typewriter">W400</span>.</p>
+</div>
+<div id="S2.SS1.p3" class="ltx_para">
+<p id="S2.SS1.p3.1" class="ltx_p">Common solutions involve building an inverted index which can be used
+to retrieve all candidates containing words in the
+query <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>. Various techniques have been developed
+to make this retrieval more error-tolerant: for instance, indexing
+based on q-grams (sequences of <math id="S2.SS1.p3.1.m1.1" class="ltx_Math" alttext="q" display="inline"><semantics id="S2.SS1.p3.1.m1.1a"><mi id="S2.SS1.p3.1.m1.1.1" xref="S2.SS1.p3.1.m1.1.1.cmml">q</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p3.1.m1.1b"><ci id="S2.SS1.p3.1.m1.1.1.cmml" xref="S2.SS1.p3.1.m1.1.1">𝑞</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p3.1.m1.1c">q</annotation></semantics></math> characters) instead of words makes
+it possible to retrieve misspelt records
+<cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<section id="S2.SS1.SSS0.Px1" class="ltx_paragraph ltx_framed ltx_framed_rectangle" style="border-color: #000000;padding:9pt;border-width:0.4pt;">
+<h4 class="ltx_title ltx_title_paragraph">In reconciliation services</h4>
+
+<div id="S2.SS1.SSS0.Px1.p1" class="ltx_para">
+<p id="S2.SS1.SSS0.Px1.p1.1" class="ltx_p">Existing services overwhelmingly rely on traditional search engines
+for candidate retrieval, and a Lucene-based index is the most common
+choice (both ElasticSearch and Solr rely on Lucene). This holds both
+for services hosted by the original data provider, which can query
+their own search engine directly and for services implemented by
+third-parties on top of the generic API exposed by the data provider.</p>
+</div>
+<div id="S2.SS1.SSS0.Px1.p2" class="ltx_para">
+<p id="S2.SS1.SSS0.Px1.p2.1" class="ltx_p">Many of the advanced indexing techniques
+and linguistic preprocessing mentioned in the literature are available
+in Lucene. In this context, improving this candidate retrieval step
+consists in tuning the configuration of the indices to the type of
+data they are used for. It is an area worth investing effort as any
+improvement benefits not only the reconciliation service
+but also all the other services relying on the search engine (seach as
+any search UI proposed to end users).</p>
+</div>
+<div id="S2.SS1.SSS0.Px1.p3" class="ltx_para">
+<p id="S2.SS1.SSS0.Px1.p3.1" class="ltx_p">The only exceptions to this are the GODOT reconciliation service,
+where no candidate retrieval phase is done (all records are compared to the query),
+and OpenCorporates where some queries rely on SQL search.</p>
+</div>
+</section>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Individual field scoring</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">In this section, we review various scoring methods for individual
+fields.</p>
+</div>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p">In the absence of unique identifiers, the name of an entity is the
+primary discriminative clue to identifiy it. Therefore, scoring methods
+for entity names have attracted a lot of attention. They fall into
+three families depending on which basic comparison unit they use:
+characters, q-grams or words.</p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p">Character-based metrics quantify the minimal number of operations on
+individual characters to transform a string into the string it is
+compared to <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>. The nature and cost of the
+operations involved depends on the algorithm. The simplest version is
+called the edit distance: the allowed operations consist in deleting,
+inserting or replacing characters. Although the search space of
+editing operations is large, it is possible to compute this distance
+quickly with the Levenshtein algorithm: the number of operations is
+proportional to the product of the lengths of the strings
+compared. Many variants of this metric have been introduced: adding
+operations to modify larger groups of consecutive characters (for
+instance to soften the effect of a missing word or shortened word on
+the score), giving different weights depending on the characters
+substituted (to account for replacements of similar characters such as
+O and 0) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> or speeding up the comparison by
+restricting the number of changes <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite>.</p>
+</div>
+<div id="S2.SS2.p4" class="ltx_para">
+<p id="S2.SS2.p4.1" class="ltx_p">Q-gram based metrics compute all the sequences of <math id="S2.SS2.p4.1.m1.1" class="ltx_Math" alttext="q" display="inline"><semantics id="S2.SS2.p4.1.m1.1a"><mi id="S2.SS2.p4.1.m1.1.1" xref="S2.SS2.p4.1.m1.1.1.cmml">q</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.1.m1.1b"><ci id="S2.SS2.p4.1.m1.1.1.cmml" xref="S2.SS2.p4.1.m1.1.1">𝑞</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.1.m1.1c">q</annotation></semantics></math> consecutive
+characters in each string, and compare them. For instance, the word
+“Oracle” contains the 3-grams “Ora”, “rac”, “acl” and
+“cle”. Although not as precise as an edit distance, comparing the
+sets of q-grams contained in strings is a simple and inexpensive way
+to assess to which extent they differ. It accounts for word
+reorderings and can also be used for indexing. Like character-based
+metrics, q-grams are mostly useful when the strings differ by spelling
+mistakes or encoding errors.</p>
+</div>
+<div id="S2.SS2.p5" class="ltx_para">
+<p id="S2.SS2.p5.1" class="ltx_p">Word-based (or token-based) distances first separate the input into
+words and use these as basic comparison units. Working at word level
+gives a more semantic notion of similarity, without conflating words
+with similar spellings but unrelated meanings. It is still possible to
+add stemming and other normalization procedures to each word to account
+for some controlled variation in word spellings.</p>
+</div>
+<div id="S2.SS2.p6" class="ltx_para">
+<p id="S2.SS2.p6.1" class="ltx_p">For both Q-gram and word-based approaches, there are various methods
+to turn a set of common units into a score. The simplest way is to
+count the number of matching units and divide it by the total number
+of units in both strings, for instance. However, not all tokens in a
+name are equally informative. For instance, the similarity between
+“Greentech Distribution” and “Greentech Services” should be
+higher than that of “Greentech Distribution” and “Globafrik
+Distribution”, simply because having “Greentech” in common is
+more informative than “Distribution”.</p>
+</div>
+<div id="S2.SS2.p7" class="ltx_para">
+<p id="S2.SS2.p7.8" class="ltx_p">The standard solution to this problem is called TF-IDF (Term Frequency
+- Inverse Document Frequency). Informally, this is a method to measure
+the significance of a word occurence in some text. The significance is
+proportional to two factors: how often the term appears in the given
+document and how rarely it appears in general in other documents. In
+the context of name matching, the documents are very short as they are
+the names themselves, so term frequency does not play an important
+role. However, inverse document frequency is a decisive factor which
+will give more significance to “Greentech” than to “Distribution”.
+SoftTFIDF <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> is a method to use TF-IDF as a
+string similarity measure. In its simplest version, it is simply
+defined as</p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.6" class="ltx_Math" alttext="\text{SoftTFIDF}(A,B)=\sum_{w\in A\cap B}t(w,A)t(w,B)" display="block"><semantics id="S2.Ex1.m1.6a"><mrow id="S2.Ex1.m1.6.7" xref="S2.Ex1.m1.6.7.cmml"><mrow id="S2.Ex1.m1.6.7.2" xref="S2.Ex1.m1.6.7.2.cmml"><mtext id="S2.Ex1.m1.6.7.2.2" xref="S2.Ex1.m1.6.7.2.2a.cmml">SoftTFIDF</mtext><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.7.2.1" xref="S2.Ex1.m1.6.7.2.1.cmml">​</mo><mrow id="S2.Ex1.m1.6.7.2.3.2" xref="S2.Ex1.m1.6.7.2.3.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.6.7.2.3.2.1" xref="S2.Ex1.m1.6.7.2.3.1.cmml">(</mo><mi id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml">A</mi><mo id="S2.Ex1.m1.6.7.2.3.2.2" xref="S2.Ex1.m1.6.7.2.3.1.cmml">,</mo><mi id="S2.Ex1.m1.2.2" xref="S2.Ex1.m1.2.2.cmml">B</mi><mo stretchy="false" id="S2.Ex1.m1.6.7.2.3.2.3" xref="S2.Ex1.m1.6.7.2.3.1.cmml">)</mo></mrow></mrow><mo rspace="0.111em" id="S2.Ex1.m1.6.7.1" xref="S2.Ex1.m1.6.7.1.cmml">=</mo><mrow id="S2.Ex1.m1.6.7.3" xref="S2.Ex1.m1.6.7.3.cmml"><munder id="S2.Ex1.m1.6.7.3.1" xref="S2.Ex1.m1.6.7.3.1.cmml"><mo movablelimits="false" id="S2.Ex1.m1.6.7.3.1.2" xref="S2.Ex1.m1.6.7.3.1.2.cmml">∑</mo><mrow id="S2.Ex1.m1.6.7.3.1.3" xref="S2.Ex1.m1.6.7.3.1.3.cmml"><mi id="S2.Ex1.m1.6.7.3.1.3.2" xref="S2.Ex1.m1.6.7.3.1.3.2.cmml">w</mi><mo id="S2.Ex1.m1.6.7.3.1.3.1" xref="S2.Ex1.m1.6.7.3.1.3.1.cmml">∈</mo><mrow id="S2.Ex1.m1.6.7.3.1.3.3" xref="S2.Ex1.m1.6.7.3.1.3.3.cmml"><mi id="S2.Ex1.m1.6.7.3.1.3.3.2" xref="S2.Ex1.m1.6.7.3.1.3.3.2.cmml">A</mi><mo id="S2.Ex1.m1.6.7.3.1.3.3.1" xref="S2.Ex1.m1.6.7.3.1.3.3.1.cmml">∩</mo><mi id="S2.Ex1.m1.6.7.3.1.3.3.3" xref="S2.Ex1.m1.6.7.3.1.3.3.3.cmml">B</mi></mrow></mrow></munder><mrow id="S2.Ex1.m1.6.7.3.2" xref="S2.Ex1.m1.6.7.3.2.cmml"><mi id="S2.Ex1.m1.6.7.3.2.2" xref="S2.Ex1.m1.6.7.3.2.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.7.3.2.1" xref="S2.Ex1.m1.6.7.3.2.1.cmml">​</mo><mrow id="S2.Ex1.m1.6.7.3.2.3.2" xref="S2.Ex1.m1.6.7.3.2.3.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.6.7.3.2.3.2.1" xref="S2.Ex1.m1.6.7.3.2.3.1.cmml">(</mo><mi id="S2.Ex1.m1.3.3" xref="S2.Ex1.m1.3.3.cmml">w</mi><mo id="S2.Ex1.m1.6.7.3.2.3.2.2" xref="S2.Ex1.m1.6.7.3.2.3.1.cmml">,</mo><mi id="S2.Ex1.m1.4.4" xref="S2.Ex1.m1.4.4.cmml">A</mi><mo stretchy="false" id="S2.Ex1.m1.6.7.3.2.3.2.3" xref="S2.Ex1.m1.6.7.3.2.3.1.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.7.3.2.1a" xref="S2.Ex1.m1.6.7.3.2.1.cmml">​</mo><mi id="S2.Ex1.m1.6.7.3.2.4" xref="S2.Ex1.m1.6.7.3.2.4.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.6.7.3.2.1b" xref="S2.Ex1.m1.6.7.3.2.1.cmml">​</mo><mrow id="S2.Ex1.m1.6.7.3.2.5.2" xref="S2.Ex1.m1.6.7.3.2.5.1.cmml"><mo stretchy="false" id="S2.Ex1.m1.6.7.3.2.5.2.1" xref="S2.Ex1.m1.6.7.3.2.5.1.cmml">(</mo><mi id="S2.Ex1.m1.5.5" xref="S2.Ex1.m1.5.5.cmml">w</mi><mo id="S2.Ex1.m1.6.7.3.2.5.2.2" xref="S2.Ex1.m1.6.7.3.2.5.1.cmml">,</mo><mi id="S2.Ex1.m1.6.6" xref="S2.Ex1.m1.6.6.cmml">B</mi><mo stretchy="false" id="S2.Ex1.m1.6.7.3.2.5.2.3" xref="S2.Ex1.m1.6.7.3.2.5.1.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.6b"><apply id="S2.Ex1.m1.6.7.cmml" xref="S2.Ex1.m1.6.7"><eq id="S2.Ex1.m1.6.7.1.cmml" xref="S2.Ex1.m1.6.7.1"></eq><apply id="S2.Ex1.m1.6.7.2.cmml" xref="S2.Ex1.m1.6.7.2"><times id="S2.Ex1.m1.6.7.2.1.cmml" xref="S2.Ex1.m1.6.7.2.1"></times><ci id="S2.Ex1.m1.6.7.2.2a.cmml" xref="S2.Ex1.m1.6.7.2.2"><mtext id="S2.Ex1.m1.6.7.2.2.cmml" xref="S2.Ex1.m1.6.7.2.2">SoftTFIDF</mtext></ci><interval closure="open" id="S2.Ex1.m1.6.7.2.3.1.cmml" xref="S2.Ex1.m1.6.7.2.3.2"><ci id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1">𝐴</ci><ci id="S2.Ex1.m1.2.2.cmml" xref="S2.Ex1.m1.2.2">𝐵</ci></interval></apply><apply id="S2.Ex1.m1.6.7.3.cmml" xref="S2.Ex1.m1.6.7.3"><apply id="S2.Ex1.m1.6.7.3.1.cmml" xref="S2.Ex1.m1.6.7.3.1"><csymbol cd="ambiguous" id="S2.Ex1.m1.6.7.3.1.1.cmml" xref="S2.Ex1.m1.6.7.3.1">subscript</csymbol><sum id="S2.Ex1.m1.6.7.3.1.2.cmml" xref="S2.Ex1.m1.6.7.3.1.2"></sum><apply id="S2.Ex1.m1.6.7.3.1.3.cmml" xref="S2.Ex1.m1.6.7.3.1.3"><in id="S2.Ex1.m1.6.7.3.1.3.1.cmml" xref="S2.Ex1.m1.6.7.3.1.3.1"></in><ci id="S2.Ex1.m1.6.7.3.1.3.2.cmml" xref="S2.Ex1.m1.6.7.3.1.3.2">𝑤</ci><apply id="S2.Ex1.m1.6.7.3.1.3.3.cmml" xref="S2.Ex1.m1.6.7.3.1.3.3"><intersect id="S2.Ex1.m1.6.7.3.1.3.3.1.cmml" xref="S2.Ex1.m1.6.7.3.1.3.3.1"></intersect><ci id="S2.Ex1.m1.6.7.3.1.3.3.2.cmml" xref="S2.Ex1.m1.6.7.3.1.3.3.2">𝐴</ci><ci id="S2.Ex1.m1.6.7.3.1.3.3.3.cmml" xref="S2.Ex1.m1.6.7.3.1.3.3.3">𝐵</ci></apply></apply></apply><apply id="S2.Ex1.m1.6.7.3.2.cmml" xref="S2.Ex1.m1.6.7.3.2"><times id="S2.Ex1.m1.6.7.3.2.1.cmml" xref="S2.Ex1.m1.6.7.3.2.1"></times><ci id="S2.Ex1.m1.6.7.3.2.2.cmml" xref="S2.Ex1.m1.6.7.3.2.2">𝑡</ci><interval closure="open" id="S2.Ex1.m1.6.7.3.2.3.1.cmml" xref="S2.Ex1.m1.6.7.3.2.3.2"><ci id="S2.Ex1.m1.3.3.cmml" xref="S2.Ex1.m1.3.3">𝑤</ci><ci id="S2.Ex1.m1.4.4.cmml" xref="S2.Ex1.m1.4.4">𝐴</ci></interval><ci id="S2.Ex1.m1.6.7.3.2.4.cmml" xref="S2.Ex1.m1.6.7.3.2.4">𝑡</ci><interval closure="open" id="S2.Ex1.m1.6.7.3.2.5.1.cmml" xref="S2.Ex1.m1.6.7.3.2.5.2"><ci id="S2.Ex1.m1.5.5.cmml" xref="S2.Ex1.m1.5.5">𝑤</ci><ci id="S2.Ex1.m1.6.6.cmml" xref="S2.Ex1.m1.6.6">𝐵</ci></interval></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.6c">\text{SoftTFIDF}(A,B)=\sum_{w\in A\cap B}t(w,A)t(w,B)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p7.7" class="ltx_p">where
+<math id="S2.SS2.p7.1.m1.2" class="ltx_Math" alttext="A,B" display="inline"><semantics id="S2.SS2.p7.1.m1.2a"><mrow id="S2.SS2.p7.1.m1.2.3.2" xref="S2.SS2.p7.1.m1.2.3.1.cmml"><mi id="S2.SS2.p7.1.m1.1.1" xref="S2.SS2.p7.1.m1.1.1.cmml">A</mi><mo id="S2.SS2.p7.1.m1.2.3.2.1" xref="S2.SS2.p7.1.m1.2.3.1.cmml">,</mo><mi id="S2.SS2.p7.1.m1.2.2" xref="S2.SS2.p7.1.m1.2.2.cmml">B</mi></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.1.m1.2b"><list id="S2.SS2.p7.1.m1.2.3.1.cmml" xref="S2.SS2.p7.1.m1.2.3.2"><ci id="S2.SS2.p7.1.m1.1.1.cmml" xref="S2.SS2.p7.1.m1.1.1">𝐴</ci><ci id="S2.SS2.p7.1.m1.2.2.cmml" xref="S2.SS2.p7.1.m1.2.2">𝐵</ci></list></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.1.m1.2c">A,B</annotation></semantics></math> are the strings to compare, <math id="S2.SS2.p7.2.m2.1" class="ltx_Math" alttext="w" display="inline"><semantics id="S2.SS2.p7.2.m2.1a"><mi id="S2.SS2.p7.2.m2.1.1" xref="S2.SS2.p7.2.m2.1.1.cmml">w</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.2.m2.1b"><ci id="S2.SS2.p7.2.m2.1.1.cmml" xref="S2.SS2.p7.2.m2.1.1">𝑤</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.2.m2.1c">w</annotation></semantics></math> ranges over the common words in
+<math id="S2.SS2.p7.3.m3.1" class="ltx_Math" alttext="A" display="inline"><semantics id="S2.SS2.p7.3.m3.1a"><mi id="S2.SS2.p7.3.m3.1.1" xref="S2.SS2.p7.3.m3.1.1.cmml">A</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.3.m3.1b"><ci id="S2.SS2.p7.3.m3.1.1.cmml" xref="S2.SS2.p7.3.m3.1.1">𝐴</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.3.m3.1c">A</annotation></semantics></math> and <math id="S2.SS2.p7.4.m4.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S2.SS2.p7.4.m4.1a"><mi id="S2.SS2.p7.4.m4.1.1" xref="S2.SS2.p7.4.m4.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.4.m4.1b"><ci id="S2.SS2.p7.4.m4.1.1.cmml" xref="S2.SS2.p7.4.m4.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.4.m4.1c">B</annotation></semantics></math>, and <math id="S2.SS2.p7.5.m5.2" class="ltx_Math" alttext="t(w,A)" display="inline"><semantics id="S2.SS2.p7.5.m5.2a"><mrow id="S2.SS2.p7.5.m5.2.3" xref="S2.SS2.p7.5.m5.2.3.cmml"><mi id="S2.SS2.p7.5.m5.2.3.2" xref="S2.SS2.p7.5.m5.2.3.2.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.SS2.p7.5.m5.2.3.1" xref="S2.SS2.p7.5.m5.2.3.1.cmml">​</mo><mrow id="S2.SS2.p7.5.m5.2.3.3.2" xref="S2.SS2.p7.5.m5.2.3.3.1.cmml"><mo stretchy="false" id="S2.SS2.p7.5.m5.2.3.3.2.1" xref="S2.SS2.p7.5.m5.2.3.3.1.cmml">(</mo><mi id="S2.SS2.p7.5.m5.1.1" xref="S2.SS2.p7.5.m5.1.1.cmml">w</mi><mo id="S2.SS2.p7.5.m5.2.3.3.2.2" xref="S2.SS2.p7.5.m5.2.3.3.1.cmml">,</mo><mi id="S2.SS2.p7.5.m5.2.2" xref="S2.SS2.p7.5.m5.2.2.cmml">A</mi><mo stretchy="false" id="S2.SS2.p7.5.m5.2.3.3.2.3" xref="S2.SS2.p7.5.m5.2.3.3.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.5.m5.2b"><apply id="S2.SS2.p7.5.m5.2.3.cmml" xref="S2.SS2.p7.5.m5.2.3"><times id="S2.SS2.p7.5.m5.2.3.1.cmml" xref="S2.SS2.p7.5.m5.2.3.1"></times><ci id="S2.SS2.p7.5.m5.2.3.2.cmml" xref="S2.SS2.p7.5.m5.2.3.2">𝑡</ci><interval closure="open" id="S2.SS2.p7.5.m5.2.3.3.1.cmml" xref="S2.SS2.p7.5.m5.2.3.3.2"><ci id="S2.SS2.p7.5.m5.1.1.cmml" xref="S2.SS2.p7.5.m5.1.1">𝑤</ci><ci id="S2.SS2.p7.5.m5.2.2.cmml" xref="S2.SS2.p7.5.m5.2.2">𝐴</ci></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.5.m5.2c">t(w,A)</annotation></semantics></math> is the TF-IDF weight of <math id="S2.SS2.p7.6.m6.1" class="ltx_Math" alttext="w" display="inline"><semantics id="S2.SS2.p7.6.m6.1a"><mi id="S2.SS2.p7.6.m6.1.1" xref="S2.SS2.p7.6.m6.1.1.cmml">w</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.6.m6.1b"><ci id="S2.SS2.p7.6.m6.1.1.cmml" xref="S2.SS2.p7.6.m6.1.1">𝑤</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.6.m6.1c">w</annotation></semantics></math> in <math id="S2.SS2.p7.7.m7.1" class="ltx_Math" alttext="A" display="inline"><semantics id="S2.SS2.p7.7.m7.1a"><mi id="S2.SS2.p7.7.m7.1.1" xref="S2.SS2.p7.7.m7.1.1.cmml">A</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p7.7.m7.1b"><ci id="S2.SS2.p7.7.m7.1.1.cmml" xref="S2.SS2.p7.7.m7.1.1">𝐴</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p7.7.m7.1c">A</annotation></semantics></math>. In its
+full version, SoftTFIDF also allows for some dissimilarity between
+words by incorporating a word similarity metric in each summand.</p>
+</div>
+<div id="S2.SS2.p8" class="ltx_para">
+<p id="S2.SS2.p8.1" class="ltx_p">Popularity scores can help introduce a bias towards more sailent
+entities in the database. Their nature largely relies on the type of entities
+at hand. They can be based on particular data fields of the entities
+(such as company revenue or number of employees), or on the interlinking
+structure between them (PageRank).</p>
+</div>
+<div id="S2.SS2.1" class="ltx_sectional-block ltx_framed ltx_framed_rectangle" style="border-color: #000000;padding:9pt;border-width:0.4pt;">
+<section id="S2.SS2.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">In reconciliation services</h4>
+
+<div id="S2.SS2.SSS0.Px1.p1" class="ltx_para">
+<p id="S2.SS2.SSS0.Px1.p1.1" class="ltx_p">Many reconciliation services delegate field and popularity scoring
+to their underlying search engine. Their role therefore amounts to translating
+reconciliation queries to corresponding search queries, crafted to
+obtain the desired scoring. Text fields are therefore generally scored using
+variants of TF-IDF. Few reconciliation services
+include popularity metrics.</p>
+</div>
+<div id="S2.SS2.SSS0.Px1.p2" class="ltx_para">
+<p id="S2.SS2.SSS0.Px1.p2.1" class="ltx_p">The reconciliation services that do compute a
+matching score for the name or other textual fields generally use
+Levenshtein-based metrics or more conservative exact matching.</p>
+</div>
+</section>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Global scoring methods</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">Once fields from the reference database have been compared with user
+data, we need to draw on these comparisons to decide whether to match
+the user record to a reconciliation candidate. Users have various
+expectations about this step and it is crucial to accomodate
+them.</p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p">First, reconciliation is an inherently approximate process and the
+accuracy to aim for depends on the application: the cost of false
+positives (erroneously matching a user record to a reference
+identifier) and false negatives (erroneously declaring that the user
+record does not correspond to any reference identifier) varies. Many
+record linkage methods let the user influence these error rates by
+computing a global matching score. The user can then set their own
+threshold on the matching score to get the desired trade-off between
+false positives and false negatives. However, in the absence of
+reference data to evaluate these error rates, the impact of the
+threshold on errors is often unknown.</p>
+</div>
+<div id="S2.SS3.p3" class="ltx_para">
+<p id="S2.SS3.p3.1" class="ltx_p">Second, the notion of identity between the user data and the reference
+database is not always the same. For instance, when reconciling
+companies from a list of bids for a market, users might want to match
+each company to the exact legal entity who submitted the bid, or to a
+better known larger entity controlling the bidder. This means that the
+relative influence of fields such as the headquarters’ location might
+also need to vary. Giving the user some control over the global
+scoring method is also important to let them factor in the reliability
+of their data in each field.</p>
+</div>
+<div id="S2.SS3.p4" class="ltx_para">
+<p id="S2.SS3.p4.1" class="ltx_p">Given a collection of features comparing a user record to a reference
+record, there are various ways to build a decision function which
+predicts whether the records refer to the same entity.</p>
+</div>
+<section id="S2.SS3.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Linear models</h4>
+
+<div id="S2.SS3.SSS0.Px1.p1" class="ltx_para">
+<p id="S2.SS3.SSS0.Px1.p1.1" class="ltx_p">Features are often boolean or numeric, and the simplest way to combine
+them into one score is to use a linear combination of the
+features. The higher this weighted sum gets, the more confident the
+system is that the two records represent the same entity. Many
+probabilistic approaches to record linkage such as that of Fellegi and
+Sunter <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> also fall into this category: the
+score corresponds to a probability of match and it is log-linear in
+the feature values. The decision whether two records are considered as
+matches or mismatches is then taken by comparing the confidence score
+to thresholds. In probabilistic models these thresholds can be
+determined by desired false-positive and false-negative
+rates <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite>.</p>
+</div>
+</section>
+<section id="S2.SS3.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Decision trees</h4>
+
+<div id="S2.SS3.SSS0.Px2.p1" class="ltx_para">
+<p id="S2.SS3.SSS0.Px2.p1.1" class="ltx_p">Decision trees define simple decision procedures to decide whether two
+records match, without implicitly defining a global matching score <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>.
+Starting from the root of the tree, the decision process visits nodes.
+Each internal node is associated with one feature and a threshold to
+compare it against. The comparison determines which node to visit
+next, and the process terminates when a leaf is visited, which
+contains a matching decision. One important aspect of decision trees is
+that they are easy to define and interpret for users.</p>
+</div>
+</section>
+<section id="S2.SS3.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Other classifiers</h4>
+
+<div id="S2.SS3.SSS0.Px3.p1" class="ltx_para">
+<p id="S2.SS3.SSS0.Px3.p1.1" class="ltx_p">Deciding if two records refer to the same entity is a binary
+classification problem so many other classes of decision functions can
+be used to tackle this problem. Generic machine learning tools such as
+Support Vector Machines or K Nearest Neighbours have been used in this
+context <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>.</p>
+</div>
+<div id="S2.SS3.SSS0.Px3.1" class="ltx_sectional-block ltx_framed ltx_framed_rectangle" style="border-color: #000000;padding:9pt;border-width:0.4pt;">
+<section id="S2.SS3.SSS0.Px4" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">In reconciliation services</h4>
+
+<div id="S2.SS3.SSS0.Px4.p1" class="ltx_para">
+<p id="S2.SS3.SSS0.Px4.p1.1" class="ltx_p">Again, many reconciliation services avoid developing their own scoring
+mechanisms by simply exposing the score exposed by the underlying search
+engine. When the service is run by the data provider itself, the configuration
+of the search index can be adjusted to make this score more useful.</p>
+</div>
+<div id="S2.SS3.SSS0.Px4.p2" class="ltx_para">
+<p id="S2.SS3.SSS0.Px4.p2.1" class="ltx_p">When scoring is done explicitly in the service, linear models are the
+most widespread choices in reconciliation services, due to their
+simplicity and their ability to aggregate evidence from various
+features. However, given the partial view reconciliation services have
+on the user data, a probabilistic approach is difficult, making it
+hard to set weights and thresholds in a principled way.</p>
+</div>
+<div id="S2.SS3.SSS0.Px4.p3" class="ltx_para">
+<p id="S2.SS3.SSS0.Px4.p3.1" class="ltx_p">When matching or unmatching sets of rows selected by
+facets, OpenRefine users are effectively building an implicit decision
+tree in their operations history. However, given that the field
+matching scores are not exposed to the user, this work often involves
+re-computing locally similar features (such as edit distances between
+labels). See Section <a href="#S3.SS2" title="3.2 Exposing field-level scores in the reconciliation API ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.2</span></a> for proposals to
+improve this.</p>
+</div>
+<div id="S2.SS3.SSS0.Px4.p4" class="ltx_para">
+<p id="S2.SS3.SSS0.Px4.p4.1" class="ltx_p">We are not aware of any use of advanced machine learning
+techniques in combination with OpenRefine or its reconciliation
+API. The limiting factor for this is again the unavailability of field
+matching scores, which we also propose to solve in
+Section <a href="#S3.SS2" title="3.2 Exposing field-level scores in the reconciliation API ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.2</span></a>.</p>
+</div>
+</section>
+</div>
+</section>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Improving reconciliation workflows</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">OpenRefine reconciliation is designed to solve a particular form of
+record linkage problem. It was originally designed to work with
+Freebase, a collaborative knowledge graph. In this context, users
+would align datasets that they want to upload to Freebase by matching
+the entities in their table to existing Freebase topics, so that the
+information that they upload builds up on previous contributions by
+improving existing topics and creating new ones. The reconciliation
+process has then been generalized to work with arbitrary target
+databases, by specifying a dedicated web API that the database must
+expose <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">In this section, we describe what the current
+reconciliation workflow looks like, what its limitations are, and how
+it could evolve to accomodate better for users’ needs.</p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Current reconciliation workflow</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p">OpenRefine lets users link their tables to target databases such as
+OpenCorporates. This works by selecting a column, containing names of
+the entities to match, and configuring the reconciliation process as
+shown in Figure <a href="#S3.F1" title="Figure 1 ‣ 3.1 Current reconciliation workflow ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>.</p>
+</div>
+<figure id="S3.F1" class="ltx_figure"><img src="/html/1906.08092/assets/figures/OR-WD-api-tutorial-reconciliation-dialog.png" id="S3.F1.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="361" height="242" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>OpenRefine’s user interface for reconciliation configuration</figcaption>
+</figure>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p">Users can choose to restrict the reconciliation candidates to records
+of a particular type. This notion of type is defined by the
+target database, each record they hold can have multiple types, each
+of which is defined by an identifier and accompanied by a
+human-readable name. Beyond the column containing names, it is
+possible to use other columns of the table by matching it to fields of
+the target database. To this end, the target database must expose a
+vocabulary which lists the fields that user data can be matched against.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para">
+<p id="S3.SS1.p3.1" class="ltx_p">Once reconciliation has been configured, OpenRefine will make a series
+of API calls to the reconciliation service, each call containing a
+small batch of reconciliation queries. A reconciliation query consists
+of the values in the columns used for reconciliation (main column for
+the name and auxiliary columns for other fields) as well as the chosen
+type to restrict reconciliation candidates to (if any). For each
+reconciliation query, the reconciliation service returns a list of
+candidates. Each candidate is supplied with a unique identifier from
+the database, a human-readable name, a list of types and a matching
+score.</p>
+</div>
+<div id="S3.SS1.p4" class="ltx_para">
+<p id="S3.SS1.p4.1" class="ltx_p">This matching score is produced by the reconciliation service on the
+basis of the information supplied in the query and is typically opaque
+- users do not necessarily know how scoring works. In particular,
+users do not have any easy way to influence the importance of a given
+field, or to inspect the matching scores of individual fields.</p>
+</div>
+<div id="S3.SS1.p5" class="ltx_para">
+<p id="S3.SS1.p5.1" class="ltx_p">By using facets, it is then possible to take matching decisions for
+rows matching certain criteria. These criteria can depend on matching
+scores, types of the candidates, or any other value in the table.</p>
+</div>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Exposing field-level scores in the reconciliation API</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p">The main limitation of this workflow is the lack of control on the
+scoring mechanism. As a user, it is hard to rely on an opaque score to
+create a reliable reconciliation workflow. Even if the scoring
+function is publicly documented, it might not be suitable for all
+datasets. As a reconciliation service provider, coming up with a
+scoring mechanism that works for everyone is impossible, especially
+because the final matching decisions made by users are not
+communicated to the reconciliation services: it is impossible to learn
+the scoring function from data unless a dedicated dataset is annotated
+separately. Such a dataset is hard to compile given the wide variety
+of use cases and user data sources that reconciliation endpoints are
+typically exposed to.</p>
+</div>
+<figure id="S3.F2" class="ltx_figure"><svg id="S3.F2.pic1" class="ltx_picture" height="161.34" overflow="visible" version="1.1" width="641.03"><g transform="translate(0,161.34) matrix(1 0 0 -1 0 0) translate(25.55,0) translate(0,81.06)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g stroke="#808080"><path d="M 74.13 21.65 h 87.96 v 35.44 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 78.74 42.79)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="26.21" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.1.1.1.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F2.pic1.1.1.1.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.1.1.1.1.1.2" class="ltx_p">Candidate retrieval</span>
+</span></foreignObject></g><g stroke="#808080"><path d="M 192.24 28.61 h 87.96 v 21.52 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 196.85 35.83)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.2.2.2.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F2.pic1.2.2.2.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.2.2.2.1.1.2" class="ltx_p">Field</span>
+<span id="S3.F2.pic1.2.2.2.1.1.3" class="ltx_p">scoring</span>
+</span></foreignObject></g><g stroke="#808080"><path d="M 310.35 28.61 h 87.96 v 21.52 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 314.96 35.83)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.3.3.3.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F2.pic1.3.3.3.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.3.3.3.1.1.2" class="ltx_p">Global</span>
+<span id="S3.F2.pic1.3.3.3.1.1.3" class="ltx_p">scoring</span>
+</span></foreignObject></g><g stroke="#808080"><path d="M 428.46 21.84 h 87.96 v 35.07 h -87.96 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 433.07 42.61)" fill="#000000" stroke="#000000"><foreignObject width="78.74" height="25.85" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.4.4.4.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:56.9pt;">
+<span id="S3.F2.pic1.4.4.4.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.4.4.4.1.1.2" class="ltx_p">Matching decision</span>
+</span></foreignObject></g><path d="M 162.37 39.37 L 186.98 39.37" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 186.98 39.37)"><path d="M 4.98 0 C 3.51 0.28 1.11 1.11 -0.55 2.08 L -0.55 -2.08 C 1.11 -1.11 3.51 -0.28 4.98 0" style="stroke:none"></path></g><path d="M 280.47 39.37 L 305.09 39.37" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 305.09 39.37)"><path d="M 4.98 0 C 3.51 0.28 1.11 1.11 -0.55 2.08 L -0.55 -2.08 C 1.11 -1.11 3.51 -0.28 4.98 0" style="stroke:none"></path></g><path d="M 398.58 39.37 L 423.19 39.37" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 423.19 39.37)"><path d="M 4.98 0 C 3.51 0.28 1.11 1.11 -0.55 2.08 L -0.55 -2.08 C 1.11 -1.11 3.51 -0.28 4.98 0" style="stroke:none"></path></g><path d="M 35.43 39.37 L 68.87 39.37" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 68.87 39.37)"><path d="M 4.98 0 C 3.51 0.28 1.11 1.11 -0.55 2.08 L -0.55 -2.08 C 1.11 -1.11 3.51 -0.28 4.98 0" style="stroke:none"></path></g><path d="M 516.69 39.37 L 550.13 39.37" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 550.13 39.37)"><path d="M 4.98 0 C 3.51 0.28 1.11 1.11 -0.55 2.08 L -0.55 -2.08 C 1.11 -1.11 3.51 -0.28 4.98 0" style="stroke:none"></path></g><path d="M 71.21 0 C 71.21 6.71 65.77 12.16 59.06 12.16 C 52.34 12.16 46.9 6.71 46.9 0 C 46.9 -6.71 52.34 -12.16 59.06 -12.16 C 65.77 -12.16 71.21 -6.71 71.21 0 Z M 59.06 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 55.6 -4.46)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.5.5.5.1.1" class="ltx_text">1</span></foreignObject></g><g stroke-dasharray="3.0pt,3.0pt" stroke-dashoffset="0.0pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 59.05 12.43 L 59.05 78.74" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 5.9 -58.65)" fill="#000000" stroke="#000000"><foreignObject width="106.3" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.6.6.6.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:76.8pt;">
+<span id="S3.F2.pic1.6.6.6.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.6.6.6.1.1.2" class="ltx_p">Offline matching</span>
+</span></foreignObject></g><path d="M 189.32 0 C 189.32 6.71 183.88 12.16 177.17 12.16 C 170.45 12.16 165.01 6.71 165.01 0 C 165.01 -6.71 170.45 -12.16 177.17 -12.16 C 183.88 -12.16 189.32 -6.71 189.32 0 Z M 177.17 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 173.71 -4.46)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.7.7.7.1.1" class="ltx_text">2</span></foreignObject></g><g stroke-dasharray="3.0pt,3.0pt" stroke-dashoffset="0.0pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 177.16 12.43 L 177.16 78.74" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 124.01 -51.7)" fill="#000000" stroke="#000000"><foreignObject width="106.3" height="26.21" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.8.8.8.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:76.8pt;">
+<span id="S3.F2.pic1.8.8.8.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.8.8.8.1.1.2" class="ltx_p">Manual matching</span>
+<span id="S3.F2.pic1.8.8.8.1.1.3" class="ltx_p">via search API</span>
+</span></foreignObject></g><path d="M 307.43 0 C 307.43 6.71 301.99 12.16 295.28 12.16 C 288.56 12.16 283.12 6.71 283.12 0 C 283.12 -6.71 288.56 -12.16 295.28 -12.16 C 301.99 -12.16 307.43 -6.71 307.43 0 Z M 295.28 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 291.82 -4.46)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.9.9.9.1.1" class="ltx_text">3</span></foreignObject></g><g stroke-dasharray="3.0pt,3.0pt" stroke-dashoffset="0.0pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 295.27 12.43 L 295.27 78.74" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 242.12 -51.7)" fill="#000000" stroke="#000000"><foreignObject width="106.3" height="26.21" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.10.10.10.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:76.8pt;">
+<span id="S3.F2.pic1.10.10.10.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.10.10.10.1.1.2" class="ltx_p">Proposed new</span>
+<span id="S3.F2.pic1.10.10.10.1.1.3" class="ltx_p">reconciliation API</span>
+</span></foreignObject></g><path d="M 425.54 0 C 425.54 6.71 420.1 12.16 413.39 12.16 C 406.67 12.16 401.23 6.71 401.23 0 C 401.23 -6.71 406.67 -12.16 413.39 -12.16 C 420.1 -12.16 425.54 -6.71 425.54 0 Z M 413.39 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 409.93 -4.46)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.11.11.11.1.1" class="ltx_text">4</span></foreignObject></g><g stroke-dasharray="3.0pt,3.0pt" stroke-dashoffset="0.0pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 413.38 12.43 L 413.38 78.74" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 360.23 -43.47)" fill="#000000" stroke="#000000"><foreignObject width="106.3" height="42.66" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.12.12.12.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:76.8pt;">
+<span id="S3.F2.pic1.12.12.12.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.12.12.12.1.1.2" class="ltx_p">Current OpenRefine</span>
+<span id="S3.F2.pic1.12.12.12.1.1.3" class="ltx_p">reconciliation API</span>
+</span></foreignObject></g><path d="M 543.65 0 C 543.65 6.71 538.21 12.16 531.5 12.16 C 524.78 12.16 519.34 6.71 519.34 0 C 519.34 -6.71 524.78 -12.16 531.5 -12.16 C 538.21 -12.16 543.65 -6.71 543.65 0 Z M 531.5 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 528.04 -4.46)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.13.13.13.1.1" class="ltx_text">5</span></foreignObject></g><g stroke-dasharray="3.0pt,3.0pt" stroke-dashoffset="0.0pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 531.49 12.43 L 531.49 78.74" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 478.34 -50.35)" fill="#000000" stroke="#000000"><foreignObject width="106.3" height="28.9" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible">
+<span id="S3.F2.pic1.14.14.14.1.1" class="ltx_inline-block ltx_minipage ltx_align_top" style="width:76.8pt;">
+<span id="S3.F2.pic1.14.14.14.1.1.1" class="ltx_p"></span>
+<span id="S3.F2.pic1.14.14.14.1.1.2" class="ltx_p">Server-side dataset</span>
+<span id="S3.F2.pic1.14.14.14.1.1.3" class="ltx_p">matching</span>
+</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 -20.94 66.06)" fill="#000000" stroke="#000000"><foreignObject width="65.5" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.15.15.15.1.1" class="ltx_text">Server side</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 546.61 66.06)" fill="#000000" stroke="#000000"><foreignObject width="64.65" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S3.F2.pic1.16.16.16.1.1" class="ltx_text">Client side</span></foreignObject></g></g></svg>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Five possible boundaries of responsibilities between server and client in a reconciliation process</figcaption>
+</figure>
+<div id="S3.SS2.p2" class="ltx_para">
+<p id="S3.SS2.p2.1" class="ltx_p">To solve this problem, we need to shift the boundary between the
+responsibilities of the service provider and the user in the
+reconciliation process. Figure <a href="#S3.F2" title="Figure 2 ‣ 3.2 Exposing field-level scores in the reconciliation API ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> shows a
+diagrammatic representation of the reconciliation process, with
+various options as to where the reconciliation API should sit. Dashed
+lines represent the separation of responsibilities between client on the right (the
+user who supplies the data to match) and the server on the left (the
+reconciliation service which exposes the database to be matched
+against) in various scenarios. Each of these scenarios has important
+implications in terms of usability, performance and quality that we
+analyze below.</p>
+</div>
+<section id="S3.SS2.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">1 Offline matching</h4>
+
+<div id="S3.SS2.SSS0.Px1.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px1.p1.1" class="ltx_p">This consists in downloading a copy
+of the target database and performing the reconciliation process
+locally. It is generally necessary to build indices on the database
+first, transform it to a different format, and write some custom
+matching heuristics. Off-the-shelf record linkage tools such as
+Duke<span id="footnote3" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">3</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">3</sup><span class="ltx_tag ltx_tag_note">3</span><a target="_blank" href="https://github.com/larsga/Duke" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/larsga/Duke</a></span></span></span>, the R package
+RecordLinkage <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> or
+Serf <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> can also be used. This workflow can
+be necessary when the user dataset to be matched is large, as it
+minimizes data transfer between the user and the database. However, for
+users with small datasets or simple matching needs this workflow is
+completely impractical when the target database is large, as in the case of OpenCorporates.</p>
+</div>
+</section>
+<section id="S3.SS2.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">2 Manual matching via search API</h4>
+
+<div id="S3.SS2.SSS0.Px2.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px2.p1.1" class="ltx_p">This workflow is fairly widespread,
+as many online databases offer a web API that can be used to search
+for records using various criteria. It is then up to the user to
+decide how to compare the records returned to their own data. If the
+API exposed by the service is flexible enough to retrieve
+the appropriate candidates efficiently, this can be viable but a
+custom reconciliation process must be implemented by the user, which
+is a significant investment. The API often hides valuable statistics
+from the search engine, such as those needed to compute TF-IDF scores.</p>
+</div>
+</section>
+<section id="S3.SS2.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">3 Proposed new reconciliation API</h4>
+
+<div id="S3.SS2.SSS0.Px3.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px3.p1.1" class="ltx_p">We propose to improve the existing
+reconciliation API used in OpenRefine to let data providers expose
+matching scores for individual fields, instead of just one global
+score. This would let clients use their own global scoring methods,
+which would give the appropriate weight to each field. Handling field
+scoring server-side would let the reconciliation services implement
+metrics that are meaningful in their domain (such as the bespoke name
+matching heuristics used in OpenCorporates for company names) without
+having to implement this domain-specific expert knowledge in generic
+client-side tools. In this configuration, field-level scores can also
+depend on statistics maintained in the search engine of the database,
+making it possible to use TF-IDF scores for instance. We explore the
+implications of this proposal in
+Section <a href="#S3.SS3" title="3.3 Evolution of the reconciliation API ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.3</span></a>.</p>
+</div>
+</section>
+<section id="S3.SS2.SSS0.Px4" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">4 Current OpenRefine reconciliation API</h4>
+
+<div id="S3.SS2.SSS0.Px4.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px4.p1.1" class="ltx_p">As explained in
+Section <a href="#S3.SS1" title="3.1 Current reconciliation workflow ‣ 3 Improving reconciliation workflows ‣ A survey of OpenRefine reconciliation services" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3.1</span></a>, global candidate scoring is
+currently the responsibility of the reconciliation service, making it
+impossible for users to influence how this score is computed. Another
+way to solve this problem would be to let the user specify more
+parameters in their reconciliation queries, such as providing a
+numerical weight factor for each of the columns supplied. The main
+downside with such an approach is that it would be hard for the user
+to come up with these weights initially, and changing the weights a
+posteriori would require running again the reconciliation process
+(which costs time and resources). This would make it hard to integrate
+the API with any machine learning approach.</p>
+</div>
+</section>
+<section id="S3.SS2.SSS0.Px5" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">5 Server-side dataset matching</h4>
+
+<div id="S3.SS2.SSS0.Px5.p1" class="ltx_para">
+<p id="S3.SS2.SSS0.Px5.p1.1" class="ltx_p">In this scenario, the user would
+upload their dataset to the reconciliation service, which would
+perform the matching of all rows in one go and return the final
+results. This would have the advantage of eliminating round-trips
+between the client and server, but would make it hard for the user to
+finely tune the reconciliation heuristics. Providing reference
+matching decisions to the reconciliation service would also be hard as
+the reconciliation candidates would not be known in advance.</p>
+</div>
+</section>
+</section>
+<section id="S3.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.3 </span>Evolution of the reconciliation API</h3>
+
+<div id="S3.SS3.p1" class="ltx_para">
+<p id="S3.SS3.p1.1" class="ltx_p">As motivated by our analysis of the various scenarios above, we
+propose changes to the reconciliation API and evaluate the impact
+on service providers, API clients and end users.</p>
+</div>
+<div id="S3.SS3.p2" class="ltx_para">
+<p id="S3.SS3.p2.1" class="ltx_p">For a service provider, the proposed change would imply changing the
+format of the responses returned to include the matching scores for
+each field. The specification of the API could potentially allow for
+multiple scores per field, which would let services expose different
+scoring heuristics. The different scores returned could also be
+independent from the fields supplied: the API would require services
+to return an arbitrary list of feature values. In order to be
+compatible with existing clients, it might be useful to require the
+services to still return a global score as well. This global score
+would serve as a default and could be ignored by clients which can
+rely on the individual features instead. These details and the
+concrete format of these responses should be proposed for consultation
+with the community to ensure that the initiative is followed by as
+many stakeholders as possible.</p>
+</div>
+<div id="S3.SS3.p3" class="ltx_para">
+<p id="S3.SS3.p3.1" class="ltx_p">For an API client, such as OpenRefine itself, this proposal would
+imply some changes to at least store and expose the feature scores.
+OpenRefine already has a dedicated field to store features associated
+with a particular reconciliation candidate but these features are
+computed locally and are therefore very generic and not easily
+adaptable to particular domains. More importantly, clients need to
+include tools to help users build appropriate decision functions for
+their dataset. This could be achieved by integrating machine learning
+packages developed in other tools, which would give the user a real
+control over the error rates and abstract away the features. The
+existing manual matching capabilities could be reused to provide
+training data to these automated approaches. Active learning has been
+applied to record linkage to learn classifiers with small quantities
+of training
+data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite>. Active
+learning works by incrementally improving a classifier with new
+training examples, selected from cases where the classifier has the least
+confidence. This learning paradigm can be used with a wide range of
+types of classifiers <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> and could be an
+interesting complement to the exploratory data analysis workflows
+encouraged by OpenRefine’s design.</p>
+</div>
+<div id="S3.SS3.p4" class="ltx_para">
+<p id="S3.SS3.p4.1" class="ltx_p">For users, the reconciliation process must remain accessible and
+simple. It should be possible to work with a stock global scoring
+method whose performance should be comparable to the current scores.
+Exploring the values of these features should be possible with facets,
+and features should be documented so that users can understand the
+meaning of reconciliation results. Finally, in a scenario where
+machine learning is used, it should ideally be possible to expose the
+learned decision function to the user, for instance as a decision tree
+or by drawing the decision boundary on a scatterplot. It could also be
+useful to let the user interact with this learned model and tune it
+with their own knowledge of the data.</p>
+</div>
+</section>
+</section>
+<section id="Sx2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Conclusion</h2>
+
+<div id="Sx2.p1" class="ltx_para">
+<p id="Sx2.p1.1" class="ltx_p">We have surveyed the existing reconciliation services and compared
+them to the state of the art in recorcd linkage. From this review, we
+suggest possible changes to the reconciliation API. We propose to make
+it possible for reconciliation services to expose field matching
+scores in addition to (or instead of) global matching scores for each
+candidate. The initial motivation for this change is to make it
+possible for users to balance the importance of each field, but the
+implications are much broader as this change would make it possible to
+reuse a wide range of advanced classifiers from the literature. With
+the appropriate integration in OpenRefine, this would help users build
+reliable matching heuristics, informed by their expert knowledge of
+the data. This change would also benefit any other API user who could
+feed these features to the machine learning packages of their choice.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+Elasticsearch from the Bottom Up, Part 1.
+
+</span>
+<span class="ltx_bibblock">https://www.elastic.co/blog/found-elasticsearch-from-the-bottom-up,
+September 2013.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Reconciliation Service API.
+
+</span>
+<span class="ltx_bibblock">https://github.com/OpenRefine/OpenRefine, November 2018.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Arvind Arasu, Michaela Götz, and Raghav Kaushik.
+
+</span>
+<span class="ltx_bibblock">On active learning of record matching packages.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">Proceedings of the 2010 International Conference on
+Management of Data - SIGMOD ’10</span>, page 783, Indianapolis, Indiana,
+USA, 2010. ACM Press.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+Rohan Baxter, Peter Christen, and Tim Churches.
+
+</span>
+<span class="ltx_bibblock">A Comparison of Fast Blocking Methods for Record Linkage.
+
+</span>
+<span class="ltx_bibblock">page 6, 2003.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Omar Benjelloun, Hector Garcia-Molina, David Menestrina, Qi Su,
+Steven Euijong Whang, and Jennifer Widom.
+
+</span>
+<span class="ltx_bibblock">Swoosh: A generic approach to entity resolution.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">The VLDB Journal</span>, 18(1):255–276, January 2009.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Peter Christen.
+
+</span>
+<span class="ltx_bibblock">Automatic record linkage using seeded nearest neighbour and support
+vector machine classification.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib6.1.1" class="ltx_text ltx_font_italic">Proceeding of the 14th ACM SIGKDD International
+Conference on Knowledge Discovery and Data Mining - KDD 08</span>, page
+151, Las Vegas, Nevada, USA, 2008. ACM Press.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Peter Christen.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text ltx_font_italic">Data Matching: Concepts and Techniques for Record Linkage,
+Entity Resolution, and Duplicate Detection</span>.
+
+</span>
+<span class="ltx_bibblock">Springer Science &amp; Business Media, 2012.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Peter Christen.
+
+</span>
+<span class="ltx_bibblock">A Survey of Indexing Techniques for Scalable Record
+Linkage and Deduplication.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">IEEE Transactions on Knowledge and Data Engineering</span>,
+24(9):1537–1555, September 2012.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Munir Cochinwala, Verghese Kurien, Gail Lalk, and Dennis Shasha.
+
+</span>
+<span class="ltx_bibblock">Efficient data reconciliation.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text ltx_font_italic">Information Sciences</span>, 137(1):1–15, September 2001.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+William W Cohen, Pradeep Ravikumar, and Stephen E Fienberg.
+
+</span>
+<span class="ltx_bibblock">A Comparison of String Metrics for Matching Names and
+Records.
+
+</span>
+<span class="ltx_bibblock">page 6, 2003.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Ahmed K. Elmagarmid, Panagiotis G. Ipeirotis, and Vassilios S. Verykios.
+
+</span>
+<span class="ltx_bibblock">Duplicate Record Detection: A Survey.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text ltx_font_italic">IEEE Transactions on Knowledge and Data Engineering</span>,
+19(1):1–16, January 2007.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Ivan P Fellegi and Alan B Sunter.
+
+</span>
+<span class="ltx_bibblock">A theory for record linkage.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text ltx_font_italic">Journal of the American Statistical Association</span>,
+64(328):1183–1210, 1969.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+David Huynh, Tom Morris, Stefano Mazzocchi, Iain Sproat, Martin Magdinier, Thad
+Guidry, Jesus M. Castagnetto, James Home, Cora Johnson-Roberson, Will
+Moffat, Pablo Moyano, David Leoni, Peilonghui, Rudy Alvarez, Vishal
+Talwar, Scott Wiedemann, Mateja Verlic, Antonin Delpeuch, Shixiong Zhu,
+Charles Pritchard, Ankit Sardesai, Gideon Thomas, Daniel Berthereau, and
+Andreas Kohn.
+
+</span>
+<span class="ltx_bibblock">OpenRefine.
+
+</span>
+<span class="ltx_bibblock">2019.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Gad M Landau and Uzi Vishkin.
+
+</span>
+<span class="ltx_bibblock">Fast parallel and serial approximate string matching.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text ltx_font_italic">Journal of Algorithms</span>, 10(2):157–169, June 1989.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Saul B. Needleman and Christian D. Wunsch.
+
+</span>
+<span class="ltx_bibblock">A general method applicable to the search for similarities in the
+amino acid sequence of two proteins.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text ltx_font_italic">Journal of Molecular Biology</span>, 48(3):443–453, March 1970.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Sunita Sarawagi and Anuradha Bhamidipaty.
+
+</span>
+<span class="ltx_bibblock">Interactive Deduplication using Active Learning.
+
+</span>
+<span class="ltx_bibblock">page 10, 2002.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Murat Sariyar and Andreas Borg.
+
+</span>
+<span class="ltx_bibblock">The RecordLinkage Package: Detecting Errors in Data.
+
+</span>
+<span class="ltx_bibblock">2:7, 2010.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Sheila Tejada, Craig A. Knoblock, and Steven Minton.
+
+</span>
+<span class="ltx_bibblock">Learning domain-independent string transformation weights for high
+accuracy object identification.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Proceedings of the Eighth ACM SIGKDD International
+Conference on Knowledge Discovery and Data Mining - KDD ’02</span>, page
+350, Edmonton, Alberta, Canada, 2002. ACM Press.
+
+</span>
+</li>
+</ul>
+</section>
+<figure id="Sx2.F3" class="ltx_figure">
+<table id="Sx2.F3.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="Sx2.F3.1.1.1" class="ltx_tr">
+<td id="Sx2.F3.1.1.1.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.1.1.1" class="ltx_p" style="width:85.4pt;"><span id="Sx2.F3.1.1.1.1.1.1.1" class="ltx_text ltx_font_bold">Name</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.2.1.1" class="ltx_p" style="width:71.1pt;"><span id="Sx2.F3.1.1.1.2.1.1.1" class="ltx_text ltx_font_bold">Types</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.3.1.1" class="ltx_p" style="width:56.9pt;"><span id="Sx2.F3.1.1.1.3.1.1.1" class="ltx_text ltx_font_bold">Properties</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.4.1.1" class="ltx_p" style="width:71.1pt;"><span id="Sx2.F3.1.1.1.4.1.1.1" class="ltx_text ltx_font_bold">Retrieval</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.5.1.1" class="ltx_p" style="width:56.9pt;"><span id="Sx2.F3.1.1.1.5.1.1.1" class="ltx_text ltx_font_bold">Name score</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.6.1.1" class="ltx_p" style="width:56.9pt;"><span id="Sx2.F3.1.1.1.6.1.1.1" class="ltx_text ltx_font_bold">Property score</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.7.1.1" class="ltx_p" style="width:56.9pt;"><span id="Sx2.F3.1.1.1.7.1.1.1" class="ltx_text ltx_font_bold">Popularity</span></span>
+</span>
+</td>
+<td id="Sx2.F3.1.1.1.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.1.1.8.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.1.1.8.1.1" class="ltx_p" style="width:85.4pt;"><span id="Sx2.F3.1.1.1.8.1.1.1" class="ltx_text ltx_font_bold">Global score</span></span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.2.2" class="ltx_tr">
+<td id="Sx2.F3.1.2.2.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://api.opencorporates.com/documentation/Open-Refine-Reconciliation-API" title="" class="ltx_ref ltx_href">OpenCorporates</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.2.1.1" class="ltx_p" style="width:71.1pt;">single (company)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.3.1.1" class="ltx_p" style="width:56.9pt;">- jurisdiction
+<br class="ltx_break">- date</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.4.1.1" class="ltx_p" style="width:71.1pt;">ElasticSearch and SQL <span id="Sx2.F3.1.2.2.4.1.1.1" class="ltx_text ltx_font_typewriter">LIKE</span> on name</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.5.1.1" class="ltx_p" style="width:56.9pt;">Combination of domain-specific rules and Levenshtein distance</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.6.1.1" class="ltx_p" style="width:56.9pt;">Boolean on jurisdiction, fixed penalties on date</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.7.1.1" class="ltx_p" style="width:56.9pt;">Fixed penalty on company types</span>
+</span>
+</td>
+<td id="Sx2.F3.1.2.2.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.2.2.8.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.2.2.8.1.1" class="ltx_p" style="width:85.4pt;">Weighted sum of field scores</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.3.3" class="ltx_tr">
+<td id="Sx2.F3.1.3.3.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="http://data1.kew.org/reconciliation/help" title="" class="ltx_ref ltx_href">IPNI</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.2.1.1" class="ltx_p" style="width:71.1pt;">single (scientific name)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.3.1.1" class="ltx_p" style="width:56.9pt;">19 properties</span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.4.1.1" class="ltx_p" style="width:71.1pt;">Lucene index</span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="2">
+<span id="Sx2.F3.1.3.3.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.5.1.1" class="ltx_p" style="width:170.7pt;"><a target="_blank" href="https://github.com/RBGKew/Reconciliation-and-Matching-Framework/blob/master/rmf-configurations/src/main/resources/META-INF/spring/rmf-configurations/wcs-ipni-match/config_WCS_match0.xml" title="" class="ltx_ref ltx_href">Boolean matchers configured for each name and property, with canonicalization</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.6.1.1" class="ltx_p" style="width:56.9pt;">N/A</span>
+</span>
+</td>
+<td id="Sx2.F3.1.3.3.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.3.3.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.3.3.7.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://github.com/RBGKew/Reconciliation-and-Matching-Framework/blob/185968ad27bbe34c606c7c4cae0556399f295825/rmf-core/src/main/java/org/kew/rmf/core/lucene/LuceneUtils.java" title="" class="ltx_ref ltx_href">Average of field scores adjusted for blank fields</a></span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.4.4" class="ltx_tr">
+<td id="Sx2.F3.1.4.4.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://findthatcharity.uk/" title="" class="ltx_ref ltx_href">FindThatCharity.uk</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.2.1.1" class="ltx_p" style="width:71.1pt;">single (charity)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.3.1.1" class="ltx_p" style="width:56.9pt;">None</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.4.1.1" class="ltx_p" style="width:71.1pt;">ElasticSearch</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.5.1.1" class="ltx_p" style="width:56.9pt;">TF-IDF</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.6.1.1" class="ltx_p" style="width:56.9pt;">N/A</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.7.1.1" class="ltx_p" style="width:56.9pt;">Logarithmic income</span>
+</span>
+</td>
+<td id="Sx2.F3.1.4.4.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.4.4.8.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.4.4.8.1.1" class="ltx_p" style="width:85.4pt;">ElasticSearch’s score</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.5.5" class="ltx_tr">
+<td id="Sx2.F3.1.5.5.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://numishare.blogspot.com/2017/10/nomisma-launches-openrefine.html" title="" class="ltx_ref ltx_href">Nomisma</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.2.1.1" class="ltx_p" style="width:71.1pt;">23 types</span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.3.1.1" class="ltx_p" style="width:56.9pt;"><a target="_blank" href="https://github.com/nomisma/framework/blob/ab5ead062c39ed87b2b29e3c227d7dc3a1881198/solr-home/1.5/nomisma/conf/schema.xml" title="" class="ltx_ref ltx_href">8 properties</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.4.1.1" class="ltx_p" style="width:71.1pt;">Solr</span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.5.1.1" class="ltx_p" style="width:56.9pt;">TF-IDF</span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.6.1.1" class="ltx_p" style="width:56.9pt;"><a target="_blank" href="https://github.com/nomisma/framework/blob/c56093431e0d76aabb316ae53cfd6fadf6f44596/ui/xslt/serializations/json/reconcile-query.xsl" title="" class="ltx_ref ltx_href">Boolean filters</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.7.1.1" class="ltx_p" style="width:56.9pt;">N/A</span>
+</span>
+</td>
+<td id="Sx2.F3.1.5.5.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.5.5.8.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.5.5.8.1.1" class="ltx_p" style="width:85.4pt;">Solr’s score</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.6.6" class="ltx_tr">
+<td id="Sx2.F3.1.6.6.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="http://refine.codefork.com/" title="" class="ltx_ref ltx_href">VIAF</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.6.6.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.2.1.1" class="ltx_p" style="width:71.1pt;">5 types</span>
+</span>
+</td>
+<td id="Sx2.F3.1.6.6.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.3.1.1" class="ltx_p" style="width:56.9pt;">None</span>
+</span>
+</td>
+<td id="Sx2.F3.1.6.6.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.4.1.1" class="ltx_p" style="width:71.1pt;">VIAF search API</span>
+</span>
+</td>
+<td id="Sx2.F3.1.6.6.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.5.1.1" class="ltx_p" style="width:56.9pt;"><a target="_blank" href="https://github.com/codeforkjeff/conciliator/blob/master/src/main/java/com/codefork/refine/viaf/sources/VIAFSource.java" title="" class="ltx_ref ltx_href">Levenshtein distance ratio</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.6.6.6" class="ltx_td ltx_align_center ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="2">N/A</td>
+<td id="Sx2.F3.1.6.6.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.6.6.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.6.6.7.1.1" class="ltx_p" style="width:85.4pt;">(Name score only)</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.7.7" class="ltx_tr">
+<td id="Sx2.F3.1.7.7.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.7.7.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.7.7.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="http://refine.codefork.com/" title="" class="ltx_ref ltx_href">OpenLibrary</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.7.7.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.7.7.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.7.7.2.1.1" class="ltx_p" style="width:71.1pt;">single (book)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.7.7.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.7.7.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.7.7.3.1.1" class="ltx_p" style="width:56.9pt;">Unspecified</span>
+</span>
+</td>
+<td id="Sx2.F3.1.7.7.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.7.7.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.7.7.4.1.1" class="ltx_p" style="width:71.1pt;">OpenLibrary search API, concatenating property values to name</span>
+</span>
+</td>
+<td id="Sx2.F3.1.7.7.5" class="ltx_td ltx_align_center ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="3">N/A</td>
+<td id="Sx2.F3.1.7.7.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.7.7.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.7.7.6.1.1" class="ltx_p" style="width:85.4pt;">Constant (1.0)</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.8.8" class="ltx_tr">
+<td id="Sx2.F3.1.8.8.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="http://refine.codefork.com/" title="" class="ltx_ref ltx_href">ORCID</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.8.8.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.2.1.1" class="ltx_p" style="width:71.1pt;">single (person)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.8.8.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.3.1.1" class="ltx_p" style="width:56.9pt;">None</span>
+</span>
+</td>
+<td id="Sx2.F3.1.8.8.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.4.1.1" class="ltx_p" style="width:71.1pt;">ORCID search API</span>
+</span>
+</td>
+<td id="Sx2.F3.1.8.8.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.5.1.1" class="ltx_p" style="width:56.9pt;">TF-IDF (assumed)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.8.8.6" class="ltx_td ltx_align_center ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="2">N/A</td>
+<td id="Sx2.F3.1.8.8.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.8.8.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.8.8.7.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://github.com/codeforkjeff/conciliator/blob/master/src/main/java/com/codefork/refine/orcid/OrcidParser.java" title="" class="ltx_ref ltx_href">“relevancy” score returned by the search API</a></span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.9.9" class="ltx_tr">
+<td id="Sx2.F3.1.9.9.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://tools.wmflabs.org/openrefine-wikidata/" title="" class="ltx_ref ltx_href">Wikidata</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.2.1.1" class="ltx_p" style="width:71.1pt;">Wikidata items used with <a target="_blank" href="https://www.wikidata.org/wiki/Property:P31" title="" class="ltx_ref ltx_href">instance of (P31)</a> and <a target="_blank" href="https://www.wikidata.org/wiki/Property:P279" title="" class="ltx_ref ltx_href">subclass of (P279)</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.3.1.1" class="ltx_p" style="width:56.9pt;">All Wikidata properties (a few thousands)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.4.1.1" class="ltx_p" style="width:71.1pt;">Wikidata search APIs</span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.5.1.1" class="ltx_p" style="width:56.9pt;">Levenshtein-based fuzzy metric</span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.6.1.1" class="ltx_p" style="width:56.9pt;">Defined by property datatype</span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.7.1.1" class="ltx_p" style="width:56.9pt;">Order by Qid (tie-breaker)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.9.9.8" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.9.9.8.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.9.9.8.1.1" class="ltx_p" style="width:85.4pt;">Weighted average of field scores</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.10.10" class="ltx_tr">
+<td id="Sx2.F3.1.10.10.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="http://blog.lobid.org/2018/08/27/openrefine.html" title="" class="ltx_ref ltx_href">lobid-gnd</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.10.10.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.2.1.1" class="ltx_p" style="width:71.1pt;">8 types</span>
+</span>
+</td>
+<td id="Sx2.F3.1.10.10.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.3.1.1" class="ltx_p" style="width:56.9pt;"><a target="_blank" href="https://d-nb.info/standards/elementset/gnd" title="" class="ltx_ref ltx_href">All properties from the GND ontology</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.10.10.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.4.1.1" class="ltx_p" style="width:71.1pt;">ElasticSearch, concatenating property values to name</span>
+</span>
+</td>
+<td id="Sx2.F3.1.10.10.5" class="ltx_td ltx_align_center ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="2">TF-IDF</td>
+<td id="Sx2.F3.1.10.10.6" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.6.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.6.1.1" class="ltx_p" style="width:56.9pt;">N/A</span>
+</span>
+</td>
+<td id="Sx2.F3.1.10.10.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.10.10.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.10.10.7.1.1" class="ltx_p" style="width:85.4pt;">ElasticSearch’s score</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.11.11" class="ltx_tr">
+<td id="Sx2.F3.1.11.11.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://godot.date/tools/openrefine" title="" class="ltx_ref ltx_href">GODOT</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.11.11.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.2.1.1" class="ltx_p" style="width:71.1pt;">single (person)</span>
+</span>
+</td>
+<td id="Sx2.F3.1.11.11.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.3.1.1" class="ltx_p" style="width:56.9pt;">None</span>
+</span>
+</td>
+<td id="Sx2.F3.1.11.11.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.4.1.1" class="ltx_p" style="width:71.1pt;">Direct comparison to all records</span>
+</span>
+</td>
+<td id="Sx2.F3.1.11.11.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.5.1.1" class="ltx_p" style="width:56.9pt;">Levenshtein-based fuzzy metric</span>
+</span>
+</td>
+<td id="Sx2.F3.1.11.11.6" class="ltx_td ltx_align_center ltx_align_top ltx_border_l ltx_border_r ltx_border_t" colspan="2">N/A</td>
+<td id="Sx2.F3.1.11.11.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.11.11.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.11.11.7.1.1" class="ltx_p" style="width:85.4pt;">(Name score only)</span>
+</span>
+</td>
+</tr>
+<tr id="Sx2.F3.1.12.12" class="ltx_tr">
+<td id="Sx2.F3.1.12.12.1" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_l ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.1.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.1.1.1" class="ltx_p" style="width:85.4pt;"><a target="_blank" href="https://github.com/alephdata/aleph/blob/master/aleph/views/reconcile_api.py" title="" class="ltx_ref ltx_href">OCCRP</a></span>
+</span>
+</td>
+<td id="Sx2.F3.1.12.12.2" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.2.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.2.1.1" class="ltx_p" style="width:71.1pt;">8 types</span>
+</span>
+</td>
+<td id="Sx2.F3.1.12.12.3" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.3.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.3.1.1" class="ltx_p" style="width:56.9pt;">defined by the schema</span>
+</span>
+</td>
+<td id="Sx2.F3.1.12.12.4" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.4.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.4.1.1" class="ltx_p" style="width:71.1pt;">ElasticSearch</span>
+</span>
+</td>
+<td id="Sx2.F3.1.12.12.5" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.5.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.5.1.1" class="ltx_p" style="width:56.9pt;">TF-IDF</span>
+</span>
+</td>
+<td id="Sx2.F3.1.12.12.6" class="ltx_td ltx_align_center ltx_align_top ltx_border_b ltx_border_l ltx_border_r ltx_border_t" colspan="2">N/A</td>
+<td id="Sx2.F3.1.12.12.7" class="ltx_td ltx_align_justify ltx_align_top ltx_border_b ltx_border_r ltx_border_t">
+<span id="Sx2.F3.1.12.12.7.1" class="ltx_inline-block ltx_align_top">
+<span id="Sx2.F3.1.12.12.7.1.1" class="ltx_p" style="width:85.4pt;">ElaticSearch’s score</span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Main characteristics of the surveyed reconciliation services</figcaption>
+</figure>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/1906.08091" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/1906.08092" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+1906.08092">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/1906.08092" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/1906.08093" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sun Mar 17 07:15:19 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

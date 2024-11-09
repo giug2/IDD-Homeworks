@@ -1,0 +1,757 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2404.10957] Personalized Federated Learning via Stacking</title><meta property="og:description" content="Traditional Federated Learning (FL) methods typically train a single global model collaboratively without exchanging raw data. In contrast, Personalized Federated Learning (PFL) techniques aim to create multiple models…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Personalized Federated Learning via Stacking">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Personalized Federated Learning via Stacking">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2404.10957">
+
+<!--Generated on Sun May  5 14:57:25 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Personalized Federated Learning via Stacking
+</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">
+Emilio Cantu-Cervini 
+<br class="ltx_break">ecantuc@umich.edu 
+<br class="ltx_break">
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">Traditional Federated Learning (FL) methods typically train a single global model collaboratively without exchanging raw data. In contrast, Personalized Federated Learning (PFL) techniques aim to create multiple models that are better tailored to individual clients’ data. We present a novel personalization approach based on stacked generalization where clients directly send each other privacy-preserving models to be used as base models to train a meta-model on private data. Our approach is flexible, accommodating various privacy-preserving techniques and model types, and can be applied in horizontal, hybrid, and vertically partitioned federations. Additionally, it offers a natural mechanism for assessing each client’s contribution to the federation. Through comprehensive evaluations across diverse simulated data heterogeneity scenarios, we showcase the effectiveness of our method.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para ltx_noindent">
+<p id="S1.p1.1" class="ltx_p">Federated Learning (FL) is an area of research that develops methods to allow multiple parties to collaboratively train machine learning models without exchanging data. First introduced in 2016 by McMahan et al. to allow a large number of edge devices to collaboratively train language models <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, FL has been successfully applied to several domains where for regulatory or privacy reasons models cannot be trained on centralized pooled data.</p>
+</div>
+<div id="S1.p2" class="ltx_para ltx_noindent">
+<p id="S1.p2.1" class="ltx_p">Most FL approaches result in a single collaboratively trained global model that is used by every client for inference. Personalized Federated Learning (PFL) recognizes that in some non-IID contexts performance improvements are possible if each client somehow adapts or personalizes the global model to its data. Approaches range from clients fine-tuning the global model on private data to client clustering, and others discussed in Section <a href="#S2" title="2 Related Work ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.1" class="ltx_p">In this paper, we build on prior work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> and explore a simple personalization approach that avoids training a global model which is then personalized. Instead, clients employ privacy-preserving techniques <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> to train a model on their data and make it public to the federation. Each client then fetches public models and uses them in addition to a private (non-privacy-preserving) model as base predictors to train a meta-model via stacked generalization <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>]</cite> with private data.</p>
+</div>
+<div id="S1.p4" class="ltx_para ltx_noindent">
+<p id="S1.p4.1" class="ltx_p">Intuitively, the stacked model learns to weigh and combine other clients’ models to best predict its own data. Thus, even if every client has access to the same base models, every stacked model will be personalized to each client by training it on private data. Our approach is summarized in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> and discussed in more detail in Section <a href="#S3" title="3 Method ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. Although simple, we highlight some immediate advantages of our proposal:</p>
+</div>
+<div id="S1.p5" class="ltx_para ltx_noindent">
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i1.p1.1" class="ltx_p"><span id="S1.I1.i1.p1.1.1" class="ltx_text ltx_font_bold">Flexibility.</span> Since stacked generalization is model agnostic, clients can freely choose the model type and privacy-preserving technique applied to their public model as long as prediction is possible by other clients. Thus for example, while some clients could opt for sharing the unmodified weights of their linear model, others might opt for Differential Privacy <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite> approaches with different privacy budgets or Homomorphic Encryption <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> schemes.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i2.p1.1" class="ltx_p"><span id="S1.I1.i2.p1.1.1" class="ltx_text ltx_font_bold">Simplified aggregator logic.</span> Most previous personalization approaches require an aggregator to coordinate the global model’s training (combining gradients, dealing with stragglers, etc). In our method, the aggregator’s logic is greatly simplified as it need only act as a model database and perhaps maintain a "contribution graph" (explained in Section 3).</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i3.p1.1" class="ltx_p"><span id="S1.I1.i3.p1.1.1" class="ltx_text ltx_font_bold">Natural contribution evaluation.</span> Applying standard variable importance methods to the personalized stacked models is a natural way to estimate how much each retrieved model contributed to a client’s predictive performance. The resulting importance rankings or scores can then be used to implement fairness mechanisms. For example, clients can aggregate their scores into a Contribution Evaluation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite> metric that attempts to capture each client’s overall contribution to the federation.</p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i4.p1" class="ltx_para ltx_noindent">
+<p id="S1.I1.i4.p1.1" class="ltx_p"><span id="S1.I1.i4.p1.1.1" class="ltx_text ltx_font_bold">Data partitioning.</span> As we will discuss in Section <a href="#S3" title="3 Method ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, our method is easily adapted to vertical and hybrid data partitioning scenarios where clients have potentially different sets of features.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.p6" class="ltx_para ltx_noindent">
+<p id="S1.p6.1" class="ltx_p">In addition, the method’s main shortcomings include:</p>
+</div>
+<div id="S1.p7" class="ltx_para ltx_noindent">
+<ul id="S1.I2" class="ltx_itemize">
+<li id="S1.I2.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I2.i1.p1" class="ltx_para ltx_noindent">
+<p id="S1.I2.i1.p1.1" class="ltx_p"><span id="S1.I2.i1.p1.1.1" class="ltx_text ltx_font_bold">Privacy performance penalty.</span> Federated methods in general accept a performance penalty due to privacy considerations. However, since in our method clients have unfettered access to each other’s models, they might adopt more stringent privacy-preserving techniques than they would otherwise.</p>
+</div>
+</li>
+<li id="S1.I2.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I2.i2.p1" class="ltx_para ltx_noindent">
+<p id="S1.I2.i2.p1.1" class="ltx_p"><span id="S1.I2.i2.p1.1.1" class="ltx_text ltx_font_bold">Scaling costs.</span> Fetch, storing, and making inferences with multiple models from the federation increases the bandwidth, storage, and compute time costs of our technique as models grow in size and number. Thus although clients could smartly select a subset of models to fetch or apply compression techniques, we suggest applying our method with smaller to moderately-sized models when such cost considerations are significant.</p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.p8" class="ltx_para ltx_noindent">
+<p id="S1.p8.1" class="ltx_p">The rest of the paper is structured as follows. We review related works in Section <a href="#S2" title="2 Related Work ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> and explain the details of our proposal in more detail in Section <a href="#S3" title="3 Method ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>. In Section <a href="#S4" title="4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> we evaluate our method on synthetic partitions of well-known datasets to simulate different non-IID scenarios. Finally, we conclude and point out future research avenues in Section <a href="#S5" title="5 Discussion and Future Work ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a>.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<p id="S1.F1.1" class="ltx_p ltx_align_center"><span id="S1.F1.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/approach.jpg" id="S1.F1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="479" height="227" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>A high level outline of the proposed personalization approach. A client shares a privacy-preserving (PP) model trained on private data along with metadata with the federation and trains a personalized stacked model with its own private model and those fetched from the federation. It can then use feature importance methods to rank or score the contributions of each retrieved model and report it to the federation. In our experiments each personalized models is evaluated on a held-out test set of each client’s private data.</figcaption>
+</figure>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Work</h2>
+
+<div id="S2.p1" class="ltx_para ltx_noindent">
+<p id="S2.p1.1" class="ltx_p">Several personalization strategies for Federated Learning have been proposed. We give a brief overview of the main approaches and then focus on those most relevant to our proposed method. For a more detailed review, we direct the readers to <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>.</p>
+</div>
+<div id="S2.p2" class="ltx_para ltx_noindent">
+<p id="S2.p2.1" class="ltx_p">The majority of previous approaches require neural networks or other gradient-based models to be employed at a local and global level. One straightforward technique is fine-tuning or transfer learning, where the global model undergoes additional training epochs using local client data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. Other approaches <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>, <a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> involve model distillation, which aims to transfer knowledge from the global model to the local models by training the local "student" model to mimic the behavior of the global "teacher" model.</p>
+</div>
+<div id="S2.p3" class="ltx_para ltx_noindent">
+<p id="S2.p3.1" class="ltx_p">Additionally, methods inspired by meta-learning, which train models to adapt quickly to new tasks, have been suggested. By treating clients as individual tasks, meta-learning techniques can be utilized to train a global model that readily adapts to the unique characteristics of each client’s local data <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite>.</p>
+</div>
+<div id="S2.p4" class="ltx_para ltx_noindent">
+<p id="S2.p4.1" class="ltx_p">Other personalization techniques can be applied irrespective of the types of local and global models. Client clustering techniques <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> assume that there exists a fixed number of distinct data distributions and attempt to cluster clients with similar distributions to train one “global” model per cluster.</p>
+</div>
+<div id="S2.p5" class="ltx_para ltx_noindent">
+<p id="S2.p5.1" class="ltx_p">Data augmentation strategies <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a>]</cite> generate synthetic data to augment and balance the datasets across clients with the hope of making the client’s datasets “more independent and identically distributed”. Methods where clients send a small fraction of their data to a global data pool have also been proposed <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> even though they raise privacy concerns.</p>
+</div>
+<div id="S2.p6" class="ltx_para ltx_noindent">
+<p id="S2.p6.1" class="ltx_p">Stacked generalization has been applied broadly in Federated Learning. For example, Guo et al. <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> introduced <span id="S2.p6.1.1" class="ltx_text ltx_font_italic">Privacy Preserving Stacking</span>, where each client trains a model with privacy guarantees, such as <span id="S2.p6.1.2" class="ltx_text ltx_font_italic">Privacy-Preserving Logistic Regression (PLR)</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>. Afterward, clients perform predictions on a separate set of their local data, which they send, along with the ground-truth labels, to a central aggregator. The aggregator receives the (prediction, ground-truth) pairs from all the clients and trains a meta-model using these pairs, once again with privacy guarantees.</p>
+</div>
+<div id="S2.p7" class="ltx_para ltx_noindent">
+<p id="S2.p7.1" class="ltx_p">Similarly, <span id="S2.p7.1.1" class="ltx_text ltx_font_italic">FedStack</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> proposes training a hierarchical meta-model. A first meta-model is trained on (prediction, ground-truth) pairs received from clients, a second meta-model on pairs outputted by the first-level model, and so on. The complete meta-model is then sent to the clients for inference.</p>
+</div>
+<div id="S2.p8" class="ltx_para ltx_noindent">
+<p id="S2.p8.1" class="ltx_p">Both <span id="S2.p8.1.1" class="ltx_text ltx_font_italic">Privacy Preserving Stacking</span> and <span id="S2.p8.1.2" class="ltx_text ltx_font_italic">FedStack</span> approaches result in a global model, and thus do not perform personalization. In contrast, <span id="S2.p8.1.3" class="ltx_text ltx_font_italic">BaggingWrapper</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> proposes that clients send each other local models and use them to train a stacked linear model on private data.</p>
+</div>
+<div id="S2.p9" class="ltx_para ltx_noindent">
+<p id="S2.p9.1" class="ltx_p">Initially introduced as a model-agnostic plug-in technique for clients to join a federation at minimal cost, <span id="S2.p9.1.1" class="ltx_text ltx_font_italic">BaggingWrapper</span> was not intended as a personalization technique. Consequently, it was evaluated on a global test set. We propose recasting the core idea as a personalization method and thus will have each client evaluate their personalized models on private test data.</p>
+</div>
+<div id="S2.p10" class="ltx_para ltx_noindent">
+<p id="S2.p10.1" class="ltx_p">In the original <span id="S2.p10.1.1" class="ltx_text ltx_font_italic">BaggingWrapper</span> design, it was assumed that clients had limited data, resulting in the training of both the private and stacked meta-models on the same dataset. However, this approach risks overfitting stacked models to predictions generated by their respective private models. Therefore, when clients possess sufficient data, we propose training the personalized model on a separate held-out set of private data and evaluate both approaches in our experiments.</p>
+</div>
+<div id="S2.p11" class="ltx_para ltx_noindent">
+<p id="S2.p11.1" class="ltx_p">In addition, we contribute a simple adaptation to handle vertical and hybrid data partitioning scenarios and leverage the stacked model’s feature importance data as a straightforward way to perform Contribution Evaluation (CE).</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Method</h2>
+
+<div id="S3.p1" class="ltx_para ltx_noindent">
+<p id="S3.p1.1" class="ltx_p">Our method is fairly straightforward and is summarized in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. Clients train a privacy-preserving model (PP) on private data and make it available to the federation. Clients can then fetch models from the federation and use them in conjunction with their private non-PP model as base models for training a personalized stacked meta-model. The stacked meta-model is trained on the predictions of the base models on private data.</p>
+</div>
+<div id="S3.p2" class="ltx_para ltx_noindent">
+<p id="S3.p2.1" class="ltx_p">Training the stacked model on the same data as the private model risks overfitting on its predictions and ignoring the fetched model’s predictions. On the other hand, training the personalized model on a held-out set will decrease the data available to train the private model. In general, we recommend training on a held-out set unless the performance of the private models is significantly affected. Of course, clients can find the approach that works best for them by using cross-validation as we describe at the end of the section.</p>
+</div>
+<div id="S3.p3" class="ltx_para ltx_noindent">
+<p id="S3.p3.1" class="ltx_p">In horizontal data partitioned federations where every client’s data contains the features it is straightforward to obtain predictions from a fetched model. However, in vertical or hybrid federations clients will have different feature sets and will have to match a fetched model’s feature set to obtain predictions from it.</p>
+</div>
+<div id="S3.p4" class="ltx_para ltx_noindent">
+<p id="S3.p4.6" class="ltx_p">For example, client A may have data with features <math id="S3.p4.1.m1.3" class="ltx_Math" alttext="\{1,2,3\}" display="inline"><semantics id="S3.p4.1.m1.3a"><mrow id="S3.p4.1.m1.3.4.2" xref="S3.p4.1.m1.3.4.1.cmml"><mo stretchy="false" id="S3.p4.1.m1.3.4.2.1" xref="S3.p4.1.m1.3.4.1.cmml">{</mo><mn id="S3.p4.1.m1.1.1" xref="S3.p4.1.m1.1.1.cmml">1</mn><mo id="S3.p4.1.m1.3.4.2.2" xref="S3.p4.1.m1.3.4.1.cmml">,</mo><mn id="S3.p4.1.m1.2.2" xref="S3.p4.1.m1.2.2.cmml">2</mn><mo id="S3.p4.1.m1.3.4.2.3" xref="S3.p4.1.m1.3.4.1.cmml">,</mo><mn id="S3.p4.1.m1.3.3" xref="S3.p4.1.m1.3.3.cmml">3</mn><mo stretchy="false" id="S3.p4.1.m1.3.4.2.4" xref="S3.p4.1.m1.3.4.1.cmml">}</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.p4.1.m1.3b"><set id="S3.p4.1.m1.3.4.1.cmml" xref="S3.p4.1.m1.3.4.2"><cn type="integer" id="S3.p4.1.m1.1.1.cmml" xref="S3.p4.1.m1.1.1">1</cn><cn type="integer" id="S3.p4.1.m1.2.2.cmml" xref="S3.p4.1.m1.2.2">2</cn><cn type="integer" id="S3.p4.1.m1.3.3.cmml" xref="S3.p4.1.m1.3.3">3</cn></set></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.1.m1.3c">\{1,2,3\}</annotation></semantics></math> and wish to make predictions using client B’s public model trained with features <math id="S3.p4.2.m2.3" class="ltx_Math" alttext="\{3,4,5\}" display="inline"><semantics id="S3.p4.2.m2.3a"><mrow id="S3.p4.2.m2.3.4.2" xref="S3.p4.2.m2.3.4.1.cmml"><mo stretchy="false" id="S3.p4.2.m2.3.4.2.1" xref="S3.p4.2.m2.3.4.1.cmml">{</mo><mn id="S3.p4.2.m2.1.1" xref="S3.p4.2.m2.1.1.cmml">3</mn><mo id="S3.p4.2.m2.3.4.2.2" xref="S3.p4.2.m2.3.4.1.cmml">,</mo><mn id="S3.p4.2.m2.2.2" xref="S3.p4.2.m2.2.2.cmml">4</mn><mo id="S3.p4.2.m2.3.4.2.3" xref="S3.p4.2.m2.3.4.1.cmml">,</mo><mn id="S3.p4.2.m2.3.3" xref="S3.p4.2.m2.3.3.cmml">5</mn><mo stretchy="false" id="S3.p4.2.m2.3.4.2.4" xref="S3.p4.2.m2.3.4.1.cmml">}</mo></mrow><annotation-xml encoding="MathML-Content" id="S3.p4.2.m2.3b"><set id="S3.p4.2.m2.3.4.1.cmml" xref="S3.p4.2.m2.3.4.2"><cn type="integer" id="S3.p4.2.m2.1.1.cmml" xref="S3.p4.2.m2.1.1">3</cn><cn type="integer" id="S3.p4.2.m2.2.2.cmml" xref="S3.p4.2.m2.2.2">4</cn><cn type="integer" id="S3.p4.2.m2.3.3.cmml" xref="S3.p4.2.m2.3.3">5</cn></set></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.2.m2.3c">\{3,4,5\}</annotation></semantics></math>. We propose that A simply drop features the fetched model does not contain (in this case <math id="S3.p4.3.m3.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S3.p4.3.m3.1a"><mn id="S3.p4.3.m3.1.1" xref="S3.p4.3.m3.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S3.p4.3.m3.1b"><cn type="integer" id="S3.p4.3.m3.1.1.cmml" xref="S3.p4.3.m3.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.3.m3.1c">1</annotation></semantics></math> and <math id="S3.p4.4.m4.1" class="ltx_Math" alttext="2" display="inline"><semantics id="S3.p4.4.m4.1a"><mn id="S3.p4.4.m4.1.1" xref="S3.p4.4.m4.1.1.cmml">2</mn><annotation-xml encoding="MathML-Content" id="S3.p4.4.m4.1b"><cn type="integer" id="S3.p4.4.m4.1.1.cmml" xref="S3.p4.4.m4.1.1">2</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.4.m4.1c">2</annotation></semantics></math>) and create synthetic features for those the fetched model requires but A does not have (in this case <math id="S3.p4.5.m5.1" class="ltx_Math" alttext="4" display="inline"><semantics id="S3.p4.5.m5.1a"><mn id="S3.p4.5.m5.1.1" xref="S3.p4.5.m5.1.1.cmml">4</mn><annotation-xml encoding="MathML-Content" id="S3.p4.5.m5.1b"><cn type="integer" id="S3.p4.5.m5.1.1.cmml" xref="S3.p4.5.m5.1.1">4</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.5.m5.1c">4</annotation></semantics></math> and <math id="S3.p4.6.m6.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S3.p4.6.m6.1a"><mn id="S3.p4.6.m6.1.1" xref="S3.p4.6.m6.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S3.p4.6.m6.1b"><cn type="integer" id="S3.p4.6.m6.1.1.cmml" xref="S3.p4.6.m6.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S3.p4.6.m6.1c">5</annotation></semantics></math>).</p>
+</div>
+<div id="S3.p5" class="ltx_para ltx_noindent">
+<p id="S3.p5.1" class="ltx_p">Several approaches for generating the synthetic features are possible and depend on the metadata each client makes public along with its model. For example, clients could make public which encoding they used for missing data during training so others can use it at prediction time. For simplicity, in our experiments, we assume clients share a set of default feature values that others can use as constant synthetic features.</p>
+</div>
+<div id="S3.p6" class="ltx_para ltx_noindent">
+<p id="S3.p6.1" class="ltx_p">To avoid free-loaders and implement fairness mechanisms in the federation, we propose that clients use feature-importance methods on their personalized models. Since a stacked model’s features are predictions from fetched models, a client can interpret feature importance as a proxy for how much each model contributed to its personalized model.</p>
+</div>
+<div id="S3.p7" class="ltx_para ltx_noindent">
+<p id="S3.p7.1" class="ltx_p">Clients could then choose to use contribution scores in several ways. For example, they could restrict their public models to those with a score above a threshold or give access to versions of their model with different privacy budgets.</p>
+</div>
+<div id="S3.p8" class="ltx_para ltx_noindent">
+<p id="S3.p8.1" class="ltx_p">In our experiments, we assume that clients make their normalized contribution scores public to the federation where they are aggregated into a weighted directed "contribution graph." Then, any node centrality metric can be used to summarize a client’s overall contribution to the federation.</p>
+</div>
+<div id="S3.p9" class="ltx_para ltx_noindent">
+<p id="S3.p9.1" class="ltx_p">Finally, we point out that clients are free to perform cross-validation with their private data to evaluate the personalized model and decide whether to train the stacked model on a held-out set or not, how much data to hold out and perform model selection and hyperparameter tuning for both their private and stacked models.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experiments</h2>
+
+<div id="S4.p1" class="ltx_para ltx_noindent">
+<p id="S4.p1.1" class="ltx_p">We evaluated our method using synthetic partitions of well-known classification datasets (<span id="S4.p1.1.1" class="ltx_text ltx_font_italic">Census</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, <span id="S4.p1.1.2" class="ltx_text ltx_font_italic">Cover Type</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>, <span id="S4.p1.1.3" class="ltx_text ltx_font_italic">Vehicle Loan Default</span> <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>) to simulate various non-IID scenarios.</p>
+</div>
+<div id="S4.p2" class="ltx_para ltx_noindent">
+<p id="S4.p2.1" class="ltx_p">Clients trained their public model on their entire private data and then exchanged them. Subsequently, each client randomly split its private data into <code id="S4.p2.1.1" class="ltx_verbatim ltx_font_typewriter">(Train, Meta Train, Test)</code> sets. In our "held-out" approach clients train their private model on <code id="S4.p2.1.2" class="ltx_verbatim ltx_font_typewriter">Train</code> and the meta-model on <code id="S4.p2.1.3" class="ltx_verbatim ltx_font_typewriter">Meta Train</code>, as shown in Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>. In contrast, in the <span id="S4.p2.1.4" class="ltx_text ltx_font_italic">BaggingWrapper</span>’s "pooled" approach the private and meta-model are trained on <code id="S4.p2.1.5" class="ltx_verbatim ltx_font_typewriter">Train</code> <math id="S4.p2.1.m1.1" class="ltx_Math" alttext="\cup" display="inline"><semantics id="S4.p2.1.m1.1a"><mo id="S4.p2.1.m1.1.1" xref="S4.p2.1.m1.1.1.cmml">∪</mo><annotation-xml encoding="MathML-Content" id="S4.p2.1.m1.1b"><union id="S4.p2.1.m1.1.1.cmml" xref="S4.p2.1.m1.1.1"></union></annotation-xml><annotation encoding="application/x-tex" id="S4.p2.1.m1.1c">\cup</annotation></semantics></math> <code id="S4.p2.1.6" class="ltx_verbatim ltx_font_typewriter">Meta train</code>. Both meta-models are evaluated on the same <code id="S4.p2.1.7" class="ltx_verbatim ltx_font_typewriter">Test</code> set.</p>
+</div>
+<div id="S4.p3" class="ltx_para ltx_noindent">
+<p id="S4.p3.3" class="ltx_p">The <code id="S4.p3.3.1" class="ltx_verbatim ltx_font_typewriter">(Train, Meta Train, Test)</code> splits were stratified based on the target class and consisted of proportions <math id="S4.p3.1.m1.1" class="ltx_Math" alttext="0.6" display="inline"><semantics id="S4.p3.1.m1.1a"><mn id="S4.p3.1.m1.1.1" xref="S4.p3.1.m1.1.1.cmml">0.6</mn><annotation-xml encoding="MathML-Content" id="S4.p3.1.m1.1b"><cn type="float" id="S4.p3.1.m1.1.1.cmml" xref="S4.p3.1.m1.1.1">0.6</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.1.m1.1c">0.6</annotation></semantics></math>, <math id="S4.p3.2.m2.1" class="ltx_Math" alttext="0.2" display="inline"><semantics id="S4.p3.2.m2.1a"><mn id="S4.p3.2.m2.1.1" xref="S4.p3.2.m2.1.1.cmml">0.2</mn><annotation-xml encoding="MathML-Content" id="S4.p3.2.m2.1b"><cn type="float" id="S4.p3.2.m2.1.1.cmml" xref="S4.p3.2.m2.1.1">0.2</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.2.m2.1c">0.2</annotation></semantics></math>, and <math id="S4.p3.3.m3.1" class="ltx_Math" alttext="0.2" display="inline"><semantics id="S4.p3.3.m3.1a"><mn id="S4.p3.3.m3.1.1" xref="S4.p3.3.m3.1.1.cmml">0.2</mn><annotation-xml encoding="MathML-Content" id="S4.p3.3.m3.1b"><cn type="float" id="S4.p3.3.m3.1.1.cmml" xref="S4.p3.3.m3.1.1">0.2</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.p3.3.m3.1c">0.2</annotation></semantics></math> of a client’s data, respectively. To minimize the impact of random fluctuations in the splitting process, clients repeated the split, training, and evaluation 5 times on the same private data. Furthermore, the random data assignments described in Sections <a href="#S4.SS1" title="4.1 Quantity skew ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.1</span></a>, <a href="#S4.SS2" title="4.2 Label skew ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.2</span></a>, and <a href="#S4.SS3" title="4.3 Vertical partitioning ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3</span></a> were repeated on 10 different random seeds per parameter configuration.</p>
+</div>
+<div id="S4.p4" class="ltx_para ltx_noindent">
+<p id="S4.p4.1" class="ltx_p">For simplicity, clients used Random Forests as their public, private, and personalized meta-models, with default hyperparameters <span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>Model implementations and default parameters from scikit-learn v1.4.0 <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite></span></span></span>. Finally, clients reported the normalized Mean Decrease in Impurity (MDI) of their personalized model as contribution scores to the federation. An individual client’s overall contribution (or "importance") to the federation was determined by summing the contribution scores given to them by others and normalizing.</p>
+</div>
+<div id="S4.p5" class="ltx_para ltx_noindent">
+<p id="S4.p5.1" class="ltx_p">In preprocessing the datasets, we employed one-hot encoding for categorical features, removed examples with missing values, and considered only the two most prominent classes to perform binary classification. For more detailed information regarding data processing, the experimental procedure, and results, refer to the paper’s source code <span id="footnote2" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">2</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">2</sup><span class="ltx_tag ltx_tag_note">2</span>https://github.com/emiliocantuc/personalized-fl-via-stacking</span></span></span>.</p>
+</div>
+<figure id="S4.F2" class="ltx_figure">
+<p id="S4.F2.1" class="ltx_p ltx_align_center"><span id="S4.F2.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/power.jpg" id="S4.F2.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="294" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Quantity skew results: Plots (a)-(c) show the balanced accuracy gain of personalized meta-models over private ones, trained on both held-out and pooled data. Plots (d)-(f) depict performance gain, importance, and self-importance relative to private data size. Note that (d) and (e) focus on meta-models stacked on held-out data.</figcaption>
+</figure>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Quantity skew</h3>
+
+<div id="S4.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p1.3" class="ltx_p">We initially simulate synthetic partitions where only the quantity of data varies among 10 clients according to a power distribution with a parameter <math id="S4.SS1.p1.1.m1.2" class="ltx_Math" alttext="\beta\in(0,1]" display="inline"><semantics id="S4.SS1.p1.1.m1.2a"><mrow id="S4.SS1.p1.1.m1.2.3" xref="S4.SS1.p1.1.m1.2.3.cmml"><mi id="S4.SS1.p1.1.m1.2.3.2" xref="S4.SS1.p1.1.m1.2.3.2.cmml">β</mi><mo id="S4.SS1.p1.1.m1.2.3.1" xref="S4.SS1.p1.1.m1.2.3.1.cmml">∈</mo><mrow id="S4.SS1.p1.1.m1.2.3.3.2" xref="S4.SS1.p1.1.m1.2.3.3.1.cmml"><mo stretchy="false" id="S4.SS1.p1.1.m1.2.3.3.2.1" xref="S4.SS1.p1.1.m1.2.3.3.1.cmml">(</mo><mn id="S4.SS1.p1.1.m1.1.1" xref="S4.SS1.p1.1.m1.1.1.cmml">0</mn><mo id="S4.SS1.p1.1.m1.2.3.3.2.2" xref="S4.SS1.p1.1.m1.2.3.3.1.cmml">,</mo><mn id="S4.SS1.p1.1.m1.2.2" xref="S4.SS1.p1.1.m1.2.2.cmml">1</mn><mo stretchy="false" id="S4.SS1.p1.1.m1.2.3.3.2.3" xref="S4.SS1.p1.1.m1.2.3.3.1.cmml">]</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.1.m1.2b"><apply id="S4.SS1.p1.1.m1.2.3.cmml" xref="S4.SS1.p1.1.m1.2.3"><in id="S4.SS1.p1.1.m1.2.3.1.cmml" xref="S4.SS1.p1.1.m1.2.3.1"></in><ci id="S4.SS1.p1.1.m1.2.3.2.cmml" xref="S4.SS1.p1.1.m1.2.3.2">𝛽</ci><interval closure="open-closed" id="S4.SS1.p1.1.m1.2.3.3.1.cmml" xref="S4.SS1.p1.1.m1.2.3.3.2"><cn type="integer" id="S4.SS1.p1.1.m1.1.1.cmml" xref="S4.SS1.p1.1.m1.1.1">0</cn><cn type="integer" id="S4.SS1.p1.1.m1.2.2.cmml" xref="S4.SS1.p1.1.m1.2.2">1</cn></interval></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.1.m1.2c">\beta\in(0,1]</annotation></semantics></math>. When <math id="S4.SS1.p1.2.m2.1" class="ltx_Math" alttext="\beta=1" display="inline"><semantics id="S4.SS1.p1.2.m2.1a"><mrow id="S4.SS1.p1.2.m2.1.1" xref="S4.SS1.p1.2.m2.1.1.cmml"><mi id="S4.SS1.p1.2.m2.1.1.2" xref="S4.SS1.p1.2.m2.1.1.2.cmml">β</mi><mo id="S4.SS1.p1.2.m2.1.1.1" xref="S4.SS1.p1.2.m2.1.1.1.cmml">=</mo><mn id="S4.SS1.p1.2.m2.1.1.3" xref="S4.SS1.p1.2.m2.1.1.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.2.m2.1b"><apply id="S4.SS1.p1.2.m2.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1"><eq id="S4.SS1.p1.2.m2.1.1.1.cmml" xref="S4.SS1.p1.2.m2.1.1.1"></eq><ci id="S4.SS1.p1.2.m2.1.1.2.cmml" xref="S4.SS1.p1.2.m2.1.1.2">𝛽</ci><cn type="integer" id="S4.SS1.p1.2.m2.1.1.3.cmml" xref="S4.SS1.p1.2.m2.1.1.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.2.m2.1c">\beta=1</annotation></semantics></math>, the data is evenly distributed among clients, whereas as <math id="S4.SS1.p1.3.m3.1" class="ltx_Math" alttext="\beta" display="inline"><semantics id="S4.SS1.p1.3.m3.1a"><mi id="S4.SS1.p1.3.m3.1.1" xref="S4.SS1.p1.3.m3.1.1.cmml">β</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p1.3.m3.1b"><ci id="S4.SS1.p1.3.m3.1.1.cmml" xref="S4.SS1.p1.3.m3.1.1">𝛽</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p1.3.m3.1c">\beta</annotation></semantics></math> approaches 0, fewer clients possess a larger share of the data.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p2.1" class="ltx_p">Figure <a href="#S4.F2" title="Figure 2 ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> (a)-(c) display the improvement in predictive performance of the personalized meta-models over the private models. Notably, across datasets, training the personalized model on the held-out <code id="S4.SS1.p2.1.1" class="ltx_verbatim ltx_font_typewriter">Meta Train</code> set results in stronger performance compared to training both the private and meta-model on the pooled <code id="S4.SS1.p2.1.2" class="ltx_verbatim ltx_font_typewriter">Train</code> <math id="S4.SS1.p2.1.m1.1" class="ltx_Math" alttext="\cup" display="inline"><semantics id="S4.SS1.p2.1.m1.1a"><mo id="S4.SS1.p2.1.m1.1.1" xref="S4.SS1.p2.1.m1.1.1.cmml">∪</mo><annotation-xml encoding="MathML-Content" id="S4.SS1.p2.1.m1.1b"><union id="S4.SS1.p2.1.m1.1.1.cmml" xref="S4.SS1.p2.1.m1.1.1"></union></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p2.1.m1.1c">\cup</annotation></semantics></math> <code id="S4.SS1.p2.1.3" class="ltx_verbatim ltx_font_typewriter">Meta Train</code> set.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p3.1" class="ltx_p">Furthermore, as we increase <math id="S4.SS1.p3.1.m1.1" class="ltx_Math" alttext="\beta" display="inline"><semantics id="S4.SS1.p3.1.m1.1a"><mi id="S4.SS1.p3.1.m1.1.1" xref="S4.SS1.p3.1.m1.1.1.cmml">β</mi><annotation-xml encoding="MathML-Content" id="S4.SS1.p3.1.m1.1b"><ci id="S4.SS1.p3.1.m1.1.1.cmml" xref="S4.SS1.p3.1.m1.1.1">𝛽</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS1.p3.1.m1.1c">\beta</annotation></semantics></math> and distribute the data more evenly among clients, the gain from personalization tends to decrease. However, the <span id="S4.SS1.p3.1.1" class="ltx_text ltx_font_italic">Census</span> dataset shows consistent performance regardless of the distribution, likely due to its lower data requirement for achieving good results.</p>
+</div>
+<div id="S4.SS1.p4" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p4.1" class="ltx_p">In (c) and (e), we observe that as clients possess a larger share of the data, their performance gain from personalization diminishes, but their perceived contribution to the federation ("importance") increases.</p>
+</div>
+<div id="S4.SS1.p5" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p5.1" class="ltx_p">Finally, (f) presents the importance that clients’ stacked models assign to their private ones, referred to as their "self-importance." We note that stacking on the pooled dataset leads to meta-models assigning a higher weight to private models overall, likely overfitting on them. When stacking on a held-out set the meta-models learn to assign greater weight to the private models as they are trained on more data.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Label skew</h3>
+
+<div id="S4.SS2.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p1.11" class="ltx_p">To simulate label skew, representing a change in <math id="S4.SS2.p1.1.m1.1" class="ltx_Math" alttext="P(Y|X)" display="inline"><semantics id="S4.SS2.p1.1.m1.1a"><mrow id="S4.SS2.p1.1.m1.1.1" xref="S4.SS2.p1.1.m1.1.1.cmml"><mi id="S4.SS2.p1.1.m1.1.1.3" xref="S4.SS2.p1.1.m1.1.1.3.cmml">P</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.1.m1.1.1.2" xref="S4.SS2.p1.1.m1.1.1.2.cmml">​</mo><mrow id="S4.SS2.p1.1.m1.1.1.1.1" xref="S4.SS2.p1.1.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.SS2.p1.1.m1.1.1.1.1.2" xref="S4.SS2.p1.1.m1.1.1.1.1.1.cmml">(</mo><mrow id="S4.SS2.p1.1.m1.1.1.1.1.1" xref="S4.SS2.p1.1.m1.1.1.1.1.1.cmml"><mi id="S4.SS2.p1.1.m1.1.1.1.1.1.2" xref="S4.SS2.p1.1.m1.1.1.1.1.1.2.cmml">Y</mi><mo fence="false" id="S4.SS2.p1.1.m1.1.1.1.1.1.1" xref="S4.SS2.p1.1.m1.1.1.1.1.1.1.cmml">|</mo><mi id="S4.SS2.p1.1.m1.1.1.1.1.1.3" xref="S4.SS2.p1.1.m1.1.1.1.1.1.3.cmml">X</mi></mrow><mo stretchy="false" id="S4.SS2.p1.1.m1.1.1.1.1.3" xref="S4.SS2.p1.1.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.1.m1.1b"><apply id="S4.SS2.p1.1.m1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1"><times id="S4.SS2.p1.1.m1.1.1.2.cmml" xref="S4.SS2.p1.1.m1.1.1.2"></times><ci id="S4.SS2.p1.1.m1.1.1.3.cmml" xref="S4.SS2.p1.1.m1.1.1.3">𝑃</ci><apply id="S4.SS2.p1.1.m1.1.1.1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1.1.1"><csymbol cd="latexml" id="S4.SS2.p1.1.m1.1.1.1.1.1.1.cmml" xref="S4.SS2.p1.1.m1.1.1.1.1.1.1">conditional</csymbol><ci id="S4.SS2.p1.1.m1.1.1.1.1.1.2.cmml" xref="S4.SS2.p1.1.m1.1.1.1.1.1.2">𝑌</ci><ci id="S4.SS2.p1.1.m1.1.1.1.1.1.3.cmml" xref="S4.SS2.p1.1.m1.1.1.1.1.1.3">𝑋</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.1.m1.1c">P(Y|X)</annotation></semantics></math> across 10 clients, we adopt the approach outlined in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>]</cite>. We independently assign the same number of examples to each client such that its target labels follow a categorical distribution over <math id="S4.SS2.p1.2.m2.1" class="ltx_Math" alttext="K" display="inline"><semantics id="S4.SS2.p1.2.m2.1a"><mi id="S4.SS2.p1.2.m2.1.1" xref="S4.SS2.p1.2.m2.1.1.cmml">K</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.2.m2.1b"><ci id="S4.SS2.p1.2.m2.1.1.cmml" xref="S4.SS2.p1.2.m2.1.1">𝐾</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.2.m2.1c">K</annotation></semantics></math> classes with probabilities <math id="S4.SS2.p1.3.m3.3" class="ltx_Math" alttext="\mathbf{q}=(q_{1},...,q_{k})" display="inline"><semantics id="S4.SS2.p1.3.m3.3a"><mrow id="S4.SS2.p1.3.m3.3.3" xref="S4.SS2.p1.3.m3.3.3.cmml"><mi id="S4.SS2.p1.3.m3.3.3.4" xref="S4.SS2.p1.3.m3.3.3.4.cmml">𝐪</mi><mo id="S4.SS2.p1.3.m3.3.3.3" xref="S4.SS2.p1.3.m3.3.3.3.cmml">=</mo><mrow id="S4.SS2.p1.3.m3.3.3.2.2" xref="S4.SS2.p1.3.m3.3.3.2.3.cmml"><mo stretchy="false" id="S4.SS2.p1.3.m3.3.3.2.2.3" xref="S4.SS2.p1.3.m3.3.3.2.3.cmml">(</mo><msub id="S4.SS2.p1.3.m3.2.2.1.1.1" xref="S4.SS2.p1.3.m3.2.2.1.1.1.cmml"><mi id="S4.SS2.p1.3.m3.2.2.1.1.1.2" xref="S4.SS2.p1.3.m3.2.2.1.1.1.2.cmml">q</mi><mn id="S4.SS2.p1.3.m3.2.2.1.1.1.3" xref="S4.SS2.p1.3.m3.2.2.1.1.1.3.cmml">1</mn></msub><mo id="S4.SS2.p1.3.m3.3.3.2.2.4" xref="S4.SS2.p1.3.m3.3.3.2.3.cmml">,</mo><mi mathvariant="normal" id="S4.SS2.p1.3.m3.1.1" xref="S4.SS2.p1.3.m3.1.1.cmml">…</mi><mo id="S4.SS2.p1.3.m3.3.3.2.2.5" xref="S4.SS2.p1.3.m3.3.3.2.3.cmml">,</mo><msub id="S4.SS2.p1.3.m3.3.3.2.2.2" xref="S4.SS2.p1.3.m3.3.3.2.2.2.cmml"><mi id="S4.SS2.p1.3.m3.3.3.2.2.2.2" xref="S4.SS2.p1.3.m3.3.3.2.2.2.2.cmml">q</mi><mi id="S4.SS2.p1.3.m3.3.3.2.2.2.3" xref="S4.SS2.p1.3.m3.3.3.2.2.2.3.cmml">k</mi></msub><mo stretchy="false" id="S4.SS2.p1.3.m3.3.3.2.2.6" xref="S4.SS2.p1.3.m3.3.3.2.3.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.3.m3.3b"><apply id="S4.SS2.p1.3.m3.3.3.cmml" xref="S4.SS2.p1.3.m3.3.3"><eq id="S4.SS2.p1.3.m3.3.3.3.cmml" xref="S4.SS2.p1.3.m3.3.3.3"></eq><ci id="S4.SS2.p1.3.m3.3.3.4.cmml" xref="S4.SS2.p1.3.m3.3.3.4">𝐪</ci><vector id="S4.SS2.p1.3.m3.3.3.2.3.cmml" xref="S4.SS2.p1.3.m3.3.3.2.2"><apply id="S4.SS2.p1.3.m3.2.2.1.1.1.cmml" xref="S4.SS2.p1.3.m3.2.2.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p1.3.m3.2.2.1.1.1.1.cmml" xref="S4.SS2.p1.3.m3.2.2.1.1.1">subscript</csymbol><ci id="S4.SS2.p1.3.m3.2.2.1.1.1.2.cmml" xref="S4.SS2.p1.3.m3.2.2.1.1.1.2">𝑞</ci><cn type="integer" id="S4.SS2.p1.3.m3.2.2.1.1.1.3.cmml" xref="S4.SS2.p1.3.m3.2.2.1.1.1.3">1</cn></apply><ci id="S4.SS2.p1.3.m3.1.1.cmml" xref="S4.SS2.p1.3.m3.1.1">…</ci><apply id="S4.SS2.p1.3.m3.3.3.2.2.2.cmml" xref="S4.SS2.p1.3.m3.3.3.2.2.2"><csymbol cd="ambiguous" id="S4.SS2.p1.3.m3.3.3.2.2.2.1.cmml" xref="S4.SS2.p1.3.m3.3.3.2.2.2">subscript</csymbol><ci id="S4.SS2.p1.3.m3.3.3.2.2.2.2.cmml" xref="S4.SS2.p1.3.m3.3.3.2.2.2.2">𝑞</ci><ci id="S4.SS2.p1.3.m3.3.3.2.2.2.3.cmml" xref="S4.SS2.p1.3.m3.3.3.2.2.2.3">𝑘</ci></apply></vector></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.3.m3.3c">\mathbf{q}=(q_{1},...,q_{k})</annotation></semantics></math> (with <math id="S4.SS2.p1.4.m4.1" class="ltx_Math" alttext="q_{i}\geq 0" display="inline"><semantics id="S4.SS2.p1.4.m4.1a"><mrow id="S4.SS2.p1.4.m4.1.1" xref="S4.SS2.p1.4.m4.1.1.cmml"><msub id="S4.SS2.p1.4.m4.1.1.2" xref="S4.SS2.p1.4.m4.1.1.2.cmml"><mi id="S4.SS2.p1.4.m4.1.1.2.2" xref="S4.SS2.p1.4.m4.1.1.2.2.cmml">q</mi><mi id="S4.SS2.p1.4.m4.1.1.2.3" xref="S4.SS2.p1.4.m4.1.1.2.3.cmml">i</mi></msub><mo id="S4.SS2.p1.4.m4.1.1.1" xref="S4.SS2.p1.4.m4.1.1.1.cmml">≥</mo><mn id="S4.SS2.p1.4.m4.1.1.3" xref="S4.SS2.p1.4.m4.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.4.m4.1b"><apply id="S4.SS2.p1.4.m4.1.1.cmml" xref="S4.SS2.p1.4.m4.1.1"><geq id="S4.SS2.p1.4.m4.1.1.1.cmml" xref="S4.SS2.p1.4.m4.1.1.1"></geq><apply id="S4.SS2.p1.4.m4.1.1.2.cmml" xref="S4.SS2.p1.4.m4.1.1.2"><csymbol cd="ambiguous" id="S4.SS2.p1.4.m4.1.1.2.1.cmml" xref="S4.SS2.p1.4.m4.1.1.2">subscript</csymbol><ci id="S4.SS2.p1.4.m4.1.1.2.2.cmml" xref="S4.SS2.p1.4.m4.1.1.2.2">𝑞</ci><ci id="S4.SS2.p1.4.m4.1.1.2.3.cmml" xref="S4.SS2.p1.4.m4.1.1.2.3">𝑖</ci></apply><cn type="integer" id="S4.SS2.p1.4.m4.1.1.3.cmml" xref="S4.SS2.p1.4.m4.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.4.m4.1c">q_{i}\geq 0</annotation></semantics></math> and <math id="S4.SS2.p1.5.m5.1" class="ltx_Math" alttext="\|\mathbf{q}\|_{1}=1" display="inline"><semantics id="S4.SS2.p1.5.m5.1a"><mrow id="S4.SS2.p1.5.m5.1.2" xref="S4.SS2.p1.5.m5.1.2.cmml"><msub id="S4.SS2.p1.5.m5.1.2.2" xref="S4.SS2.p1.5.m5.1.2.2.cmml"><mrow id="S4.SS2.p1.5.m5.1.2.2.2.2" xref="S4.SS2.p1.5.m5.1.2.2.2.1.cmml"><mo stretchy="false" id="S4.SS2.p1.5.m5.1.2.2.2.2.1" xref="S4.SS2.p1.5.m5.1.2.2.2.1.1.cmml">‖</mo><mi id="S4.SS2.p1.5.m5.1.1" xref="S4.SS2.p1.5.m5.1.1.cmml">𝐪</mi><mo stretchy="false" id="S4.SS2.p1.5.m5.1.2.2.2.2.2" xref="S4.SS2.p1.5.m5.1.2.2.2.1.1.cmml">‖</mo></mrow><mn id="S4.SS2.p1.5.m5.1.2.2.3" xref="S4.SS2.p1.5.m5.1.2.2.3.cmml">1</mn></msub><mo id="S4.SS2.p1.5.m5.1.2.1" xref="S4.SS2.p1.5.m5.1.2.1.cmml">=</mo><mn id="S4.SS2.p1.5.m5.1.2.3" xref="S4.SS2.p1.5.m5.1.2.3.cmml">1</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.5.m5.1b"><apply id="S4.SS2.p1.5.m5.1.2.cmml" xref="S4.SS2.p1.5.m5.1.2"><eq id="S4.SS2.p1.5.m5.1.2.1.cmml" xref="S4.SS2.p1.5.m5.1.2.1"></eq><apply id="S4.SS2.p1.5.m5.1.2.2.cmml" xref="S4.SS2.p1.5.m5.1.2.2"><csymbol cd="ambiguous" id="S4.SS2.p1.5.m5.1.2.2.1.cmml" xref="S4.SS2.p1.5.m5.1.2.2">subscript</csymbol><apply id="S4.SS2.p1.5.m5.1.2.2.2.1.cmml" xref="S4.SS2.p1.5.m5.1.2.2.2.2"><csymbol cd="latexml" id="S4.SS2.p1.5.m5.1.2.2.2.1.1.cmml" xref="S4.SS2.p1.5.m5.1.2.2.2.2.1">norm</csymbol><ci id="S4.SS2.p1.5.m5.1.1.cmml" xref="S4.SS2.p1.5.m5.1.1">𝐪</ci></apply><cn type="integer" id="S4.SS2.p1.5.m5.1.2.2.3.cmml" xref="S4.SS2.p1.5.m5.1.2.2.3">1</cn></apply><cn type="integer" id="S4.SS2.p1.5.m5.1.2.3.cmml" xref="S4.SS2.p1.5.m5.1.2.3">1</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.5.m5.1c">\|\mathbf{q}\|_{1}=1</annotation></semantics></math>). The class probabilities are obtained by sampling <math id="S4.SS2.p1.6.m6.1" class="ltx_Math" alttext="\mathbf{q}\sim Dirichlet(\alpha\mathbf{p})" display="inline"><semantics id="S4.SS2.p1.6.m6.1a"><mrow id="S4.SS2.p1.6.m6.1.1" xref="S4.SS2.p1.6.m6.1.1.cmml"><mi id="S4.SS2.p1.6.m6.1.1.3" xref="S4.SS2.p1.6.m6.1.1.3.cmml">𝐪</mi><mo id="S4.SS2.p1.6.m6.1.1.2" xref="S4.SS2.p1.6.m6.1.1.2.cmml">∼</mo><mrow id="S4.SS2.p1.6.m6.1.1.1" xref="S4.SS2.p1.6.m6.1.1.1.cmml"><mi id="S4.SS2.p1.6.m6.1.1.1.3" xref="S4.SS2.p1.6.m6.1.1.1.3.cmml">D</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.4" xref="S4.SS2.p1.6.m6.1.1.1.4.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2a" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.5" xref="S4.SS2.p1.6.m6.1.1.1.5.cmml">r</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2b" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.6" xref="S4.SS2.p1.6.m6.1.1.1.6.cmml">i</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2c" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.7" xref="S4.SS2.p1.6.m6.1.1.1.7.cmml">c</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2d" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.8" xref="S4.SS2.p1.6.m6.1.1.1.8.cmml">h</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2e" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.9" xref="S4.SS2.p1.6.m6.1.1.1.9.cmml">l</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2f" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.10" xref="S4.SS2.p1.6.m6.1.1.1.10.cmml">e</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2g" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.11" xref="S4.SS2.p1.6.m6.1.1.1.11.cmml">t</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.2h" xref="S4.SS2.p1.6.m6.1.1.1.2.cmml">​</mo><mrow id="S4.SS2.p1.6.m6.1.1.1.1.1" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.SS2.p1.6.m6.1.1.1.1.1.2" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.cmml">(</mo><mrow id="S4.SS2.p1.6.m6.1.1.1.1.1.1" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.cmml"><mi id="S4.SS2.p1.6.m6.1.1.1.1.1.1.2" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.2.cmml">α</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p1.6.m6.1.1.1.1.1.1.1" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.1.cmml">​</mo><mi id="S4.SS2.p1.6.m6.1.1.1.1.1.1.3" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.3.cmml">𝐩</mi></mrow><mo stretchy="false" id="S4.SS2.p1.6.m6.1.1.1.1.1.3" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.6.m6.1b"><apply id="S4.SS2.p1.6.m6.1.1.cmml" xref="S4.SS2.p1.6.m6.1.1"><csymbol cd="latexml" id="S4.SS2.p1.6.m6.1.1.2.cmml" xref="S4.SS2.p1.6.m6.1.1.2">similar-to</csymbol><ci id="S4.SS2.p1.6.m6.1.1.3.cmml" xref="S4.SS2.p1.6.m6.1.1.3">𝐪</ci><apply id="S4.SS2.p1.6.m6.1.1.1.cmml" xref="S4.SS2.p1.6.m6.1.1.1"><times id="S4.SS2.p1.6.m6.1.1.1.2.cmml" xref="S4.SS2.p1.6.m6.1.1.1.2"></times><ci id="S4.SS2.p1.6.m6.1.1.1.3.cmml" xref="S4.SS2.p1.6.m6.1.1.1.3">𝐷</ci><ci id="S4.SS2.p1.6.m6.1.1.1.4.cmml" xref="S4.SS2.p1.6.m6.1.1.1.4">𝑖</ci><ci id="S4.SS2.p1.6.m6.1.1.1.5.cmml" xref="S4.SS2.p1.6.m6.1.1.1.5">𝑟</ci><ci id="S4.SS2.p1.6.m6.1.1.1.6.cmml" xref="S4.SS2.p1.6.m6.1.1.1.6">𝑖</ci><ci id="S4.SS2.p1.6.m6.1.1.1.7.cmml" xref="S4.SS2.p1.6.m6.1.1.1.7">𝑐</ci><ci id="S4.SS2.p1.6.m6.1.1.1.8.cmml" xref="S4.SS2.p1.6.m6.1.1.1.8">ℎ</ci><ci id="S4.SS2.p1.6.m6.1.1.1.9.cmml" xref="S4.SS2.p1.6.m6.1.1.1.9">𝑙</ci><ci id="S4.SS2.p1.6.m6.1.1.1.10.cmml" xref="S4.SS2.p1.6.m6.1.1.1.10">𝑒</ci><ci id="S4.SS2.p1.6.m6.1.1.1.11.cmml" xref="S4.SS2.p1.6.m6.1.1.1.11">𝑡</ci><apply id="S4.SS2.p1.6.m6.1.1.1.1.1.1.cmml" xref="S4.SS2.p1.6.m6.1.1.1.1.1"><times id="S4.SS2.p1.6.m6.1.1.1.1.1.1.1.cmml" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.1"></times><ci id="S4.SS2.p1.6.m6.1.1.1.1.1.1.2.cmml" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.2">𝛼</ci><ci id="S4.SS2.p1.6.m6.1.1.1.1.1.1.3.cmml" xref="S4.SS2.p1.6.m6.1.1.1.1.1.1.3">𝐩</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.6.m6.1c">\mathbf{q}\sim Dirichlet(\alpha\mathbf{p})</annotation></semantics></math>, where <math id="S4.SS2.p1.7.m7.1" class="ltx_Math" alttext="\mathbf{p}" display="inline"><semantics id="S4.SS2.p1.7.m7.1a"><mi id="S4.SS2.p1.7.m7.1.1" xref="S4.SS2.p1.7.m7.1.1.cmml">𝐩</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.7.m7.1b"><ci id="S4.SS2.p1.7.m7.1.1.cmml" xref="S4.SS2.p1.7.m7.1.1">𝐩</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.7.m7.1c">\mathbf{p}</annotation></semantics></math> is the prior class distribution and <math id="S4.SS2.p1.8.m8.1" class="ltx_Math" alttext="\alpha&gt;0" display="inline"><semantics id="S4.SS2.p1.8.m8.1a"><mrow id="S4.SS2.p1.8.m8.1.1" xref="S4.SS2.p1.8.m8.1.1.cmml"><mi id="S4.SS2.p1.8.m8.1.1.2" xref="S4.SS2.p1.8.m8.1.1.2.cmml">α</mi><mo id="S4.SS2.p1.8.m8.1.1.1" xref="S4.SS2.p1.8.m8.1.1.1.cmml">&gt;</mo><mn id="S4.SS2.p1.8.m8.1.1.3" xref="S4.SS2.p1.8.m8.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.8.m8.1b"><apply id="S4.SS2.p1.8.m8.1.1.cmml" xref="S4.SS2.p1.8.m8.1.1"><gt id="S4.SS2.p1.8.m8.1.1.1.cmml" xref="S4.SS2.p1.8.m8.1.1.1"></gt><ci id="S4.SS2.p1.8.m8.1.1.2.cmml" xref="S4.SS2.p1.8.m8.1.1.2">𝛼</ci><cn type="integer" id="S4.SS2.p1.8.m8.1.1.3.cmml" xref="S4.SS2.p1.8.m8.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.8.m8.1c">\alpha&gt;0</annotation></semantics></math> controls the similarity among clients. When <math id="S4.SS2.p1.9.m9.1" class="ltx_Math" alttext="\alpha\to 0" display="inline"><semantics id="S4.SS2.p1.9.m9.1a"><mrow id="S4.SS2.p1.9.m9.1.1" xref="S4.SS2.p1.9.m9.1.1.cmml"><mi id="S4.SS2.p1.9.m9.1.1.2" xref="S4.SS2.p1.9.m9.1.1.2.cmml">α</mi><mo stretchy="false" id="S4.SS2.p1.9.m9.1.1.1" xref="S4.SS2.p1.9.m9.1.1.1.cmml">→</mo><mn id="S4.SS2.p1.9.m9.1.1.3" xref="S4.SS2.p1.9.m9.1.1.3.cmml">0</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.9.m9.1b"><apply id="S4.SS2.p1.9.m9.1.1.cmml" xref="S4.SS2.p1.9.m9.1.1"><ci id="S4.SS2.p1.9.m9.1.1.1.cmml" xref="S4.SS2.p1.9.m9.1.1.1">→</ci><ci id="S4.SS2.p1.9.m9.1.1.2.cmml" xref="S4.SS2.p1.9.m9.1.1.2">𝛼</ci><cn type="integer" id="S4.SS2.p1.9.m9.1.1.3.cmml" xref="S4.SS2.p1.9.m9.1.1.3">0</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.9.m9.1c">\alpha\to 0</annotation></semantics></math> clients are likely to have distinct and highly imbalanced labels and as <math id="S4.SS2.p1.10.m10.1" class="ltx_Math" alttext="\alpha\to\infty" display="inline"><semantics id="S4.SS2.p1.10.m10.1a"><mrow id="S4.SS2.p1.10.m10.1.1" xref="S4.SS2.p1.10.m10.1.1.cmml"><mi id="S4.SS2.p1.10.m10.1.1.2" xref="S4.SS2.p1.10.m10.1.1.2.cmml">α</mi><mo stretchy="false" id="S4.SS2.p1.10.m10.1.1.1" xref="S4.SS2.p1.10.m10.1.1.1.cmml">→</mo><mi mathvariant="normal" id="S4.SS2.p1.10.m10.1.1.3" xref="S4.SS2.p1.10.m10.1.1.3.cmml">∞</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.10.m10.1b"><apply id="S4.SS2.p1.10.m10.1.1.cmml" xref="S4.SS2.p1.10.m10.1.1"><ci id="S4.SS2.p1.10.m10.1.1.1.cmml" xref="S4.SS2.p1.10.m10.1.1.1">→</ci><ci id="S4.SS2.p1.10.m10.1.1.2.cmml" xref="S4.SS2.p1.10.m10.1.1.2">𝛼</ci><infinity id="S4.SS2.p1.10.m10.1.1.3.cmml" xref="S4.SS2.p1.10.m10.1.1.3"></infinity></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.10.m10.1c">\alpha\to\infty</annotation></semantics></math> the label distribution will converge to the prior <math id="S4.SS2.p1.11.m11.1" class="ltx_Math" alttext="\mathbf{p}" display="inline"><semantics id="S4.SS2.p1.11.m11.1a"><mi id="S4.SS2.p1.11.m11.1.1" xref="S4.SS2.p1.11.m11.1.1.cmml">𝐩</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p1.11.m11.1b"><ci id="S4.SS2.p1.11.m11.1.1.cmml" xref="S4.SS2.p1.11.m11.1.1">𝐩</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p1.11.m11.1c">\mathbf{p}</annotation></semantics></math> for all clients.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p2.2" class="ltx_p">Similar to the quantity skew scenarios, Figure <a href="#S4.F3" title="Figure 3 ‣ 4.2 Label skew ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (a)-(c) illustrates that stacking on a held-out set achieves a higher performance gain across datasets and different values of <math id="S4.SS2.p2.1.m1.1" class="ltx_Math" alttext="\alpha" display="inline"><semantics id="S4.SS2.p2.1.m1.1a"><mi id="S4.SS2.p2.1.m1.1.1" xref="S4.SS2.p2.1.m1.1.1.cmml">α</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.1.m1.1b"><ci id="S4.SS2.p2.1.m1.1.1.cmml" xref="S4.SS2.p2.1.m1.1.1">𝛼</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.1.m1.1c">\alpha</annotation></semantics></math>. Furthermore, we note that as <math id="S4.SS2.p2.2.m2.1" class="ltx_Math" alttext="\alpha" display="inline"><semantics id="S4.SS2.p2.2.m2.1a"><mi id="S4.SS2.p2.2.m2.1.1" xref="S4.SS2.p2.2.m2.1.1.cmml">α</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.2.m2.1b"><ci id="S4.SS2.p2.2.m2.1.1.cmml" xref="S4.SS2.p2.2.m2.1.1">𝛼</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.2.m2.1c">\alpha</annotation></semantics></math> increases and the data among clients becomes more class-balanced, the gains from personalization diminish.</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p3.1" class="ltx_p">In (d) we observe that, in general, clients tend to experience performance gains through personalization as their private data becomes more class-imbalanced. Although clients with class-balanced data may not gain as much as others, our contribution metric appears to effectively capture their increased importance to the federation, as depicted in Figure (e).</p>
+</div>
+<div id="S4.SS2.p4" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p4.1" class="ltx_p">Lastly, (f) displays the average importance a client learns to assign to others as a function of both label balances. We observe that while generally class-balanced clients tend to get assigned higher importance, clients have a bias for others with similar but less extreme imbalances. For instance, clients with positive label proportions around 0.15 tend to prioritize models trained with proportions between 0.25 and 0.35, rather than more balanced ones. It is also worth noting that personalized models tend to assign less weight to models trained with similar class imbalances as the private model, as exhibited by the relatively lower entries in the diagonal.</p>
+</div>
+<figure id="S4.F3" class="ltx_figure">
+<p id="S4.F3.1" class="ltx_p ltx_align_center"><span id="S4.F3.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/dirichlet.jpg" id="S4.F3.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="294" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>Label skew results. Plots (a)-(c) show balanced accuracy gain. Plots (d) and (e) depict performance gain and importance relative to clients’ private label balance, respectively. Plot (f) displays assigned importance as a function of both a client’s and another’s private label balance. Note that (d)-(f) focus on meta-models stacked on held-out data.</figcaption>
+</figure>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Vertical partitioning</h3>
+
+<div id="S4.SS3.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p1.1" class="ltx_p">To evaluate the performance of our method on vertically partitioned data we assign to each of 10 clients all the examples but only a proportion <math id="S4.SS3.p1.1.m1.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S4.SS3.p1.1.m1.1a"><mi id="S4.SS3.p1.1.m1.1.1" xref="S4.SS3.p1.1.m1.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.1.m1.1b"><ci id="S4.SS3.p1.1.m1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.1.m1.1c">p</annotation></semantics></math> of predictors selected uniformly at random with replacement.</p>
+</div>
+<div id="S4.SS3.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p2.7" class="ltx_p">As outlined in Section <a href="#S3" title="3 Method ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>, clients publicly provide a set of default values for each feature so that others can impute missing values at prediction time. For categorical variables, we have clients share their most frequent value, while for continuous variables, they share their median with added Gaussian noise. Specifically, for a continuous feature <math id="S4.SS3.p2.1.m1.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S4.SS3.p2.1.m1.1a"><mi id="S4.SS3.p2.1.m1.1.1" xref="S4.SS3.p2.1.m1.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.1.m1.1b"><ci id="S4.SS3.p2.1.m1.1.1.cmml" xref="S4.SS3.p2.1.m1.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.1.m1.1c">k</annotation></semantics></math> and client <math id="S4.SS3.p2.2.m2.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S4.SS3.p2.2.m2.1a"><mi id="S4.SS3.p2.2.m2.1.1" xref="S4.SS3.p2.2.m2.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.2.m2.1b"><ci id="S4.SS3.p2.2.m2.1.1.cmml" xref="S4.SS3.p2.2.m2.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.2.m2.1c">c</annotation></semantics></math>, the default value shared is <math id="S4.SS3.p2.3.m3.8" class="ltx_Math" alttext="med_{c,k}+N(0,s_{c,k}\times\varepsilon_{c,k})" display="inline"><semantics id="S4.SS3.p2.3.m3.8a"><mrow id="S4.SS3.p2.3.m3.8.8" xref="S4.SS3.p2.3.m3.8.8.cmml"><mrow id="S4.SS3.p2.3.m3.8.8.3" xref="S4.SS3.p2.3.m3.8.8.3.cmml"><mi id="S4.SS3.p2.3.m3.8.8.3.2" xref="S4.SS3.p2.3.m3.8.8.3.2.cmml">m</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p2.3.m3.8.8.3.1" xref="S4.SS3.p2.3.m3.8.8.3.1.cmml">​</mo><mi id="S4.SS3.p2.3.m3.8.8.3.3" xref="S4.SS3.p2.3.m3.8.8.3.3.cmml">e</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p2.3.m3.8.8.3.1a" xref="S4.SS3.p2.3.m3.8.8.3.1.cmml">​</mo><msub id="S4.SS3.p2.3.m3.8.8.3.4" xref="S4.SS3.p2.3.m3.8.8.3.4.cmml"><mi id="S4.SS3.p2.3.m3.8.8.3.4.2" xref="S4.SS3.p2.3.m3.8.8.3.4.2.cmml">d</mi><mrow id="S4.SS3.p2.3.m3.2.2.2.4" xref="S4.SS3.p2.3.m3.2.2.2.3.cmml"><mi id="S4.SS3.p2.3.m3.1.1.1.1" xref="S4.SS3.p2.3.m3.1.1.1.1.cmml">c</mi><mo id="S4.SS3.p2.3.m3.2.2.2.4.1" xref="S4.SS3.p2.3.m3.2.2.2.3.cmml">,</mo><mi id="S4.SS3.p2.3.m3.2.2.2.2" xref="S4.SS3.p2.3.m3.2.2.2.2.cmml">k</mi></mrow></msub></mrow><mo id="S4.SS3.p2.3.m3.8.8.2" xref="S4.SS3.p2.3.m3.8.8.2.cmml">+</mo><mrow id="S4.SS3.p2.3.m3.8.8.1" xref="S4.SS3.p2.3.m3.8.8.1.cmml"><mi id="S4.SS3.p2.3.m3.8.8.1.3" xref="S4.SS3.p2.3.m3.8.8.1.3.cmml">N</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p2.3.m3.8.8.1.2" xref="S4.SS3.p2.3.m3.8.8.1.2.cmml">​</mo><mrow id="S4.SS3.p2.3.m3.8.8.1.1.1" xref="S4.SS3.p2.3.m3.8.8.1.1.2.cmml"><mo stretchy="false" id="S4.SS3.p2.3.m3.8.8.1.1.1.2" xref="S4.SS3.p2.3.m3.8.8.1.1.2.cmml">(</mo><mn id="S4.SS3.p2.3.m3.7.7" xref="S4.SS3.p2.3.m3.7.7.cmml">0</mn><mo id="S4.SS3.p2.3.m3.8.8.1.1.1.3" xref="S4.SS3.p2.3.m3.8.8.1.1.2.cmml">,</mo><mrow id="S4.SS3.p2.3.m3.8.8.1.1.1.1" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.cmml"><msub id="S4.SS3.p2.3.m3.8.8.1.1.1.1.2" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.cmml"><mi id="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.2" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.2.cmml">s</mi><mrow id="S4.SS3.p2.3.m3.4.4.2.4" xref="S4.SS3.p2.3.m3.4.4.2.3.cmml"><mi id="S4.SS3.p2.3.m3.3.3.1.1" xref="S4.SS3.p2.3.m3.3.3.1.1.cmml">c</mi><mo id="S4.SS3.p2.3.m3.4.4.2.4.1" xref="S4.SS3.p2.3.m3.4.4.2.3.cmml">,</mo><mi id="S4.SS3.p2.3.m3.4.4.2.2" xref="S4.SS3.p2.3.m3.4.4.2.2.cmml">k</mi></mrow></msub><mo lspace="0.222em" rspace="0.222em" id="S4.SS3.p2.3.m3.8.8.1.1.1.1.1" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.1.cmml">×</mo><msub id="S4.SS3.p2.3.m3.8.8.1.1.1.1.3" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.cmml"><mi id="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.2" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.2.cmml">ε</mi><mrow id="S4.SS3.p2.3.m3.6.6.2.4" xref="S4.SS3.p2.3.m3.6.6.2.3.cmml"><mi id="S4.SS3.p2.3.m3.5.5.1.1" xref="S4.SS3.p2.3.m3.5.5.1.1.cmml">c</mi><mo id="S4.SS3.p2.3.m3.6.6.2.4.1" xref="S4.SS3.p2.3.m3.6.6.2.3.cmml">,</mo><mi id="S4.SS3.p2.3.m3.6.6.2.2" xref="S4.SS3.p2.3.m3.6.6.2.2.cmml">k</mi></mrow></msub></mrow><mo stretchy="false" id="S4.SS3.p2.3.m3.8.8.1.1.1.4" xref="S4.SS3.p2.3.m3.8.8.1.1.2.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.3.m3.8b"><apply id="S4.SS3.p2.3.m3.8.8.cmml" xref="S4.SS3.p2.3.m3.8.8"><plus id="S4.SS3.p2.3.m3.8.8.2.cmml" xref="S4.SS3.p2.3.m3.8.8.2"></plus><apply id="S4.SS3.p2.3.m3.8.8.3.cmml" xref="S4.SS3.p2.3.m3.8.8.3"><times id="S4.SS3.p2.3.m3.8.8.3.1.cmml" xref="S4.SS3.p2.3.m3.8.8.3.1"></times><ci id="S4.SS3.p2.3.m3.8.8.3.2.cmml" xref="S4.SS3.p2.3.m3.8.8.3.2">𝑚</ci><ci id="S4.SS3.p2.3.m3.8.8.3.3.cmml" xref="S4.SS3.p2.3.m3.8.8.3.3">𝑒</ci><apply id="S4.SS3.p2.3.m3.8.8.3.4.cmml" xref="S4.SS3.p2.3.m3.8.8.3.4"><csymbol cd="ambiguous" id="S4.SS3.p2.3.m3.8.8.3.4.1.cmml" xref="S4.SS3.p2.3.m3.8.8.3.4">subscript</csymbol><ci id="S4.SS3.p2.3.m3.8.8.3.4.2.cmml" xref="S4.SS3.p2.3.m3.8.8.3.4.2">𝑑</ci><list id="S4.SS3.p2.3.m3.2.2.2.3.cmml" xref="S4.SS3.p2.3.m3.2.2.2.4"><ci id="S4.SS3.p2.3.m3.1.1.1.1.cmml" xref="S4.SS3.p2.3.m3.1.1.1.1">𝑐</ci><ci id="S4.SS3.p2.3.m3.2.2.2.2.cmml" xref="S4.SS3.p2.3.m3.2.2.2.2">𝑘</ci></list></apply></apply><apply id="S4.SS3.p2.3.m3.8.8.1.cmml" xref="S4.SS3.p2.3.m3.8.8.1"><times id="S4.SS3.p2.3.m3.8.8.1.2.cmml" xref="S4.SS3.p2.3.m3.8.8.1.2"></times><ci id="S4.SS3.p2.3.m3.8.8.1.3.cmml" xref="S4.SS3.p2.3.m3.8.8.1.3">𝑁</ci><interval closure="open" id="S4.SS3.p2.3.m3.8.8.1.1.2.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1"><cn type="integer" id="S4.SS3.p2.3.m3.7.7.cmml" xref="S4.SS3.p2.3.m3.7.7">0</cn><apply id="S4.SS3.p2.3.m3.8.8.1.1.1.1.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1"><times id="S4.SS3.p2.3.m3.8.8.1.1.1.1.1.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.1"></times><apply id="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.2"><csymbol cd="ambiguous" id="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.1.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.2">subscript</csymbol><ci id="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.2.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.2.2">𝑠</ci><list id="S4.SS3.p2.3.m3.4.4.2.3.cmml" xref="S4.SS3.p2.3.m3.4.4.2.4"><ci id="S4.SS3.p2.3.m3.3.3.1.1.cmml" xref="S4.SS3.p2.3.m3.3.3.1.1">𝑐</ci><ci id="S4.SS3.p2.3.m3.4.4.2.2.cmml" xref="S4.SS3.p2.3.m3.4.4.2.2">𝑘</ci></list></apply><apply id="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.3"><csymbol cd="ambiguous" id="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.1.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.3">subscript</csymbol><ci id="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.2.cmml" xref="S4.SS3.p2.3.m3.8.8.1.1.1.1.3.2">𝜀</ci><list id="S4.SS3.p2.3.m3.6.6.2.3.cmml" xref="S4.SS3.p2.3.m3.6.6.2.4"><ci id="S4.SS3.p2.3.m3.5.5.1.1.cmml" xref="S4.SS3.p2.3.m3.5.5.1.1">𝑐</ci><ci id="S4.SS3.p2.3.m3.6.6.2.2.cmml" xref="S4.SS3.p2.3.m3.6.6.2.2">𝑘</ci></list></apply></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.3.m3.8c">med_{c,k}+N(0,s_{c,k}\times\varepsilon_{c,k})</annotation></semantics></math>, where <math id="S4.SS3.p2.4.m4.2" class="ltx_Math" alttext="s_{c,k}" display="inline"><semantics id="S4.SS3.p2.4.m4.2a"><msub id="S4.SS3.p2.4.m4.2.3" xref="S4.SS3.p2.4.m4.2.3.cmml"><mi id="S4.SS3.p2.4.m4.2.3.2" xref="S4.SS3.p2.4.m4.2.3.2.cmml">s</mi><mrow id="S4.SS3.p2.4.m4.2.2.2.4" xref="S4.SS3.p2.4.m4.2.2.2.3.cmml"><mi id="S4.SS3.p2.4.m4.1.1.1.1" xref="S4.SS3.p2.4.m4.1.1.1.1.cmml">c</mi><mo id="S4.SS3.p2.4.m4.2.2.2.4.1" xref="S4.SS3.p2.4.m4.2.2.2.3.cmml">,</mo><mi id="S4.SS3.p2.4.m4.2.2.2.2" xref="S4.SS3.p2.4.m4.2.2.2.2.cmml">k</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.4.m4.2b"><apply id="S4.SS3.p2.4.m4.2.3.cmml" xref="S4.SS3.p2.4.m4.2.3"><csymbol cd="ambiguous" id="S4.SS3.p2.4.m4.2.3.1.cmml" xref="S4.SS3.p2.4.m4.2.3">subscript</csymbol><ci id="S4.SS3.p2.4.m4.2.3.2.cmml" xref="S4.SS3.p2.4.m4.2.3.2">𝑠</ci><list id="S4.SS3.p2.4.m4.2.2.2.3.cmml" xref="S4.SS3.p2.4.m4.2.2.2.4"><ci id="S4.SS3.p2.4.m4.1.1.1.1.cmml" xref="S4.SS3.p2.4.m4.1.1.1.1">𝑐</ci><ci id="S4.SS3.p2.4.m4.2.2.2.2.cmml" xref="S4.SS3.p2.4.m4.2.2.2.2">𝑘</ci></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.4.m4.2c">s_{c,k}</annotation></semantics></math> is the feature <math id="S4.SS3.p2.5.m5.1" class="ltx_Math" alttext="k" display="inline"><semantics id="S4.SS3.p2.5.m5.1a"><mi id="S4.SS3.p2.5.m5.1.1" xref="S4.SS3.p2.5.m5.1.1.cmml">k</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.5.m5.1b"><ci id="S4.SS3.p2.5.m5.1.1.cmml" xref="S4.SS3.p2.5.m5.1.1">𝑘</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.5.m5.1c">k</annotation></semantics></math>’s sample standard deviation for client <math id="S4.SS3.p2.6.m6.1" class="ltx_Math" alttext="c" display="inline"><semantics id="S4.SS3.p2.6.m6.1a"><mi id="S4.SS3.p2.6.m6.1.1" xref="S4.SS3.p2.6.m6.1.1.cmml">c</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.6.m6.1b"><ci id="S4.SS3.p2.6.m6.1.1.cmml" xref="S4.SS3.p2.6.m6.1.1">𝑐</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.6.m6.1c">c</annotation></semantics></math>. For our simulations, we consider the case where <math id="S4.SS3.p2.7.m7.2" class="ltx_Math" alttext="\varepsilon_{c,k}=\varepsilon" display="inline"><semantics id="S4.SS3.p2.7.m7.2a"><mrow id="S4.SS3.p2.7.m7.2.3" xref="S4.SS3.p2.7.m7.2.3.cmml"><msub id="S4.SS3.p2.7.m7.2.3.2" xref="S4.SS3.p2.7.m7.2.3.2.cmml"><mi id="S4.SS3.p2.7.m7.2.3.2.2" xref="S4.SS3.p2.7.m7.2.3.2.2.cmml">ε</mi><mrow id="S4.SS3.p2.7.m7.2.2.2.4" xref="S4.SS3.p2.7.m7.2.2.2.3.cmml"><mi id="S4.SS3.p2.7.m7.1.1.1.1" xref="S4.SS3.p2.7.m7.1.1.1.1.cmml">c</mi><mo id="S4.SS3.p2.7.m7.2.2.2.4.1" xref="S4.SS3.p2.7.m7.2.2.2.3.cmml">,</mo><mi id="S4.SS3.p2.7.m7.2.2.2.2" xref="S4.SS3.p2.7.m7.2.2.2.2.cmml">k</mi></mrow></msub><mo id="S4.SS3.p2.7.m7.2.3.1" xref="S4.SS3.p2.7.m7.2.3.1.cmml">=</mo><mi id="S4.SS3.p2.7.m7.2.3.3" xref="S4.SS3.p2.7.m7.2.3.3.cmml">ε</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p2.7.m7.2b"><apply id="S4.SS3.p2.7.m7.2.3.cmml" xref="S4.SS3.p2.7.m7.2.3"><eq id="S4.SS3.p2.7.m7.2.3.1.cmml" xref="S4.SS3.p2.7.m7.2.3.1"></eq><apply id="S4.SS3.p2.7.m7.2.3.2.cmml" xref="S4.SS3.p2.7.m7.2.3.2"><csymbol cd="ambiguous" id="S4.SS3.p2.7.m7.2.3.2.1.cmml" xref="S4.SS3.p2.7.m7.2.3.2">subscript</csymbol><ci id="S4.SS3.p2.7.m7.2.3.2.2.cmml" xref="S4.SS3.p2.7.m7.2.3.2.2">𝜀</ci><list id="S4.SS3.p2.7.m7.2.2.2.3.cmml" xref="S4.SS3.p2.7.m7.2.2.2.4"><ci id="S4.SS3.p2.7.m7.1.1.1.1.cmml" xref="S4.SS3.p2.7.m7.1.1.1.1">𝑐</ci><ci id="S4.SS3.p2.7.m7.2.2.2.2.cmml" xref="S4.SS3.p2.7.m7.2.2.2.2">𝑘</ci></list></apply><ci id="S4.SS3.p2.7.m7.2.3.3.cmml" xref="S4.SS3.p2.7.m7.2.3.3">𝜀</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p2.7.m7.2c">\varepsilon_{c,k}=\varepsilon</annotation></semantics></math> for simplicity.</p>
+</div>
+<div id="S4.SS3.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p3.2" class="ltx_p">Figure <a href="#S4.F4" title="Figure 4 ‣ 4.3 Vertical partitioning ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> (a) - (c) display the performance gain by personalization as a function of <math id="S4.SS3.p3.1.m1.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S4.SS3.p3.1.m1.1a"><mi id="S4.SS3.p3.1.m1.1.1" xref="S4.SS3.p3.1.m1.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.1.m1.1b"><ci id="S4.SS3.p3.1.m1.1.1.cmml" xref="S4.SS3.p3.1.m1.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.1.m1.1c">p</annotation></semantics></math> and <math id="S4.SS3.p3.2.m2.1" class="ltx_Math" alttext="\varepsilon" display="inline"><semantics id="S4.SS3.p3.2.m2.1a"><mi id="S4.SS3.p3.2.m2.1.1" xref="S4.SS3.p3.2.m2.1.1.cmml">ε</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p3.2.m2.1b"><ci id="S4.SS3.p3.2.m2.1.1.cmml" xref="S4.SS3.p3.2.m2.1.1">𝜀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p3.2.m2.1c">\varepsilon</annotation></semantics></math>. We present results only for personalized models stacked on held-out data, as those stacked on pooled sets had negligible gains (see Figure <a href="#Sx1.F6" title="Figure 6 ‣ Appendix A ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> in Appendix A).</p>
+</div>
+<div id="S4.SS3.p4" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p4.2" class="ltx_p">As <math id="S4.SS3.p4.1.m1.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S4.SS3.p4.1.m1.1a"><mi id="S4.SS3.p4.1.m1.1.1" xref="S4.SS3.p4.1.m1.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p4.1.m1.1b"><ci id="S4.SS3.p4.1.m1.1.1.cmml" xref="S4.SS3.p4.1.m1.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p4.1.m1.1c">p</annotation></semantics></math> increases and clients share more predictors, we observe that they tend to assign less weight to their private models (see (f) and (e)) and benefit more from personalization. This trend aligns with our intuition, as clients with fewer common features will have to impute more noisy default values. In addition, we observe that as <math id="S4.SS3.p4.2.m2.1" class="ltx_Math" alttext="\varepsilon" display="inline"><semantics id="S4.SS3.p4.2.m2.1a"><mi id="S4.SS3.p4.2.m2.1.1" xref="S4.SS3.p4.2.m2.1.1.cmml">ε</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p4.2.m2.1b"><ci id="S4.SS3.p4.2.m2.1.1.cmml" xref="S4.SS3.p4.2.m2.1.1">𝜀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p4.2.m2.1c">\varepsilon</annotation></semantics></math> increases and the default values become noisier, personalized models tend to rely more on their private models which results in diminished performance gains.</p>
+</div>
+<div id="S4.SS3.p5" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p5.1" class="ltx_p">Finally, in Figure (d), we present the assigned importance that a client gives to another’s model as a function of the Jaccard Similarity of their feature sets. We observe a strong relationship, indicating that clients learn to assign increasing weight to models with a greater degree of overlap in their feature sets.</p>
+</div>
+<figure id="S4.F4" class="ltx_figure">
+<p id="S4.F4.1" class="ltx_p ltx_align_center"><span id="S4.F4.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/vertical_main.jpg" id="S4.F4.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="294" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>Vertical partitioning results. Plots (a)-(c) depict balanced accuracy gain based on the proportion <math id="S4.F4.6.m1.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S4.F4.6.m1.1b"><mi id="S4.F4.6.m1.1.1" xref="S4.F4.6.m1.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S4.F4.6.m1.1c"><ci id="S4.F4.6.m1.1.1.cmml" xref="S4.F4.6.m1.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.F4.6.m1.1d">p</annotation></semantics></math> of total features randomly assigned to clients and the noise level <math id="S4.F4.7.m2.1" class="ltx_Math" alttext="\varepsilon" display="inline"><semantics id="S4.F4.7.m2.1b"><mi id="S4.F4.7.m2.1.1" xref="S4.F4.7.m2.1.1.cmml">ε</mi><annotation-xml encoding="MathML-Content" id="S4.F4.7.m2.1c"><ci id="S4.F4.7.m2.1.1.cmml" xref="S4.F4.7.m2.1.1">𝜀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.F4.7.m2.1d">\varepsilon</annotation></semantics></math> added to default values. Plot (d) illustrates assigned importance as a function of Jaccard similarity between feature sets. Plots (e) and (f) show self-importance relative to varying <math id="S4.F4.8.m3.1" class="ltx_Math" alttext="p" display="inline"><semantics id="S4.F4.8.m3.1b"><mi id="S4.F4.8.m3.1.1" xref="S4.F4.8.m3.1.1.cmml">p</mi><annotation-xml encoding="MathML-Content" id="S4.F4.8.m3.1c"><ci id="S4.F4.8.m3.1.1.cmml" xref="S4.F4.8.m3.1.1">𝑝</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.F4.8.m3.1d">p</annotation></semantics></math> and <math id="S4.F4.9.m4.1" class="ltx_Math" alttext="\varepsilon" display="inline"><semantics id="S4.F4.9.m4.1b"><mi id="S4.F4.9.m4.1.1" xref="S4.F4.9.m4.1.1.cmml">ε</mi><annotation-xml encoding="MathML-Content" id="S4.F4.9.m4.1c"><ci id="S4.F4.9.m4.1.1.cmml" xref="S4.F4.9.m4.1.1">𝜀</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.F4.9.m4.1d">\varepsilon</annotation></semantics></math>, for both meta-models stacked on held-out and pooled data. Note that plots (a)-(d) focus on meta-models stacked on held-out data.</figcaption>
+</figure>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Natural partitioning</h3>
+
+<div id="S4.SS4.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS4.p1.1" class="ltx_p">Finally, we aim to mimic realistic data partitions commonly seen in real-world scenarios by partitioning a categorical column within our datasets. Figure <a href="#S4.F5" title="Figure 5 ‣ 4.4 Natural partitioning ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> (a) gives an overview of the specific column each dataset was partitioned on, alongside the resulting number of clients and the distribution of data quantity. For instance, in the <span id="S4.SS4.p1.1.1" class="ltx_text ltx_font_italic">Cover Type</span> dataset, we treat each of the three Wilderness Areas as a separate client and can observe that two clients hold the majority of the data.</p>
+</div>
+<div id="S4.SS4.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS4.p2.1" class="ltx_p">Upon analyzing Figures (b) and (c), we notice that in the <span id="S4.SS4.p2.1.1" class="ltx_text ltx_font_italic">Census</span> and <span id="S4.SS4.p2.1.2" class="ltx_text ltx_font_italic">Vehicle Loan</span> datasets, most clients benefited from personalization, particularly when stacking on held-out data. Similar to previous findings, stacking on the pooled set tended to favor private models, leading to performance degradation. However, in the <span id="S4.SS4.p2.1.3" class="ltx_text ltx_font_italic">Cover Type</span> dataset, personalization did not result in significant gains overall, and stacking on a held-out set even led to reduced performance. This underscores the significant impact of data nature and distribution across clients on potential personalization gains.</p>
+</div>
+<figure id="S4.F5" class="ltx_figure">
+<p id="S4.F5.1" class="ltx_p ltx_align_center"><span id="S4.F5.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/natural.jpg" id="S4.F5.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="142" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>Natural partitioning results. Plot (a) displays the column used for dataset partitioning, along with the resulting number of clients and their proportion of total data. Plots (b) and (c) show the performance gain and self-importance of meta-models stacked on both held-out and pooled data across datasets.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Discussion and Future Work</h2>
+
+<div id="S5.p1" class="ltx_para ltx_noindent">
+<p id="S5.p1.1" class="ltx_p">This paper introduced a straightforward yet effective Personalized Federated Learning method based on stacked generalization. The proposed approach is simple, flexible, and applicable to horizontal, hybrid, and vertically partitioned federations. Moreover, our method provides a natural means to evaluate each client’s contribution to the federation.</p>
+</div>
+<div id="S5.p2" class="ltx_para ltx_noindent">
+<p id="S5.p2.1" class="ltx_p">Extensive evaluation under simulated data heterogeneity demonstrated the method’s effectiveness and intuitive behavior. Notably, we observed that, in general, training the personalized meta-model on the same data as a client’s private model often led to reduced performance gains due to overfitting.</p>
+</div>
+<div id="S5.p3" class="ltx_para ltx_noindent">
+<p id="S5.p3.1" class="ltx_p">While our experiments provided valuable insights, there are several interesting potential research directions worth exploring. Firstly, investigating the impact of various privacy-preserving techniques would be valuable. Additionally, in vertically partitioned scenarios, exploring alternative methods of constructing default values and examining the effects of added noise would be beneficial.</p>
+</div>
+<div id="S5.p4" class="ltx_para ltx_noindent">
+<p id="S5.p4.1" class="ltx_p">Moreover, developing novel mechanisms to utilize contribution scores for fair collaboration and decision-making within federated settings deserves attention. Lastly, advancing the theoretical understanding of generalized stacking on non-IID data will be essential in improving the robustness and scalability of personalized Federated Learning methods.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+H. Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Agüera y Arcas.
+
+</span>
+<span class="ltx_bibblock">Communication-efficient learning of deep networks from decentralized data, 2023.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Xueyang Wu, Shengqi Tan, Qian Xu, and Qiang Yang.
+
+</span>
+<span class="ltx_bibblock">WrapperFL: A Model Agnostic Plug-in for Industrial Federated Learning, August 2022.
+
+</span>
+<span class="ltx_bibblock">arXiv:2206.10407 [cs].
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+Xuefei Yin, Yanming Zhu, and Jiankun Hu.
+
+</span>
+<span class="ltx_bibblock">A comprehensive survey of privacy-preserving federated learning: A taxonomy, review, and future directions.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text ltx_font_italic">ACM Comput. Surv.</span>, 54(6), jul 2021.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+David H. Wolpert.
+
+</span>
+<span class="ltx_bibblock">Stacked generalization.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text ltx_font_italic">Neural Networks</span>, 5(2):241–259, 1992.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+Cynthia Dwork.
+
+</span>
+<span class="ltx_bibblock">Differential Privacy: A Survey of Results.
+
+</span>
+<span class="ltx_bibblock">In Manindra Agrawal, Dingzhu Du, Zhenhua Duan, and Angsheng Li, editors, <span id="bib.bib5.1.1" class="ltx_text ltx_font_italic">Theory and Applications of Models of Computation</span>, volume 4978, pages 1–19. Springer Berlin Heidelberg, Berlin, Heidelberg, 2008.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Abbas Acar, Hidayet Aksu, A. Selcuk Uluagac, and Mauro Conti.
+
+</span>
+<span class="ltx_bibblock">A Survey on Homomorphic Encryption Schemes: Theory and Implementation, October 2017.
+
+</span>
+<span class="ltx_bibblock">arXiv:1704.03578 [cs].
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+Vasilis Siomos and Jonathan Passerat-Palmbach.
+
+</span>
+<span class="ltx_bibblock">Contribution evaluation in federated learning: Examining current approaches, 2023.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+Mayank Agarwal, Mikhail Yurochkin, and Yuekai Sun.
+
+</span>
+<span class="ltx_bibblock">Personalization in Federated Learning.
+
+</span>
+<span class="ltx_bibblock">In Heiko Ludwig and Nathalie Baracaldo, editors, <span id="bib.bib8.1.1" class="ltx_text ltx_font_italic">Federated Learning</span>, pages 71–98. Springer International Publishing, Cham, 2022.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+Tao Shen, Jie Zhang, Xinkang Jia, Fengda Zhang, Gang Huang, Pan Zhou, Kun Kuang, Fei Wu, and Chao Wu.
+
+</span>
+<span class="ltx_bibblock">Federated Mutual Learning, September 2020.
+
+</span>
+<span class="ltx_bibblock">arXiv:2006.16765 [cs].
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+Daliang Li and Junpu Wang.
+
+</span>
+<span class="ltx_bibblock">FedMD: Heterogenous Federated Learning via Model Distillation, October 2019.
+
+</span>
+<span class="ltx_bibblock">arXiv:1910.03581 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Fei Chen, Mi Luo, Zhenhua Dong, Zhenguo Li, and Xiuqiang He.
+
+</span>
+<span class="ltx_bibblock">Federated Meta-Learning with Fast Convergence and Efficient Communication, December 2019.
+
+</span>
+<span class="ltx_bibblock">arXiv:1802.07876 [cs].
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+Mikhail Khodak, Maria-Florina Balcan, and Ameet Talwalkar.
+
+</span>
+<span class="ltx_bibblock">Adaptive Gradient-Based Meta-Learning Methods, December 2019.
+
+</span>
+<span class="ltx_bibblock">arXiv:1906.02717 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+Yishay Mansour, Mehryar Mohri, Jae Ro, and Ananda Theertha Suresh.
+
+</span>
+<span class="ltx_bibblock">Three Approaches for Personalization with Applications to Federated Learning, July 2020.
+
+</span>
+<span class="ltx_bibblock">arXiv:2002.10619 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+Avishek Ghosh, Justin Hong, Dong Yin, and Kannan Ramchandran.
+
+</span>
+<span class="ltx_bibblock">Robust Federated Learning in a Heterogeneous Environment, October 2019.
+
+</span>
+<span class="ltx_bibblock">arXiv:1906.06629 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+Avishek Ghosh, Jichan Chung, Dong Yin, and Kannan Ramchandran.
+
+</span>
+<span class="ltx_bibblock">An Efficient Framework for Clustered Federated Learning, June 2021.
+
+</span>
+<span class="ltx_bibblock">arXiv:2006.04088 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+Giovanni Mariani, Florian Scheidegger, Roxana Istrate, Costas Bekas, and Cristiano Malossi.
+
+</span>
+<span class="ltx_bibblock">BAGAN: Data Augmentation with Balancing GAN, June 2018.
+
+</span>
+<span class="ltx_bibblock">arXiv:1803.09655 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+Yue Zhao, Meng Li, Liangzhen Lai, Naveen Suda, Damon Civin, and Vikas Chandra.
+
+</span>
+<span class="ltx_bibblock">Federated Learning with Non-IID Data.
+
+</span>
+<span class="ltx_bibblock">2018.
+
+</span>
+<span class="ltx_bibblock">arXiv:1806.00582 [cs, stat].
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Quanming Yao, Xiawei Guo, James Kwok, Weiwei Tu, Yuqiang Chen, Wenyuan Dai, and Qiang Yang.
+
+</span>
+<span class="ltx_bibblock">Privacy-Preserving Stacking with Application to Cross-organizational Diabetes Prediction.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib18.1.1" class="ltx_text ltx_font_italic">Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence</span>, pages 4114–4120, Macao, China, August 2019. International Joint Conferences on Artificial Intelligence Organization.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+Kamalika Chaudhuri, Claire Monteleoni, and Anand D. Sarwate.
+
+</span>
+<span class="ltx_bibblock">Differentially private empirical risk minimization.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text ltx_font_italic">Journal of Machine Learning Research</span>, 12(29):1069–1109, 2011.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+Hamza Safri, Mohamed Mehdi Kandi, Youssef Miloudi, Christophe Bortolaso, Denis Trystram, and Frederic Desprez.
+
+</span>
+<span class="ltx_bibblock">A Federated Learning Framework for IoT: Application to Industry 4.0.
+
+</span>
+<span class="ltx_bibblock">In <span id="bib.bib20.1.1" class="ltx_text ltx_font_italic">2022 22nd IEEE International Symposium on Cluster, Cloud and Internet Computing (CCGrid)</span>, pages 565–574, Taormina, Italy, May 2022. IEEE.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Ron Kohavi.
+
+</span>
+<span class="ltx_bibblock">Census Income.
+
+</span>
+<span class="ltx_bibblock">UCI Machine Learning Repository, 1996.
+
+</span>
+<span class="ltx_bibblock">DOI: https://doi.org/10.24432/C5GP7S.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+Jock Blackard.
+
+</span>
+<span class="ltx_bibblock">Covertype.
+
+</span>
+<span class="ltx_bibblock">UCI Machine Learning Repository, 1998.
+
+</span>
+<span class="ltx_bibblock">DOI: https://doi.org/10.24432/C50K5N.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+L&amp;T Vehicle Loan Default Prediction.
+
+</span>
+<span class="ltx_bibblock">URL: https://www.kaggle.com/datasets/mamtadhaker/lt-vehicle-loan-default-prediction. Accessed 5/4/2024.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher, M. Perrot, and E. Duchesnay.
+
+</span>
+<span class="ltx_bibblock">Scikit-learn: Machine learning in Python.
+
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text ltx_font_italic">Journal of Machine Learning Research</span>, 12:2825–2830, 2011.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Tzu-Ming Harry Hsu, Hang Qi, and Matthew Brown.
+
+</span>
+<span class="ltx_bibblock">Measuring the effects of non-identical data distribution for federated visual classification, 2019.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Appendix A</h2>
+
+<div id="Sx1.p1" class="ltx_para ltx_noindent">
+<p id="Sx1.p1.1" class="ltx_p">As mentioned in Section <a href="#S4.SS3" title="4.3 Vertical partitioning ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4.3</span></a>, Figure <a href="#S4.F4" title="Figure 4 ‣ 4.3 Vertical partitioning ‣ 4 Experiments ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> showcases the performance gains for meta-models stacked on held-out data. In contrast, Figure <a href="#Sx1.F6" title="Figure 6 ‣ Appendix A ‣ Personalized Federated Learning via Stacking" class="ltx_ref"><span class="ltx_text ltx_ref_tag">6</span></a> demonstrates the comparatively negligible gains for models stacked on the same data as private models.</p>
+</div>
+<figure id="Sx1.F6" class="ltx_figure">
+<p id="Sx1.F6.1" class="ltx_p ltx_align_center"><span id="Sx1.F6.1.1" class="ltx_text ltx_inline-block" style="width:433.6pt;"><img src="/html/2404.10957/assets/figs/vertical_appendix.jpg" id="Sx1.F6.1.1.g1" class="ltx_graphics ltx_img_landscape" width="598" height="142" alt="Refer to caption"></span></p>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>Vertical partitioning gain in performance when personalized models are trained on the same (pooled) data as private models.</figcaption>
+</figure>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2404.10956" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2404.10957" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2404.10957">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2404.10957" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2404.10958" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sun May  5 14:57:25 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

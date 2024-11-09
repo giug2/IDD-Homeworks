@@ -1,0 +1,703 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2103.00695] Federated Learning without Revealing the Decision Boundaries</title><meta property="og:description" content="We consider the recent privacy preserving methods that train the models not on original images, but on mixed images that look like noise and hard to trace back to the original images. We explain that those mixed images…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Federated Learning without Revealing the Decision Boundaries">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Federated Learning without Revealing the Decision Boundaries">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2103.00695">
+
+<!--Generated on Sat Mar 16 04:55:01 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Federated Learning without Revealing the Decision Boundaries</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Roozbeh Yousefzadeh 
+<br class="ltx_break">Yale University and VA Connecticut Healthcare System
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">roozbeh.yousefzadeh@yale.edu</span> 
+<br class="ltx_break">
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">We consider the recent privacy preserving methods that train the models not on original images, but on mixed images that look like noise and hard to trace back to the original images. We explain that those mixed images will be samples on the decision boundaries of the trained model, and although such methods successfully hide the contents of images from the entity in charge of federated learning, they provide crucial information to that entity about the decision boundaries of the trained model. Once the entity has exact samples on the decision boundaries of the model, they may use it for effective adversarial attacks on the model during training and/or afterwards. If we have to hide our images from that entity, how can we trust them with the decision boundaries of our model? As a remedy, we propose a method to encrypt the images, and have a decryption module hidden inside the model. The entity in charge of federated learning will only have access to a set of complex-valued coefficients, but the model will first decrypt the images and then put them through the convolutional layers. This way, the entity will not see the training images and they will not know the location of the decision boundaries of the model.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para ltx_noindent">
+<p id="S1.p1.3" class="ltx_p">Our focus in this paper is on privacy methods for federated learning and we specifically consider the methods that hide the contents of images from the entity in charge of federated training, denoted by <math id="S1.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p1.1.m1.1.1" xref="S1.p1.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p1.1.m1.1b"><ci id="S1.p1.1.m1.1.1.cmml" xref="S1.p1.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p1.1.m1.1c">\mathcal{T}</annotation></semantics></math>. In this setting, <math id="S1.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p1.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p1.2.m2.1.1" xref="S1.p1.2.m2.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p1.2.m2.1b"><ci id="S1.p1.2.m2.1.1.cmml" xref="S1.p1.2.m2.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p1.2.m2.1c">\mathcal{T}</annotation></semantics></math> is in charge of training a model, but training images are owned by several entities that are not willing to share their images with each other and with <math id="S1.p1.3.m3.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p1.3.m3.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p1.3.m3.1.1" xref="S1.p1.3.m3.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p1.3.m3.1b"><ci id="S1.p1.3.m3.1.1.cmml" xref="S1.p1.3.m3.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p1.3.m3.1c">\mathcal{T}</annotation></semantics></math>. Owners are willing to participate in training the model, only if their images are kept private. For example, image owners can be medical institutions that have invested in analyzing and labeling medical images of patients. They may be willing to participate in training an image classification model while keeping their images private <cite class="ltx_cite ltx_citemacro_citep">(Li et al., <a href="#bib.bib17" title="" class="ltx_ref">2020</a>)</cite>.</p>
+</div>
+<div id="S1.p2" class="ltx_para ltx_noindent">
+<p id="S1.p2.1" class="ltx_p">Many studies have considered this problem and different methods have been proposed <cite class="ltx_cite ltx_citemacro_citep">(Yang et al., <a href="#bib.bib24" title="" class="ltx_ref">2019</a>)</cite>. For example, some methods propose that image owners compute the gradient of loss function of the model on their images and provide the gradients to <math id="S1.p2.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p2.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p2.1.m1.1.1" xref="S1.p2.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p2.1.m1.1b"><ci id="S1.p2.1.m1.1.1.cmml" xref="S1.p2.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p2.1.m1.1c">\mathcal{T}</annotation></semantics></math> instead of providing the images. Several issues may arise in this setting, as the model parameters will change after implementing each gradient batch, and communicating the model parameters to image owners after each update can be quite expensive <cite class="ltx_cite ltx_citemacro_citep">(Konečnỳ et al., <a href="#bib.bib13" title="" class="ltx_ref">2016</a>)</cite>.</p>
+</div>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.4" class="ltx_p">Another line of research mixes the training images so that they look like noise and then provides those mixed images to <math id="S1.p3.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p3.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p3.1.m1.1.1" xref="S1.p3.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p3.1.m1.1b"><ci id="S1.p3.1.m1.1.1.cmml" xref="S1.p3.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p3.1.m1.1c">\mathcal{T}</annotation></semantics></math> for training. The method proposed by <cite class="ltx_cite ltx_citemacro_citet">Huang et al. (<a href="#bib.bib11" title="" class="ltx_ref">2020</a>)</cite> mixes the images so that they are provably hard to be traced back to original images, and labels the mixed images such that <math id="S1.p3.2.m2.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p3.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p3.2.m2.1.1" xref="S1.p3.2.m2.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p3.2.m2.1b"><ci id="S1.p3.2.m2.1.1.cmml" xref="S1.p3.2.m2.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p3.2.m2.1c">\mathcal{T}</annotation></semantics></math> can achieve relatively high accuracy when it trains the model on those mixed images. This is the line of research we are considering in this paper. We explain that those mixed images will be exact points on the decision boundaries of the trained model, and although <math id="S1.p3.3.m3.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p3.3.m3.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p3.3.m3.1.1" xref="S1.p3.3.m3.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p3.3.m3.1b"><ci id="S1.p3.3.m3.1.1.cmml" xref="S1.p3.3.m3.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p3.3.m3.1c">\mathcal{T}</annotation></semantics></math> does not have access to original training images, it will know where the decision boundaries of the model will be. If we cannot trust <math id="S1.p3.4.m4.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S1.p3.4.m4.1a"><mi class="ltx_font_mathcaligraphic" id="S1.p3.4.m4.1.1" xref="S1.p3.4.m4.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S1.p3.4.m4.1b"><ci id="S1.p3.4.m4.1.1.cmml" xref="S1.p3.4.m4.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S1.p3.4.m4.1c">\mathcal{T}</annotation></semantics></math> with our training images, how can we trust it with the decision boundaries of our model?</p>
+</div>
+<div id="S1.p4" class="ltx_para ltx_noindent">
+<p id="S1.p4.1" class="ltx_p">In the following, we first discuss the decision boundaries of deep learning models. We then explain the limitations of privacy achieved by training methods such as <cite class="ltx_cite ltx_citemacro_citet">Huang et al. (<a href="#bib.bib11" title="" class="ltx_ref">2020</a>)</cite>, and finally, we propose the outline of a new method to preserve the privacy of training images without revealing the decision boundaries of the model.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Deep learning models and their decision boundaries</h2>
+
+<div id="S2.p1" class="ltx_para ltx_noindent">
+<p id="S2.p1.1" class="ltx_p">Deep learning models for image classification are classification functions that partition their domain and assign a class to each partition. Partitions are defined by decision boundaries and so is the model. In concept, this can be viewed the same as a linear regression model. A linear regression model partitions its domain with a hyper-plane where the hyper-plane is its decision boundary. Because the pixel space is bounded and usually normalized, the domain of an image classification model can be considered bounded, too, usually a hyper-cube where each dimension ranges between 0 and 1. The decision boundaries of deep learning models are geometrically complex and far from being a hyper-plane <cite class="ltx_cite ltx_citemacro_citep">(Fawzi et al., <a href="#bib.bib9" title="" class="ltx_ref">2018</a>)</cite>, and this complexity is what makes these models powerful classification functions.</p>
+</div>
+<div id="S2.p2" class="ltx_para ltx_noindent">
+<p id="S2.p2.1" class="ltx_p">As a result, these models/functions are considered black boxes and there are many lingering questions about them <cite class="ltx_cite ltx_citemacro_citep">(Strang, <a href="#bib.bib20" title="" class="ltx_ref">2019</a>)</cite>. The adversarial vulnerability of these models can be explained by the closeness of samples to decision boundaries, but it is not clear why decision boundaries are so close to samples <cite class="ltx_cite ltx_citemacro_citep">(Shafahi et al., <a href="#bib.bib19" title="" class="ltx_ref">2019</a>)</cite>. While many studies try to exploit the decision boundaries of the models for adversarial purposes <cite class="ltx_cite ltx_citemacro_citep">(Tramer et al., <a href="#bib.bib21" title="" class="ltx_ref">2020</a>)</cite>, another set of studies are trying to push the decision boundaries away from samples in order to make the models less vulnerable <cite class="ltx_cite ltx_citemacro_citep">(Cohen et al., <a href="#bib.bib6" title="" class="ltx_ref">2019</a>)</cite>. Studies on generalization of these models are also concerned about the decision boundaries <cite class="ltx_cite ltx_citemacro_citep">(Elsayed et al., <a href="#bib.bib8" title="" class="ltx_ref">2018</a>; Jiang et al., <a href="#bib.bib12" title="" class="ltx_ref">2019</a>)</cite>.</p>
+</div>
+<div id="S2.p3" class="ltx_para ltx_noindent">
+<p id="S2.p3.1" class="ltx_p">The training process of image classification models can be viewed as defining the location of decision boundaries in the domain. Recently, there have been some studies that train the models in interesting ways other than just minimizing a loss function. One of the most interesting of these methods is by <cite class="ltx_cite ltx_citemacro_citet">Zhang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2018</a>)</cite>. They use conventional training regimes and cross-entropy loss, but instead of training the model on original training images, they mix the images (with different labels) by averaging them pairwise in the pixel space and averaging their labels, as well. This way, they train the models on the mixed images and it turns out to be very effective for better generalization and more robustness of models against adversarial attacks and memorization. Although their study is not focused on the decision boundaries, their training method directly defines the location of decision boundaries in between training samples because the labels they use for mixed images are actually flip labels between classes.</p>
+</div>
+<div id="S2.p4" class="ltx_para ltx_noindent">
+<p id="S2.p4.1" class="ltx_p">Later, several studies leveraged the mixing aspect of this method for federated learning <cite class="ltx_cite ltx_citemacro_citep">(Fu et al., <a href="#bib.bib10" title="" class="ltx_ref">2019</a>; Boulemtafes et al., <a href="#bib.bib2" title="" class="ltx_ref">2020</a>)</cite>. Building on that line of research, <cite class="ltx_cite ltx_citemacro_citet">Huang et al. (<a href="#bib.bib11" title="" class="ltx_ref">2020</a>)</cite> proposed a method called <span id="S2.p4.1.1" class="ltx_text ltx_font_italic">InstaHide</span>, where the entity in charge of training the model has access to certain mixed images that cannot be easily traced back to original images in the private training sets. Again, when the model learns such images, it learns where the location of its decision boundaries should be.</p>
+</div>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>The extent of privacy we can achieve</h2>
+
+<div id="S3.p1" class="ltx_para ltx_noindent">
+<p id="S3.p1.1" class="ltx_p">The method proposed by <cite class="ltx_cite ltx_citemacro_citet">Huang et al. (<a href="#bib.bib11" title="" class="ltx_ref">2020</a>)</cite> successfully hides the original images from <math id="S3.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S3.p1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S3.p1.1.m1.1.1" xref="S3.p1.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S3.p1.1.m1.1b"><ci id="S3.p1.1.m1.1.1.cmml" xref="S3.p1.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.p1.1.m1.1c">\mathcal{T}</annotation></semantics></math>. In fact, images used for training do not look anything similar to the original images and it is indeed hard to trace them back to original images. But to what extent does their method help us with preserving privacy?</p>
+</div>
+<div id="S3.p2" class="ltx_para ltx_noindent">
+<p id="S3.p2.1" class="ltx_p">The images used for training have flip labels which exactly define where the location of decision boundaries of the model should be. It follows that the entity that trains the model has direct access to samples on the decision boundaries of the model, because each training sample is a point on a decision boundary. Hence, by putting the training samples together, that entity can acquire a good picture of the partitions of each class defined in the domain.</p>
+</div>
+<div id="S3.p3" class="ltx_para ltx_noindent">
+<p id="S3.p3.1" class="ltx_p">If we have to hide the contents of original training samples from the entity in charge of training, should not we be concerned about the entity having access to the decision boundaries of the model? What is the extent of the privacy preserved by hiding the contents of images but giving out samples on the decision boundaries of our model?</p>
+</div>
+<div id="S3.p4" class="ltx_para ltx_noindent">
+<p id="S3.p4.1" class="ltx_p">From the adversarial attacks literature, we know that when an entity knows the decision boundaries of our models, they will know the functional behavior of it and they can affect that adversarially, during training and also after the training.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Decryption module inside the model</h2>
+
+<div id="S4.p1" class="ltx_para ltx_noindent">
+<p id="S4.p1.3" class="ltx_p">As a remedy, here we propose a method to encrypt the images with shearlet systems at the origin, so that only shearlet coefficients are shared with entity <math id="S4.p1.1.m1.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.p1.1.m1.1a"><mi class="ltx_font_mathcaligraphic" id="S4.p1.1.m1.1.1" xref="S4.p1.1.m1.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.p1.1.m1.1b"><ci id="S4.p1.1.m1.1.1.cmml" xref="S4.p1.1.m1.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.1.m1.1c">\mathcal{T}</annotation></semantics></math>. There will be a decryption module inside the model that would decrypt the images before putting them through the convolutional layers. After the model is trained, one can remove the decryption module from the model and directly feed images to its convolutional layers.<span id="footnote1" class="ltx_note ltx_role_footnote"><sup class="ltx_note_mark">1</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">1</sup><span class="ltx_tag ltx_tag_note">1</span>If desired, decryption module can still remain inside the model for the testing time as well.</span></span></span> This way, the model is trained on images, but training images are kept hidden from <math id="S4.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.p1.2.m2.1a"><mi class="ltx_font_mathcaligraphic" id="S4.p1.2.m2.1.1" xref="S4.p1.2.m2.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.p1.2.m2.1b"><ci id="S4.p1.2.m2.1.1.cmml" xref="S4.p1.2.m2.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.2.m2.1c">\mathcal{T}</annotation></semantics></math>. Moreover, <math id="S4.p1.3.m3.1" class="ltx_Math" alttext="\mathcal{T}" display="inline"><semantics id="S4.p1.3.m3.1a"><mi class="ltx_font_mathcaligraphic" id="S4.p1.3.m3.1.1" xref="S4.p1.3.m3.1.1.cmml">𝒯</mi><annotation-xml encoding="MathML-Content" id="S4.p1.3.m3.1b"><ci id="S4.p1.3.m3.1.1.cmml" xref="S4.p1.3.m3.1.1">𝒯</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.p1.3.m3.1c">\mathcal{T}</annotation></semantics></math> will have no immediate knowledge about the decision boundaries of the trained model.</p>
+</div>
+<div id="S4.p2" class="ltx_para ltx_noindent">
+<p id="S4.p2.1" class="ltx_p">In the following, we will briefly explain the shearlet systems which are recently used for image encryption. Using a complicated function to build a shearlet system and using truncated filter boundaries will lead to complex-valued shearlet coefficients, and it would be hard to trace those coefficients back to the actual images without having the shearlet system.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Background on Shealets</h3>
+
+<div id="S4.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p1.1" class="ltx_p">Shearlets are a multi-scale framework for efficient processing and representation of multidimensional data, especially images. Shearlets were built on the scientific knowledge of wavelets in order to address the limitations of wavelets in handling anisotropic features, e.g., edge features in images <cite class="ltx_cite ltx_citemacro_citep">(Labate et al., <a href="#bib.bib16" title="" class="ltx_ref">2005</a>)</cite>.</p>
+</div>
+<div id="S4.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p2.1" class="ltx_p">Over the decades, special tools have been developed to process images (along with other forms of data and functional representations) and to extract useful features from them. Such tools include the Fourier transform, wavelets, shearlets, etc. In fact, wavelets were developed building on the knowledge of Fourier transform in the context of image and signal processing. For example, <cite class="ltx_cite ltx_citemacro_citet">Daubechies (<a href="#bib.bib7" title="" class="ltx_ref">1990</a>)</cite> showed that wavelets perform better than windowed Fourier transform on visual signals, because wavelets handle the frequencies in a nonlinear way. Although wavelets have proven to be more capable than the Fourier transform, they still have shortcomings when it comes to analyzing edge features, because they can only handle point-wise singularities. Shearlets are well-equipped in this respect because, as their name suggests, they extract anisotropic features by deploying a shear matrix. Interaction between the shear matrix and appropriate scaling allows them to operate on a plane in a rotation-like manner, capturing edge features with various shapes <cite class="ltx_cite ltx_citemacro_citep">(Kutyniok &amp; Labate, <a href="#bib.bib15" title="" class="ltx_ref">2012</a>)</cite>.</p>
+</div>
+<div id="S4.SS1.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS1.p3.1" class="ltx_p">This makes the shearlets more capable in image processing and at the same time, it makes them computationally more sophisticated and therefore, more suitable for encryption. Wavelets have been used for image encryption in a variety of settings <cite class="ltx_cite ltx_citemacro_citep">(Chen &amp; Zhao, <a href="#bib.bib3" title="" class="ltx_ref">2005</a>; <a href="#bib.bib4" title="" class="ltx_ref">2008</a>; Luo et al., <a href="#bib.bib18" title="" class="ltx_ref">2015</a>)</cite>, which hints that shearlets can be even more effective in hiding the contents of images, as already used by <cite class="ltx_cite ltx_citemacro_citet">Kumar et al. (<a href="#bib.bib14" title="" class="ltx_ref">2018</a>); Chen et al. (<a href="#bib.bib5" title="" class="ltx_ref">2020</a>)</cite>.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Shearlet Systems</h3>
+
+<div id="S4.SS2.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p1.1" class="ltx_p">In order to decompose images with shearlets, we first need to create a shearlet system. A shearlet system is composed of three operations: Dilation, Shearing, and Translation. Here, we briefly review the definition provided by <cite class="ltx_cite ltx_citemacro_citet">Andrade-Loarca et al. (<a href="#bib.bib1" title="" class="ltx_ref">2020</a>)</cite>.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p2.2" class="ltx_p">Let <math id="S4.SS2.p2.1.m1.3" class="ltx_Math" alttext="A_{a},a\in\mathbbm{R}:=\mathbbm{R}\backslash\{0\}" display="inline"><semantics id="S4.SS2.p2.1.m1.3a"><mrow id="S4.SS2.p2.1.m1.3.3" xref="S4.SS2.p2.1.m1.3.3.cmml"><mrow id="S4.SS2.p2.1.m1.3.3.1.1" xref="S4.SS2.p2.1.m1.3.3.1.2.cmml"><msub id="S4.SS2.p2.1.m1.3.3.1.1.1" xref="S4.SS2.p2.1.m1.3.3.1.1.1.cmml"><mi id="S4.SS2.p2.1.m1.3.3.1.1.1.2" xref="S4.SS2.p2.1.m1.3.3.1.1.1.2.cmml">A</mi><mi id="S4.SS2.p2.1.m1.3.3.1.1.1.3" xref="S4.SS2.p2.1.m1.3.3.1.1.1.3.cmml">a</mi></msub><mo id="S4.SS2.p2.1.m1.3.3.1.1.2" xref="S4.SS2.p2.1.m1.3.3.1.2.cmml">,</mo><mi id="S4.SS2.p2.1.m1.2.2" xref="S4.SS2.p2.1.m1.2.2.cmml">a</mi></mrow><mo id="S4.SS2.p2.1.m1.3.3.3" xref="S4.SS2.p2.1.m1.3.3.3.cmml">∈</mo><mi id="S4.SS2.p2.1.m1.3.3.4" xref="S4.SS2.p2.1.m1.3.3.4.cmml">ℝ</mi><mo lspace="0.278em" rspace="0.278em" id="S4.SS2.p2.1.m1.3.3.5" xref="S4.SS2.p2.1.m1.3.3.5.cmml">:=</mo><mrow id="S4.SS2.p2.1.m1.3.3.6" xref="S4.SS2.p2.1.m1.3.3.6.cmml"><mi id="S4.SS2.p2.1.m1.3.3.6.2" xref="S4.SS2.p2.1.m1.3.3.6.2.cmml">ℝ</mi><mo lspace="0.222em" rspace="0.222em" id="S4.SS2.p2.1.m1.3.3.6.1" xref="S4.SS2.p2.1.m1.3.3.6.1.cmml">\</mo><mrow id="S4.SS2.p2.1.m1.3.3.6.3.2" xref="S4.SS2.p2.1.m1.3.3.6.3.1.cmml"><mo stretchy="false" id="S4.SS2.p2.1.m1.3.3.6.3.2.1" xref="S4.SS2.p2.1.m1.3.3.6.3.1.cmml">{</mo><mn id="S4.SS2.p2.1.m1.1.1" xref="S4.SS2.p2.1.m1.1.1.cmml">0</mn><mo stretchy="false" id="S4.SS2.p2.1.m1.3.3.6.3.2.2" xref="S4.SS2.p2.1.m1.3.3.6.3.1.cmml">}</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.1.m1.3b"><apply id="S4.SS2.p2.1.m1.3.3.cmml" xref="S4.SS2.p2.1.m1.3.3"><and id="S4.SS2.p2.1.m1.3.3a.cmml" xref="S4.SS2.p2.1.m1.3.3"></and><apply id="S4.SS2.p2.1.m1.3.3b.cmml" xref="S4.SS2.p2.1.m1.3.3"><in id="S4.SS2.p2.1.m1.3.3.3.cmml" xref="S4.SS2.p2.1.m1.3.3.3"></in><list id="S4.SS2.p2.1.m1.3.3.1.2.cmml" xref="S4.SS2.p2.1.m1.3.3.1.1"><apply id="S4.SS2.p2.1.m1.3.3.1.1.1.cmml" xref="S4.SS2.p2.1.m1.3.3.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p2.1.m1.3.3.1.1.1.1.cmml" xref="S4.SS2.p2.1.m1.3.3.1.1.1">subscript</csymbol><ci id="S4.SS2.p2.1.m1.3.3.1.1.1.2.cmml" xref="S4.SS2.p2.1.m1.3.3.1.1.1.2">𝐴</ci><ci id="S4.SS2.p2.1.m1.3.3.1.1.1.3.cmml" xref="S4.SS2.p2.1.m1.3.3.1.1.1.3">𝑎</ci></apply><ci id="S4.SS2.p2.1.m1.2.2.cmml" xref="S4.SS2.p2.1.m1.2.2">𝑎</ci></list><ci id="S4.SS2.p2.1.m1.3.3.4.cmml" xref="S4.SS2.p2.1.m1.3.3.4">ℝ</ci></apply><apply id="S4.SS2.p2.1.m1.3.3c.cmml" xref="S4.SS2.p2.1.m1.3.3"><csymbol cd="latexml" id="S4.SS2.p2.1.m1.3.3.5.cmml" xref="S4.SS2.p2.1.m1.3.3.5">assign</csymbol><share href="#S4.SS2.p2.1.m1.3.3.4.cmml" id="S4.SS2.p2.1.m1.3.3d.cmml" xref="S4.SS2.p2.1.m1.3.3"></share><apply id="S4.SS2.p2.1.m1.3.3.6.cmml" xref="S4.SS2.p2.1.m1.3.3.6"><ci id="S4.SS2.p2.1.m1.3.3.6.1.cmml" xref="S4.SS2.p2.1.m1.3.3.6.1">\</ci><ci id="S4.SS2.p2.1.m1.3.3.6.2.cmml" xref="S4.SS2.p2.1.m1.3.3.6.2">ℝ</ci><set id="S4.SS2.p2.1.m1.3.3.6.3.1.cmml" xref="S4.SS2.p2.1.m1.3.3.6.3.2"><cn type="integer" id="S4.SS2.p2.1.m1.1.1.cmml" xref="S4.SS2.p2.1.m1.1.1">0</cn></set></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.1.m1.3c">A_{a},a\in\mathbbm{R}:=\mathbbm{R}\backslash\{0\}</annotation></semantics></math> be a periodic scaling matrix and <math id="S4.SS2.p2.2.m2.2" class="ltx_Math" alttext="S_{s},s\in\mathbbm{R}" display="inline"><semantics id="S4.SS2.p2.2.m2.2a"><mrow id="S4.SS2.p2.2.m2.2.2" xref="S4.SS2.p2.2.m2.2.2.cmml"><mrow id="S4.SS2.p2.2.m2.2.2.1.1" xref="S4.SS2.p2.2.m2.2.2.1.2.cmml"><msub id="S4.SS2.p2.2.m2.2.2.1.1.1" xref="S4.SS2.p2.2.m2.2.2.1.1.1.cmml"><mi id="S4.SS2.p2.2.m2.2.2.1.1.1.2" xref="S4.SS2.p2.2.m2.2.2.1.1.1.2.cmml">S</mi><mi id="S4.SS2.p2.2.m2.2.2.1.1.1.3" xref="S4.SS2.p2.2.m2.2.2.1.1.1.3.cmml">s</mi></msub><mo id="S4.SS2.p2.2.m2.2.2.1.1.2" xref="S4.SS2.p2.2.m2.2.2.1.2.cmml">,</mo><mi id="S4.SS2.p2.2.m2.1.1" xref="S4.SS2.p2.2.m2.1.1.cmml">s</mi></mrow><mo id="S4.SS2.p2.2.m2.2.2.2" xref="S4.SS2.p2.2.m2.2.2.2.cmml">∈</mo><mi id="S4.SS2.p2.2.m2.2.2.3" xref="S4.SS2.p2.2.m2.2.2.3.cmml">ℝ</mi></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p2.2.m2.2b"><apply id="S4.SS2.p2.2.m2.2.2.cmml" xref="S4.SS2.p2.2.m2.2.2"><in id="S4.SS2.p2.2.m2.2.2.2.cmml" xref="S4.SS2.p2.2.m2.2.2.2"></in><list id="S4.SS2.p2.2.m2.2.2.1.2.cmml" xref="S4.SS2.p2.2.m2.2.2.1.1"><apply id="S4.SS2.p2.2.m2.2.2.1.1.1.cmml" xref="S4.SS2.p2.2.m2.2.2.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p2.2.m2.2.2.1.1.1.1.cmml" xref="S4.SS2.p2.2.m2.2.2.1.1.1">subscript</csymbol><ci id="S4.SS2.p2.2.m2.2.2.1.1.1.2.cmml" xref="S4.SS2.p2.2.m2.2.2.1.1.1.2">𝑆</ci><ci id="S4.SS2.p2.2.m2.2.2.1.1.1.3.cmml" xref="S4.SS2.p2.2.m2.2.2.1.1.1.3">𝑠</ci></apply><ci id="S4.SS2.p2.2.m2.1.1.cmml" xref="S4.SS2.p2.2.m2.1.1">𝑠</ci></list><ci id="S4.SS2.p2.2.m2.2.2.3.cmml" xref="S4.SS2.p2.2.m2.2.2.3">ℝ</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p2.2.m2.2c">S_{s},s\in\mathbbm{R}</annotation></semantics></math> be a shearing matrix given by</p>
+</div>
+<div id="S4.SS2.p3" class="ltx_para ltx_noindent">
+<table id="S4.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex1.m1.3" class="ltx_Math" alttext="A_{a}=\begin{pmatrix}a&amp;0\\
+0&amp;|a|^{1/2}\end{pmatrix}\;\text{and}\;S_{s}=\begin{pmatrix}1&amp;s\\
+0&amp;1\end{pmatrix}." display="block"><semantics id="S4.Ex1.m1.3a"><mrow id="S4.Ex1.m1.3.3.1" xref="S4.Ex1.m1.3.3.1.1.cmml"><mrow id="S4.Ex1.m1.3.3.1.1" xref="S4.Ex1.m1.3.3.1.1.cmml"><msub id="S4.Ex1.m1.3.3.1.1.2" xref="S4.Ex1.m1.3.3.1.1.2.cmml"><mi id="S4.Ex1.m1.3.3.1.1.2.2" xref="S4.Ex1.m1.3.3.1.1.2.2.cmml">A</mi><mi id="S4.Ex1.m1.3.3.1.1.2.3" xref="S4.Ex1.m1.3.3.1.1.2.3.cmml">a</mi></msub><mo id="S4.Ex1.m1.3.3.1.1.3" xref="S4.Ex1.m1.3.3.1.1.3.cmml">=</mo><mrow id="S4.Ex1.m1.3.3.1.1.4" xref="S4.Ex1.m1.3.3.1.1.4.cmml"><mrow id="S4.Ex1.m1.1.1.3" xref="S4.Ex1.m1.1.1.2.cmml"><mo id="S4.Ex1.m1.1.1.3.1" xref="S4.Ex1.m1.1.1.2.1.cmml">(</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt" id="S4.Ex1.m1.1.1.1.1" xref="S4.Ex1.m1.1.1.1.1.cmml"><mtr id="S4.Ex1.m1.1.1.1.1a" xref="S4.Ex1.m1.1.1.1.1.cmml"><mtd id="S4.Ex1.m1.1.1.1.1b" xref="S4.Ex1.m1.1.1.1.1.cmml"><mi id="S4.Ex1.m1.1.1.1.1.2.1.1" xref="S4.Ex1.m1.1.1.1.1.2.1.1.cmml">a</mi></mtd><mtd id="S4.Ex1.m1.1.1.1.1c" xref="S4.Ex1.m1.1.1.1.1.cmml"><mn id="S4.Ex1.m1.1.1.1.1.2.2.1" xref="S4.Ex1.m1.1.1.1.1.2.2.1.cmml">0</mn></mtd></mtr><mtr id="S4.Ex1.m1.1.1.1.1d" xref="S4.Ex1.m1.1.1.1.1.cmml"><mtd id="S4.Ex1.m1.1.1.1.1e" xref="S4.Ex1.m1.1.1.1.1.cmml"><mn id="S4.Ex1.m1.1.1.1.1.1.1.2.1" xref="S4.Ex1.m1.1.1.1.1.1.1.2.1.cmml">0</mn></mtd><mtd id="S4.Ex1.m1.1.1.1.1f" xref="S4.Ex1.m1.1.1.1.1.cmml"><msup id="S4.Ex1.m1.1.1.1.1.1.1.1.1" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.cmml"><mrow id="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.2" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.1.cmml"><mo stretchy="false" id="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.2.1" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.1.1.cmml">|</mo><mi id="S4.Ex1.m1.1.1.1.1.1.1.1.1.1" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.1.cmml">a</mi><mo stretchy="false" id="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.2.2" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.1.1.cmml">|</mo></mrow><mrow id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.cmml"><mn id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.2" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.2.cmml">1</mn><mo id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.1" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.1.cmml">/</mo><mn id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.3" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.3.cmml">2</mn></mrow></msup></mtd></mtr></mtable><mo id="S4.Ex1.m1.1.1.3.2" xref="S4.Ex1.m1.1.1.2.1.cmml">)</mo></mrow><mo lspace="0em" rspace="0em" id="S4.Ex1.m1.3.3.1.1.4.1" xref="S4.Ex1.m1.3.3.1.1.4.1.cmml">​</mo><mtext id="S4.Ex1.m1.3.3.1.1.4.2" xref="S4.Ex1.m1.3.3.1.1.4.2a.cmml">and</mtext><mo lspace="0.280em" rspace="0em" id="S4.Ex1.m1.3.3.1.1.4.1a" xref="S4.Ex1.m1.3.3.1.1.4.1.cmml">​</mo><msub id="S4.Ex1.m1.3.3.1.1.4.3" xref="S4.Ex1.m1.3.3.1.1.4.3.cmml"><mi id="S4.Ex1.m1.3.3.1.1.4.3.2" xref="S4.Ex1.m1.3.3.1.1.4.3.2.cmml">S</mi><mi id="S4.Ex1.m1.3.3.1.1.4.3.3" xref="S4.Ex1.m1.3.3.1.1.4.3.3.cmml">s</mi></msub></mrow><mo id="S4.Ex1.m1.3.3.1.1.5" xref="S4.Ex1.m1.3.3.1.1.5.cmml">=</mo><mrow id="S4.Ex1.m1.2.2.3" xref="S4.Ex1.m1.2.2.2.cmml"><mo id="S4.Ex1.m1.2.2.3.1" xref="S4.Ex1.m1.2.2.2.1.cmml">(</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt" id="S4.Ex1.m1.2.2.1.1" xref="S4.Ex1.m1.2.2.1.1.cmml"><mtr id="S4.Ex1.m1.2.2.1.1a" xref="S4.Ex1.m1.2.2.1.1.cmml"><mtd id="S4.Ex1.m1.2.2.1.1b" xref="S4.Ex1.m1.2.2.1.1.cmml"><mn id="S4.Ex1.m1.2.2.1.1.1.1.1" xref="S4.Ex1.m1.2.2.1.1.1.1.1.cmml">1</mn></mtd><mtd id="S4.Ex1.m1.2.2.1.1c" xref="S4.Ex1.m1.2.2.1.1.cmml"><mi id="S4.Ex1.m1.2.2.1.1.1.2.1" xref="S4.Ex1.m1.2.2.1.1.1.2.1.cmml">s</mi></mtd></mtr><mtr id="S4.Ex1.m1.2.2.1.1d" xref="S4.Ex1.m1.2.2.1.1.cmml"><mtd id="S4.Ex1.m1.2.2.1.1e" xref="S4.Ex1.m1.2.2.1.1.cmml"><mn id="S4.Ex1.m1.2.2.1.1.2.1.1" xref="S4.Ex1.m1.2.2.1.1.2.1.1.cmml">0</mn></mtd><mtd id="S4.Ex1.m1.2.2.1.1f" xref="S4.Ex1.m1.2.2.1.1.cmml"><mn id="S4.Ex1.m1.2.2.1.1.2.2.1" xref="S4.Ex1.m1.2.2.1.1.2.2.1.cmml">1</mn></mtd></mtr></mtable><mo id="S4.Ex1.m1.2.2.3.2" xref="S4.Ex1.m1.2.2.2.1.cmml">)</mo></mrow></mrow><mo lspace="0em" id="S4.Ex1.m1.3.3.1.2" xref="S4.Ex1.m1.3.3.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.Ex1.m1.3b"><apply id="S4.Ex1.m1.3.3.1.1.cmml" xref="S4.Ex1.m1.3.3.1"><and id="S4.Ex1.m1.3.3.1.1a.cmml" xref="S4.Ex1.m1.3.3.1"></and><apply id="S4.Ex1.m1.3.3.1.1b.cmml" xref="S4.Ex1.m1.3.3.1"><eq id="S4.Ex1.m1.3.3.1.1.3.cmml" xref="S4.Ex1.m1.3.3.1.1.3"></eq><apply id="S4.Ex1.m1.3.3.1.1.2.cmml" xref="S4.Ex1.m1.3.3.1.1.2"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.2.1.cmml" xref="S4.Ex1.m1.3.3.1.1.2">subscript</csymbol><ci id="S4.Ex1.m1.3.3.1.1.2.2.cmml" xref="S4.Ex1.m1.3.3.1.1.2.2">𝐴</ci><ci id="S4.Ex1.m1.3.3.1.1.2.3.cmml" xref="S4.Ex1.m1.3.3.1.1.2.3">𝑎</ci></apply><apply id="S4.Ex1.m1.3.3.1.1.4.cmml" xref="S4.Ex1.m1.3.3.1.1.4"><times id="S4.Ex1.m1.3.3.1.1.4.1.cmml" xref="S4.Ex1.m1.3.3.1.1.4.1"></times><apply id="S4.Ex1.m1.1.1.2.cmml" xref="S4.Ex1.m1.1.1.3"><csymbol cd="latexml" id="S4.Ex1.m1.1.1.2.1.cmml" xref="S4.Ex1.m1.1.1.3.1">matrix</csymbol><matrix id="S4.Ex1.m1.1.1.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1"><matrixrow id="S4.Ex1.m1.1.1.1.1a.cmml" xref="S4.Ex1.m1.1.1.1.1"><ci id="S4.Ex1.m1.1.1.1.1.2.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1.2.1.1">𝑎</ci><cn type="integer" id="S4.Ex1.m1.1.1.1.1.2.2.1.cmml" xref="S4.Ex1.m1.1.1.1.1.2.2.1">0</cn></matrixrow><matrixrow id="S4.Ex1.m1.1.1.1.1b.cmml" xref="S4.Ex1.m1.1.1.1.1"><cn type="integer" id="S4.Ex1.m1.1.1.1.1.1.1.2.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.2.1">0</cn><apply id="S4.Ex1.m1.1.1.1.1.1.1.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.Ex1.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1">superscript</csymbol><apply id="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.2"><abs id="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.3.2.1"></abs><ci id="S4.Ex1.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.1">𝑎</ci></apply><apply id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4"><divide id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.1.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.1"></divide><cn type="integer" id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.2.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.2">1</cn><cn type="integer" id="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.3.cmml" xref="S4.Ex1.m1.1.1.1.1.1.1.1.1.4.3">2</cn></apply></apply></matrixrow></matrix></apply><ci id="S4.Ex1.m1.3.3.1.1.4.2a.cmml" xref="S4.Ex1.m1.3.3.1.1.4.2"><mtext id="S4.Ex1.m1.3.3.1.1.4.2.cmml" xref="S4.Ex1.m1.3.3.1.1.4.2">and</mtext></ci><apply id="S4.Ex1.m1.3.3.1.1.4.3.cmml" xref="S4.Ex1.m1.3.3.1.1.4.3"><csymbol cd="ambiguous" id="S4.Ex1.m1.3.3.1.1.4.3.1.cmml" xref="S4.Ex1.m1.3.3.1.1.4.3">subscript</csymbol><ci id="S4.Ex1.m1.3.3.1.1.4.3.2.cmml" xref="S4.Ex1.m1.3.3.1.1.4.3.2">𝑆</ci><ci id="S4.Ex1.m1.3.3.1.1.4.3.3.cmml" xref="S4.Ex1.m1.3.3.1.1.4.3.3">𝑠</ci></apply></apply></apply><apply id="S4.Ex1.m1.3.3.1.1c.cmml" xref="S4.Ex1.m1.3.3.1"><eq id="S4.Ex1.m1.3.3.1.1.5.cmml" xref="S4.Ex1.m1.3.3.1.1.5"></eq><share href="#S4.Ex1.m1.3.3.1.1.4.cmml" id="S4.Ex1.m1.3.3.1.1d.cmml" xref="S4.Ex1.m1.3.3.1"></share><apply id="S4.Ex1.m1.2.2.2.cmml" xref="S4.Ex1.m1.2.2.3"><csymbol cd="latexml" id="S4.Ex1.m1.2.2.2.1.cmml" xref="S4.Ex1.m1.2.2.3.1">matrix</csymbol><matrix id="S4.Ex1.m1.2.2.1.1.cmml" xref="S4.Ex1.m1.2.2.1.1"><matrixrow id="S4.Ex1.m1.2.2.1.1a.cmml" xref="S4.Ex1.m1.2.2.1.1"><cn type="integer" id="S4.Ex1.m1.2.2.1.1.1.1.1.cmml" xref="S4.Ex1.m1.2.2.1.1.1.1.1">1</cn><ci id="S4.Ex1.m1.2.2.1.1.1.2.1.cmml" xref="S4.Ex1.m1.2.2.1.1.1.2.1">𝑠</ci></matrixrow><matrixrow id="S4.Ex1.m1.2.2.1.1b.cmml" xref="S4.Ex1.m1.2.2.1.1"><cn type="integer" id="S4.Ex1.m1.2.2.1.1.2.1.1.cmml" xref="S4.Ex1.m1.2.2.1.1.2.1.1">0</cn><cn type="integer" id="S4.Ex1.m1.2.2.1.1.2.2.1.cmml" xref="S4.Ex1.m1.2.2.1.1.2.2.1">1</cn></matrixrow></matrix></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.Ex1.m1.3c">A_{a}=\begin{pmatrix}a&amp;0\\
+0&amp;|a|^{1/2}\end{pmatrix}\;\text{and}\;S_{s}=\begin{pmatrix}1&amp;s\\
+0&amp;1\end{pmatrix}.</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS2.p4" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p4.1" class="ltx_p">For <math id="S4.SS2.p4.1.m1.1" class="ltx_Math" alttext="B\in\mathbbm{R}^{2\times 2}" display="inline"><semantics id="S4.SS2.p4.1.m1.1a"><mrow id="S4.SS2.p4.1.m1.1.1" xref="S4.SS2.p4.1.m1.1.1.cmml"><mi id="S4.SS2.p4.1.m1.1.1.2" xref="S4.SS2.p4.1.m1.1.1.2.cmml">B</mi><mo id="S4.SS2.p4.1.m1.1.1.1" xref="S4.SS2.p4.1.m1.1.1.1.cmml">∈</mo><msup id="S4.SS2.p4.1.m1.1.1.3" xref="S4.SS2.p4.1.m1.1.1.3.cmml"><mi id="S4.SS2.p4.1.m1.1.1.3.2" xref="S4.SS2.p4.1.m1.1.1.3.2.cmml">ℝ</mi><mrow id="S4.SS2.p4.1.m1.1.1.3.3" xref="S4.SS2.p4.1.m1.1.1.3.3.cmml"><mn id="S4.SS2.p4.1.m1.1.1.3.3.2" xref="S4.SS2.p4.1.m1.1.1.3.3.2.cmml">2</mn><mo lspace="0.222em" rspace="0.222em" id="S4.SS2.p4.1.m1.1.1.3.3.1" xref="S4.SS2.p4.1.m1.1.1.3.3.1.cmml">×</mo><mn id="S4.SS2.p4.1.m1.1.1.3.3.3" xref="S4.SS2.p4.1.m1.1.1.3.3.3.cmml">2</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p4.1.m1.1b"><apply id="S4.SS2.p4.1.m1.1.1.cmml" xref="S4.SS2.p4.1.m1.1.1"><in id="S4.SS2.p4.1.m1.1.1.1.cmml" xref="S4.SS2.p4.1.m1.1.1.1"></in><ci id="S4.SS2.p4.1.m1.1.1.2.cmml" xref="S4.SS2.p4.1.m1.1.1.2">𝐵</ci><apply id="S4.SS2.p4.1.m1.1.1.3.cmml" xref="S4.SS2.p4.1.m1.1.1.3"><csymbol cd="ambiguous" id="S4.SS2.p4.1.m1.1.1.3.1.cmml" xref="S4.SS2.p4.1.m1.1.1.3">superscript</csymbol><ci id="S4.SS2.p4.1.m1.1.1.3.2.cmml" xref="S4.SS2.p4.1.m1.1.1.3.2">ℝ</ci><apply id="S4.SS2.p4.1.m1.1.1.3.3.cmml" xref="S4.SS2.p4.1.m1.1.1.3.3"><times id="S4.SS2.p4.1.m1.1.1.3.3.1.cmml" xref="S4.SS2.p4.1.m1.1.1.3.3.1"></times><cn type="integer" id="S4.SS2.p4.1.m1.1.1.3.3.2.cmml" xref="S4.SS2.p4.1.m1.1.1.3.3.2">2</cn><cn type="integer" id="S4.SS2.p4.1.m1.1.1.3.3.3.cmml" xref="S4.SS2.p4.1.m1.1.1.3.3.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p4.1.m1.1c">B\in\mathbbm{R}^{2\times 2}</annotation></semantics></math>, the dilation operator is defined by</p>
+</div>
+<div id="S4.SS2.p5" class="ltx_para ltx_noindent">
+<table id="S4.Ex2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex2.m1.1" class="ltx_math_unparsed" alttext="D_{B}:L^{2}(\mathbbm{R}^{2})\rightarrow L^{2}(\mathbbm{R}^{2})\quad,\quad(D_{B}f)(x)\mapsto|\det(B)|^{-1/2}f(M^{-1}x)" display="block"><semantics id="S4.Ex2.m1.1a"><mrow id="S4.Ex2.m1.1b"><msub id="S4.Ex2.m1.1.1"><mi id="S4.Ex2.m1.1.1.2">D</mi><mi id="S4.Ex2.m1.1.1.3">B</mi></msub><mo lspace="0.278em" rspace="0.278em" id="S4.Ex2.m1.1.2">:</mo><msup id="S4.Ex2.m1.1.3"><mi id="S4.Ex2.m1.1.3.2">L</mi><mn id="S4.Ex2.m1.1.3.3">2</mn></msup><mrow id="S4.Ex2.m1.1.4"><mo stretchy="false" id="S4.Ex2.m1.1.4.1">(</mo><msup id="S4.Ex2.m1.1.4.2"><mi id="S4.Ex2.m1.1.4.2.2">ℝ</mi><mn id="S4.Ex2.m1.1.4.2.3">2</mn></msup><mo stretchy="false" id="S4.Ex2.m1.1.4.3">)</mo></mrow><mo stretchy="false" id="S4.Ex2.m1.1.5">→</mo><msup id="S4.Ex2.m1.1.6"><mi id="S4.Ex2.m1.1.6.2">L</mi><mn id="S4.Ex2.m1.1.6.3">2</mn></msup><mrow id="S4.Ex2.m1.1.7"><mo stretchy="false" id="S4.Ex2.m1.1.7.1">(</mo><msup id="S4.Ex2.m1.1.7.2"><mi id="S4.Ex2.m1.1.7.2.2">ℝ</mi><mn id="S4.Ex2.m1.1.7.2.3">2</mn></msup><mo stretchy="false" id="S4.Ex2.m1.1.7.3">)</mo></mrow><mspace width="1em" id="S4.Ex2.m1.1.8"></mspace><mo rspace="1.167em" id="S4.Ex2.m1.1.9">,</mo><mrow id="S4.Ex2.m1.1.10"><mo stretchy="false" id="S4.Ex2.m1.1.10.1">(</mo><msub id="S4.Ex2.m1.1.10.2"><mi id="S4.Ex2.m1.1.10.2.2">D</mi><mi id="S4.Ex2.m1.1.10.2.3">B</mi></msub><mi id="S4.Ex2.m1.1.10.3">f</mi><mo stretchy="false" id="S4.Ex2.m1.1.10.4">)</mo></mrow><mrow id="S4.Ex2.m1.1.11"><mo stretchy="false" id="S4.Ex2.m1.1.11.1">(</mo><mi id="S4.Ex2.m1.1.11.2">x</mi><mo stretchy="false" id="S4.Ex2.m1.1.11.3">)</mo></mrow><mo rspace="0em" stretchy="false" id="S4.Ex2.m1.1.12">↦</mo><mo fence="false" stretchy="false" id="S4.Ex2.m1.1.13">|</mo><mo lspace="0.167em" movablelimits="false" rspace="0em" id="S4.Ex2.m1.1.14">det</mo><mrow id="S4.Ex2.m1.1.15"><mo stretchy="false" id="S4.Ex2.m1.1.15.1">(</mo><mi id="S4.Ex2.m1.1.15.2">B</mi><mo stretchy="false" id="S4.Ex2.m1.1.15.3">)</mo></mrow><msup id="S4.Ex2.m1.1.16"><mo fence="false" rspace="0.167em" stretchy="false" id="S4.Ex2.m1.1.16.2">|</mo><mrow id="S4.Ex2.m1.1.16.3"><mo id="S4.Ex2.m1.1.16.3a">−</mo><mrow id="S4.Ex2.m1.1.16.3.2"><mn id="S4.Ex2.m1.1.16.3.2.2">1</mn><mo id="S4.Ex2.m1.1.16.3.2.1">/</mo><mn id="S4.Ex2.m1.1.16.3.2.3">2</mn></mrow></mrow></msup><mi id="S4.Ex2.m1.1.17">f</mi><mrow id="S4.Ex2.m1.1.18"><mo stretchy="false" id="S4.Ex2.m1.1.18.1">(</mo><msup id="S4.Ex2.m1.1.18.2"><mi id="S4.Ex2.m1.1.18.2.2">M</mi><mrow id="S4.Ex2.m1.1.18.2.3"><mo id="S4.Ex2.m1.1.18.2.3a">−</mo><mn id="S4.Ex2.m1.1.18.2.3.2">1</mn></mrow></msup><mi id="S4.Ex2.m1.1.18.3">x</mi><mo stretchy="false" id="S4.Ex2.m1.1.18.4">)</mo></mrow></mrow><annotation encoding="application/x-tex" id="S4.Ex2.m1.1c">D_{B}:L^{2}(\mathbbm{R}^{2})\rightarrow L^{2}(\mathbbm{R}^{2})\quad,\quad(D_{B}f)(x)\mapsto|\det(B)|^{-1/2}f(M^{-1}x)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS2.p6" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p6.4" class="ltx_p">Plugging <math id="S4.SS2.p6.1.m1.1" class="ltx_Math" alttext="A_{a}" display="inline"><semantics id="S4.SS2.p6.1.m1.1a"><msub id="S4.SS2.p6.1.m1.1.1" xref="S4.SS2.p6.1.m1.1.1.cmml"><mi id="S4.SS2.p6.1.m1.1.1.2" xref="S4.SS2.p6.1.m1.1.1.2.cmml">A</mi><mi id="S4.SS2.p6.1.m1.1.1.3" xref="S4.SS2.p6.1.m1.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.1.m1.1b"><apply id="S4.SS2.p6.1.m1.1.1.cmml" xref="S4.SS2.p6.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p6.1.m1.1.1.1.cmml" xref="S4.SS2.p6.1.m1.1.1">subscript</csymbol><ci id="S4.SS2.p6.1.m1.1.1.2.cmml" xref="S4.SS2.p6.1.m1.1.1.2">𝐴</ci><ci id="S4.SS2.p6.1.m1.1.1.3.cmml" xref="S4.SS2.p6.1.m1.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.1.m1.1c">A_{a}</annotation></semantics></math> and <math id="S4.SS2.p6.2.m2.1" class="ltx_Math" alttext="S_{s}" display="inline"><semantics id="S4.SS2.p6.2.m2.1a"><msub id="S4.SS2.p6.2.m2.1.1" xref="S4.SS2.p6.2.m2.1.1.cmml"><mi id="S4.SS2.p6.2.m2.1.1.2" xref="S4.SS2.p6.2.m2.1.1.2.cmml">S</mi><mi id="S4.SS2.p6.2.m2.1.1.3" xref="S4.SS2.p6.2.m2.1.1.3.cmml">s</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.2.m2.1b"><apply id="S4.SS2.p6.2.m2.1.1.cmml" xref="S4.SS2.p6.2.m2.1.1"><csymbol cd="ambiguous" id="S4.SS2.p6.2.m2.1.1.1.cmml" xref="S4.SS2.p6.2.m2.1.1">subscript</csymbol><ci id="S4.SS2.p6.2.m2.1.1.2.cmml" xref="S4.SS2.p6.2.m2.1.1.2">𝑆</ci><ci id="S4.SS2.p6.2.m2.1.1.3.cmml" xref="S4.SS2.p6.2.m2.1.1.3">𝑠</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.2.m2.1c">S_{s}</annotation></semantics></math> as <math id="S4.SS2.p6.3.m3.1" class="ltx_Math" alttext="B" display="inline"><semantics id="S4.SS2.p6.3.m3.1a"><mi id="S4.SS2.p6.3.m3.1.1" xref="S4.SS2.p6.3.m3.1.1.cmml">B</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.3.m3.1b"><ci id="S4.SS2.p6.3.m3.1.1.cmml" xref="S4.SS2.p6.3.m3.1.1">𝐵</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.3.m3.1c">B</annotation></semantics></math> in the dilation operator yields the scaling and shearing operators, respectively.
+The last ingredient is the translation operator, defined for <math id="S4.SS2.p6.4.m4.2" class="ltx_Math" alttext="T_{t},t\in\mathbbm{R}^{2}" display="inline"><semantics id="S4.SS2.p6.4.m4.2a"><mrow id="S4.SS2.p6.4.m4.2.2" xref="S4.SS2.p6.4.m4.2.2.cmml"><mrow id="S4.SS2.p6.4.m4.2.2.1.1" xref="S4.SS2.p6.4.m4.2.2.1.2.cmml"><msub id="S4.SS2.p6.4.m4.2.2.1.1.1" xref="S4.SS2.p6.4.m4.2.2.1.1.1.cmml"><mi id="S4.SS2.p6.4.m4.2.2.1.1.1.2" xref="S4.SS2.p6.4.m4.2.2.1.1.1.2.cmml">T</mi><mi id="S4.SS2.p6.4.m4.2.2.1.1.1.3" xref="S4.SS2.p6.4.m4.2.2.1.1.1.3.cmml">t</mi></msub><mo id="S4.SS2.p6.4.m4.2.2.1.1.2" xref="S4.SS2.p6.4.m4.2.2.1.2.cmml">,</mo><mi id="S4.SS2.p6.4.m4.1.1" xref="S4.SS2.p6.4.m4.1.1.cmml">t</mi></mrow><mo id="S4.SS2.p6.4.m4.2.2.2" xref="S4.SS2.p6.4.m4.2.2.2.cmml">∈</mo><msup id="S4.SS2.p6.4.m4.2.2.3" xref="S4.SS2.p6.4.m4.2.2.3.cmml"><mi id="S4.SS2.p6.4.m4.2.2.3.2" xref="S4.SS2.p6.4.m4.2.2.3.2.cmml">ℝ</mi><mn id="S4.SS2.p6.4.m4.2.2.3.3" xref="S4.SS2.p6.4.m4.2.2.3.3.cmml">2</mn></msup></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p6.4.m4.2b"><apply id="S4.SS2.p6.4.m4.2.2.cmml" xref="S4.SS2.p6.4.m4.2.2"><in id="S4.SS2.p6.4.m4.2.2.2.cmml" xref="S4.SS2.p6.4.m4.2.2.2"></in><list id="S4.SS2.p6.4.m4.2.2.1.2.cmml" xref="S4.SS2.p6.4.m4.2.2.1.1"><apply id="S4.SS2.p6.4.m4.2.2.1.1.1.cmml" xref="S4.SS2.p6.4.m4.2.2.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p6.4.m4.2.2.1.1.1.1.cmml" xref="S4.SS2.p6.4.m4.2.2.1.1.1">subscript</csymbol><ci id="S4.SS2.p6.4.m4.2.2.1.1.1.2.cmml" xref="S4.SS2.p6.4.m4.2.2.1.1.1.2">𝑇</ci><ci id="S4.SS2.p6.4.m4.2.2.1.1.1.3.cmml" xref="S4.SS2.p6.4.m4.2.2.1.1.1.3">𝑡</ci></apply><ci id="S4.SS2.p6.4.m4.1.1.cmml" xref="S4.SS2.p6.4.m4.1.1">𝑡</ci></list><apply id="S4.SS2.p6.4.m4.2.2.3.cmml" xref="S4.SS2.p6.4.m4.2.2.3"><csymbol cd="ambiguous" id="S4.SS2.p6.4.m4.2.2.3.1.cmml" xref="S4.SS2.p6.4.m4.2.2.3">superscript</csymbol><ci id="S4.SS2.p6.4.m4.2.2.3.2.cmml" xref="S4.SS2.p6.4.m4.2.2.3.2">ℝ</ci><cn type="integer" id="S4.SS2.p6.4.m4.2.2.3.3.cmml" xref="S4.SS2.p6.4.m4.2.2.3.3">2</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p6.4.m4.2c">T_{t},t\in\mathbbm{R}^{2}</annotation></semantics></math> as</p>
+</div>
+<div id="S4.SS2.p7" class="ltx_para ltx_noindent">
+<table id="S4.Ex3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.Ex3.m1.1" class="ltx_math_unparsed" alttext="T_{t}:L^{2}(\mathbbm{R}^{2})\rightarrow L^{2}(\mathbbm{R}^{2})\quad,\quad(T_{t}f)(x)\mapsto f(x-t)" display="block"><semantics id="S4.Ex3.m1.1a"><mrow id="S4.Ex3.m1.1b"><msub id="S4.Ex3.m1.1.1"><mi id="S4.Ex3.m1.1.1.2">T</mi><mi id="S4.Ex3.m1.1.1.3">t</mi></msub><mo lspace="0.278em" rspace="0.278em" id="S4.Ex3.m1.1.2">:</mo><msup id="S4.Ex3.m1.1.3"><mi id="S4.Ex3.m1.1.3.2">L</mi><mn id="S4.Ex3.m1.1.3.3">2</mn></msup><mrow id="S4.Ex3.m1.1.4"><mo stretchy="false" id="S4.Ex3.m1.1.4.1">(</mo><msup id="S4.Ex3.m1.1.4.2"><mi id="S4.Ex3.m1.1.4.2.2">ℝ</mi><mn id="S4.Ex3.m1.1.4.2.3">2</mn></msup><mo stretchy="false" id="S4.Ex3.m1.1.4.3">)</mo></mrow><mo stretchy="false" id="S4.Ex3.m1.1.5">→</mo><msup id="S4.Ex3.m1.1.6"><mi id="S4.Ex3.m1.1.6.2">L</mi><mn id="S4.Ex3.m1.1.6.3">2</mn></msup><mrow id="S4.Ex3.m1.1.7"><mo stretchy="false" id="S4.Ex3.m1.1.7.1">(</mo><msup id="S4.Ex3.m1.1.7.2"><mi id="S4.Ex3.m1.1.7.2.2">ℝ</mi><mn id="S4.Ex3.m1.1.7.2.3">2</mn></msup><mo stretchy="false" id="S4.Ex3.m1.1.7.3">)</mo></mrow><mspace width="1em" id="S4.Ex3.m1.1.8"></mspace><mo rspace="1.167em" id="S4.Ex3.m1.1.9">,</mo><mrow id="S4.Ex3.m1.1.10"><mo stretchy="false" id="S4.Ex3.m1.1.10.1">(</mo><msub id="S4.Ex3.m1.1.10.2"><mi id="S4.Ex3.m1.1.10.2.2">T</mi><mi id="S4.Ex3.m1.1.10.2.3">t</mi></msub><mi id="S4.Ex3.m1.1.10.3">f</mi><mo stretchy="false" id="S4.Ex3.m1.1.10.4">)</mo></mrow><mrow id="S4.Ex3.m1.1.11"><mo stretchy="false" id="S4.Ex3.m1.1.11.1">(</mo><mi id="S4.Ex3.m1.1.11.2">x</mi><mo stretchy="false" id="S4.Ex3.m1.1.11.3">)</mo></mrow><mo stretchy="false" id="S4.Ex3.m1.1.12">↦</mo><mi id="S4.Ex3.m1.1.13">f</mi><mrow id="S4.Ex3.m1.1.14"><mo stretchy="false" id="S4.Ex3.m1.1.14.1">(</mo><mi id="S4.Ex3.m1.1.14.2">x</mi><mo id="S4.Ex3.m1.1.14.3">−</mo><mi id="S4.Ex3.m1.1.14.4">t</mi><mo stretchy="false" id="S4.Ex3.m1.1.14.5">)</mo></mrow></mrow><annotation encoding="application/x-tex" id="S4.Ex3.m1.1c">T_{t}:L^{2}(\mathbbm{R}^{2})\rightarrow L^{2}(\mathbbm{R}^{2})\quad,\quad(T_{t}f)(x)\mapsto f(x-t)</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS2.p8" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p8.2" class="ltx_p">Then, for a given function <math id="S4.SS2.p8.1.m1.1" class="ltx_Math" alttext="\psi\in L^{2}(\mathbbm{R}^{2})" display="inline"><semantics id="S4.SS2.p8.1.m1.1a"><mrow id="S4.SS2.p8.1.m1.1.1" xref="S4.SS2.p8.1.m1.1.1.cmml"><mi id="S4.SS2.p8.1.m1.1.1.3" xref="S4.SS2.p8.1.m1.1.1.3.cmml">ψ</mi><mo id="S4.SS2.p8.1.m1.1.1.2" xref="S4.SS2.p8.1.m1.1.1.2.cmml">∈</mo><mrow id="S4.SS2.p8.1.m1.1.1.1" xref="S4.SS2.p8.1.m1.1.1.1.cmml"><msup id="S4.SS2.p8.1.m1.1.1.1.3" xref="S4.SS2.p8.1.m1.1.1.1.3.cmml"><mi id="S4.SS2.p8.1.m1.1.1.1.3.2" xref="S4.SS2.p8.1.m1.1.1.1.3.2.cmml">L</mi><mn id="S4.SS2.p8.1.m1.1.1.1.3.3" xref="S4.SS2.p8.1.m1.1.1.1.3.3.cmml">2</mn></msup><mo lspace="0em" rspace="0em" id="S4.SS2.p8.1.m1.1.1.1.2" xref="S4.SS2.p8.1.m1.1.1.1.2.cmml">​</mo><mrow id="S4.SS2.p8.1.m1.1.1.1.1.1" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.SS2.p8.1.m1.1.1.1.1.1.2" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.cmml">(</mo><msup id="S4.SS2.p8.1.m1.1.1.1.1.1.1" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.cmml"><mi id="S4.SS2.p8.1.m1.1.1.1.1.1.1.2" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.2.cmml">ℝ</mi><mn id="S4.SS2.p8.1.m1.1.1.1.1.1.1.3" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.3.cmml">2</mn></msup><mo stretchy="false" id="S4.SS2.p8.1.m1.1.1.1.1.1.3" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p8.1.m1.1b"><apply id="S4.SS2.p8.1.m1.1.1.cmml" xref="S4.SS2.p8.1.m1.1.1"><in id="S4.SS2.p8.1.m1.1.1.2.cmml" xref="S4.SS2.p8.1.m1.1.1.2"></in><ci id="S4.SS2.p8.1.m1.1.1.3.cmml" xref="S4.SS2.p8.1.m1.1.1.3">𝜓</ci><apply id="S4.SS2.p8.1.m1.1.1.1.cmml" xref="S4.SS2.p8.1.m1.1.1.1"><times id="S4.SS2.p8.1.m1.1.1.1.2.cmml" xref="S4.SS2.p8.1.m1.1.1.1.2"></times><apply id="S4.SS2.p8.1.m1.1.1.1.3.cmml" xref="S4.SS2.p8.1.m1.1.1.1.3"><csymbol cd="ambiguous" id="S4.SS2.p8.1.m1.1.1.1.3.1.cmml" xref="S4.SS2.p8.1.m1.1.1.1.3">superscript</csymbol><ci id="S4.SS2.p8.1.m1.1.1.1.3.2.cmml" xref="S4.SS2.p8.1.m1.1.1.1.3.2">𝐿</ci><cn type="integer" id="S4.SS2.p8.1.m1.1.1.1.3.3.cmml" xref="S4.SS2.p8.1.m1.1.1.1.3.3">2</cn></apply><apply id="S4.SS2.p8.1.m1.1.1.1.1.1.1.cmml" xref="S4.SS2.p8.1.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS2.p8.1.m1.1.1.1.1.1.1.1.cmml" xref="S4.SS2.p8.1.m1.1.1.1.1.1">superscript</csymbol><ci id="S4.SS2.p8.1.m1.1.1.1.1.1.1.2.cmml" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.2">ℝ</ci><cn type="integer" id="S4.SS2.p8.1.m1.1.1.1.1.1.1.3.cmml" xref="S4.SS2.p8.1.m1.1.1.1.1.1.1.3">2</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p8.1.m1.1c">\psi\in L^{2}(\mathbbm{R}^{2})</annotation></semantics></math> the continuous shearlet system <math id="S4.SS2.p8.2.m2.1" class="ltx_Math" alttext="\mathcal{SH}(\psi)" display="inline"><semantics id="S4.SS2.p8.2.m2.1a"><mrow id="S4.SS2.p8.2.m2.1.2" xref="S4.SS2.p8.2.m2.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS2.p8.2.m2.1.2.2" xref="S4.SS2.p8.2.m2.1.2.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p8.2.m2.1.2.1" xref="S4.SS2.p8.2.m2.1.2.1.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S4.SS2.p8.2.m2.1.2.3" xref="S4.SS2.p8.2.m2.1.2.3.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p8.2.m2.1.2.1a" xref="S4.SS2.p8.2.m2.1.2.1.cmml">​</mo><mrow id="S4.SS2.p8.2.m2.1.2.4.2" xref="S4.SS2.p8.2.m2.1.2.cmml"><mo stretchy="false" id="S4.SS2.p8.2.m2.1.2.4.2.1" xref="S4.SS2.p8.2.m2.1.2.cmml">(</mo><mi id="S4.SS2.p8.2.m2.1.1" xref="S4.SS2.p8.2.m2.1.1.cmml">ψ</mi><mo stretchy="false" id="S4.SS2.p8.2.m2.1.2.4.2.2" xref="S4.SS2.p8.2.m2.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p8.2.m2.1b"><apply id="S4.SS2.p8.2.m2.1.2.cmml" xref="S4.SS2.p8.2.m2.1.2"><times id="S4.SS2.p8.2.m2.1.2.1.cmml" xref="S4.SS2.p8.2.m2.1.2.1"></times><ci id="S4.SS2.p8.2.m2.1.2.2.cmml" xref="S4.SS2.p8.2.m2.1.2.2">𝒮</ci><ci id="S4.SS2.p8.2.m2.1.2.3.cmml" xref="S4.SS2.p8.2.m2.1.2.3">ℋ</ci><ci id="S4.SS2.p8.2.m2.1.1.cmml" xref="S4.SS2.p8.2.m2.1.1">𝜓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p8.2.m2.1c">\mathcal{SH}(\psi)</annotation></semantics></math> is defined by</p>
+<table id="S4.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.E1.m1.4" class="ltx_math_unparsed" alttext="\mathcal{SH}(\psi)=\{\psi_{a,s,t}:=T_{t}D_{S_{s}}D_{A_{a}}\psi=a^{-3/4}\psi(A_{a}^{-1}S_{s}^{-1}(.-t)):a\in\mathbbm{R}^{*},s\in\mathbbm{R},t\in\mathbbm{R}^{2}\}." display="block"><semantics id="S4.E1.m1.4a"><mrow id="S4.E1.m1.4b"><mi class="ltx_font_mathcaligraphic" id="S4.E1.m1.4.5">𝒮</mi><mi class="ltx_font_mathcaligraphic" id="S4.E1.m1.4.6">ℋ</mi><mrow id="S4.E1.m1.4.7"><mo stretchy="false" id="S4.E1.m1.4.7.1">(</mo><mi id="S4.E1.m1.4.4">ψ</mi><mo stretchy="false" id="S4.E1.m1.4.7.2">)</mo></mrow><mo id="S4.E1.m1.4.8">=</mo><mrow id="S4.E1.m1.4.9"><mo stretchy="false" id="S4.E1.m1.4.9.1">{</mo><msub id="S4.E1.m1.4.9.2"><mi id="S4.E1.m1.4.9.2.2">ψ</mi><mrow id="S4.E1.m1.3.3.3.5"><mi id="S4.E1.m1.1.1.1.1">a</mi><mo id="S4.E1.m1.3.3.3.5.1">,</mo><mi id="S4.E1.m1.2.2.2.2">s</mi><mo id="S4.E1.m1.3.3.3.5.2">,</mo><mi id="S4.E1.m1.3.3.3.3">t</mi></mrow></msub><mo lspace="0.278em" rspace="0.278em" id="S4.E1.m1.4.9.3">:=</mo><msub id="S4.E1.m1.4.9.4"><mi id="S4.E1.m1.4.9.4.2">T</mi><mi id="S4.E1.m1.4.9.4.3">t</mi></msub><msub id="S4.E1.m1.4.9.5"><mi id="S4.E1.m1.4.9.5.2">D</mi><msub id="S4.E1.m1.4.9.5.3"><mi id="S4.E1.m1.4.9.5.3.2">S</mi><mi id="S4.E1.m1.4.9.5.3.3">s</mi></msub></msub><msub id="S4.E1.m1.4.9.6"><mi id="S4.E1.m1.4.9.6.2">D</mi><msub id="S4.E1.m1.4.9.6.3"><mi id="S4.E1.m1.4.9.6.3.2">A</mi><mi id="S4.E1.m1.4.9.6.3.3">a</mi></msub></msub><mi id="S4.E1.m1.4.9.7">ψ</mi><mo id="S4.E1.m1.4.9.8">=</mo><msup id="S4.E1.m1.4.9.9"><mi id="S4.E1.m1.4.9.9.2">a</mi><mrow id="S4.E1.m1.4.9.9.3"><mo id="S4.E1.m1.4.9.9.3a">−</mo><mrow id="S4.E1.m1.4.9.9.3.2"><mn id="S4.E1.m1.4.9.9.3.2.2">3</mn><mo id="S4.E1.m1.4.9.9.3.2.1">/</mo><mn id="S4.E1.m1.4.9.9.3.2.3">4</mn></mrow></mrow></msup><mi id="S4.E1.m1.4.9.10">ψ</mi><mrow id="S4.E1.m1.4.9.11"><mo stretchy="false" id="S4.E1.m1.4.9.11.1">(</mo><msubsup id="S4.E1.m1.4.9.11.2"><mi id="S4.E1.m1.4.9.11.2.2.2">A</mi><mi id="S4.E1.m1.4.9.11.2.2.3">a</mi><mrow id="S4.E1.m1.4.9.11.2.3"><mo id="S4.E1.m1.4.9.11.2.3a">−</mo><mn id="S4.E1.m1.4.9.11.2.3.2">1</mn></mrow></msubsup><msubsup id="S4.E1.m1.4.9.11.3"><mi id="S4.E1.m1.4.9.11.3.2.2">S</mi><mi id="S4.E1.m1.4.9.11.3.2.3">s</mi><mrow id="S4.E1.m1.4.9.11.3.3"><mo id="S4.E1.m1.4.9.11.3.3a">−</mo><mn id="S4.E1.m1.4.9.11.3.3.2">1</mn></mrow></msubsup><mrow id="S4.E1.m1.4.9.11.4"><mo stretchy="false" id="S4.E1.m1.4.9.11.4.1">(</mo><mo lspace="0em" rspace="0em" id="S4.E1.m1.4.9.11.4.2">.</mo><mo lspace="0em" id="S4.E1.m1.4.9.11.4.3">−</mo><mi id="S4.E1.m1.4.9.11.4.4">t</mi><mo stretchy="false" id="S4.E1.m1.4.9.11.4.5">)</mo></mrow><mo rspace="0.278em" stretchy="false" id="S4.E1.m1.4.9.11.5">)</mo></mrow><mo rspace="0.278em" id="S4.E1.m1.4.9.12">:</mo><mi id="S4.E1.m1.4.9.13">a</mi><mo id="S4.E1.m1.4.9.14">∈</mo><msup id="S4.E1.m1.4.9.15"><mi id="S4.E1.m1.4.9.15.2">ℝ</mi><mo id="S4.E1.m1.4.9.15.3">∗</mo></msup><mo id="S4.E1.m1.4.9.16">,</mo><mi id="S4.E1.m1.4.9.17">s</mi><mo id="S4.E1.m1.4.9.18">∈</mo><mi id="S4.E1.m1.4.9.19">ℝ</mi><mo id="S4.E1.m1.4.9.20">,</mo><mi id="S4.E1.m1.4.9.21">t</mi><mo id="S4.E1.m1.4.9.22">∈</mo><msup id="S4.E1.m1.4.9.23"><mi id="S4.E1.m1.4.9.23.2">ℝ</mi><mn id="S4.E1.m1.4.9.23.3">2</mn></msup><mo stretchy="false" id="S4.E1.m1.4.9.24">}</mo></mrow><mo lspace="0em" id="S4.E1.m1.4.10">.</mo></mrow><annotation encoding="application/x-tex" id="S4.E1.m1.4c">\mathcal{SH}(\psi)=\{\psi_{a,s,t}:=T_{t}D_{S_{s}}D_{A_{a}}\psi=a^{-3/4}\psi(A_{a}^{-1}S_{s}^{-1}(.-t)):a\in\mathbbm{R}^{*},s\in\mathbbm{R},t\in\mathbbm{R}^{2}\}.</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS2.p9" class="ltx_para ltx_noindent">
+<p id="S4.SS2.p9.4" class="ltx_p">There are certain admissibility requirements for <math id="S4.SS2.p9.1.m1.1" class="ltx_Math" alttext="\psi" display="inline"><semantics id="S4.SS2.p9.1.m1.1a"><mi id="S4.SS2.p9.1.m1.1.1" xref="S4.SS2.p9.1.m1.1.1.cmml">ψ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p9.1.m1.1b"><ci id="S4.SS2.p9.1.m1.1.1.cmml" xref="S4.SS2.p9.1.m1.1.1">𝜓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p9.1.m1.1c">\psi</annotation></semantics></math>. The <math id="S4.SS2.p9.2.m2.1" class="ltx_Math" alttext="\psi" display="inline"><semantics id="S4.SS2.p9.2.m2.1a"><mi id="S4.SS2.p9.2.m2.1.1" xref="S4.SS2.p9.2.m2.1.1.cmml">ψ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p9.2.m2.1b"><ci id="S4.SS2.p9.2.m2.1.1.cmml" xref="S4.SS2.p9.2.m2.1.1">𝜓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p9.2.m2.1c">\psi</annotation></semantics></math> would actually be the key that would passed to the hidden module in the model and also shared with image owners. Both the hidden module and the image owner will first construct the shearlet system based on the given <math id="S4.SS2.p9.3.m3.1" class="ltx_Math" alttext="\psi" display="inline"><semantics id="S4.SS2.p9.3.m3.1a"><mi id="S4.SS2.p9.3.m3.1.1" xref="S4.SS2.p9.3.m3.1.1.cmml">ψ</mi><annotation-xml encoding="MathML-Content" id="S4.SS2.p9.3.m3.1b"><ci id="S4.SS2.p9.3.m3.1.1.cmml" xref="S4.SS2.p9.3.m3.1.1">𝜓</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p9.3.m3.1c">\psi</annotation></semantics></math>, and then use the <math id="S4.SS2.p9.4.m4.1" class="ltx_Math" alttext="\mathcal{SH}(\psi)" display="inline"><semantics id="S4.SS2.p9.4.m4.1a"><mrow id="S4.SS2.p9.4.m4.1.2" xref="S4.SS2.p9.4.m4.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS2.p9.4.m4.1.2.2" xref="S4.SS2.p9.4.m4.1.2.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p9.4.m4.1.2.1" xref="S4.SS2.p9.4.m4.1.2.1.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S4.SS2.p9.4.m4.1.2.3" xref="S4.SS2.p9.4.m4.1.2.3.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S4.SS2.p9.4.m4.1.2.1a" xref="S4.SS2.p9.4.m4.1.2.1.cmml">​</mo><mrow id="S4.SS2.p9.4.m4.1.2.4.2" xref="S4.SS2.p9.4.m4.1.2.cmml"><mo stretchy="false" id="S4.SS2.p9.4.m4.1.2.4.2.1" xref="S4.SS2.p9.4.m4.1.2.cmml">(</mo><mi id="S4.SS2.p9.4.m4.1.1" xref="S4.SS2.p9.4.m4.1.1.cmml">ψ</mi><mo stretchy="false" id="S4.SS2.p9.4.m4.1.2.4.2.2" xref="S4.SS2.p9.4.m4.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS2.p9.4.m4.1b"><apply id="S4.SS2.p9.4.m4.1.2.cmml" xref="S4.SS2.p9.4.m4.1.2"><times id="S4.SS2.p9.4.m4.1.2.1.cmml" xref="S4.SS2.p9.4.m4.1.2.1"></times><ci id="S4.SS2.p9.4.m4.1.2.2.cmml" xref="S4.SS2.p9.4.m4.1.2.2">𝒮</ci><ci id="S4.SS2.p9.4.m4.1.2.3.cmml" xref="S4.SS2.p9.4.m4.1.2.3">ℋ</ci><ci id="S4.SS2.p9.4.m4.1.1.cmml" xref="S4.SS2.p9.4.m4.1.1">𝜓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS2.p9.4.m4.1c">\mathcal{SH}(\psi)</annotation></semantics></math> to decompose or reconstruct the images, as we explain in the next section.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Processing images with shearlets</h3>
+
+<div id="S4.SS3.p1" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p1.2" class="ltx_p">To decompose image <math id="S4.SS3.p1.1.m1.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S4.SS3.p1.1.m1.1a"><mi id="S4.SS3.p1.1.m1.1.1" xref="S4.SS3.p1.1.m1.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.1.m1.1b"><ci id="S4.SS3.p1.1.m1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.1.m1.1c">x</annotation></semantics></math> with shearlet system <math id="S4.SS3.p1.2.m2.1" class="ltx_Math" alttext="\mathcal{SH}(\psi)" display="inline"><semantics id="S4.SS3.p1.2.m2.1a"><mrow id="S4.SS3.p1.2.m2.1.2" xref="S4.SS3.p1.2.m2.1.2.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS3.p1.2.m2.1.2.2" xref="S4.SS3.p1.2.m2.1.2.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.2.m2.1.2.1" xref="S4.SS3.p1.2.m2.1.2.1.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S4.SS3.p1.2.m2.1.2.3" xref="S4.SS3.p1.2.m2.1.2.3.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S4.SS3.p1.2.m2.1.2.1a" xref="S4.SS3.p1.2.m2.1.2.1.cmml">​</mo><mrow id="S4.SS3.p1.2.m2.1.2.4.2" xref="S4.SS3.p1.2.m2.1.2.cmml"><mo stretchy="false" id="S4.SS3.p1.2.m2.1.2.4.2.1" xref="S4.SS3.p1.2.m2.1.2.cmml">(</mo><mi id="S4.SS3.p1.2.m2.1.1" xref="S4.SS3.p1.2.m2.1.1.cmml">ψ</mi><mo stretchy="false" id="S4.SS3.p1.2.m2.1.2.4.2.2" xref="S4.SS3.p1.2.m2.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.2.m2.1b"><apply id="S4.SS3.p1.2.m2.1.2.cmml" xref="S4.SS3.p1.2.m2.1.2"><times id="S4.SS3.p1.2.m2.1.2.1.cmml" xref="S4.SS3.p1.2.m2.1.2.1"></times><ci id="S4.SS3.p1.2.m2.1.2.2.cmml" xref="S4.SS3.p1.2.m2.1.2.2">𝒮</ci><ci id="S4.SS3.p1.2.m2.1.2.3.cmml" xref="S4.SS3.p1.2.m2.1.2.3">ℋ</ci><ci id="S4.SS3.p1.2.m2.1.1.cmml" xref="S4.SS3.p1.2.m2.1.1">𝜓</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.2.m2.1c">\mathcal{SH}(\psi)</annotation></semantics></math>, we use</p>
+<table id="S4.E2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.E2.m1.4" class="ltx_Math" alttext="[c]=\mathrm{shdec}(x,\mathcal{SH}(\psi))," display="block"><semantics id="S4.E2.m1.4a"><mrow id="S4.E2.m1.4.4.1" xref="S4.E2.m1.4.4.1.1.cmml"><mrow id="S4.E2.m1.4.4.1.1" xref="S4.E2.m1.4.4.1.1.cmml"><mrow id="S4.E2.m1.4.4.1.1.3.2" xref="S4.E2.m1.4.4.1.1.3.1.cmml"><mo stretchy="false" id="S4.E2.m1.4.4.1.1.3.2.1" xref="S4.E2.m1.4.4.1.1.3.1.1.cmml">[</mo><mi id="S4.E2.m1.1.1" xref="S4.E2.m1.1.1.cmml">c</mi><mo stretchy="false" id="S4.E2.m1.4.4.1.1.3.2.2" xref="S4.E2.m1.4.4.1.1.3.1.1.cmml">]</mo></mrow><mo id="S4.E2.m1.4.4.1.1.2" xref="S4.E2.m1.4.4.1.1.2.cmml">=</mo><mrow id="S4.E2.m1.4.4.1.1.1" xref="S4.E2.m1.4.4.1.1.1.cmml"><mi id="S4.E2.m1.4.4.1.1.1.3" xref="S4.E2.m1.4.4.1.1.1.3.cmml">shdec</mi><mo lspace="0em" rspace="0em" id="S4.E2.m1.4.4.1.1.1.2" xref="S4.E2.m1.4.4.1.1.1.2.cmml">​</mo><mrow id="S4.E2.m1.4.4.1.1.1.1.1" xref="S4.E2.m1.4.4.1.1.1.1.2.cmml"><mo stretchy="false" id="S4.E2.m1.4.4.1.1.1.1.1.2" xref="S4.E2.m1.4.4.1.1.1.1.2.cmml">(</mo><mi id="S4.E2.m1.3.3" xref="S4.E2.m1.3.3.cmml">x</mi><mo id="S4.E2.m1.4.4.1.1.1.1.1.3" xref="S4.E2.m1.4.4.1.1.1.1.2.cmml">,</mo><mrow id="S4.E2.m1.4.4.1.1.1.1.1.1" xref="S4.E2.m1.4.4.1.1.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.E2.m1.4.4.1.1.1.1.1.1.2" xref="S4.E2.m1.4.4.1.1.1.1.1.1.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S4.E2.m1.4.4.1.1.1.1.1.1.1" xref="S4.E2.m1.4.4.1.1.1.1.1.1.1.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S4.E2.m1.4.4.1.1.1.1.1.1.3" xref="S4.E2.m1.4.4.1.1.1.1.1.1.3.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S4.E2.m1.4.4.1.1.1.1.1.1.1a" xref="S4.E2.m1.4.4.1.1.1.1.1.1.1.cmml">​</mo><mrow id="S4.E2.m1.4.4.1.1.1.1.1.1.4.2" xref="S4.E2.m1.4.4.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.E2.m1.4.4.1.1.1.1.1.1.4.2.1" xref="S4.E2.m1.4.4.1.1.1.1.1.1.cmml">(</mo><mi id="S4.E2.m1.2.2" xref="S4.E2.m1.2.2.cmml">ψ</mi><mo stretchy="false" id="S4.E2.m1.4.4.1.1.1.1.1.1.4.2.2" xref="S4.E2.m1.4.4.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S4.E2.m1.4.4.1.1.1.1.1.4" xref="S4.E2.m1.4.4.1.1.1.1.2.cmml">)</mo></mrow></mrow></mrow><mo id="S4.E2.m1.4.4.1.2" xref="S4.E2.m1.4.4.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.E2.m1.4b"><apply id="S4.E2.m1.4.4.1.1.cmml" xref="S4.E2.m1.4.4.1"><eq id="S4.E2.m1.4.4.1.1.2.cmml" xref="S4.E2.m1.4.4.1.1.2"></eq><apply id="S4.E2.m1.4.4.1.1.3.1.cmml" xref="S4.E2.m1.4.4.1.1.3.2"><csymbol cd="latexml" id="S4.E2.m1.4.4.1.1.3.1.1.cmml" xref="S4.E2.m1.4.4.1.1.3.2.1">delimited-[]</csymbol><ci id="S4.E2.m1.1.1.cmml" xref="S4.E2.m1.1.1">𝑐</ci></apply><apply id="S4.E2.m1.4.4.1.1.1.cmml" xref="S4.E2.m1.4.4.1.1.1"><times id="S4.E2.m1.4.4.1.1.1.2.cmml" xref="S4.E2.m1.4.4.1.1.1.2"></times><ci id="S4.E2.m1.4.4.1.1.1.3.cmml" xref="S4.E2.m1.4.4.1.1.1.3">shdec</ci><interval closure="open" id="S4.E2.m1.4.4.1.1.1.1.2.cmml" xref="S4.E2.m1.4.4.1.1.1.1.1"><ci id="S4.E2.m1.3.3.cmml" xref="S4.E2.m1.3.3">𝑥</ci><apply id="S4.E2.m1.4.4.1.1.1.1.1.1.cmml" xref="S4.E2.m1.4.4.1.1.1.1.1.1"><times id="S4.E2.m1.4.4.1.1.1.1.1.1.1.cmml" xref="S4.E2.m1.4.4.1.1.1.1.1.1.1"></times><ci id="S4.E2.m1.4.4.1.1.1.1.1.1.2.cmml" xref="S4.E2.m1.4.4.1.1.1.1.1.1.2">𝒮</ci><ci id="S4.E2.m1.4.4.1.1.1.1.1.1.3.cmml" xref="S4.E2.m1.4.4.1.1.1.1.1.1.3">ℋ</ci><ci id="S4.E2.m1.2.2.cmml" xref="S4.E2.m1.2.2">𝜓</ci></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E2.m1.4c">[c]=\mathrm{shdec}(x,\mathcal{SH}(\psi)),</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS3.p2" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p2.1" class="ltx_p">This operation is reversible, meaning that given a shearlet system and a set of shearlet coefficients, we can reconstruct an image</p>
+<table id="S4.E3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.E3.m1.4" class="ltx_Math" alttext="[x]=\mathrm{shrec}(c,\mathcal{SH}(\psi))." display="block"><semantics id="S4.E3.m1.4a"><mrow id="S4.E3.m1.4.4.1" xref="S4.E3.m1.4.4.1.1.cmml"><mrow id="S4.E3.m1.4.4.1.1" xref="S4.E3.m1.4.4.1.1.cmml"><mrow id="S4.E3.m1.4.4.1.1.3.2" xref="S4.E3.m1.4.4.1.1.3.1.cmml"><mo stretchy="false" id="S4.E3.m1.4.4.1.1.3.2.1" xref="S4.E3.m1.4.4.1.1.3.1.1.cmml">[</mo><mi id="S4.E3.m1.1.1" xref="S4.E3.m1.1.1.cmml">x</mi><mo stretchy="false" id="S4.E3.m1.4.4.1.1.3.2.2" xref="S4.E3.m1.4.4.1.1.3.1.1.cmml">]</mo></mrow><mo id="S4.E3.m1.4.4.1.1.2" xref="S4.E3.m1.4.4.1.1.2.cmml">=</mo><mrow id="S4.E3.m1.4.4.1.1.1" xref="S4.E3.m1.4.4.1.1.1.cmml"><mi id="S4.E3.m1.4.4.1.1.1.3" xref="S4.E3.m1.4.4.1.1.1.3.cmml">shrec</mi><mo lspace="0em" rspace="0em" id="S4.E3.m1.4.4.1.1.1.2" xref="S4.E3.m1.4.4.1.1.1.2.cmml">​</mo><mrow id="S4.E3.m1.4.4.1.1.1.1.1" xref="S4.E3.m1.4.4.1.1.1.1.2.cmml"><mo stretchy="false" id="S4.E3.m1.4.4.1.1.1.1.1.2" xref="S4.E3.m1.4.4.1.1.1.1.2.cmml">(</mo><mi id="S4.E3.m1.3.3" xref="S4.E3.m1.3.3.cmml">c</mi><mo id="S4.E3.m1.4.4.1.1.1.1.1.3" xref="S4.E3.m1.4.4.1.1.1.1.2.cmml">,</mo><mrow id="S4.E3.m1.4.4.1.1.1.1.1.1" xref="S4.E3.m1.4.4.1.1.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.E3.m1.4.4.1.1.1.1.1.1.2" xref="S4.E3.m1.4.4.1.1.1.1.1.1.2.cmml">𝒮</mi><mo lspace="0em" rspace="0em" id="S4.E3.m1.4.4.1.1.1.1.1.1.1" xref="S4.E3.m1.4.4.1.1.1.1.1.1.1.cmml">​</mo><mi class="ltx_font_mathcaligraphic" id="S4.E3.m1.4.4.1.1.1.1.1.1.3" xref="S4.E3.m1.4.4.1.1.1.1.1.1.3.cmml">ℋ</mi><mo lspace="0em" rspace="0em" id="S4.E3.m1.4.4.1.1.1.1.1.1.1a" xref="S4.E3.m1.4.4.1.1.1.1.1.1.1.cmml">​</mo><mrow id="S4.E3.m1.4.4.1.1.1.1.1.1.4.2" xref="S4.E3.m1.4.4.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.E3.m1.4.4.1.1.1.1.1.1.4.2.1" xref="S4.E3.m1.4.4.1.1.1.1.1.1.cmml">(</mo><mi id="S4.E3.m1.2.2" xref="S4.E3.m1.2.2.cmml">ψ</mi><mo stretchy="false" id="S4.E3.m1.4.4.1.1.1.1.1.1.4.2.2" xref="S4.E3.m1.4.4.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo stretchy="false" id="S4.E3.m1.4.4.1.1.1.1.1.4" xref="S4.E3.m1.4.4.1.1.1.1.2.cmml">)</mo></mrow></mrow></mrow><mo lspace="0em" id="S4.E3.m1.4.4.1.2" xref="S4.E3.m1.4.4.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S4.E3.m1.4b"><apply id="S4.E3.m1.4.4.1.1.cmml" xref="S4.E3.m1.4.4.1"><eq id="S4.E3.m1.4.4.1.1.2.cmml" xref="S4.E3.m1.4.4.1.1.2"></eq><apply id="S4.E3.m1.4.4.1.1.3.1.cmml" xref="S4.E3.m1.4.4.1.1.3.2"><csymbol cd="latexml" id="S4.E3.m1.4.4.1.1.3.1.1.cmml" xref="S4.E3.m1.4.4.1.1.3.2.1">delimited-[]</csymbol><ci id="S4.E3.m1.1.1.cmml" xref="S4.E3.m1.1.1">𝑥</ci></apply><apply id="S4.E3.m1.4.4.1.1.1.cmml" xref="S4.E3.m1.4.4.1.1.1"><times id="S4.E3.m1.4.4.1.1.1.2.cmml" xref="S4.E3.m1.4.4.1.1.1.2"></times><ci id="S4.E3.m1.4.4.1.1.1.3.cmml" xref="S4.E3.m1.4.4.1.1.1.3">shrec</ci><interval closure="open" id="S4.E3.m1.4.4.1.1.1.1.2.cmml" xref="S4.E3.m1.4.4.1.1.1.1.1"><ci id="S4.E3.m1.3.3.cmml" xref="S4.E3.m1.3.3">𝑐</ci><apply id="S4.E3.m1.4.4.1.1.1.1.1.1.cmml" xref="S4.E3.m1.4.4.1.1.1.1.1.1"><times id="S4.E3.m1.4.4.1.1.1.1.1.1.1.cmml" xref="S4.E3.m1.4.4.1.1.1.1.1.1.1"></times><ci id="S4.E3.m1.4.4.1.1.1.1.1.1.2.cmml" xref="S4.E3.m1.4.4.1.1.1.1.1.1.2">𝒮</ci><ci id="S4.E3.m1.4.4.1.1.1.1.1.1.3.cmml" xref="S4.E3.m1.4.4.1.1.1.1.1.1.3">ℋ</ci><ci id="S4.E3.m1.2.2.cmml" xref="S4.E3.m1.2.2">𝜓</ci></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E3.m1.4c">[x]=\mathrm{shrec}(c,\mathcal{SH}(\psi)).</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+</div>
+<div id="S4.SS3.p3" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p3.1" class="ltx_p">The first function will be used by image owners to decompose their images, and the second function will be hidden inside the model to reconstruct the images before putting them through the convolutional layers.</p>
+</div>
+<div id="S4.SS3.p4" class="ltx_para ltx_noindent">
+<p id="S4.SS3.p4.1" class="ltx_p">Generally, shearlet coefficients can be real-valued or complex. We suggest using truncated boundary conditions which would lead to complex shearlet coefficients, making it harder for the adversary to decrypt the images.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para ltx_noindent">
+<p id="S5.p1.1" class="ltx_p">In this paper, we reviewed the limitations of privacy preserving methods that mix training images in order to hide them from the entity in charge of federated training. We explained that although such methods hide the contents of training images, they provide exact samples on the decision boundaries of the trained to that same entity. If the entity cannot be trusted with our training images, how can we trust it with the decision boundaries of our models? As a remedy, we proposed using shearlets to encrypt the images while transmitting them in the federated learning system, and then having a decryption module hidden inside the model in order to reconstruct the images before feeding them through the convolutional layers. In this setting, not only we have hidden the training images, we have also hidden the location of the decision boundaries.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Future work</h2>
+
+<div id="S6.p1" class="ltx_para ltx_noindent">
+<p id="S6.p1.1" class="ltx_p">We shall focus on the choice of <math id="S6.p1.1.m1.1" class="ltx_Math" alttext="\psi" display="inline"><semantics id="S6.p1.1.m1.1a"><mi id="S6.p1.1.m1.1.1" xref="S6.p1.1.m1.1.1.cmml">ψ</mi><annotation-xml encoding="MathML-Content" id="S6.p1.1.m1.1b"><ci id="S6.p1.1.m1.1.1.cmml" xref="S6.p1.1.m1.1.1">𝜓</ci></annotation-xml><annotation encoding="application/x-tex" id="S6.p1.1.m1.1c">\psi</annotation></semantics></math> for creating the shearlet system and rigorously show that inferring the images from their complex-valued shearlet coefficients will be hard. There has been some studies on this front in the literature which we aim to expand on. It can be particularly useful to study the shearlet encryption in the Shamir’s secret sharing scheme <cite class="ltx_cite ltx_citemacro_citep">(Yang et al., <a href="#bib.bib23" title="" class="ltx_ref">2004</a>)</cite>. This has been studied to some extent for wavelets <cite class="ltx_cite ltx_citemacro_citep">(Ulutas et al., <a href="#bib.bib22" title="" class="ltx_ref">2011</a>)</cite>, but shearlet systems can be more complicated than wavelets.</p>
+</div>
+<section id="S6.SS0.SSSx1" class="ltx_subsubsection">
+<h4 class="ltx_title ltx_title_subsubsection">Acknowledgments</h4>
+
+<div id="S6.SS0.SSSx1.p1" class="ltx_para ltx_noindent">
+<p id="S6.SS0.SSSx1.p1.1" class="ltx_p">R.Y. is supported by a fellowship from the Department of Veterans Affairs. The views expressed in this manuscript are those of the author and do not necessarily reflect the position or policy of the Department of Veterans Affairs or the United States government.</p>
+</div>
+</section>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Andrade-Loarca et al. (2020)</span>
+<span class="ltx_bibblock">
+Héctor Andrade-Loarca, Gitta Kutyniok, and Ozan Öktem.
+
+</span>
+<span class="ltx_bibblock">Shearlets as feature extractor for semantic edge detection: the
+model-based and data-driven realm.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">Proceedings of the Royal Society A</em>, 476(2243):20190841, 2020.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Boulemtafes et al. (2020)</span>
+<span class="ltx_bibblock">
+Amine Boulemtafes, Abdelouahid Derhab, and Yacine Challal.
+
+</span>
+<span class="ltx_bibblock">A review of privacy-preserving techniques for deep learning.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Neurocomputing</em>, 384:21–45, 2020.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen &amp; Zhao (2005)</span>
+<span class="ltx_bibblock">
+Linfei Chen and Daomu Zhao.
+
+</span>
+<span class="ltx_bibblock">Optical image encryption based on fractional wavelet transform.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Optics Communications</em>, 254(4-6):361–367,
+2005.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen &amp; Zhao (2008)</span>
+<span class="ltx_bibblock">
+Linfei Chen and Daomu Zhao.
+
+</span>
+<span class="ltx_bibblock">Image encryption with fractional wavelet packet method.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Optik</em>, 119(6):286–291, 2008.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2020)</span>
+<span class="ltx_bibblock">
+Mingming Chen, Guangbiao Ma, Chen Tang, and Zhenkun Lei.
+
+</span>
+<span class="ltx_bibblock">Generalized optical encryption framework based on shearlets for
+medical image.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">Optics and Lasers in Engineering</em>, 128:106026, 2020.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Cohen et al. (2019)</span>
+<span class="ltx_bibblock">
+Jeremy Cohen, Elan Rosenfeld, and Zico Kolter.
+
+</span>
+<span class="ltx_bibblock">Certified adversarial robustness via randomized smoothing.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">International Conference on Machine Learning</em>, pp. 1310–1320, 2019.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Daubechies (1990)</span>
+<span class="ltx_bibblock">
+Ingrid Daubechies.
+
+</span>
+<span class="ltx_bibblock">The wavelet transform, time-frequency localization and signal
+analysis.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">IEEE Transactions on Information Theory</em>, 36(5):961–1005, 1990.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Elsayed et al. (2018)</span>
+<span class="ltx_bibblock">
+Gamaleldin Elsayed, Dilip Krishnan, Hossein Mobahi, Kevin Regan, and Samy
+Bengio.
+
+</span>
+<span class="ltx_bibblock">Large margin deep networks for classification.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems</em>, pp. 842–852, 2018.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Fawzi et al. (2018)</span>
+<span class="ltx_bibblock">
+Alhussein Fawzi, Seyed-Mohsen Moosavi-Dezfooli, Pascal Frossard, and Stefano
+Soatto.
+
+</span>
+<span class="ltx_bibblock">Empirical study of the topology and geometry of deep networks.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">IEEE Conference on Computer Vision and Pattern Recognition</em>,
+pp.  3762–3770, 2018.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Fu et al. (2019)</span>
+<span class="ltx_bibblock">
+Yingwei Fu, Huaimin Wang, Kele Xu, Haibo Mi, and Yijie Wang.
+
+</span>
+<span class="ltx_bibblock">Mixup based privacy preserving mixed collaboration learning.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">IEEE International Conference on Service-Oriented System
+Engineering</em>, pp.  275–2755, 2019.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Huang et al. (2020)</span>
+<span class="ltx_bibblock">
+Yangsibo Huang, Zhao Song, Kai Li, and Sanjeev Arora.
+
+</span>
+<span class="ltx_bibblock">Instahide: Instance-hiding schemes for private distributed learning.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">International Conference on Machine Learning</em>, pp. 4507–4518, 2020.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Jiang et al. (2019)</span>
+<span class="ltx_bibblock">
+Yiding Jiang, Dilip Krishnan, Hossein Mobahi, and Samy Bengio.
+
+</span>
+<span class="ltx_bibblock">Predicting the generalization gap in deep networks with margin
+distributions.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Konečnỳ et al. (2016)</span>
+<span class="ltx_bibblock">
+Jakub Konečnỳ, H Brendan McMahan, Felix X Yu, Peter Richtárik,
+Ananda Theertha Suresh, and Dave Bacon.
+
+</span>
+<span class="ltx_bibblock">Federated learning: Strategies for improving communication
+efficiency.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1610.05492</em>, 2016.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kumar et al. (2018)</span>
+<span class="ltx_bibblock">
+Ravi Kumar, Basanta Bhaduri, and Bryan Hennelly.
+
+</span>
+<span class="ltx_bibblock">Qr code-based non-linear image encryption using shearlet transform
+and spiral phase transform.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">Journal of Modern Optics</em>, 65(3):321–330,
+2018.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kutyniok &amp; Labate (2012)</span>
+<span class="ltx_bibblock">
+Gitta Kutyniok and Demetrio Labate.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">Shearlets: Multiscale analysis for multivariate data</em>.
+
+</span>
+<span class="ltx_bibblock">Springer Science &amp; Business Media, 2012.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Labate et al. (2005)</span>
+<span class="ltx_bibblock">
+Demetrio Labate, Wang-Q Lim, Gitta Kutyniok, and Guido Weiss.
+
+</span>
+<span class="ltx_bibblock">Sparse multidimensional representation using shearlets.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Wavelets XI</em>, volume 5914, pp.  59140U. International
+Society for Optics and Photonics, 2005.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Li et al. (2020)</span>
+<span class="ltx_bibblock">
+Tian Li, Anit Kumar Sahu, Ameet Talwalkar, and Virginia Smith.
+
+</span>
+<span class="ltx_bibblock">Federated learning: Challenges, methods, and future directions.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">IEEE Signal Processing Magazine</em>, 37(3):50–60, 2020.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Luo et al. (2015)</span>
+<span class="ltx_bibblock">
+Yuling Luo, Minghui Du, and Junxiu Liu.
+
+</span>
+<span class="ltx_bibblock">A symmetrical image encryption scheme in wavelet and time domain.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">Communications in Nonlinear Science and Numerical Simulation</em>,
+20(2):447–460, 2015.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Shafahi et al. (2019)</span>
+<span class="ltx_bibblock">
+Ali Shafahi, W Ronny Huang, Christoph Studer, Soheil Feizi, and Tom Goldstein.
+
+</span>
+<span class="ltx_bibblock">Are adversarial examples inevitable?
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>, 2019.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Strang (2019)</span>
+<span class="ltx_bibblock">
+Gilbert Strang.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Linear Algebra and Learning from Data</em>.
+
+</span>
+<span class="ltx_bibblock">Wellesley-Cambridge Press, 2019.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Tramer et al. (2020)</span>
+<span class="ltx_bibblock">
+Florian Tramer, Nicholas Carlini, Wieland Brendel, and Aleksander Madry.
+
+</span>
+<span class="ltx_bibblock">On adaptive attacks to adversarial example defenses.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems</em>, pp. 1633–1645, 2020.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ulutas et al. (2011)</span>
+<span class="ltx_bibblock">
+Mustafa Ulutas, Güzin Ulutas, and Vasif V Nabiyev.
+
+</span>
+<span class="ltx_bibblock">Medical image security and EPR hiding using Shamir’s secret
+sharing scheme.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">Journal of Systems and Software</em>, 84(3):341–353, 2011.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2004)</span>
+<span class="ltx_bibblock">
+Chou-Chen Yang, Ting-Yi Chang, and Min-Shiang Hwang.
+
+</span>
+<span class="ltx_bibblock">A (t, n) multi-secret sharing scheme.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">Applied Mathematics and Computation</em>, 151(2):483–490, 2004.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2019)</span>
+<span class="ltx_bibblock">
+Qiang Yang, Yang Liu, Tianjian Chen, and Yongxin Tong.
+
+</span>
+<span class="ltx_bibblock">Federated machine learning: Concept and applications.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">ACM Transactions on Intelligent Systems and Technology</em>,
+10(2):1–19, 2019.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2018)</span>
+<span class="ltx_bibblock">
+Hongyi Zhang, Moustapha Cisse, Yann N Dauphin, and David Lopez-Paz.
+
+</span>
+<span class="ltx_bibblock">mixup: Beyond empirical risk minimization.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>, 2018.
+
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2103.00694" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2103.00695" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2103.00695">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2103.00695" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2103.00696" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Mar 16 04:55:01 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

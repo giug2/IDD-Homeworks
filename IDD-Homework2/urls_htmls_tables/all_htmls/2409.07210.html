@@ -1,0 +1,892 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2409.07210] Enhancing CTC-Based Visual Speech Recognition</title><meta property="og:description" content="This paper presents LiteVSR2, an enhanced version of our previously introduced efficient approach to Visual Speech Recognition (VSR). Building upon our knowledge distillation framework from a pre-trained Automatic Spee…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Enhancing CTC-Based Visual Speech Recognition">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Enhancing CTC-Based Visual Speech Recognition">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2409.07210">
+
+<!--Generated on Sun Oct  6 01:26:56 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Enhancing CTC-Based Visual Speech Recognition</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p"><span id="id1.id1.1" class="ltx_text" style="font-size:90%;">This paper presents LiteVSR2, an enhanced version of our previously introduced efficient approach to Visual Speech Recognition (VSR). Building upon our knowledge distillation framework from a pre-trained Automatic Speech Recognition (ASR) model, we introduce two key improvements: a stabilized video preprocessing technique and feature normalization in the distillation process. These improvements yield substantial performance gains on the LRS2 and LRS3 benchmarks, positioning LiteVSR2 as the current best CTC-based VSR model without increasing the volume of training data or computational resources utilized.
+Furthermore, we explore the scalability of our approach by examining performance metrics across varying model complexities and training data volumes. LiteVSR2 maintains the efficiency of its predecessor while significantly enhancing accuracy, thereby demonstrating the potential for resource-efficient advancements in VSR technology.</span></p>
+</div>
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p"><span id="p1.1.1" class="ltx_text ltx_font_bold ltx_font_italic" style="font-size:90%;">Index Terms<span id="p1.1.1.1" class="ltx_text ltx_font_upright">— <span id="p1.1.1.1.1" class="ltx_text ltx_font_medium">
+Visual Speech Recognition, Automatic Speech Recognition, CTC, Knowledge Distillation, Feature Normalization</span></span></span></p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p"><span id="S1.p1.1.1" class="ltx_text" style="font-size:90%;">Visual Speech Recognition (VSR), also known as automatic lip reading, is the process of decoding linguistic content from sequences of visual input depicting a speaker’s facial movements, particularly those of the lips, teeth, and tongue. While sharing fundamental objectives with Automatic Speech Recognition (ASR), VSR distinguishes itself by operating solely on the visual input domain, as opposed to the acoustic signals utilized in ASR.
+VSR models try to learn a mapping between visemes and a sequence of characters or subword tokens, where visemes represent the visual counterparts of phonemes in spoken language. However, the exclusive use of visemes in speech transcription introduces inherent ambiguities that pose a significant challenge in VSR systems. For instance, the bilabial consonants /p/, /b/, and /m/ may appear visually indistinguishable, necessitating sophisticated and complex models able to infer additional information from the linguistic context </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib1" title="" class="ltx_ref">1</a><span id="S1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.4" class="ltx_text" style="font-size:90%;">.
+Generally, VSR systems employ a pipeline that includes face detection, facial landmark localization, region of interest extraction (typically the mouth area), feature extraction, and finally, sequence modeling for text generation. Modern approaches leverage deep learning architectures such as 3D Convolutional Neural Networks (CNNs) for spatio-temporal feature extraction, followed by sequence models like Recurrent Neural Networks (RNNs) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a><span id="S1.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.7" class="ltx_text" style="font-size:90%;"> or Transformers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S1.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.10" class="ltx_text" style="font-size:90%;"> for temporal modeling.
+VSR can be extended to Audio-Visual Speech Recognition (AVSR), where both visual and acoustic modalities are jointly processed. AVSR systems aim to leverage the complementary nature of these inputs, potentially improving robustness in noisy acoustic environments or in scenarios with visual occlusions </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p1.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib4" title="" class="ltx_ref">4</a><span id="S1.p1.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p1.1.13" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p"><span id="S1.p2.1.1" class="ltx_text" style="font-size:90%;">Despite the conceptual similarities between ASR and VSR, the latter presents substantially higher computational demands during model training and inference. While ASR typically processes two-dimensional Mel spectrograms, VSR must handle high-dimensional spatio-temporal data in the form of video frame sequences. This increase in input dimensionality not only elevates memory requirements but also significantly extends training and inference times.
+The disparity in available training data further exacerbates the challenges in VSR development. While ASR benefits from extensive, publicly accessible speech corpora such as LibriSpeech (1000 hours) [1] and Common Voice (over 20,000 hours across multiple languages) [2], the data landscape for VSR is considerably more constrained. Many of the datasets employed in recent state-of-the-art VSR models remain proprietary or undisclosed, often due to complex copyright issues associated with video data. Public research is largely confined to the ”Lip Reading Sentences in the Wild” (LRS) series of datasets </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.p2.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S1.p2.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.p2.1.4" class="ltx_text" style="font-size:90%;">, which, while indispensable for VSR research, are limited in scale compared to their audio counterparts.</span></p>
+</div>
+<section id="S1.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">1.1 </span>Related Work</h3>
+
+<div id="S1.SS1.p1" class="ltx_para">
+<p id="S1.SS1.p1.1" class="ltx_p"><span id="S1.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">Soon after the publication of the first end-to-end lip reading model LipNet </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib7" title="" class="ltx_ref">7</a><span id="S1.SS1.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.4" class="ltx_text" style="font-size:90%;">, the field has achieved significant progress towards narrowing the gap between ASR and VSR performance, with state-of-the-art models quickly beating professional human lip-readers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S1.SS1.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.7" class="ltx_text" style="font-size:90%;">. Since then, results on the common LRS2 and LRS3 benchmarks have constantly and rapidly improved over the years. Among the most significant causes for improved results are modern sequence processing architectures such as Transformers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a>, <a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S1.SS1.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.10" class="ltx_text" style="font-size:90%;"> and Conformers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib10" title="" class="ltx_ref">10</a>, <a href="#bib.bib11" title="" class="ltx_ref">11</a><span id="S1.SS1.p1.1.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.13" class="ltx_text" style="font-size:90%;">, the use of auto-regressive sequence decoders </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.14.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib13" title="" class="ltx_ref">13</a><span id="S1.SS1.p1.1.15.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.16" class="ltx_text" style="font-size:90%;"> or sophisticated visual backbones such as Vision Transformers </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.17.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib12" title="" class="ltx_ref">12</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a><span id="S1.SS1.p1.1.18.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.19" class="ltx_text" style="font-size:90%;">.
+The inherent similarity between ASR and VSR suggests the potential for leveraging ASR models in the training of VSR models, an approach that has been increasingly adopted in recent literature </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.20.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a>, <a href="#bib.bib15" title="" class="ltx_ref">15</a>, <a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S1.SS1.p1.1.21.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.22" class="ltx_text" style="font-size:90%;">.
+Furthermore, the increasing power and availability of modern deep learning hardware and the abundance of raw data on video streaming platforms have allowed the research field to scale up the resource-intensive task of training VSR models, achieving even better results. However, this comes at the cost of significant resource requirements and the use of non-public audio-visual datasets </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.23.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib14" title="" class="ltx_ref">14</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>, <a href="#bib.bib18" title="" class="ltx_ref">18</a><span id="S1.SS1.p1.1.24.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.25" class="ltx_text" style="font-size:90%;">.
+The trend of upscaling has opened the door for research on efficient VSR, attempting to train models with less data and computational resources </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.26.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib16" title="" class="ltx_ref">16</a><span id="S1.SS1.p1.1.27.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.28" class="ltx_text" style="font-size:90%;">, however until now, these models still fall significantly short of the state-of-the-art.
+In our preceding publication </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S1.SS1.p1.1.29.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S1.SS1.p1.1.30.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S1.SS1.p1.1.31" class="ltx_text" style="font-size:90%;">, we introduced the LiteVSR framework, which addressed these resource constraints through an innovative approach to VSR model training. LiteVSR employs a novel knowledge distillation technique leveraging pre-trained ASR models and re-using parts of this model at the same time, facilitating the training of a resource-efficient architecture achieving competitive performance using only publicly available datasets.</span></p>
+</div>
+</section>
+<section id="S1.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">1.2 </span>Contribution</h3>
+
+<div id="S1.SS2.p1" class="ltx_para">
+<p id="S1.SS2.p1.1" class="ltx_p"><span id="S1.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">In this paper, we present LiteVSR2, an evolution of our previous work on efficient visual speech recognition. The contributions of this work are as follows:</span></p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p"><span id="S1.I1.i1.p1.1.1" class="ltx_text" style="font-size:90%;">We introduce feature normalization techniques to stabilize training and improve the efficacy of knowledge transfer.</span></p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p"><span id="S1.I1.i2.p1.1.1" class="ltx_text" style="font-size:90%;">We present a stabilized video preprocessing pipeline allowing for more effective training of the visual base.</span></p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p"><span id="S1.I1.i3.p1.1.1" class="ltx_text" style="font-size:90%;">We empirically show that our pre-training objective aligns well with the goal of reducing error metrics on standard benchmarks.</span></p>
+</div>
+</li>
+<li id="S1.I1.i4" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i4.p1" class="ltx_para">
+<p id="S1.I1.i4.p1.1" class="ltx_p"><span id="S1.I1.i4.p1.1.1" class="ltx_text" style="font-size:90%;">We provide an analysis of our approach’s scalability, examining the impact of increased computational resources and varying amounts of labeled training data on performance.</span></p>
+</div>
+</li>
+</ul>
+</div>
+<div id="S1.SS2.p2" class="ltx_para ltx_noindent">
+<p id="S1.SS2.p2.1" class="ltx_p"><span id="S1.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">Our updated model demonstrates significant performance improvements over our previous work. We achieve substantial performance gains for VSR models trained solely on unlabeled data, pushing the boundaries of unsupervised learning in this domain. Furthermore, we demonstrate marked improvements when training with limited labeled data, achieving the best metrics for a CTC-based model on both LRS2 and LRS3 benchmarks with as little as 59 hours of labeled training data.</span></p>
+</div>
+</section>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p"><span id="S2.p1.1.1" class="ltx_text" style="font-size:90%;">We use the LiteVSR framework from </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.p1.1.4" class="ltx_text" style="font-size:90%;"> to distill knowledge from a robust ASR model into a model for Visual Speech Recognition. For better comparability, we keep most of the model and data hyperparameters fixed to those of the original LiteVSR model. Thus, the following sections will briefly summarize the model architecture, data preprocessing and training details including the changes made for the experimental evaluation in this work.</span></p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Model Architecture</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.12" class="ltx_p"><span id="S2.SS1.p1.12.1" class="ltx_text" style="font-size:90%;">We divide the pre-trained ASR model into two components: a lower section, the audio base </span><math id="S2.SS1.p1.1.m1.1" class="ltx_Math" alttext="B_{a}" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><msub id="S2.SS1.p1.1.m1.1.1" xref="S2.SS1.p1.1.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.1.m1.1.1.2" xref="S2.SS1.p1.1.m1.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p1.1.m1.1.1.3" xref="S2.SS1.p1.1.m1.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.1.m1.1b"><apply id="S2.SS1.p1.1.m1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.1.m1.1.1.1.cmml" xref="S2.SS1.p1.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p1.1.m1.1.1.2.cmml" xref="S2.SS1.p1.1.m1.1.1.2">𝐵</ci><ci id="S2.SS1.p1.1.m1.1.1.3.cmml" xref="S2.SS1.p1.1.m1.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">B_{a}</annotation></semantics></math><span id="S2.SS1.p1.12.2" class="ltx_text" style="font-size:90%;">, and an upper section, the audio head </span><math id="S2.SS1.p1.2.m2.1" class="ltx_Math" alttext="H_{a}" display="inline"><semantics id="S2.SS1.p1.2.m2.1a"><msub id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.2.m2.1.1.2" xref="S2.SS1.p1.2.m2.1.1.2.cmml">H</mi><mi mathsize="90%" id="S2.SS1.p1.2.m2.1.1.3" xref="S2.SS1.p1.2.m2.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.1b"><apply id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.2.m2.1.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">subscript</csymbol><ci id="S2.SS1.p1.2.m2.1.1.2.cmml" xref="S2.SS1.p1.2.m2.1.1.2">𝐻</ci><ci id="S2.SS1.p1.2.m2.1.1.3.cmml" xref="S2.SS1.p1.2.m2.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.1c">H_{a}</annotation></semantics></math><span id="S2.SS1.p1.12.3" class="ltx_text" style="font-size:90%;">. For our experimental work, we employ the CTC-based </span><span id="S2.SS1.p1.12.4" class="ltx_text ltx_font_italic" style="font-size:90%;">stt_en_conformer_ctc_small</span><span id="S2.SS1.p1.12.5" class="ltx_text" style="font-size:90%;"> model from the Nvidia NeMo toolkit </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p1.12.6.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib20" title="" class="ltx_ref">20</a><span id="S2.SS1.p1.12.7.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p1.12.8" class="ltx_text" style="font-size:90%;">. This model transcribes Mel spectrogram audio into a byte-pair-encoded (BPE) alphabet of size 1025 </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p1.12.9.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib21" title="" class="ltx_ref">21</a><span id="S2.SS1.p1.12.10.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p1.12.11" class="ltx_text" style="font-size:90%;">, using two convolutional subsampling layers and a 17-layer Conformer stack. For our experiments, we split the model after the 8th Conformer layer. Consequently, </span><math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="B_{a}" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><msub id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.3.m3.1.1.2" xref="S2.SS1.p1.3.m3.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p1.3.m3.1.1.3" xref="S2.SS1.p1.3.m3.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><apply id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2">𝐵</ci><ci id="S2.SS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">B_{a}</annotation></semantics></math><span id="S2.SS1.p1.12.12" class="ltx_text" style="font-size:90%;"> comprises the convolutional subsampling layers and around half of the Conformer stack, while </span><math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="H_{a}" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><msub id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.4.m4.1.1.2" xref="S2.SS1.p1.4.m4.1.1.2.cmml">H</mi><mi mathsize="90%" id="S2.SS1.p1.4.m4.1.1.3" xref="S2.SS1.p1.4.m4.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><apply id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.4.m4.1.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1">subscript</csymbol><ci id="S2.SS1.p1.4.m4.1.1.2.cmml" xref="S2.SS1.p1.4.m4.1.1.2">𝐻</ci><ci id="S2.SS1.p1.4.m4.1.1.3.cmml" xref="S2.SS1.p1.4.m4.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">H_{a}</annotation></semantics></math><span id="S2.SS1.p1.12.13" class="ltx_text" style="font-size:90%;"> consists of the remaining half of the Conformer layers and the linear decoder.
+During the pre-training stage, we use the audio base to infer features of shape </span><math id="S2.SS1.p1.5.m5.3" class="ltx_Math" alttext="[N,T,d\,]" display="inline"><semantics id="S2.SS1.p1.5.m5.3a"><mrow id="S2.SS1.p1.5.m5.3.4.2" xref="S2.SS1.p1.5.m5.3.4.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.5.m5.3.4.2.1" xref="S2.SS1.p1.5.m5.3.4.1.cmml">[</mo><mi mathsize="90%" id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml">N</mi><mo mathsize="90%" id="S2.SS1.p1.5.m5.3.4.2.2" xref="S2.SS1.p1.5.m5.3.4.1.cmml">,</mo><mi mathsize="90%" id="S2.SS1.p1.5.m5.2.2" xref="S2.SS1.p1.5.m5.2.2.cmml">T</mi><mo mathsize="90%" id="S2.SS1.p1.5.m5.3.4.2.3" xref="S2.SS1.p1.5.m5.3.4.1.cmml">,</mo><mi mathsize="90%" id="S2.SS1.p1.5.m5.3.3" xref="S2.SS1.p1.5.m5.3.3.cmml">d</mi><mo lspace="0.170em" maxsize="90%" minsize="90%" id="S2.SS1.p1.5.m5.3.4.2.4" xref="S2.SS1.p1.5.m5.3.4.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.3b"><list id="S2.SS1.p1.5.m5.3.4.1.cmml" xref="S2.SS1.p1.5.m5.3.4.2"><ci id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1">𝑁</ci><ci id="S2.SS1.p1.5.m5.2.2.cmml" xref="S2.SS1.p1.5.m5.2.2">𝑇</ci><ci id="S2.SS1.p1.5.m5.3.3.cmml" xref="S2.SS1.p1.5.m5.3.3">𝑑</ci></list></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.3c">[N,T,d\,]</annotation></semantics></math><span id="S2.SS1.p1.12.14" class="ltx_text" style="font-size:90%;"> (</span><math id="S2.SS1.p1.6.m6.1" class="ltx_Math" alttext="N" display="inline"><semantics id="S2.SS1.p1.6.m6.1a"><mi mathsize="90%" id="S2.SS1.p1.6.m6.1.1" xref="S2.SS1.p1.6.m6.1.1.cmml">N</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m6.1b"><ci id="S2.SS1.p1.6.m6.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1">𝑁</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m6.1c">N</annotation></semantics></math><span id="S2.SS1.p1.12.15" class="ltx_text" style="font-size:90%;">: batch size, </span><math id="S2.SS1.p1.7.m7.1" class="ltx_Math" alttext="T" display="inline"><semantics id="S2.SS1.p1.7.m7.1a"><mi mathsize="90%" id="S2.SS1.p1.7.m7.1.1" xref="S2.SS1.p1.7.m7.1.1.cmml">T</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m7.1b"><ci id="S2.SS1.p1.7.m7.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1">𝑇</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m7.1c">T</annotation></semantics></math><span id="S2.SS1.p1.12.16" class="ltx_text" style="font-size:90%;">: maximum sequence length in the batch, </span><math id="S2.SS1.p1.8.m8.1" class="ltx_Math" alttext="d" display="inline"><semantics id="S2.SS1.p1.8.m8.1a"><mi mathsize="90%" id="S2.SS1.p1.8.m8.1.1" xref="S2.SS1.p1.8.m8.1.1.cmml">d</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.8.m8.1b"><ci id="S2.SS1.p1.8.m8.1.1.cmml" xref="S2.SS1.p1.8.m8.1.1">𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.8.m8.1c">d</annotation></semantics></math><span id="S2.SS1.p1.12.17" class="ltx_text" style="font-size:90%;">: model dimension of the Conformer stack) from the audio signal </span><math id="S2.SS1.p1.9.m9.1" class="ltx_Math" alttext="x_{a}" display="inline"><semantics id="S2.SS1.p1.9.m9.1a"><msub id="S2.SS1.p1.9.m9.1.1" xref="S2.SS1.p1.9.m9.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.9.m9.1.1.2" xref="S2.SS1.p1.9.m9.1.1.2.cmml">x</mi><mi mathsize="90%" id="S2.SS1.p1.9.m9.1.1.3" xref="S2.SS1.p1.9.m9.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.9.m9.1b"><apply id="S2.SS1.p1.9.m9.1.1.cmml" xref="S2.SS1.p1.9.m9.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.9.m9.1.1.1.cmml" xref="S2.SS1.p1.9.m9.1.1">subscript</csymbol><ci id="S2.SS1.p1.9.m9.1.1.2.cmml" xref="S2.SS1.p1.9.m9.1.1.2">𝑥</ci><ci id="S2.SS1.p1.9.m9.1.1.3.cmml" xref="S2.SS1.p1.9.m9.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.9.m9.1c">x_{a}</annotation></semantics></math><span id="S2.SS1.p1.12.18" class="ltx_text" style="font-size:90%;">. As these features capture high-level information about the input speech, we train our visual base </span><math id="S2.SS1.p1.10.m10.1" class="ltx_Math" alttext="B_{v}" display="inline"><semantics id="S2.SS1.p1.10.m10.1a"><msub id="S2.SS1.p1.10.m10.1.1" xref="S2.SS1.p1.10.m10.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.10.m10.1.1.2" xref="S2.SS1.p1.10.m10.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p1.10.m10.1.1.3" xref="S2.SS1.p1.10.m10.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.10.m10.1b"><apply id="S2.SS1.p1.10.m10.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.10.m10.1.1.1.cmml" xref="S2.SS1.p1.10.m10.1.1">subscript</csymbol><ci id="S2.SS1.p1.10.m10.1.1.2.cmml" xref="S2.SS1.p1.10.m10.1.1.2">𝐵</ci><ci id="S2.SS1.p1.10.m10.1.1.3.cmml" xref="S2.SS1.p1.10.m10.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.10.m10.1c">B_{v}</annotation></semantics></math><span id="S2.SS1.p1.12.19" class="ltx_text" style="font-size:90%;"> to align with these features while using the corresponding silent frames </span><math id="S2.SS1.p1.11.m11.1" class="ltx_Math" alttext="x_{v}" display="inline"><semantics id="S2.SS1.p1.11.m11.1a"><msub id="S2.SS1.p1.11.m11.1.1" xref="S2.SS1.p1.11.m11.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.11.m11.1.1.2" xref="S2.SS1.p1.11.m11.1.1.2.cmml">x</mi><mi mathsize="90%" id="S2.SS1.p1.11.m11.1.1.3" xref="S2.SS1.p1.11.m11.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.11.m11.1b"><apply id="S2.SS1.p1.11.m11.1.1.cmml" xref="S2.SS1.p1.11.m11.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.11.m11.1.1.1.cmml" xref="S2.SS1.p1.11.m11.1.1">subscript</csymbol><ci id="S2.SS1.p1.11.m11.1.1.2.cmml" xref="S2.SS1.p1.11.m11.1.1.2">𝑥</ci><ci id="S2.SS1.p1.11.m11.1.1.3.cmml" xref="S2.SS1.p1.11.m11.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.11.m11.1c">x_{v}</annotation></semantics></math><span id="S2.SS1.p1.12.20" class="ltx_text" style="font-size:90%;"> as an input. This alignment is achieved through a distance-based encoding loss denoted as: </span><math id="S2.SS1.p1.12.m12.2" class="ltx_Math" alttext="\mathcal{L}_{\text{enc}}=dist(B_{a}(\mathbf{x}_{a}),B_{v}(\mathbf{x}_{v}))" display="inline"><semantics id="S2.SS1.p1.12.m12.2a"><mrow id="S2.SS1.p1.12.m12.2.2" xref="S2.SS1.p1.12.m12.2.2.cmml"><msub id="S2.SS1.p1.12.m12.2.2.4" xref="S2.SS1.p1.12.m12.2.2.4.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.SS1.p1.12.m12.2.2.4.2" xref="S2.SS1.p1.12.m12.2.2.4.2.cmml">ℒ</mi><mtext mathsize="90%" id="S2.SS1.p1.12.m12.2.2.4.3" xref="S2.SS1.p1.12.m12.2.2.4.3a.cmml">enc</mtext></msub><mo mathsize="90%" id="S2.SS1.p1.12.m12.2.2.3" xref="S2.SS1.p1.12.m12.2.2.3.cmml">=</mo><mrow id="S2.SS1.p1.12.m12.2.2.2" xref="S2.SS1.p1.12.m12.2.2.2.cmml"><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.4" xref="S2.SS1.p1.12.m12.2.2.2.4.cmml">d</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.2.2.2.3" xref="S2.SS1.p1.12.m12.2.2.2.3.cmml">​</mo><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.5" xref="S2.SS1.p1.12.m12.2.2.2.5.cmml">i</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.2.2.2.3a" xref="S2.SS1.p1.12.m12.2.2.2.3.cmml">​</mo><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.6" xref="S2.SS1.p1.12.m12.2.2.2.6.cmml">s</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.2.2.2.3b" xref="S2.SS1.p1.12.m12.2.2.2.3.cmml">​</mo><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.7" xref="S2.SS1.p1.12.m12.2.2.2.7.cmml">t</mi><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.2.2.2.3c" xref="S2.SS1.p1.12.m12.2.2.2.3.cmml">​</mo><mrow id="S2.SS1.p1.12.m12.2.2.2.2.2" xref="S2.SS1.p1.12.m12.2.2.2.2.3.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.3" xref="S2.SS1.p1.12.m12.2.2.2.2.3.cmml">(</mo><mrow id="S2.SS1.p1.12.m12.1.1.1.1.1.1" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.cmml"><msub id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.2" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.3" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.3.cmml">a</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.2" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.2" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.2" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.2.cmml">𝐱</mi><mi mathsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.3" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.3.cmml">a</mi></msub><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.3" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.4" xref="S2.SS1.p1.12.m12.2.2.2.2.3.cmml">,</mo><mrow id="S2.SS1.p1.12.m12.2.2.2.2.2.2" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.cmml"><msub id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.cmml"><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.2" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.3" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.3.cmml">v</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.2" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.2.cmml">​</mo><mrow id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.2" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.cmml">(</mo><msub id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.2" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.2.cmml">𝐱</mi><mi mathsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.3" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.3.cmml">v</mi></msub><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.3" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.SS1.p1.12.m12.2.2.2.2.2.5" xref="S2.SS1.p1.12.m12.2.2.2.2.3.cmml">)</mo></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.12.m12.2b"><apply id="S2.SS1.p1.12.m12.2.2.cmml" xref="S2.SS1.p1.12.m12.2.2"><eq id="S2.SS1.p1.12.m12.2.2.3.cmml" xref="S2.SS1.p1.12.m12.2.2.3"></eq><apply id="S2.SS1.p1.12.m12.2.2.4.cmml" xref="S2.SS1.p1.12.m12.2.2.4"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.2.2.4.1.cmml" xref="S2.SS1.p1.12.m12.2.2.4">subscript</csymbol><ci id="S2.SS1.p1.12.m12.2.2.4.2.cmml" xref="S2.SS1.p1.12.m12.2.2.4.2">ℒ</ci><ci id="S2.SS1.p1.12.m12.2.2.4.3a.cmml" xref="S2.SS1.p1.12.m12.2.2.4.3"><mtext mathsize="63%" id="S2.SS1.p1.12.m12.2.2.4.3.cmml" xref="S2.SS1.p1.12.m12.2.2.4.3">enc</mtext></ci></apply><apply id="S2.SS1.p1.12.m12.2.2.2.cmml" xref="S2.SS1.p1.12.m12.2.2.2"><times id="S2.SS1.p1.12.m12.2.2.2.3.cmml" xref="S2.SS1.p1.12.m12.2.2.2.3"></times><ci id="S2.SS1.p1.12.m12.2.2.2.4.cmml" xref="S2.SS1.p1.12.m12.2.2.2.4">𝑑</ci><ci id="S2.SS1.p1.12.m12.2.2.2.5.cmml" xref="S2.SS1.p1.12.m12.2.2.2.5">𝑖</ci><ci id="S2.SS1.p1.12.m12.2.2.2.6.cmml" xref="S2.SS1.p1.12.m12.2.2.2.6">𝑠</ci><ci id="S2.SS1.p1.12.m12.2.2.2.7.cmml" xref="S2.SS1.p1.12.m12.2.2.2.7">𝑡</ci><interval closure="open" id="S2.SS1.p1.12.m12.2.2.2.2.3.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2"><apply id="S2.SS1.p1.12.m12.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1"><times id="S2.SS1.p1.12.m12.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.2"></times><apply id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.1.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.2.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.2">𝐵</ci><ci id="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.3.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.3.3">𝑎</ci></apply><apply id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.2">𝐱</ci><ci id="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p1.12.m12.1.1.1.1.1.1.1.1.1.3">𝑎</ci></apply></apply><apply id="S2.SS1.p1.12.m12.2.2.2.2.2.2.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2"><times id="S2.SS1.p1.12.m12.2.2.2.2.2.2.2.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.2"></times><apply id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.1.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3">subscript</csymbol><ci id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.2.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.2">𝐵</ci><ci id="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.3.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.3.3">𝑣</ci></apply><apply id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.1.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1">subscript</csymbol><ci id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.2.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.2">𝐱</ci><ci id="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.3.cmml" xref="S2.SS1.p1.12.m12.2.2.2.2.2.2.1.1.1.3">𝑣</ci></apply></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.12.m12.2c">\mathcal{L}_{\text{enc}}=dist(B_{a}(\mathbf{x}_{a}),B_{v}(\mathbf{x}_{v}))</annotation></semantics></math><span id="S2.SS1.p1.12.21" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+<figure id="S2.F1" class="ltx_figure"><img src="/html/2409.07210/assets/x1.png" id="S2.F1.g1" class="ltx_graphics ltx_centering ltx_img_square" width="392" height="378" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S2.F1.4.1.1" class="ltx_text ltx_font_bold">Fig. 1</span>: </span>Updated LiteVSR Architecture with Feature Normalization.</figcaption>
+</figure>
+<div id="S2.SS1.p2" class="ltx_para">
+<p id="S2.SS1.p2.3" class="ltx_p"><span id="S2.SS1.p2.3.1" class="ltx_text" style="font-size:90%;">The adaptation of the visual feature space towards the audio feature space enables us to employ the (hitherto unmodified) audio head </span><math id="S2.SS1.p2.1.m1.1" class="ltx_Math" alttext="H_{a}" display="inline"><semantics id="S2.SS1.p2.1.m1.1a"><msub id="S2.SS1.p2.1.m1.1.1" xref="S2.SS1.p2.1.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p2.1.m1.1.1.2" xref="S2.SS1.p2.1.m1.1.1.2.cmml">H</mi><mi mathsize="90%" id="S2.SS1.p2.1.m1.1.1.3" xref="S2.SS1.p2.1.m1.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.1.m1.1b"><apply id="S2.SS1.p2.1.m1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.1.m1.1.1.1.cmml" xref="S2.SS1.p2.1.m1.1.1">subscript</csymbol><ci id="S2.SS1.p2.1.m1.1.1.2.cmml" xref="S2.SS1.p2.1.m1.1.1.2">𝐻</ci><ci id="S2.SS1.p2.1.m1.1.1.3.cmml" xref="S2.SS1.p2.1.m1.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.1.m1.1c">H_{a}</annotation></semantics></math><span id="S2.SS1.p2.3.2" class="ltx_text" style="font-size:90%;"> to transcribe the output of the visual base into text. This approach facilitates end-to-end lip reading from silent frames without relying on labeled data during training. Subsequently, using labeled data, the model </span><math id="S2.SS1.p2.2.m2.1" class="ltx_Math" alttext="H_{a}(B_{v}(x_{v}))" display="inline"><semantics id="S2.SS1.p2.2.m2.1a"><mrow id="S2.SS1.p2.2.m2.1.1" xref="S2.SS1.p2.2.m2.1.1.cmml"><msub id="S2.SS1.p2.2.m2.1.1.3" xref="S2.SS1.p2.2.m2.1.1.3.cmml"><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.3.2" xref="S2.SS1.p2.2.m2.1.1.3.2.cmml">H</mi><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.3.3" xref="S2.SS1.p2.2.m2.1.1.3.3.cmml">a</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p2.2.m2.1.1.2" xref="S2.SS1.p2.2.m2.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.2.m2.1.1.1.1" xref="S2.SS1.p2.2.m2.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.2" xref="S2.SS1.p2.2.m2.1.1.1.1.1.cmml">(</mo><mrow id="S2.SS1.p2.2.m2.1.1.1.1.1" xref="S2.SS1.p2.2.m2.1.1.1.1.1.cmml"><msub id="S2.SS1.p2.2.m2.1.1.1.1.1.3" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.3.2" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3.2.cmml">B</mi><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.3.3" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3.3.cmml">v</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS1.p2.2.m2.1.1.1.1.1.2" xref="S2.SS1.p2.2.m2.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.2" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.2" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.2.cmml">x</mi><mi mathsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.3" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.3.cmml">v</mi></msub><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.3" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.SS1.p2.2.m2.1.1.1.1.3" xref="S2.SS1.p2.2.m2.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.2.m2.1b"><apply id="S2.SS1.p2.2.m2.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1"><times id="S2.SS1.p2.2.m2.1.1.2.cmml" xref="S2.SS1.p2.2.m2.1.1.2"></times><apply id="S2.SS1.p2.2.m2.1.1.3.cmml" xref="S2.SS1.p2.2.m2.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.2.m2.1.1.3.1.cmml" xref="S2.SS1.p2.2.m2.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.2.m2.1.1.3.2.cmml" xref="S2.SS1.p2.2.m2.1.1.3.2">𝐻</ci><ci id="S2.SS1.p2.2.m2.1.1.3.3.cmml" xref="S2.SS1.p2.2.m2.1.1.3.3">𝑎</ci></apply><apply id="S2.SS1.p2.2.m2.1.1.1.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1"><times id="S2.SS1.p2.2.m2.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.2"></times><apply id="S2.SS1.p2.2.m2.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p2.2.m2.1.1.1.1.1.3.1.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3">subscript</csymbol><ci id="S2.SS1.p2.2.m2.1.1.1.1.1.3.2.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3.2">𝐵</ci><ci id="S2.SS1.p2.2.m2.1.1.1.1.1.3.3.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.3.3">𝑣</ci></apply><apply id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.1.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.2.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.2">𝑥</ci><ci id="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.3.cmml" xref="S2.SS1.p2.2.m2.1.1.1.1.1.1.1.1.3">𝑣</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.2.m2.1c">H_{a}(B_{v}(x_{v}))</annotation></semantics></math><span id="S2.SS1.p2.3.3" class="ltx_text" style="font-size:90%;"> can be fine-tuned to further enhance prediction accuracy.
+For the experiments conducted in this work, we use the visual base architecture from </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.3.4.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S2.SS1.p2.3.5.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.3.6" class="ltx_text" style="font-size:90%;">, comprising two 3D-convolutional layers and a ResNet18 for the visual backbone, followed by a stack of 12 Conformer layers with </span><math id="S2.SS1.p2.3.m3.1" class="ltx_Math" alttext="d=256" display="inline"><semantics id="S2.SS1.p2.3.m3.1a"><mrow id="S2.SS1.p2.3.m3.1.1" xref="S2.SS1.p2.3.m3.1.1.cmml"><mi mathsize="90%" id="S2.SS1.p2.3.m3.1.1.2" xref="S2.SS1.p2.3.m3.1.1.2.cmml">d</mi><mo mathsize="90%" id="S2.SS1.p2.3.m3.1.1.1" xref="S2.SS1.p2.3.m3.1.1.1.cmml">=</mo><mn mathsize="90%" id="S2.SS1.p2.3.m3.1.1.3" xref="S2.SS1.p2.3.m3.1.1.3.cmml">256</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p2.3.m3.1b"><apply id="S2.SS1.p2.3.m3.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1"><eq id="S2.SS1.p2.3.m3.1.1.1.cmml" xref="S2.SS1.p2.3.m3.1.1.1"></eq><ci id="S2.SS1.p2.3.m3.1.1.2.cmml" xref="S2.SS1.p2.3.m3.1.1.2">𝑑</ci><cn type="integer" id="S2.SS1.p2.3.m3.1.1.3.cmml" xref="S2.SS1.p2.3.m3.1.1.3">256</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p2.3.m3.1c">d=256</annotation></semantics></math><span id="S2.SS1.p2.3.7" class="ltx_text" style="font-size:90%;">. We choose the Mean Square Error (MSE) as the encoding loss and the Connectionist Temporal Classification loss (CTC) </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.3.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib22" title="" class="ltx_ref">22</a><span id="S2.SS1.p2.3.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.3.10" class="ltx_text" style="font-size:90%;"> for the subsequent fine-tuning. For a more comprehensive discussion on the general LiteVSR approach, we direct readers to </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS1.p2.3.11.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S2.SS1.p2.3.12.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS1.p2.3.13" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Feature Normalization</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p"><span id="S2.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">The baseline model from </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS2.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S2.SS2.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS2.p1.1.4" class="ltx_text" style="font-size:90%;"> demonstrates competitive results with short training times. However, we observe exceptionally large gradients and occasional instabilities during the pre-training stage. A detailed examination of the encodings </span><math id="S2.SS2.p1.1.m1.1" class="ltx_Math" alttext="B_{a}(x_{a})" display="inline"><semantics id="S2.SS2.p1.1.m1.1a"><mrow id="S2.SS2.p1.1.m1.1.1" xref="S2.SS2.p1.1.m1.1.1.cmml"><msub id="S2.SS2.p1.1.m1.1.1.3" xref="S2.SS2.p1.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S2.SS2.p1.1.m1.1.1.3.2" xref="S2.SS2.p1.1.m1.1.1.3.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p1.1.m1.1.1.3.3" xref="S2.SS2.p1.1.m1.1.1.3.3.cmml">a</mi></msub><mo lspace="0em" rspace="0em" id="S2.SS2.p1.1.m1.1.1.2" xref="S2.SS2.p1.1.m1.1.1.2.cmml">​</mo><mrow id="S2.SS2.p1.1.m1.1.1.1.1" xref="S2.SS2.p1.1.m1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.SS2.p1.1.m1.1.1.1.1.2" xref="S2.SS2.p1.1.m1.1.1.1.1.1.cmml">(</mo><msub id="S2.SS2.p1.1.m1.1.1.1.1.1" xref="S2.SS2.p1.1.m1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p1.1.m1.1.1.1.1.1.2" xref="S2.SS2.p1.1.m1.1.1.1.1.1.2.cmml">x</mi><mi mathsize="90%" id="S2.SS2.p1.1.m1.1.1.1.1.1.3" xref="S2.SS2.p1.1.m1.1.1.1.1.1.3.cmml">a</mi></msub><mo maxsize="90%" minsize="90%" id="S2.SS2.p1.1.m1.1.1.1.1.3" xref="S2.SS2.p1.1.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p1.1.m1.1b"><apply id="S2.SS2.p1.1.m1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1"><times id="S2.SS2.p1.1.m1.1.1.2.cmml" xref="S2.SS2.p1.1.m1.1.1.2"></times><apply id="S2.SS2.p1.1.m1.1.1.3.cmml" xref="S2.SS2.p1.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p1.1.m1.1.1.3.1.cmml" xref="S2.SS2.p1.1.m1.1.1.3">subscript</csymbol><ci id="S2.SS2.p1.1.m1.1.1.3.2.cmml" xref="S2.SS2.p1.1.m1.1.1.3.2">𝐵</ci><ci id="S2.SS2.p1.1.m1.1.1.3.3.cmml" xref="S2.SS2.p1.1.m1.1.1.3.3">𝑎</ci></apply><apply id="S2.SS2.p1.1.m1.1.1.1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p1.1.m1.1.1.1.1.1.1.cmml" xref="S2.SS2.p1.1.m1.1.1.1.1">subscript</csymbol><ci id="S2.SS2.p1.1.m1.1.1.1.1.1.2.cmml" xref="S2.SS2.p1.1.m1.1.1.1.1.1.2">𝑥</ci><ci id="S2.SS2.p1.1.m1.1.1.1.1.1.3.cmml" xref="S2.SS2.p1.1.m1.1.1.1.1.1.3">𝑎</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p1.1.m1.1c">B_{a}(x_{a})</annotation></semantics></math><span id="S2.SS2.p1.1.5" class="ltx_text" style="font-size:90%;"> produced by the audio base reveals a highly disproportionate scaling of individual features within the feature space.
+Figure </span><a href="#S2.F2" title="Figure 2 ‣ 2.2 Feature Normalization ‣ 2 Methodology ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">2</span></a><span id="S2.SS2.p1.1.6" class="ltx_text" style="font-size:90%;"> shows the mean and standard deviation of different features after the 8th Conformer layer of the </span><span id="S2.SS2.p1.1.7" class="ltx_text ltx_font_italic" style="font-size:90%;">stt_en_conformer_ctc_small</span><span id="S2.SS2.p1.1.8" class="ltx_text" style="font-size:90%;"> model. We can observe that the scale, variance and offset of features are highly dissimilar. While many of them are centered around a mean of zero with single-digit standard deviations, there are noteworthy exceptions across the whole feature space, with the most prominent being feature number 136. This anomaly is not specific to this model and layer, as we can observe similar patterns in other models (e.g. the </span><span id="S2.SS2.p1.1.9" class="ltx_text ltx_font_italic" style="font-size:90%;">large</span><span id="S2.SS2.p1.1.10" class="ltx_text" style="font-size:90%;"> and </span><span id="S2.SS2.p1.1.11" class="ltx_text ltx_font_italic" style="font-size:90%;">medium</span><span id="S2.SS2.p1.1.12" class="ltx_text" style="font-size:90%;"> variant of the </span><span id="S2.SS2.p1.1.13" class="ltx_text ltx_font_italic" style="font-size:90%;">stt_en_conformer_ctc</span><span id="S2.SS2.p1.1.14" class="ltx_text" style="font-size:90%;"> model) and split layers in the same model. Figure </span><a href="#S2.F3" title="Figure 3 ‣ 2.2 Feature Normalization ‣ 2 Methodology ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">3</span></a><span id="S2.SS2.p1.1.15" class="ltx_text" style="font-size:90%;"> provides further insight into the unique characteristics of feature 136. It is the only feature among all 176 that exhibits a bimodal distribution, while all other features (more or less) share similarities with a Gaussian distribution.</span></p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2409.07210/assets/x2.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="305" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S2.F2.12.1.1" class="ltx_text ltx_font_bold">Fig. 2</span>: </span>Audio feature statistics for the LRS2-pretrain dataset. The figure shows the mean (black lines) and standard deviation (blue bars) of features produced by the 8th Conformer layer of the <span id="S2.F2.13.2" class="ltx_text ltx_font_italic">stt_en_conformer_ctc_small</span> model. These outputs from <math id="S2.F2.3.m1.1" class="ltx_Math" alttext="B_{a}" display="inline"><semantics id="S2.F2.3.m1.1b"><msub id="S2.F2.3.m1.1.1" xref="S2.F2.3.m1.1.1.cmml"><mi id="S2.F2.3.m1.1.1.2" xref="S2.F2.3.m1.1.1.2.cmml">B</mi><mi id="S2.F2.3.m1.1.1.3" xref="S2.F2.3.m1.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.F2.3.m1.1c"><apply id="S2.F2.3.m1.1.1.cmml" xref="S2.F2.3.m1.1.1"><csymbol cd="ambiguous" id="S2.F2.3.m1.1.1.1.cmml" xref="S2.F2.3.m1.1.1">subscript</csymbol><ci id="S2.F2.3.m1.1.1.2.cmml" xref="S2.F2.3.m1.1.1.2">𝐵</ci><ci id="S2.F2.3.m1.1.1.3.cmml" xref="S2.F2.3.m1.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F2.3.m1.1d">B_{a}</annotation></semantics></math> are used as targets for training <math id="S2.F2.4.m2.1" class="ltx_Math" alttext="B_{v}" display="inline"><semantics id="S2.F2.4.m2.1b"><msub id="S2.F2.4.m2.1.1" xref="S2.F2.4.m2.1.1.cmml"><mi id="S2.F2.4.m2.1.1.2" xref="S2.F2.4.m2.1.1.2.cmml">B</mi><mi id="S2.F2.4.m2.1.1.3" xref="S2.F2.4.m2.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.F2.4.m2.1c"><apply id="S2.F2.4.m2.1.1.cmml" xref="S2.F2.4.m2.1.1"><csymbol cd="ambiguous" id="S2.F2.4.m2.1.1.1.cmml" xref="S2.F2.4.m2.1.1">subscript</csymbol><ci id="S2.F2.4.m2.1.1.2.cmml" xref="S2.F2.4.m2.1.1.2">𝐵</ci><ci id="S2.F2.4.m2.1.1.3.cmml" xref="S2.F2.4.m2.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.F2.4.m2.1d">B_{v}</annotation></semantics></math>. For readability, only a subset of the 176 features is shown</figcaption>
+</figure>
+<figure id="S2.F3" class="ltx_figure"><img src="/html/2409.07210/assets/x3.png" id="S2.F3.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="461" height="226" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S2.F3.5.1.1" class="ltx_text ltx_font_bold">Fig. 3</span>: </span>Distribution of selected features from Figure <a href="#S2.F2" title="Figure 2 ‣ 2.2 Feature Normalization ‣ 2 Methodology ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</figcaption>
+</figure>
+<div id="S2.SS2.p2" class="ltx_para">
+<p id="S2.SS2.p2.1" class="ltx_p"><span id="S2.SS2.p2.1.1" class="ltx_text" style="font-size:90%;">The aforementioned characteristics of the target feature space introduce several challenges in training the visual base. Employing a distance-based loss function results in exceptionally large loss values and gradients, potentially leading to numerical instabilities, particularly when utilizing half or mixed precision training. While the adoption of advanced precision formats such as </span><span id="S2.SS2.p2.1.2" class="ltx_text ltx_font_italic" style="font-size:90%;">bfloat16</span><span id="S2.SS2.p2.1.3" class="ltx_text" style="font-size:90%;"> </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS2.p2.1.4.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib23" title="" class="ltx_ref">23</a><span id="S2.SS2.p2.1.5.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS2.p2.1.6" class="ltx_text" style="font-size:90%;"> mitigates this issue to some extent, these formats are exclusively available on the most recent GPUs and TPUs and maintaining gradients within reasonable bounds remains a prudent approach regardless of the training environment.
+Furthermore, the heterogeneous scaling across features introduces a problem of disproportionate feature weighting. Features exhibiting large variances contribute disproportionately high individual loss values when employing distance-based loss functions such as the Mean Squared Error (MSE). This imbalance can potentially skew the learning process, causing the model to overly prioritize certain features.</span></p>
+</div>
+<div id="S2.SS2.p3" class="ltx_para">
+<p id="S2.SS2.p3.1" class="ltx_p"><span id="S2.SS2.p3.1.1" class="ltx_text" style="font-size:90%;">To address these issues, we propose normalizing each individual feature based on its observed statistical properties. This approach serves to mitigate the problem of large-scale gradients and the resulting instabilities and imbalances. By standardizing the feature space, we aim to create a more uniform learning landscape, potentially improving the stability and effectiveness of the training process.</span></p>
+</div>
+<div id="S2.SS2.p4" class="ltx_para">
+<p id="S2.SS2.p4.6" class="ltx_p"><span id="S2.SS2.p4.6.1" class="ltx_text" style="font-size:90%;">Let </span><math id="S2.SS2.p4.1.m1.1" class="ltx_Math" alttext="\boldsymbol{\mu}\in\mathbb{R}^{d}" display="inline"><semantics id="S2.SS2.p4.1.m1.1a"><mrow id="S2.SS2.p4.1.m1.1.1" xref="S2.SS2.p4.1.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.1.m1.1.1.2" xref="S2.SS2.p4.1.m1.1.1.2.cmml">𝝁</mi><mo mathsize="90%" id="S2.SS2.p4.1.m1.1.1.1" xref="S2.SS2.p4.1.m1.1.1.1.cmml">∈</mo><msup id="S2.SS2.p4.1.m1.1.1.3" xref="S2.SS2.p4.1.m1.1.1.3.cmml"><mi mathsize="90%" id="S2.SS2.p4.1.m1.1.1.3.2" xref="S2.SS2.p4.1.m1.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS2.p4.1.m1.1.1.3.3" xref="S2.SS2.p4.1.m1.1.1.3.3.cmml">d</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.1.m1.1b"><apply id="S2.SS2.p4.1.m1.1.1.cmml" xref="S2.SS2.p4.1.m1.1.1"><in id="S2.SS2.p4.1.m1.1.1.1.cmml" xref="S2.SS2.p4.1.m1.1.1.1"></in><ci id="S2.SS2.p4.1.m1.1.1.2.cmml" xref="S2.SS2.p4.1.m1.1.1.2">𝝁</ci><apply id="S2.SS2.p4.1.m1.1.1.3.cmml" xref="S2.SS2.p4.1.m1.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p4.1.m1.1.1.3.1.cmml" xref="S2.SS2.p4.1.m1.1.1.3">superscript</csymbol><ci id="S2.SS2.p4.1.m1.1.1.3.2.cmml" xref="S2.SS2.p4.1.m1.1.1.3.2">ℝ</ci><ci id="S2.SS2.p4.1.m1.1.1.3.3.cmml" xref="S2.SS2.p4.1.m1.1.1.3.3">𝑑</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.1.m1.1c">\boldsymbol{\mu}\in\mathbb{R}^{d}</annotation></semantics></math><span id="S2.SS2.p4.6.2" class="ltx_text" style="font-size:90%;"> and </span><math id="S2.SS2.p4.2.m2.1" class="ltx_Math" alttext="\boldsymbol{\sigma}\in\mathbb{R}^{d}" display="inline"><semantics id="S2.SS2.p4.2.m2.1a"><mrow id="S2.SS2.p4.2.m2.1.1" xref="S2.SS2.p4.2.m2.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.2.m2.1.1.2" xref="S2.SS2.p4.2.m2.1.1.2.cmml">𝝈</mi><mo mathsize="90%" id="S2.SS2.p4.2.m2.1.1.1" xref="S2.SS2.p4.2.m2.1.1.1.cmml">∈</mo><msup id="S2.SS2.p4.2.m2.1.1.3" xref="S2.SS2.p4.2.m2.1.1.3.cmml"><mi mathsize="90%" id="S2.SS2.p4.2.m2.1.1.3.2" xref="S2.SS2.p4.2.m2.1.1.3.2.cmml">ℝ</mi><mi mathsize="90%" id="S2.SS2.p4.2.m2.1.1.3.3" xref="S2.SS2.p4.2.m2.1.1.3.3.cmml">d</mi></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.2.m2.1b"><apply id="S2.SS2.p4.2.m2.1.1.cmml" xref="S2.SS2.p4.2.m2.1.1"><in id="S2.SS2.p4.2.m2.1.1.1.cmml" xref="S2.SS2.p4.2.m2.1.1.1"></in><ci id="S2.SS2.p4.2.m2.1.1.2.cmml" xref="S2.SS2.p4.2.m2.1.1.2">𝝈</ci><apply id="S2.SS2.p4.2.m2.1.1.3.cmml" xref="S2.SS2.p4.2.m2.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p4.2.m2.1.1.3.1.cmml" xref="S2.SS2.p4.2.m2.1.1.3">superscript</csymbol><ci id="S2.SS2.p4.2.m2.1.1.3.2.cmml" xref="S2.SS2.p4.2.m2.1.1.3.2">ℝ</ci><ci id="S2.SS2.p4.2.m2.1.1.3.3.cmml" xref="S2.SS2.p4.2.m2.1.1.3.3">𝑑</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.2.m2.1c">\boldsymbol{\sigma}\in\mathbb{R}^{d}</annotation></semantics></math><span id="S2.SS2.p4.6.3" class="ltx_text" style="font-size:90%;"> represent the mean and standard deviation vectors respectively for each of the </span><math id="S2.SS2.p4.3.m3.1" class="ltx_Math" alttext="d" display="inline"><semantics id="S2.SS2.p4.3.m3.1a"><mi mathsize="90%" id="S2.SS2.p4.3.m3.1.1" xref="S2.SS2.p4.3.m3.1.1.cmml">d</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.3.m3.1b"><ci id="S2.SS2.p4.3.m3.1.1.cmml" xref="S2.SS2.p4.3.m3.1.1">𝑑</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.3.m3.1c">d</annotation></semantics></math><span id="S2.SS2.p4.6.4" class="ltx_text" style="font-size:90%;"> individual features produced by </span><math id="S2.SS2.p4.4.m4.1" class="ltx_Math" alttext="B_{a}" display="inline"><semantics id="S2.SS2.p4.4.m4.1a"><msub id="S2.SS2.p4.4.m4.1.1" xref="S2.SS2.p4.4.m4.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.4.m4.1.1.2" xref="S2.SS2.p4.4.m4.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p4.4.m4.1.1.3" xref="S2.SS2.p4.4.m4.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.4.m4.1b"><apply id="S2.SS2.p4.4.m4.1.1.cmml" xref="S2.SS2.p4.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.4.m4.1.1.1.cmml" xref="S2.SS2.p4.4.m4.1.1">subscript</csymbol><ci id="S2.SS2.p4.4.m4.1.1.2.cmml" xref="S2.SS2.p4.4.m4.1.1.2">𝐵</ci><ci id="S2.SS2.p4.4.m4.1.1.3.cmml" xref="S2.SS2.p4.4.m4.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.4.m4.1c">B_{a}</annotation></semantics></math><span id="S2.SS2.p4.6.5" class="ltx_text" style="font-size:90%;">. We define the normalization operation </span><math id="S2.SS2.p4.5.m5.1" class="ltx_Math" alttext="\mathcal{N}" display="inline"><semantics id="S2.SS2.p4.5.m5.1a"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.SS2.p4.5.m5.1.1" xref="S2.SS2.p4.5.m5.1.1.cmml">𝒩</mi><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.5.m5.1b"><ci id="S2.SS2.p4.5.m5.1.1.cmml" xref="S2.SS2.p4.5.m5.1.1">𝒩</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.5.m5.1c">\mathcal{N}</annotation></semantics></math><span id="S2.SS2.p4.6.6" class="ltx_text" style="font-size:90%;"> for the features </span><math id="S2.SS2.p4.6.m6.1" class="ltx_Math" alttext="\mathbf{f}\in\mathbb{R}^{N\times T\times d}" display="inline"><semantics id="S2.SS2.p4.6.m6.1a"><mrow id="S2.SS2.p4.6.m6.1.1" xref="S2.SS2.p4.6.m6.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.6.m6.1.1.2" xref="S2.SS2.p4.6.m6.1.1.2.cmml">𝐟</mi><mo mathsize="90%" id="S2.SS2.p4.6.m6.1.1.1" xref="S2.SS2.p4.6.m6.1.1.1.cmml">∈</mo><msup id="S2.SS2.p4.6.m6.1.1.3" xref="S2.SS2.p4.6.m6.1.1.3.cmml"><mi mathsize="90%" id="S2.SS2.p4.6.m6.1.1.3.2" xref="S2.SS2.p4.6.m6.1.1.3.2.cmml">ℝ</mi><mrow id="S2.SS2.p4.6.m6.1.1.3.3" xref="S2.SS2.p4.6.m6.1.1.3.3.cmml"><mi mathsize="90%" id="S2.SS2.p4.6.m6.1.1.3.3.2" xref="S2.SS2.p4.6.m6.1.1.3.3.2.cmml">N</mi><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S2.SS2.p4.6.m6.1.1.3.3.1" xref="S2.SS2.p4.6.m6.1.1.3.3.1.cmml">×</mo><mi mathsize="90%" id="S2.SS2.p4.6.m6.1.1.3.3.3" xref="S2.SS2.p4.6.m6.1.1.3.3.3.cmml">T</mi><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S2.SS2.p4.6.m6.1.1.3.3.1a" xref="S2.SS2.p4.6.m6.1.1.3.3.1.cmml">×</mo><mi mathsize="90%" id="S2.SS2.p4.6.m6.1.1.3.3.4" xref="S2.SS2.p4.6.m6.1.1.3.3.4.cmml">d</mi></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.6.m6.1b"><apply id="S2.SS2.p4.6.m6.1.1.cmml" xref="S2.SS2.p4.6.m6.1.1"><in id="S2.SS2.p4.6.m6.1.1.1.cmml" xref="S2.SS2.p4.6.m6.1.1.1"></in><ci id="S2.SS2.p4.6.m6.1.1.2.cmml" xref="S2.SS2.p4.6.m6.1.1.2">𝐟</ci><apply id="S2.SS2.p4.6.m6.1.1.3.cmml" xref="S2.SS2.p4.6.m6.1.1.3"><csymbol cd="ambiguous" id="S2.SS2.p4.6.m6.1.1.3.1.cmml" xref="S2.SS2.p4.6.m6.1.1.3">superscript</csymbol><ci id="S2.SS2.p4.6.m6.1.1.3.2.cmml" xref="S2.SS2.p4.6.m6.1.1.3.2">ℝ</ci><apply id="S2.SS2.p4.6.m6.1.1.3.3.cmml" xref="S2.SS2.p4.6.m6.1.1.3.3"><times id="S2.SS2.p4.6.m6.1.1.3.3.1.cmml" xref="S2.SS2.p4.6.m6.1.1.3.3.1"></times><ci id="S2.SS2.p4.6.m6.1.1.3.3.2.cmml" xref="S2.SS2.p4.6.m6.1.1.3.3.2">𝑁</ci><ci id="S2.SS2.p4.6.m6.1.1.3.3.3.cmml" xref="S2.SS2.p4.6.m6.1.1.3.3.3">𝑇</ci><ci id="S2.SS2.p4.6.m6.1.1.3.3.4.cmml" xref="S2.SS2.p4.6.m6.1.1.3.3.4">𝑑</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.6.m6.1c">\mathbf{f}\in\mathbb{R}^{N\times T\times d}</annotation></semantics></math><span id="S2.SS2.p4.6.7" class="ltx_text" style="font-size:90%;"> as:</span></p>
+<table id="S2.Ex1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex1.m1.2" class="ltx_Math" alttext="\mathcal{N}(\mathbf{f})=(\mathbf{f}\ominus\boldsymbol{\mu})\oslash\boldsymbol{\sigma}," display="block"><semantics id="S2.Ex1.m1.2a"><mrow id="S2.Ex1.m1.2.2.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><mrow id="S2.Ex1.m1.2.2.1.1" xref="S2.Ex1.m1.2.2.1.1.cmml"><mrow id="S2.Ex1.m1.2.2.1.1.3" xref="S2.Ex1.m1.2.2.1.1.3.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.Ex1.m1.2.2.1.1.3.2" xref="S2.Ex1.m1.2.2.1.1.3.2.cmml">𝒩</mi><mo lspace="0em" rspace="0em" id="S2.Ex1.m1.2.2.1.1.3.1" xref="S2.Ex1.m1.2.2.1.1.3.1.cmml">​</mo><mrow id="S2.Ex1.m1.2.2.1.1.3.3.2" xref="S2.Ex1.m1.2.2.1.1.3.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex1.m1.2.2.1.1.3.3.2.1" xref="S2.Ex1.m1.2.2.1.1.3.cmml">(</mo><mi mathsize="90%" id="S2.Ex1.m1.1.1" xref="S2.Ex1.m1.1.1.cmml">𝐟</mi><mo maxsize="90%" minsize="90%" id="S2.Ex1.m1.2.2.1.1.3.3.2.2" xref="S2.Ex1.m1.2.2.1.1.3.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S2.Ex1.m1.2.2.1.1.2" xref="S2.Ex1.m1.2.2.1.1.2.cmml">=</mo><mrow id="S2.Ex1.m1.2.2.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.cmml"><mrow id="S2.Ex1.m1.2.2.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex1.m1.2.2.1.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex1.m1.2.2.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.2.cmml">𝐟</mi><mo mathsize="90%" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml">⊖</mo><mi mathsize="90%" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.3.cmml">𝝁</mi></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex1.m1.2.2.1.1.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.cmml">)</mo></mrow><mo mathsize="90%" id="S2.Ex1.m1.2.2.1.1.1.2" xref="S2.Ex1.m1.2.2.1.1.1.2.cmml">⊘</mo><mi mathsize="90%" id="S2.Ex1.m1.2.2.1.1.1.3" xref="S2.Ex1.m1.2.2.1.1.1.3.cmml">𝝈</mi></mrow></mrow><mo mathsize="90%" id="S2.Ex1.m1.2.2.1.2" xref="S2.Ex1.m1.2.2.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex1.m1.2b"><apply id="S2.Ex1.m1.2.2.1.1.cmml" xref="S2.Ex1.m1.2.2.1"><eq id="S2.Ex1.m1.2.2.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.2"></eq><apply id="S2.Ex1.m1.2.2.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.3"><times id="S2.Ex1.m1.2.2.1.1.3.1.cmml" xref="S2.Ex1.m1.2.2.1.1.3.1"></times><ci id="S2.Ex1.m1.2.2.1.1.3.2.cmml" xref="S2.Ex1.m1.2.2.1.1.3.2">𝒩</ci><ci id="S2.Ex1.m1.1.1.cmml" xref="S2.Ex1.m1.1.1">𝐟</ci></apply><apply id="S2.Ex1.m1.2.2.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1"><ci id="S2.Ex1.m1.2.2.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.1.2">⊘</ci><apply id="S2.Ex1.m1.2.2.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1"><csymbol cd="latexml" id="S2.Ex1.m1.2.2.1.1.1.1.1.1.1.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.1">symmetric-difference</csymbol><ci id="S2.Ex1.m1.2.2.1.1.1.1.1.1.2.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.2">𝐟</ci><ci id="S2.Ex1.m1.2.2.1.1.1.1.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.1.1.1.1.3">𝝁</ci></apply><ci id="S2.Ex1.m1.2.2.1.1.1.3.cmml" xref="S2.Ex1.m1.2.2.1.1.1.3">𝝈</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex1.m1.2c">\mathcal{N}(\mathbf{f})=(\mathbf{f}\ominus\boldsymbol{\mu})\oslash\boldsymbol{\sigma},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p4.7" class="ltx_p"><span id="S2.SS2.p4.7.1" class="ltx_text" style="font-size:90%;">where the subtraction and division operations are applied element-wise across the feature dimension.
+Correspondingly, we define the de-normalization operation </span><math id="S2.SS2.p4.7.m1.1" class="ltx_Math" alttext="\mathcal{N}^{-1}" display="inline"><semantics id="S2.SS2.p4.7.m1.1a"><msup id="S2.SS2.p4.7.m1.1.1" xref="S2.SS2.p4.7.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.SS2.p4.7.m1.1.1.2" xref="S2.SS2.p4.7.m1.1.1.2.cmml">𝒩</mi><mrow id="S2.SS2.p4.7.m1.1.1.3" xref="S2.SS2.p4.7.m1.1.1.3.cmml"><mo mathsize="90%" id="S2.SS2.p4.7.m1.1.1.3a" xref="S2.SS2.p4.7.m1.1.1.3.cmml">−</mo><mn mathsize="90%" id="S2.SS2.p4.7.m1.1.1.3.2" xref="S2.SS2.p4.7.m1.1.1.3.2.cmml">1</mn></mrow></msup><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.7.m1.1b"><apply id="S2.SS2.p4.7.m1.1.1.cmml" xref="S2.SS2.p4.7.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.7.m1.1.1.1.cmml" xref="S2.SS2.p4.7.m1.1.1">superscript</csymbol><ci id="S2.SS2.p4.7.m1.1.1.2.cmml" xref="S2.SS2.p4.7.m1.1.1.2">𝒩</ci><apply id="S2.SS2.p4.7.m1.1.1.3.cmml" xref="S2.SS2.p4.7.m1.1.1.3"><minus id="S2.SS2.p4.7.m1.1.1.3.1.cmml" xref="S2.SS2.p4.7.m1.1.1.3"></minus><cn type="integer" id="S2.SS2.p4.7.m1.1.1.3.2.cmml" xref="S2.SS2.p4.7.m1.1.1.3.2">1</cn></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.7.m1.1c">\mathcal{N}^{-1}</annotation></semantics></math><span id="S2.SS2.p4.7.2" class="ltx_text" style="font-size:90%;"> as:</span></p>
+<table id="S2.Ex2" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex2.m1.1" class="ltx_Math" alttext="\mathcal{N}^{-1}(\mathbf{f}_{\text{norm}})=\mathbf{f}_{\text{norm}}\odot\boldsymbol{\sigma}\oplus\boldsymbol{\mu}," display="block"><semantics id="S2.Ex2.m1.1a"><mrow id="S2.Ex2.m1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.cmml"><mrow id="S2.Ex2.m1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.cmml"><mrow id="S2.Ex2.m1.1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.1.cmml"><msup id="S2.Ex2.m1.1.1.1.1.1.3" xref="S2.Ex2.m1.1.1.1.1.1.3.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.Ex2.m1.1.1.1.1.1.3.2" xref="S2.Ex2.m1.1.1.1.1.1.3.2.cmml">𝒩</mi><mrow id="S2.Ex2.m1.1.1.1.1.1.3.3" xref="S2.Ex2.m1.1.1.1.1.1.3.3.cmml"><mo mathsize="90%" id="S2.Ex2.m1.1.1.1.1.1.3.3a" xref="S2.Ex2.m1.1.1.1.1.1.3.3.cmml">−</mo><mn mathsize="90%" id="S2.Ex2.m1.1.1.1.1.1.3.3.2" xref="S2.Ex2.m1.1.1.1.1.1.3.3.2.cmml">1</mn></mrow></msup><mo lspace="0em" rspace="0em" id="S2.Ex2.m1.1.1.1.1.1.2" xref="S2.Ex2.m1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex2.m1.1.1.1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex2.m1.1.1.1.1.1.1.1.2" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.Ex2.m1.1.1.1.1.1.1.1.1" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.Ex2.m1.1.1.1.1.1.1.1.1.2" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.2.cmml">𝐟</mi><mtext mathsize="90%" id="S2.Ex2.m1.1.1.1.1.1.1.1.1.3" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.3a.cmml">norm</mtext></msub><mo maxsize="90%" minsize="90%" id="S2.Ex2.m1.1.1.1.1.1.1.1.3" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S2.Ex2.m1.1.1.1.1.2" xref="S2.Ex2.m1.1.1.1.1.2.cmml">=</mo><mrow id="S2.Ex2.m1.1.1.1.1.3" xref="S2.Ex2.m1.1.1.1.1.3.cmml"><mrow id="S2.Ex2.m1.1.1.1.1.3.2" xref="S2.Ex2.m1.1.1.1.1.3.2.cmml"><msub id="S2.Ex2.m1.1.1.1.1.3.2.2" xref="S2.Ex2.m1.1.1.1.1.3.2.2.cmml"><mi mathsize="90%" id="S2.Ex2.m1.1.1.1.1.3.2.2.2" xref="S2.Ex2.m1.1.1.1.1.3.2.2.2.cmml">𝐟</mi><mtext mathsize="90%" id="S2.Ex2.m1.1.1.1.1.3.2.2.3" xref="S2.Ex2.m1.1.1.1.1.3.2.2.3a.cmml">norm</mtext></msub><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S2.Ex2.m1.1.1.1.1.3.2.1" xref="S2.Ex2.m1.1.1.1.1.3.2.1.cmml">⊙</mo><mi mathsize="90%" id="S2.Ex2.m1.1.1.1.1.3.2.3" xref="S2.Ex2.m1.1.1.1.1.3.2.3.cmml">𝝈</mi></mrow><mo mathsize="90%" id="S2.Ex2.m1.1.1.1.1.3.1" xref="S2.Ex2.m1.1.1.1.1.3.1.cmml">⊕</mo><mi mathsize="90%" id="S2.Ex2.m1.1.1.1.1.3.3" xref="S2.Ex2.m1.1.1.1.1.3.3.cmml">𝝁</mi></mrow></mrow><mo mathsize="90%" id="S2.Ex2.m1.1.1.1.2" xref="S2.Ex2.m1.1.1.1.1.cmml">,</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex2.m1.1b"><apply id="S2.Ex2.m1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1"><eq id="S2.Ex2.m1.1.1.1.1.2.cmml" xref="S2.Ex2.m1.1.1.1.1.2"></eq><apply id="S2.Ex2.m1.1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1.1.1"><times id="S2.Ex2.m1.1.1.1.1.1.2.cmml" xref="S2.Ex2.m1.1.1.1.1.1.2"></times><apply id="S2.Ex2.m1.1.1.1.1.1.3.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex2.m1.1.1.1.1.1.3.1.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3">superscript</csymbol><ci id="S2.Ex2.m1.1.1.1.1.1.3.2.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3.2">𝒩</ci><apply id="S2.Ex2.m1.1.1.1.1.1.3.3.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3.3"><minus id="S2.Ex2.m1.1.1.1.1.1.3.3.1.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3.3"></minus><cn type="integer" id="S2.Ex2.m1.1.1.1.1.1.3.3.2.cmml" xref="S2.Ex2.m1.1.1.1.1.1.3.3.2">1</cn></apply></apply><apply id="S2.Ex2.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex2.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex2.m1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.Ex2.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.2">𝐟</ci><ci id="S2.Ex2.m1.1.1.1.1.1.1.1.1.3a.cmml" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.3"><mtext mathsize="63%" id="S2.Ex2.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex2.m1.1.1.1.1.1.1.1.1.3">norm</mtext></ci></apply></apply><apply id="S2.Ex2.m1.1.1.1.1.3.cmml" xref="S2.Ex2.m1.1.1.1.1.3"><csymbol cd="latexml" id="S2.Ex2.m1.1.1.1.1.3.1.cmml" xref="S2.Ex2.m1.1.1.1.1.3.1">direct-sum</csymbol><apply id="S2.Ex2.m1.1.1.1.1.3.2.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2"><csymbol cd="latexml" id="S2.Ex2.m1.1.1.1.1.3.2.1.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.1">direct-product</csymbol><apply id="S2.Ex2.m1.1.1.1.1.3.2.2.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.2"><csymbol cd="ambiguous" id="S2.Ex2.m1.1.1.1.1.3.2.2.1.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.2">subscript</csymbol><ci id="S2.Ex2.m1.1.1.1.1.3.2.2.2.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.2.2">𝐟</ci><ci id="S2.Ex2.m1.1.1.1.1.3.2.2.3a.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.2.3"><mtext mathsize="63%" id="S2.Ex2.m1.1.1.1.1.3.2.2.3.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.2.3">norm</mtext></ci></apply><ci id="S2.Ex2.m1.1.1.1.1.3.2.3.cmml" xref="S2.Ex2.m1.1.1.1.1.3.2.3">𝝈</ci></apply><ci id="S2.Ex2.m1.1.1.1.1.3.3.cmml" xref="S2.Ex2.m1.1.1.1.1.3.3">𝝁</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex2.m1.1c">\mathcal{N}^{-1}(\mathbf{f}_{\text{norm}})=\mathbf{f}_{\text{norm}}\odot\boldsymbol{\sigma}\oplus\boldsymbol{\mu},</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p4.9" class="ltx_p"><span id="S2.SS2.p4.9.1" class="ltx_text" style="font-size:90%;">with element-wise sum and multiplication.
+Normalization is applied to the output of </span><math id="S2.SS2.p4.8.m1.1" class="ltx_Math" alttext="B_{a}" display="inline"><semantics id="S2.SS2.p4.8.m1.1a"><msub id="S2.SS2.p4.8.m1.1.1" xref="S2.SS2.p4.8.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.8.m1.1.1.2" xref="S2.SS2.p4.8.m1.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p4.8.m1.1.1.3" xref="S2.SS2.p4.8.m1.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.8.m1.1b"><apply id="S2.SS2.p4.8.m1.1.1.cmml" xref="S2.SS2.p4.8.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.8.m1.1.1.1.cmml" xref="S2.SS2.p4.8.m1.1.1">subscript</csymbol><ci id="S2.SS2.p4.8.m1.1.1.2.cmml" xref="S2.SS2.p4.8.m1.1.1.2">𝐵</ci><ci id="S2.SS2.p4.8.m1.1.1.3.cmml" xref="S2.SS2.p4.8.m1.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.8.m1.1c">B_{a}</annotation></semantics></math><span id="S2.SS2.p4.9.2" class="ltx_text" style="font-size:90%;"> during training and de-normalization is used on the output of </span><math id="S2.SS2.p4.9.m2.1" class="ltx_Math" alttext="B_{v}" display="inline"><semantics id="S2.SS2.p4.9.m2.1a"><msub id="S2.SS2.p4.9.m2.1.1" xref="S2.SS2.p4.9.m2.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.9.m2.1.1.2" xref="S2.SS2.p4.9.m2.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p4.9.m2.1.1.3" xref="S2.SS2.p4.9.m2.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.9.m2.1b"><apply id="S2.SS2.p4.9.m2.1.1.cmml" xref="S2.SS2.p4.9.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.9.m2.1.1.1.cmml" xref="S2.SS2.p4.9.m2.1.1">subscript</csymbol><ci id="S2.SS2.p4.9.m2.1.1.2.cmml" xref="S2.SS2.p4.9.m2.1.1.2">𝐵</ci><ci id="S2.SS2.p4.9.m2.1.1.3.cmml" xref="S2.SS2.p4.9.m2.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.9.m2.1c">B_{v}</annotation></semantics></math><span id="S2.SS2.p4.9.3" class="ltx_text" style="font-size:90%;"> during inference and labeled fine-tuning, ensuring consistency in the feature space. Specifically, the encoding loss becomes:</span></p>
+<table id="S2.Ex3" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex3.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\text{enc}}=\text{dist}(\mathcal{N}(B_{a}(\mathbf{x}_{a})),B_{v}(\mathbf{x}_{v}))." display="block"><semantics id="S2.Ex3.m1.1a"><mrow id="S2.Ex3.m1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.cmml"><mrow id="S2.Ex3.m1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.cmml"><msub id="S2.Ex3.m1.1.1.1.1.4" xref="S2.Ex3.m1.1.1.1.1.4.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.Ex3.m1.1.1.1.1.4.2" xref="S2.Ex3.m1.1.1.1.1.4.2.cmml">ℒ</mi><mtext mathsize="90%" id="S2.Ex3.m1.1.1.1.1.4.3" xref="S2.Ex3.m1.1.1.1.1.4.3a.cmml">enc</mtext></msub><mo mathsize="90%" id="S2.Ex3.m1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.3.cmml">=</mo><mrow id="S2.Ex3.m1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.2.cmml"><mtext mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.4" xref="S2.Ex3.m1.1.1.1.1.2.4a.cmml">dist</mtext><mo lspace="0em" rspace="0em" id="S2.Ex3.m1.1.1.1.1.2.3" xref="S2.Ex3.m1.1.1.1.1.2.3.cmml">​</mo><mrow id="S2.Ex3.m1.1.1.1.1.2.2.2" xref="S2.Ex3.m1.1.1.1.1.2.2.3.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.3" xref="S2.Ex3.m1.1.1.1.1.2.2.3.cmml">(</mo><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.cmml">𝒩</mi><mo lspace="0em" rspace="0em" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml">B</mi><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml">a</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">𝐱</mi><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml">a</mi></msub><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.4" xref="S2.Ex3.m1.1.1.1.1.2.2.3.cmml">,</mo><mrow id="S2.Ex3.m1.1.1.1.1.2.2.2.2" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.cmml"><msub id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.cmml"><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.2" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.2.cmml">B</mi><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.3" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.3.cmml">v</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.2" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.2.cmml">​</mo><mrow id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.2" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.cmml">(</mo><msub id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.cmml"><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.2.cmml">𝐱</mi><mi mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.3" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.3.cmml">v</mi></msub><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.3" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex3.m1.1.1.1.1.2.2.2.5" xref="S2.Ex3.m1.1.1.1.1.2.2.3.cmml">)</mo></mrow></mrow></mrow><mo lspace="0em" mathsize="90%" id="S2.Ex3.m1.1.1.1.2" xref="S2.Ex3.m1.1.1.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex3.m1.1b"><apply id="S2.Ex3.m1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1"><eq id="S2.Ex3.m1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.3"></eq><apply id="S2.Ex3.m1.1.1.1.1.4.cmml" xref="S2.Ex3.m1.1.1.1.1.4"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.4.1.cmml" xref="S2.Ex3.m1.1.1.1.1.4">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.4.2.cmml" xref="S2.Ex3.m1.1.1.1.1.4.2">ℒ</ci><ci id="S2.Ex3.m1.1.1.1.1.4.3a.cmml" xref="S2.Ex3.m1.1.1.1.1.4.3"><mtext mathsize="63%" id="S2.Ex3.m1.1.1.1.1.4.3.cmml" xref="S2.Ex3.m1.1.1.1.1.4.3">enc</mtext></ci></apply><apply id="S2.Ex3.m1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.2"><times id="S2.Ex3.m1.1.1.1.1.2.3.cmml" xref="S2.Ex3.m1.1.1.1.1.2.3"></times><ci id="S2.Ex3.m1.1.1.1.1.2.4a.cmml" xref="S2.Ex3.m1.1.1.1.1.2.4"><mtext mathsize="90%" id="S2.Ex3.m1.1.1.1.1.2.4.cmml" xref="S2.Ex3.m1.1.1.1.1.2.4">dist</mtext></ci><interval closure="open" id="S2.Ex3.m1.1.1.1.1.2.2.3.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2"><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1"><times id="S2.Ex3.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.2"></times><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.3">𝒩</ci><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1"><times id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.2"></times><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.2">𝐵</ci><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.3.3">𝑎</ci></apply><apply id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2">𝐱</ci><ci id="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3">𝑎</ci></apply></apply></apply><apply id="S2.Ex3.m1.1.1.1.1.2.2.2.2.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2"><times id="S2.Ex3.m1.1.1.1.1.2.2.2.2.2.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.2"></times><apply id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.1.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.2.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.2">𝐵</ci><ci id="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.3.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.3.3">𝑣</ci></apply><apply id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1"><csymbol cd="ambiguous" id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.1.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1">subscript</csymbol><ci id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.2.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.2">𝐱</ci><ci id="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.3.cmml" xref="S2.Ex3.m1.1.1.1.1.2.2.2.2.1.1.1.3">𝑣</ci></apply></apply></interval></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex3.m1.1c">\mathcal{L}_{\text{enc}}=\text{dist}(\mathcal{N}(B_{a}(\mathbf{x}_{a})),B_{v}(\mathbf{x}_{v})).</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p4.12" class="ltx_p"><span id="S2.SS2.p4.12.1" class="ltx_text" style="font-size:90%;">With </span><math id="S2.SS2.p4.10.m1.1" class="ltx_Math" alttext="B_{v}" display="inline"><semantics id="S2.SS2.p4.10.m1.1a"><msub id="S2.SS2.p4.10.m1.1.1" xref="S2.SS2.p4.10.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.10.m1.1.1.2" xref="S2.SS2.p4.10.m1.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p4.10.m1.1.1.3" xref="S2.SS2.p4.10.m1.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.10.m1.1b"><apply id="S2.SS2.p4.10.m1.1.1.cmml" xref="S2.SS2.p4.10.m1.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.10.m1.1.1.1.cmml" xref="S2.SS2.p4.10.m1.1.1">subscript</csymbol><ci id="S2.SS2.p4.10.m1.1.1.2.cmml" xref="S2.SS2.p4.10.m1.1.1.2">𝐵</ci><ci id="S2.SS2.p4.10.m1.1.1.3.cmml" xref="S2.SS2.p4.10.m1.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.10.m1.1c">B_{v}</annotation></semantics></math><span id="S2.SS2.p4.12.2" class="ltx_text" style="font-size:90%;"> now inferring normalized features, the output of </span><math id="S2.SS2.p4.11.m2.1" class="ltx_Math" alttext="B_{v}" display="inline"><semantics id="S2.SS2.p4.11.m2.1a"><msub id="S2.SS2.p4.11.m2.1.1" xref="S2.SS2.p4.11.m2.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.11.m2.1.1.2" xref="S2.SS2.p4.11.m2.1.1.2.cmml">B</mi><mi mathsize="90%" id="S2.SS2.p4.11.m2.1.1.3" xref="S2.SS2.p4.11.m2.1.1.3.cmml">v</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.11.m2.1b"><apply id="S2.SS2.p4.11.m2.1.1.cmml" xref="S2.SS2.p4.11.m2.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.11.m2.1.1.1.cmml" xref="S2.SS2.p4.11.m2.1.1">subscript</csymbol><ci id="S2.SS2.p4.11.m2.1.1.2.cmml" xref="S2.SS2.p4.11.m2.1.1.2">𝐵</ci><ci id="S2.SS2.p4.11.m2.1.1.3.cmml" xref="S2.SS2.p4.11.m2.1.1.3">𝑣</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.11.m2.1c">B_{v}</annotation></semantics></math><span id="S2.SS2.p4.12.3" class="ltx_text" style="font-size:90%;"> has to be de-normalized before being passed to </span><math id="S2.SS2.p4.12.m3.1" class="ltx_Math" alttext="H_{a}" display="inline"><semantics id="S2.SS2.p4.12.m3.1a"><msub id="S2.SS2.p4.12.m3.1.1" xref="S2.SS2.p4.12.m3.1.1.cmml"><mi mathsize="90%" id="S2.SS2.p4.12.m3.1.1.2" xref="S2.SS2.p4.12.m3.1.1.2.cmml">H</mi><mi mathsize="90%" id="S2.SS2.p4.12.m3.1.1.3" xref="S2.SS2.p4.12.m3.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S2.SS2.p4.12.m3.1b"><apply id="S2.SS2.p4.12.m3.1.1.cmml" xref="S2.SS2.p4.12.m3.1.1"><csymbol cd="ambiguous" id="S2.SS2.p4.12.m3.1.1.1.cmml" xref="S2.SS2.p4.12.m3.1.1">subscript</csymbol><ci id="S2.SS2.p4.12.m3.1.1.2.cmml" xref="S2.SS2.p4.12.m3.1.1.2">𝐻</ci><ci id="S2.SS2.p4.12.m3.1.1.3.cmml" xref="S2.SS2.p4.12.m3.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS2.p4.12.m3.1c">H_{a}</annotation></semantics></math><span id="S2.SS2.p4.12.4" class="ltx_text" style="font-size:90%;">, as the audio head expects the original feature properties of the pre-trained ASR model:</span></p>
+<table id="S2.Ex4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.Ex4.m1.1" class="ltx_Math" alttext="\hat{\mathbf{y}}=H_{a}(\mathcal{N}^{-1}(B_{v}(\mathbf{x}_{v})))." display="block"><semantics id="S2.Ex4.m1.1a"><mrow id="S2.Ex4.m1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.cmml"><mrow id="S2.Ex4.m1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.cmml"><mover accent="true" id="S2.Ex4.m1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.3.2" xref="S2.Ex4.m1.1.1.1.1.3.2.cmml">𝐲</mi><mo mathsize="90%" id="S2.Ex4.m1.1.1.1.1.3.1" xref="S2.Ex4.m1.1.1.1.1.3.1.cmml">^</mo></mover><mo mathsize="90%" id="S2.Ex4.m1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.2.cmml">=</mo><mrow id="S2.Ex4.m1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.cmml"><msub id="S2.Ex4.m1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.3.2" xref="S2.Ex4.m1.1.1.1.1.1.3.2.cmml">H</mi><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.3.3" xref="S2.Ex4.m1.1.1.1.1.1.3.3.cmml">a</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex4.m1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.cmml"><msup id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.cmml"><mi class="ltx_font_mathcaligraphic" mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.2.cmml">𝒩</mi><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.cmml"><mo mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3a" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.cmml">−</mo><mn mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.2.cmml">1</mn></mrow></msup><mo lspace="0em" rspace="0em" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.cmml"><msub id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.cmml"><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml">B</mi><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml">v</mi></msub><mo lspace="0em" rspace="0em" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">𝐱</mi><mi mathsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml">v</mi></msub><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow><mo maxsize="90%" minsize="90%" id="S2.Ex4.m1.1.1.1.1.1.1.1.3" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mo lspace="0em" mathsize="90%" id="S2.Ex4.m1.1.1.1.2" xref="S2.Ex4.m1.1.1.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.Ex4.m1.1b"><apply id="S2.Ex4.m1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1"><eq id="S2.Ex4.m1.1.1.1.1.2.cmml" xref="S2.Ex4.m1.1.1.1.1.2"></eq><apply id="S2.Ex4.m1.1.1.1.1.3.cmml" xref="S2.Ex4.m1.1.1.1.1.3"><ci id="S2.Ex4.m1.1.1.1.1.3.1.cmml" xref="S2.Ex4.m1.1.1.1.1.3.1">^</ci><ci id="S2.Ex4.m1.1.1.1.1.3.2.cmml" xref="S2.Ex4.m1.1.1.1.1.3.2">𝐲</ci></apply><apply id="S2.Ex4.m1.1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1"><times id="S2.Ex4.m1.1.1.1.1.1.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.2"></times><apply id="S2.Ex4.m1.1.1.1.1.1.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex4.m1.1.1.1.1.1.3.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex4.m1.1.1.1.1.1.3.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.3.2">𝐻</ci><ci id="S2.Ex4.m1.1.1.1.1.1.3.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.3.3">𝑎</ci></apply><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1"><times id="S2.Ex4.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.2"></times><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3">superscript</csymbol><ci id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.2">𝒩</ci><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3"><minus id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3"></minus><cn type="integer" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.3.3.2">1</cn></apply></apply><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1"><times id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.2"></times><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3">subscript</csymbol><ci id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.2">𝐵</ci><ci id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.3.3">𝑣</ci></apply><apply id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.2">𝐱</ci><ci id="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.Ex4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.3">𝑣</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.Ex4.m1.1c">\hat{\mathbf{y}}=H_{a}(\mathcal{N}^{-1}(B_{v}(\mathbf{x}_{v}))).</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+</tr></tbody>
+</table>
+<p id="S2.SS2.p4.13" class="ltx_p"><span id="S2.SS2.p4.13.1" class="ltx_text" style="font-size:90%;">This normalization approach standardizes the feature space, mitigating the issues of disproportionate scaling and large gradients observed in the original formulation. The updated architecture in Figure </span><a href="#S2.F1" title="Figure 1 ‣ 2.1 Model Architecture ‣ 2 Methodology ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S2.SS2.p4.13.2" class="ltx_text" style="font-size:90%;"> illustrates the integration of Feature (De-)Normalization into the LiteVSR framework.</span></p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Input Video Processing</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p"><span id="S2.SS3.p1.1.1" class="ltx_text" style="font-size:90%;">In our previous work, we utilized dlib </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS3.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib24" title="" class="ltx_ref">24</a><span id="S2.SS3.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS3.p1.1.4" class="ltx_text" style="font-size:90%;"> to detect 68 facial landmarks in every input video frame. The mouth center is estimated by averaging the (x,y)-coordinates of four key landmarks, while the mouth width is calculated as the Euclidean distance between the left and right corners of the lips. However, we can observe that the dynamic changes in mouth shape during speech (e.g., the protrusion when pronouncing an ”o” sound) leads to rapid variations in the mouth’s width and, consequently, in the crop region. These fast dynamics significantly impact the feature extraction capabilities of the 3D-convolutional backbone employed in our model.</span></p>
+</div>
+<div id="S2.SS3.p2" class="ltx_para">
+<p id="S2.SS3.p2.1" class="ltx_p"><span id="S2.SS3.p2.1.1" class="ltx_text" style="font-size:90%;">To address this issue, we evaluated two alternative cropping methods: fixed cropping and smooth cropping. Both methods begin by obtaining the mouth’s (x,y)-center position and Euclidean width for each individual frame. The fixed cropping approach selects the maximum width and average center position across the entire video, applying these parameters consistently to all frames to ensure a stable crop region and size. In contrast, the smooth cropping method applies Gaussian smoothing (</span><math id="S2.SS3.p2.1.m1.1" class="ltx_Math" alttext="\sigma=4" display="inline"><semantics id="S2.SS3.p2.1.m1.1a"><mrow id="S2.SS3.p2.1.m1.1.1" xref="S2.SS3.p2.1.m1.1.1.cmml"><mi mathsize="90%" id="S2.SS3.p2.1.m1.1.1.2" xref="S2.SS3.p2.1.m1.1.1.2.cmml">σ</mi><mo mathsize="90%" id="S2.SS3.p2.1.m1.1.1.1" xref="S2.SS3.p2.1.m1.1.1.1.cmml">=</mo><mn mathsize="90%" id="S2.SS3.p2.1.m1.1.1.3" xref="S2.SS3.p2.1.m1.1.1.3.cmml">4</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS3.p2.1.m1.1b"><apply id="S2.SS3.p2.1.m1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1"><eq id="S2.SS3.p2.1.m1.1.1.1.cmml" xref="S2.SS3.p2.1.m1.1.1.1"></eq><ci id="S2.SS3.p2.1.m1.1.1.2.cmml" xref="S2.SS3.p2.1.m1.1.1.2">𝜎</ci><cn type="integer" id="S2.SS3.p2.1.m1.1.1.3.cmml" xref="S2.SS3.p2.1.m1.1.1.3">4</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS3.p2.1.m1.1c">\sigma=4</annotation></semantics></math><span id="S2.SS3.p2.1.2" class="ltx_text" style="font-size:90%;">) to the centers and widths, thereby reducing, but not entirely removing, the inter-frame variability of crops throughout the video.
+Our empirical evaluation revealed that both smooth and fixed cropping methods yield significant, but equal performance improvements over the frame-wise cropping technique. Given the similar outcomes, we opt for the fixed cropping method due to its computational simplicity and ease of implementation.
+To enhance the robustness of our model, we maintain our previous augmentation techniques during training. These include randomly displacing the sample’s center coordinate and introducing random variations to the sample’s mouth width, thereby increasing the diversity of the training data.</span></p>
+</div>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Data</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.1" class="ltx_p"><span id="S2.SS4.p1.1.1" class="ltx_text" style="font-size:90%;">We restrict the data used to train our baseline models to publicly available datasets, specifically the LRS2 datasets </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS4.p1.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib5" title="" class="ltx_ref">5</a><span id="S2.SS4.p1.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS4.p1.1.4" class="ltx_text" style="font-size:90%;">, featuring material from several BBC formats, as well as the LRS3 dataset </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS4.p1.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib6" title="" class="ltx_ref">6</a><span id="S2.SS4.p1.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS4.p1.1.7" class="ltx_text" style="font-size:90%;">, created from TED and TEDx presentation videos. In the pre-training stage, we use the unlabeled pre-train sets provided in both datasets with a total amount of 639 hours of video material. The fine-tuning stage uses 59 hrs of labeled audio-visual data from the labeled parts of the LRS2 (main) and LRS3 (trainval) datasets.
+For our scale-up experiments we additionally extract a subset of the unlabeled VoxCeleb2 dataset </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS4.p1.1.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib25" title="" class="ltx_ref">25</a><span id="S2.SS4.p1.1.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS4.p1.1.10" class="ltx_text" style="font-size:90%;">, from which we choose all videos in English language with a maximum duration of 6 seconds, yielding a total of 350hrs of audio-visual data. We create pseudo-labels for the videos using the OpenAI Whisper </span><span id="S2.SS4.p1.1.11" class="ltx_text ltx_font_italic" style="font-size:90%;">medium.en</span><span id="S2.SS4.p1.1.12" class="ltx_text" style="font-size:90%;"> ASR model </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS4.p1.1.13.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib26" title="" class="ltx_ref">26</a><span id="S2.SS4.p1.1.14.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS4.p1.1.15" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</section>
+<section id="S2.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">2.5 </span>Training Details</h3>
+
+<div id="S2.SS5.p1" class="ltx_para">
+<p id="S2.SS5.p1.5" class="ltx_p"><span id="S2.SS5.p1.5.1" class="ltx_text" style="font-size:90%;">For all training runs, we employ an Adam Optimizer </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS5.p1.5.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib27" title="" class="ltx_ref">27</a><span id="S2.SS5.p1.5.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS5.p1.5.4" class="ltx_text" style="font-size:90%;"> with hyperparameters </span><math id="S2.SS5.p1.1.m1.1" class="ltx_Math" alttext="\beta_{1}=0.9" display="inline"><semantics id="S2.SS5.p1.1.m1.1a"><mrow id="S2.SS5.p1.1.m1.1.1" xref="S2.SS5.p1.1.m1.1.1.cmml"><msub id="S2.SS5.p1.1.m1.1.1.2" xref="S2.SS5.p1.1.m1.1.1.2.cmml"><mi mathsize="90%" id="S2.SS5.p1.1.m1.1.1.2.2" xref="S2.SS5.p1.1.m1.1.1.2.2.cmml">β</mi><mn mathsize="90%" id="S2.SS5.p1.1.m1.1.1.2.3" xref="S2.SS5.p1.1.m1.1.1.2.3.cmml">1</mn></msub><mo mathsize="90%" id="S2.SS5.p1.1.m1.1.1.1" xref="S2.SS5.p1.1.m1.1.1.1.cmml">=</mo><mn mathsize="90%" id="S2.SS5.p1.1.m1.1.1.3" xref="S2.SS5.p1.1.m1.1.1.3.cmml">0.9</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.1.m1.1b"><apply id="S2.SS5.p1.1.m1.1.1.cmml" xref="S2.SS5.p1.1.m1.1.1"><eq id="S2.SS5.p1.1.m1.1.1.1.cmml" xref="S2.SS5.p1.1.m1.1.1.1"></eq><apply id="S2.SS5.p1.1.m1.1.1.2.cmml" xref="S2.SS5.p1.1.m1.1.1.2"><csymbol cd="ambiguous" id="S2.SS5.p1.1.m1.1.1.2.1.cmml" xref="S2.SS5.p1.1.m1.1.1.2">subscript</csymbol><ci id="S2.SS5.p1.1.m1.1.1.2.2.cmml" xref="S2.SS5.p1.1.m1.1.1.2.2">𝛽</ci><cn type="integer" id="S2.SS5.p1.1.m1.1.1.2.3.cmml" xref="S2.SS5.p1.1.m1.1.1.2.3">1</cn></apply><cn type="float" id="S2.SS5.p1.1.m1.1.1.3.cmml" xref="S2.SS5.p1.1.m1.1.1.3">0.9</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.1.m1.1c">\beta_{1}=0.9</annotation></semantics></math><span id="S2.SS5.p1.5.5" class="ltx_text" style="font-size:90%;">, </span><math id="S2.SS5.p1.2.m2.1" class="ltx_Math" alttext="\beta_{2}=0.98" display="inline"><semantics id="S2.SS5.p1.2.m2.1a"><mrow id="S2.SS5.p1.2.m2.1.1" xref="S2.SS5.p1.2.m2.1.1.cmml"><msub id="S2.SS5.p1.2.m2.1.1.2" xref="S2.SS5.p1.2.m2.1.1.2.cmml"><mi mathsize="90%" id="S2.SS5.p1.2.m2.1.1.2.2" xref="S2.SS5.p1.2.m2.1.1.2.2.cmml">β</mi><mn mathsize="90%" id="S2.SS5.p1.2.m2.1.1.2.3" xref="S2.SS5.p1.2.m2.1.1.2.3.cmml">2</mn></msub><mo mathsize="90%" id="S2.SS5.p1.2.m2.1.1.1" xref="S2.SS5.p1.2.m2.1.1.1.cmml">=</mo><mn mathsize="90%" id="S2.SS5.p1.2.m2.1.1.3" xref="S2.SS5.p1.2.m2.1.1.3.cmml">0.98</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.2.m2.1b"><apply id="S2.SS5.p1.2.m2.1.1.cmml" xref="S2.SS5.p1.2.m2.1.1"><eq id="S2.SS5.p1.2.m2.1.1.1.cmml" xref="S2.SS5.p1.2.m2.1.1.1"></eq><apply id="S2.SS5.p1.2.m2.1.1.2.cmml" xref="S2.SS5.p1.2.m2.1.1.2"><csymbol cd="ambiguous" id="S2.SS5.p1.2.m2.1.1.2.1.cmml" xref="S2.SS5.p1.2.m2.1.1.2">subscript</csymbol><ci id="S2.SS5.p1.2.m2.1.1.2.2.cmml" xref="S2.SS5.p1.2.m2.1.1.2.2">𝛽</ci><cn type="integer" id="S2.SS5.p1.2.m2.1.1.2.3.cmml" xref="S2.SS5.p1.2.m2.1.1.2.3">2</cn></apply><cn type="float" id="S2.SS5.p1.2.m2.1.1.3.cmml" xref="S2.SS5.p1.2.m2.1.1.3">0.98</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.2.m2.1c">\beta_{2}=0.98</annotation></semantics></math><span id="S2.SS5.p1.5.6" class="ltx_text" style="font-size:90%;">, and </span><math id="S2.SS5.p1.3.m3.1" class="ltx_Math" alttext="\epsilon=10^{-9}" display="inline"><semantics id="S2.SS5.p1.3.m3.1a"><mrow id="S2.SS5.p1.3.m3.1.1" xref="S2.SS5.p1.3.m3.1.1.cmml"><mi mathsize="90%" id="S2.SS5.p1.3.m3.1.1.2" xref="S2.SS5.p1.3.m3.1.1.2.cmml">ϵ</mi><mo mathsize="90%" id="S2.SS5.p1.3.m3.1.1.1" xref="S2.SS5.p1.3.m3.1.1.1.cmml">=</mo><msup id="S2.SS5.p1.3.m3.1.1.3" xref="S2.SS5.p1.3.m3.1.1.3.cmml"><mn mathsize="90%" id="S2.SS5.p1.3.m3.1.1.3.2" xref="S2.SS5.p1.3.m3.1.1.3.2.cmml">10</mn><mrow id="S2.SS5.p1.3.m3.1.1.3.3" xref="S2.SS5.p1.3.m3.1.1.3.3.cmml"><mo mathsize="90%" id="S2.SS5.p1.3.m3.1.1.3.3a" xref="S2.SS5.p1.3.m3.1.1.3.3.cmml">−</mo><mn mathsize="90%" id="S2.SS5.p1.3.m3.1.1.3.3.2" xref="S2.SS5.p1.3.m3.1.1.3.3.2.cmml">9</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.3.m3.1b"><apply id="S2.SS5.p1.3.m3.1.1.cmml" xref="S2.SS5.p1.3.m3.1.1"><eq id="S2.SS5.p1.3.m3.1.1.1.cmml" xref="S2.SS5.p1.3.m3.1.1.1"></eq><ci id="S2.SS5.p1.3.m3.1.1.2.cmml" xref="S2.SS5.p1.3.m3.1.1.2">italic-ϵ</ci><apply id="S2.SS5.p1.3.m3.1.1.3.cmml" xref="S2.SS5.p1.3.m3.1.1.3"><csymbol cd="ambiguous" id="S2.SS5.p1.3.m3.1.1.3.1.cmml" xref="S2.SS5.p1.3.m3.1.1.3">superscript</csymbol><cn type="integer" id="S2.SS5.p1.3.m3.1.1.3.2.cmml" xref="S2.SS5.p1.3.m3.1.1.3.2">10</cn><apply id="S2.SS5.p1.3.m3.1.1.3.3.cmml" xref="S2.SS5.p1.3.m3.1.1.3.3"><minus id="S2.SS5.p1.3.m3.1.1.3.3.1.cmml" xref="S2.SS5.p1.3.m3.1.1.3.3"></minus><cn type="integer" id="S2.SS5.p1.3.m3.1.1.3.3.2.cmml" xref="S2.SS5.p1.3.m3.1.1.3.3.2">9</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.3.m3.1c">\epsilon=10^{-9}</annotation></semantics></math><span id="S2.SS5.p1.5.7" class="ltx_text" style="font-size:90%;">, using a mini-batch size of 64. During the pre-training phase, we implement a Noam learning rate schedule </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS5.p1.5.8.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib9" title="" class="ltx_ref">9</a><span id="S2.SS5.p1.5.9.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS5.p1.5.10" class="ltx_text" style="font-size:90%;"> with 50,000 warmup steps and a peak learning rate of </span><math id="S2.SS5.p1.4.m4.1" class="ltx_Math" alttext="8\times 10^{-4}" display="inline"><semantics id="S2.SS5.p1.4.m4.1a"><mrow id="S2.SS5.p1.4.m4.1.1" xref="S2.SS5.p1.4.m4.1.1.cmml"><mn mathsize="90%" id="S2.SS5.p1.4.m4.1.1.2" xref="S2.SS5.p1.4.m4.1.1.2.cmml">8</mn><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S2.SS5.p1.4.m4.1.1.1" xref="S2.SS5.p1.4.m4.1.1.1.cmml">×</mo><msup id="S2.SS5.p1.4.m4.1.1.3" xref="S2.SS5.p1.4.m4.1.1.3.cmml"><mn mathsize="90%" id="S2.SS5.p1.4.m4.1.1.3.2" xref="S2.SS5.p1.4.m4.1.1.3.2.cmml">10</mn><mrow id="S2.SS5.p1.4.m4.1.1.3.3" xref="S2.SS5.p1.4.m4.1.1.3.3.cmml"><mo mathsize="90%" id="S2.SS5.p1.4.m4.1.1.3.3a" xref="S2.SS5.p1.4.m4.1.1.3.3.cmml">−</mo><mn mathsize="90%" id="S2.SS5.p1.4.m4.1.1.3.3.2" xref="S2.SS5.p1.4.m4.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.4.m4.1b"><apply id="S2.SS5.p1.4.m4.1.1.cmml" xref="S2.SS5.p1.4.m4.1.1"><times id="S2.SS5.p1.4.m4.1.1.1.cmml" xref="S2.SS5.p1.4.m4.1.1.1"></times><cn type="integer" id="S2.SS5.p1.4.m4.1.1.2.cmml" xref="S2.SS5.p1.4.m4.1.1.2">8</cn><apply id="S2.SS5.p1.4.m4.1.1.3.cmml" xref="S2.SS5.p1.4.m4.1.1.3"><csymbol cd="ambiguous" id="S2.SS5.p1.4.m4.1.1.3.1.cmml" xref="S2.SS5.p1.4.m4.1.1.3">superscript</csymbol><cn type="integer" id="S2.SS5.p1.4.m4.1.1.3.2.cmml" xref="S2.SS5.p1.4.m4.1.1.3.2">10</cn><apply id="S2.SS5.p1.4.m4.1.1.3.3.cmml" xref="S2.SS5.p1.4.m4.1.1.3.3"><minus id="S2.SS5.p1.4.m4.1.1.3.3.1.cmml" xref="S2.SS5.p1.4.m4.1.1.3.3"></minus><cn type="integer" id="S2.SS5.p1.4.m4.1.1.3.3.2.cmml" xref="S2.SS5.p1.4.m4.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.4.m4.1c">8\times 10^{-4}</annotation></semantics></math><span id="S2.SS5.p1.5.11" class="ltx_text" style="font-size:90%;">. The relatively high learning rate is facilitated by the Feature Normalization technique, which enhances training stability.
+For the fine-tuning phase using labeled data, we adjust the learning rate schedule to warm up over 10,000 steps, with a reduced peak rate of </span><math id="S2.SS5.p1.5.m5.1" class="ltx_Math" alttext="1\times 10^{-4}" display="inline"><semantics id="S2.SS5.p1.5.m5.1a"><mrow id="S2.SS5.p1.5.m5.1.1" xref="S2.SS5.p1.5.m5.1.1.cmml"><mn mathsize="90%" id="S2.SS5.p1.5.m5.1.1.2" xref="S2.SS5.p1.5.m5.1.1.2.cmml">1</mn><mo lspace="0.222em" mathsize="90%" rspace="0.222em" id="S2.SS5.p1.5.m5.1.1.1" xref="S2.SS5.p1.5.m5.1.1.1.cmml">×</mo><msup id="S2.SS5.p1.5.m5.1.1.3" xref="S2.SS5.p1.5.m5.1.1.3.cmml"><mn mathsize="90%" id="S2.SS5.p1.5.m5.1.1.3.2" xref="S2.SS5.p1.5.m5.1.1.3.2.cmml">10</mn><mrow id="S2.SS5.p1.5.m5.1.1.3.3" xref="S2.SS5.p1.5.m5.1.1.3.3.cmml"><mo mathsize="90%" id="S2.SS5.p1.5.m5.1.1.3.3a" xref="S2.SS5.p1.5.m5.1.1.3.3.cmml">−</mo><mn mathsize="90%" id="S2.SS5.p1.5.m5.1.1.3.3.2" xref="S2.SS5.p1.5.m5.1.1.3.3.2.cmml">4</mn></mrow></msup></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.5.m5.1b"><apply id="S2.SS5.p1.5.m5.1.1.cmml" xref="S2.SS5.p1.5.m5.1.1"><times id="S2.SS5.p1.5.m5.1.1.1.cmml" xref="S2.SS5.p1.5.m5.1.1.1"></times><cn type="integer" id="S2.SS5.p1.5.m5.1.1.2.cmml" xref="S2.SS5.p1.5.m5.1.1.2">1</cn><apply id="S2.SS5.p1.5.m5.1.1.3.cmml" xref="S2.SS5.p1.5.m5.1.1.3"><csymbol cd="ambiguous" id="S2.SS5.p1.5.m5.1.1.3.1.cmml" xref="S2.SS5.p1.5.m5.1.1.3">superscript</csymbol><cn type="integer" id="S2.SS5.p1.5.m5.1.1.3.2.cmml" xref="S2.SS5.p1.5.m5.1.1.3.2">10</cn><apply id="S2.SS5.p1.5.m5.1.1.3.3.cmml" xref="S2.SS5.p1.5.m5.1.1.3.3"><minus id="S2.SS5.p1.5.m5.1.1.3.3.1.cmml" xref="S2.SS5.p1.5.m5.1.1.3.3"></minus><cn type="integer" id="S2.SS5.p1.5.m5.1.1.3.3.2.cmml" xref="S2.SS5.p1.5.m5.1.1.3.3.2">4</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.5.m5.1c">1\times 10^{-4}</annotation></semantics></math><span id="S2.SS5.p1.5.12" class="ltx_text" style="font-size:90%;"> to accommodate the additional CTC loss. Both pre-training and fine-tuning processes are conducted on a single NVIDIA A100 GPU with bfloat16 precision </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S2.SS5.p1.5.13.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib23" title="" class="ltx_ref">23</a><span id="S2.SS5.p1.5.14.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S2.SS5.p1.5.15" class="ltx_text" style="font-size:90%;">.</span></p>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">3 </span>Experimental Evaluation</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p"><span id="S3.p1.1.1" class="ltx_text" style="font-size:90%;">In this section, we present the results achieved using the proposed updates to our previous approach. We place our results in the context of other, relevant VSR publications using a CTC-based decoding scheme. Further, we provide an analysis on how well our training objective of minimizing the encoding loss aligns with the downstream objectives of minimizing the CTC loss and, ultimately, the Word Error Rate.</span></p>
+</div>
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Benchmark Results</h3>
+
+<div id="S3.SS1.p1" class="ltx_para">
+<p id="S3.SS1.p1.1" class="ltx_p"><span id="S3.SS1.p1.1.1" class="ltx_text" style="font-size:90%;">Table </span><a href="#S3.T1" title="Table 1 ‣ 3.1 Benchmark Results ‣ 3 Experimental Evaluation ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS1.p1.1.2" class="ltx_text" style="font-size:90%;"> presents a comparison of CTC-based methods evaluated on the common LRS benchmarks. Our approach, which incorporates Feature Normalization in the knowledge distillation process and employs the enhanced frame preprocessing scheme, demonstrates substantial improvements over our previous model iteration. Using exclusively unlabeled audio-visual data, we achieve absolute reductions in Word Error Rate (WER) of 5.1% and 7.1% on the LRS2 and LRS3 test sets respectively (relative reductions of 10.8% and 13%). When using limited amounts of labeled data for fine-tuning the pre-trained model, we can lower the WER on LRS2 and LRS3 by 3.4% and 7.6% (relative reduction of 9.7% and 16.6%). Comparing with the related works from Table </span><a href="#S3.T1" title="Table 1 ‣ 3.1 Benchmark Results ‣ 3 Experimental Evaluation ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">1</span></a><span id="S3.SS1.p1.1.3" class="ltx_text" style="font-size:90%;">, our fine-tuned model achieves the best Word Error Rates among all CTC-based Visual Speech Recognition models on both the LRS2 and LRS3 benchmarks using just 59 hrs of publicly available labeled data for training.</span></p>
+</div>
+<div id="S3.SS1.p2" class="ltx_para">
+<p id="S3.SS1.p2.1" class="ltx_p"><span id="S3.SS1.p2.1.1" class="ltx_text" style="font-size:90%;">The incorporation of 350 hours of pseudo-labeled English data from the VoxCeleb2 dataset results in a further reduction of the WER to 36.7% on the LRS3 dataset. However, this additional data did not yield improvements for the LRS2 dataset. Increasing the image resolution to 96x96 pixels during unlabeled pre-training yields WERs of 40.6% and 47.4% for LRS2 and LRS3, respectively. While this change requires approximately twice the video memory, it demonstrates the potential for performance enhancement through increased computational resources and data volume.</span></p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<div id="S3.T1.2" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:433.6pt;height:233.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-50.4pt,27.2pt) scale(0.811261417450782,0.811261417450782) ;">
+<table id="S3.T1.2.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S3.T1.2.1.1.1" class="ltx_tr">
+<td id="S3.T1.2.1.1.1.1" class="ltx_td"></td>
+<td id="S3.T1.2.1.1.1.2" class="ltx_td ltx_align_center" colspan="2"><span id="S3.T1.2.1.1.1.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Data Quantity [hrs]</span></td>
+<td id="S3.T1.2.1.1.1.3" class="ltx_td ltx_align_center" colspan="2"><span id="S3.T1.2.1.1.1.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">WER [%]</span></td>
+</tr>
+<tr id="S3.T1.2.1.2.2" class="ltx_tr">
+<td id="S3.T1.2.1.2.2.1" class="ltx_td ltx_align_left"><span id="S3.T1.2.1.2.2.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">Method</span></td>
+<td id="S3.T1.2.1.2.2.2" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.2.2.2.1" class="ltx_text ltx_font_bold" style="font-size:90%;">unlabeled</span></td>
+<td id="S3.T1.2.1.2.2.3" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.2.2.3.1" class="ltx_text ltx_font_bold" style="font-size:90%;">labeled</span></td>
+<td id="S3.T1.2.1.2.2.4" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.2.2.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LRS2</span></td>
+<td id="S3.T1.2.1.2.2.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t"><span id="S3.T1.2.1.2.2.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LRS3</span></td>
+</tr>
+<tr id="S3.T1.2.1.3.3" class="ltx_tr">
+<td id="S3.T1.2.1.3.3.1" class="ltx_td ltx_align_left ltx_border_t">
+<span id="S3.T1.2.1.3.3.1.1" class="ltx_text" style="font-size:90%;">Shillingford et al. </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.3.3.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib2" title="" class="ltx_ref">2</a><span id="S3.T1.2.1.3.3.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.3.3.2" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.3.3.2.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.3.3.3" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.3.3.3.1" class="ltx_text" style="font-size:90%;">3,886</span></td>
+<td id="S3.T1.2.1.3.3.4" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.3.3.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.3.3.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t"><span id="S3.T1.2.1.3.3.5.1" class="ltx_text" style="font-size:90%;">55.1</span></td>
+</tr>
+<tr id="S3.T1.2.1.4.4" class="ltx_tr">
+<td id="S3.T1.2.1.4.4.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.4.4.1.1" class="ltx_text" style="font-size:90%;">Afouras et al. </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.4.4.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib28" title="" class="ltx_ref">28</a><span id="S3.T1.2.1.4.4.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.4.4.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.4.4.2.1" class="ltx_text" style="font-size:90%;">334</span></td>
+<td id="S3.T1.2.1.4.4.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.4.4.3.1" class="ltx_text" style="font-size:90%;">699</span></td>
+<td id="S3.T1.2.1.4.4.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.4.4.4.1" class="ltx_text" style="font-size:90%;">51.3</span></td>
+<td id="S3.T1.2.1.4.4.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.4.4.5.1" class="ltx_text" style="font-size:90%;">-</span></td>
+</tr>
+<tr id="S3.T1.2.1.5.5" class="ltx_tr">
+<td id="S3.T1.2.1.5.5.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.5.5.1.1" class="ltx_text" style="font-size:90%;">Afouras et al. </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.5.5.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib28" title="" class="ltx_ref">28</a><span id="S3.T1.2.1.5.5.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.5.5.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.5.5.2.1" class="ltx_text" style="font-size:90%;">334</span></td>
+<td id="S3.T1.2.1.5.5.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.5.5.3.1" class="ltx_text" style="font-size:90%;">475</span></td>
+<td id="S3.T1.2.1.5.5.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.5.5.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.5.5.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.5.5.5.1" class="ltx_text" style="font-size:90%;">59.8</span></td>
+</tr>
+<tr id="S3.T1.2.1.6.6" class="ltx_tr">
+<td id="S3.T1.2.1.6.6.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.6.6.1.1" class="ltx_text" style="font-size:90%;">LiRA </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.6.6.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S3.T1.2.1.6.6.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.6.6.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.6.6.2.1" class="ltx_text" style="font-size:90%;">439</span></td>
+<td id="S3.T1.2.1.6.6.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.6.6.3.1" class="ltx_text" style="font-size:90%;">225</span></td>
+<td id="S3.T1.2.1.6.6.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.6.6.4.1" class="ltx_text" style="font-size:90%;">38.8</span></td>
+<td id="S3.T1.2.1.6.6.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.6.6.5.1" class="ltx_text" style="font-size:90%;">-</span></td>
+</tr>
+<tr id="S3.T1.2.1.7.7" class="ltx_tr">
+<td id="S3.T1.2.1.7.7.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.7.7.1.1" class="ltx_text" style="font-size:90%;">LiRA </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.7.7.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S3.T1.2.1.7.7.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.T1.2.1.7.7.1.4" class="ltx_text" style="font-size:90%;"> (reported by </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.7.7.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S3.T1.2.1.7.7.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.T1.2.1.7.7.1.7" class="ltx_text" style="font-size:90%;">)</span>
+</td>
+<td id="S3.T1.2.1.7.7.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.7.7.2.1" class="ltx_text" style="font-size:90%;">433</span></td>
+<td id="S3.T1.2.1.7.7.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.7.7.3.1" class="ltx_text" style="font-size:90%;">30</span></td>
+<td id="S3.T1.2.1.7.7.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.7.7.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.7.7.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.7.7.5.1" class="ltx_text" style="font-size:90%;">72.8</span></td>
+</tr>
+<tr id="S3.T1.2.1.8.8" class="ltx_tr">
+<td id="S3.T1.2.1.8.8.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.8.8.1.1" class="ltx_text" style="font-size:90%;">LiRA </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.8.8.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib3" title="" class="ltx_ref">3</a><span id="S3.T1.2.1.8.8.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.T1.2.1.8.8.1.4" class="ltx_text" style="font-size:90%;"> (reported by </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.8.8.1.5.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S3.T1.2.1.8.8.1.6.2" class="ltx_text" style="font-size:90%;">]</span></cite><span id="S3.T1.2.1.8.8.1.7" class="ltx_text" style="font-size:90%;">)</span>
+</td>
+<td id="S3.T1.2.1.8.8.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.8.8.2.1" class="ltx_text" style="font-size:90%;">1,759</span></td>
+<td id="S3.T1.2.1.8.8.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.8.8.3.1" class="ltx_text" style="font-size:90%;">433</span></td>
+<td id="S3.T1.2.1.8.8.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.8.8.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.8.8.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.8.8.5.1" class="ltx_text" style="font-size:90%;">58.4</span></td>
+</tr>
+<tr id="S3.T1.2.1.9.9" class="ltx_tr">
+<td id="S3.T1.2.1.9.9.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.9.9.1.1" class="ltx_text" style="font-size:90%;">AV-HuBERT </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.9.9.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S3.T1.2.1.9.9.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.9.9.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.9.9.2.1" class="ltx_text" style="font-size:90%;">1,759</span></td>
+<td id="S3.T1.2.1.9.9.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.9.9.3.1" class="ltx_text" style="font-size:90%;">30</span></td>
+<td id="S3.T1.2.1.9.9.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.9.9.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.9.9.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.9.9.5.1" class="ltx_text" style="font-size:90%;">40.7</span></td>
+</tr>
+<tr id="S3.T1.2.1.10.10" class="ltx_tr">
+<td id="S3.T1.2.1.10.10.1" class="ltx_td ltx_align_left">
+<span id="S3.T1.2.1.10.10.1.1" class="ltx_text" style="font-size:90%;">AV-HuBERT </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.10.10.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib8" title="" class="ltx_ref">8</a><span id="S3.T1.2.1.10.10.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.10.10.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.10.10.2.1" class="ltx_text" style="font-size:90%;">1,759</span></td>
+<td id="S3.T1.2.1.10.10.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.10.10.3.1" class="ltx_text" style="font-size:90%;">433</span></td>
+<td id="S3.T1.2.1.10.10.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.10.10.4.1" class="ltx_text" style="font-size:90%;">-</span></td>
+<td id="S3.T1.2.1.10.10.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.10.10.5.1" class="ltx_text" style="font-size:90%;">38.6</span></td>
+</tr>
+<tr id="S3.T1.2.1.11.11" class="ltx_tr">
+<td id="S3.T1.2.1.11.11.1" class="ltx_td ltx_align_left ltx_border_t">
+<span id="S3.T1.2.1.11.11.1.1" class="ltx_text" style="font-size:90%;">LiteVSR </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.11.11.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S3.T1.2.1.11.11.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.11.11.2" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.11.11.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.11.11.3" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.11.11.3.1" class="ltx_text" style="font-size:90%;">59</span></td>
+<td id="S3.T1.2.1.11.11.4" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.11.11.4.1" class="ltx_text" style="font-size:90%;">35.0</span></td>
+<td id="S3.T1.2.1.11.11.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t"><span id="S3.T1.2.1.11.11.5.1" class="ltx_text" style="font-size:90%;">45.7</span></td>
+</tr>
+<tr id="S3.T1.2.1.12.12" class="ltx_tr">
+<td id="S3.T1.2.1.12.12.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S3.T1.2.1.12.12.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LiteVSR2</span></td>
+<td id="S3.T1.2.1.12.12.2" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.12.12.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.12.12.3" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.12.12.3.1" class="ltx_text" style="font-size:90%;">59</span></td>
+<td id="S3.T1.2.1.12.12.4" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.12.12.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">31.6</span></td>
+<td id="S3.T1.2.1.12.12.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t"><span id="S3.T1.2.1.12.12.5.1" class="ltx_text" style="font-size:90%;">38.1</span></td>
+</tr>
+<tr id="S3.T1.2.1.13.13" class="ltx_tr">
+<td id="S3.T1.2.1.13.13.1" class="ltx_td ltx_align_left"><span id="S3.T1.2.1.13.13.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LiteVSR2</span></td>
+<td id="S3.T1.2.1.13.13.2" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.13.13.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.13.13.3" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.13.13.3.1" class="ltx_text" style="font-size:90%;">409</span></td>
+<td id="S3.T1.2.1.13.13.4" class="ltx_td ltx_align_right"><span id="S3.T1.2.1.13.13.4.1" class="ltx_text" style="font-size:90%;">32.0</span></td>
+<td id="S3.T1.2.1.13.13.5" class="ltx_td ltx_nopad_r ltx_align_right"><span id="S3.T1.2.1.13.13.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">36.7</span></td>
+</tr>
+<tr id="S3.T1.2.1.14.14" class="ltx_tr">
+<td id="S3.T1.2.1.14.14.1" class="ltx_td ltx_align_left ltx_border_tt">
+<span id="S3.T1.2.1.14.14.1.1" class="ltx_text" style="font-size:90%;">LiteVSR </span><cite class="ltx_cite ltx_citemacro_cite"><span id="S3.T1.2.1.14.14.1.2.1" class="ltx_text" style="font-size:90%;">[</span><a href="#bib.bib19" title="" class="ltx_ref">19</a><span id="S3.T1.2.1.14.14.1.3.2" class="ltx_text" style="font-size:90%;">]</span></cite>
+</td>
+<td id="S3.T1.2.1.14.14.2" class="ltx_td ltx_align_right ltx_border_tt"><span id="S3.T1.2.1.14.14.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.14.14.3" class="ltx_td ltx_align_right ltx_border_tt"><span id="S3.T1.2.1.14.14.3.1" class="ltx_text" style="font-size:90%;">0</span></td>
+<td id="S3.T1.2.1.14.14.4" class="ltx_td ltx_align_right ltx_border_tt"><span id="S3.T1.2.1.14.14.4.1" class="ltx_text" style="font-size:90%;">47.4</span></td>
+<td id="S3.T1.2.1.14.14.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_tt"><span id="S3.T1.2.1.14.14.5.1" class="ltx_text" style="font-size:90%;">54.7</span></td>
+</tr>
+<tr id="S3.T1.2.1.15.15" class="ltx_tr">
+<td id="S3.T1.2.1.15.15.1" class="ltx_td ltx_align_left ltx_border_t"><span id="S3.T1.2.1.15.15.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LiteVSR2</span></td>
+<td id="S3.T1.2.1.15.15.2" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.15.15.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.15.15.3" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.15.15.3.1" class="ltx_text" style="font-size:90%;">0</span></td>
+<td id="S3.T1.2.1.15.15.4" class="ltx_td ltx_align_right ltx_border_t"><span id="S3.T1.2.1.15.15.4.1" class="ltx_text" style="font-size:90%;">42.3</span></td>
+<td id="S3.T1.2.1.15.15.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_t"><span id="S3.T1.2.1.15.15.5.1" class="ltx_text" style="font-size:90%;">47.6</span></td>
+</tr>
+<tr id="S3.T1.2.1.16.16" class="ltx_tr">
+<td id="S3.T1.2.1.16.16.1" class="ltx_td ltx_align_left ltx_border_bb"><span id="S3.T1.2.1.16.16.1.1" class="ltx_text ltx_font_bold" style="font-size:90%;">LiteVSR2-96x96</span></td>
+<td id="S3.T1.2.1.16.16.2" class="ltx_td ltx_align_right ltx_border_bb"><span id="S3.T1.2.1.16.16.2.1" class="ltx_text" style="font-size:90%;">639</span></td>
+<td id="S3.T1.2.1.16.16.3" class="ltx_td ltx_align_right ltx_border_bb"><span id="S3.T1.2.1.16.16.3.1" class="ltx_text" style="font-size:90%;">0</span></td>
+<td id="S3.T1.2.1.16.16.4" class="ltx_td ltx_align_right ltx_border_bb"><span id="S3.T1.2.1.16.16.4.1" class="ltx_text ltx_font_bold" style="font-size:90%;">40.6</span></td>
+<td id="S3.T1.2.1.16.16.5" class="ltx_td ltx_nopad_r ltx_align_right ltx_border_bb"><span id="S3.T1.2.1.16.16.5.1" class="ltx_text ltx_font_bold" style="font-size:90%;">47.4</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering" style="font-size:90%;"><span class="ltx_tag ltx_tag_table"><span id="S3.T1.5.1.1" class="ltx_text ltx_font_bold">Table 1</span>: </span>Comparison of state-of-the-art VSR models using pure CTC decoding, trained on labeled data (upper part) and unlabeled data only (lower part)</figcaption>
+</figure>
+</section>
+<section id="S3.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_subsection">3.2 </span>Alignment of the Pre-Training Objective</h3>
+
+<div id="S3.SS2.p1" class="ltx_para">
+<p id="S3.SS2.p1.1" class="ltx_p"><span id="S3.SS2.p1.1.1" class="ltx_text" style="font-size:90%;">A key consideration in our approach is the relationship between the pre-training objective of minimizing the encoding loss and the downstream metrics of CTC loss and Word Error Rate. In the context of unlabeled training, direct optimization of the CTC loss is not feasible due to the absence of transcriptions. Similarly, WER, being a non-differentiable metric, cannot be directly optimized at all. We thus analyze whether our chosen pre-training objective effectively serves as a proxy for these downstream metrics.
+Figure </span><a href="#S3.F4" title="Figure 4 ‣ 3.2 Alignment of the Pre-Training Objective ‣ 3 Experimental Evaluation ‣ Enhancing CTC-Based Visual Speech Recognition" class="ltx_ref" style="font-size:90%;"><span class="ltx_text ltx_ref_tag">4</span></a><span id="S3.SS2.p1.1.2" class="ltx_text" style="font-size:90%;"> provides empirical evidence of this alignment. The scatter plots and trend lines demonstrate a strong positive correlation between the encoding loss and both the CTC loss and WER on the LRS2 and LRS3 test sets. This suggests a successful indirect optimization of the CTC loss and WER through our pre-training objective and validates our approach of training VSR models with unlabeled data only.</span></p>
+</div>
+<figure id="S3.F4" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F4.1.1" class="ltx_p ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:429.3pt;"><span id="S3.F4.1.1.1" class="ltx_text" style="font-size:90%;"><img src="/html/2409.07210/assets/x4.png" id="S3.F4.1.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="265" alt="Refer to caption"></span></p>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_1">
+<p id="S3.F4.2.1" class="ltx_p ltx_figure_panel ltx_minipage ltx_align_bottom" style="width:429.3pt;"><span id="S3.F4.2.1.1" class="ltx_text" style="font-size:90%;"><img src="/html/2409.07210/assets/x5.png" id="S3.F4.2.1.1.g1" class="ltx_graphics ltx_img_landscape" width="461" height="265" alt="Refer to caption"></span></p>
+</div>
+</div>
+<figcaption class="ltx_caption" style="font-size:90%;"><span class="ltx_tag ltx_tag_figure"><span id="S3.F4.15.1.1" class="ltx_text ltx_font_bold">Fig. 4</span>: </span>Scatter plot showing the relation between the encoding loss <math id="S3.F4.6.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\text{enc}}" display="inline"><semantics id="S3.F4.6.m1.1b"><msub id="S3.F4.6.m1.1.1" xref="S3.F4.6.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S3.F4.6.m1.1.1.2" xref="S3.F4.6.m1.1.1.2.cmml">ℒ</mi><mtext id="S3.F4.6.m1.1.1.3" xref="S3.F4.6.m1.1.1.3a.cmml">enc</mtext></msub><annotation-xml encoding="MathML-Content" id="S3.F4.6.m1.1c"><apply id="S3.F4.6.m1.1.1.cmml" xref="S3.F4.6.m1.1.1"><csymbol cd="ambiguous" id="S3.F4.6.m1.1.1.1.cmml" xref="S3.F4.6.m1.1.1">subscript</csymbol><ci id="S3.F4.6.m1.1.1.2.cmml" xref="S3.F4.6.m1.1.1.2">ℒ</ci><ci id="S3.F4.6.m1.1.1.3a.cmml" xref="S3.F4.6.m1.1.1.3"><mtext mathsize="70%" id="S3.F4.6.m1.1.1.3.cmml" xref="S3.F4.6.m1.1.1.3">enc</mtext></ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.F4.6.m1.1d">\mathcal{L}_{\text{enc}}</annotation></semantics></math> and the WER metric (upper plot) / the CTC loss (lower plot) after pre-training. We feed the silent frames of each video to the pre-trained visual base to obtain the visual feature representation <math id="S3.F4.7.m2.1" class="ltx_Math" alttext="B_{v}(\mathbf{x}_{v})" display="inline"><semantics id="S3.F4.7.m2.1b"><mrow id="S3.F4.7.m2.1.1" xref="S3.F4.7.m2.1.1.cmml"><msub id="S3.F4.7.m2.1.1.3" xref="S3.F4.7.m2.1.1.3.cmml"><mi id="S3.F4.7.m2.1.1.3.2" xref="S3.F4.7.m2.1.1.3.2.cmml">B</mi><mi id="S3.F4.7.m2.1.1.3.3" xref="S3.F4.7.m2.1.1.3.3.cmml">v</mi></msub><mo lspace="0em" rspace="0em" id="S3.F4.7.m2.1.1.2" xref="S3.F4.7.m2.1.1.2.cmml">​</mo><mrow id="S3.F4.7.m2.1.1.1.1" xref="S3.F4.7.m2.1.1.1.1.1.cmml"><mo stretchy="false" id="S3.F4.7.m2.1.1.1.1.2" xref="S3.F4.7.m2.1.1.1.1.1.cmml">(</mo><msub id="S3.F4.7.m2.1.1.1.1.1" xref="S3.F4.7.m2.1.1.1.1.1.cmml"><mi id="S3.F4.7.m2.1.1.1.1.1.2" xref="S3.F4.7.m2.1.1.1.1.1.2.cmml">𝐱</mi><mi id="S3.F4.7.m2.1.1.1.1.1.3" xref="S3.F4.7.m2.1.1.1.1.1.3.cmml">v</mi></msub><mo stretchy="false" id="S3.F4.7.m2.1.1.1.1.3" xref="S3.F4.7.m2.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S3.F4.7.m2.1c"><apply id="S3.F4.7.m2.1.1.cmml" xref="S3.F4.7.m2.1.1"><times id="S3.F4.7.m2.1.1.2.cmml" xref="S3.F4.7.m2.1.1.2"></times><apply id="S3.F4.7.m2.1.1.3.cmml" xref="S3.F4.7.m2.1.1.3"><csymbol cd="ambiguous" id="S3.F4.7.m2.1.1.3.1.cmml" xref="S3.F4.7.m2.1.1.3">subscript</csymbol><ci id="S3.F4.7.m2.1.1.3.2.cmml" xref="S3.F4.7.m2.1.1.3.2">𝐵</ci><ci id="S3.F4.7.m2.1.1.3.3.cmml" xref="S3.F4.7.m2.1.1.3.3">𝑣</ci></apply><apply id="S3.F4.7.m2.1.1.1.1.1.cmml" xref="S3.F4.7.m2.1.1.1.1"><csymbol cd="ambiguous" id="S3.F4.7.m2.1.1.1.1.1.1.cmml" xref="S3.F4.7.m2.1.1.1.1">subscript</csymbol><ci id="S3.F4.7.m2.1.1.1.1.1.2.cmml" xref="S3.F4.7.m2.1.1.1.1.1.2">𝐱</ci><ci id="S3.F4.7.m2.1.1.1.1.1.3.cmml" xref="S3.F4.7.m2.1.1.1.1.1.3">𝑣</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.F4.7.m2.1d">B_{v}(\mathbf{x}_{v})</annotation></semantics></math>. We use these features to obtain the encoding loss between audio and visual features and let <math id="S3.F4.8.m3.1" class="ltx_Math" alttext="H_{a}" display="inline"><semantics id="S3.F4.8.m3.1b"><msub id="S3.F4.8.m3.1.1" xref="S3.F4.8.m3.1.1.cmml"><mi id="S3.F4.8.m3.1.1.2" xref="S3.F4.8.m3.1.1.2.cmml">H</mi><mi id="S3.F4.8.m3.1.1.3" xref="S3.F4.8.m3.1.1.3.cmml">a</mi></msub><annotation-xml encoding="MathML-Content" id="S3.F4.8.m3.1c"><apply id="S3.F4.8.m3.1.1.cmml" xref="S3.F4.8.m3.1.1"><csymbol cd="ambiguous" id="S3.F4.8.m3.1.1.1.cmml" xref="S3.F4.8.m3.1.1">subscript</csymbol><ci id="S3.F4.8.m3.1.1.2.cmml" xref="S3.F4.8.m3.1.1.2">𝐻</ci><ci id="S3.F4.8.m3.1.1.3.cmml" xref="S3.F4.8.m3.1.1.3">𝑎</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S3.F4.8.m3.1d">H_{a}</annotation></semantics></math> transcribe the visual features to calculate the CTC loss and WER for each sample of the (unseen) LRS2 and LRS3 test sets. The black line indicates the trend-line obtained from using linear regression on the data.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section" style="font-size:90%;">
+<span class="ltx_tag ltx_tag_section">4 </span>Conclusion</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p"><span id="S4.p1.1.1" class="ltx_text" style="font-size:90%;">LiteVSR2 maintains its predecessor’s focus on computational efficiency while achieving state-of-the-art performance among CTC-based VSR models on standard benchmarks, demonstrating the potential for resource-conscious advancements in VSR technology. We further show the scalability of our approach, yielding improved performance when leveraging increased computational resources and larger datasets.
+Our analysis reveals a strong alignment between our pre-training objective and relevant downstream VSR metrics. This correlation validates our approach to distill knowledge from ASR models, indicating a better prediction of encodings to directly translate into enhanced VSR performance.</span></p>
+</div>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography" style="font-size:80%;">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock"><span id="bib.bib1.1.1" class="ltx_text" style="font-size:80%;">
+Connor Mayer, Jennifer Abel, Adriano Barbosa, Alexis Black, and Eric Vatikiotis-Bateson,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.2.1" class="ltx_text" style="font-size:80%;">“The labial viseme reconsidered: Evidence from production and perception.,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib1.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">The Journal of the Acoustical Society of America</span><span id="bib.bib1.4.2" class="ltx_text" style="font-size:80%;">, vol. 129, no. 4_Supplement, pp. 2456–2456, Apr. 2011.
+</span>
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock"><span id="bib.bib2.1.1" class="ltx_text" style="font-size:80%;">
+Brendan Shillingford, Yannis Assael, Matthew W. Hoffman, Thomas Paine, Cían Hughes, Utsav Prabhu, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.2.1" class="ltx_text" style="font-size:80%;">“Large-Scale Visual Speech Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib2.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib2.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Interspeech</span><span id="bib.bib2.5.3" class="ltx_text" style="font-size:80%;">. Sep. 2019, pp. 4135–4139, ISCA.
+</span>
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock"><span id="bib.bib3.1.1" class="ltx_text" style="font-size:80%;">
+Pingchuan Ma, Rodrigo Mira, Stavros Petridis, Björn W. Schuller, and Maja Pantic,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.2.1" class="ltx_text" style="font-size:80%;">“LiRA: Learning Visual Speech Representations from Audio Through Self-Supervision,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib3.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib3.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Interspeech</span><span id="bib.bib3.5.3" class="ltx_text" style="font-size:80%;">. Aug. 2021, pp. 3011–3015, ISCA.
+</span>
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock"><span id="bib.bib4.1.1" class="ltx_text" style="font-size:80%;">
+Dmitriy Serdyuk, Otavio Braga, and Olivier Siohan,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.2.1" class="ltx_text" style="font-size:80%;">“Audio-Visual Speech Recognition is Worth $32\times 32\times 8$ Voxels,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib4.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib4.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</span><span id="bib.bib4.5.3" class="ltx_text" style="font-size:80%;">. Dec. 2021, pp. 796–802, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock"><span id="bib.bib5.1.1" class="ltx_text" style="font-size:80%;">
+Joon Son Chung, Andrew Senior, Oriol Vinyals, and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.2.1" class="ltx_text" style="font-size:80%;">“Lip Reading Sentences in the Wild,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib5.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib5.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</span><span id="bib.bib5.5.3" class="ltx_text" style="font-size:80%;">. Jul. 2017, pp. 3444–3453, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock"><span id="bib.bib6.1.1" class="ltx_text" style="font-size:80%;">
+Triantafyllos Afouras, Joon Son Chung, and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.2.1" class="ltx_text" style="font-size:80%;">“LRS3-TED: A large-scale dataset for visual speech recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib6.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:1809.00496</span><span id="bib.bib6.4.2" class="ltx_text" style="font-size:80%;">, Oct. 2018.
+</span>
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock"><span id="bib.bib7.1.1" class="ltx_text" style="font-size:80%;">
+Yannis M. Assael, Brendan Shillingford, Shimon Whiteson, and Nando de Freitas,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.2.1" class="ltx_text" style="font-size:80%;">“LipNet: End-to-End Sentence-level Lipreading,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib7.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:1611.01599</span><span id="bib.bib7.4.2" class="ltx_text" style="font-size:80%;">, Dec. 2016.
+</span>
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock"><span id="bib.bib8.1.1" class="ltx_text" style="font-size:80%;">
+Bowen Shi, Wei-Ning Hsu, Kushal Lakhotia, and Abdelrahman Mohamed,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.2.1" class="ltx_text" style="font-size:80%;">“Learning Audio-Visual Speech Representation by Masked Multimodal Cluster Prediction,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib8.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:2201.02184</span><span id="bib.bib8.4.2" class="ltx_text" style="font-size:80%;">, Mar. 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock"><span id="bib.bib9.1.1" class="ltx_text" style="font-size:80%;">
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.2.1" class="ltx_text" style="font-size:80%;">“Attention is All you Need,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib9.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib9.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the 31st International Conference on Neural Information Processing Systems (NIPS)</span><span id="bib.bib9.5.3" class="ltx_text" style="font-size:80%;">. 2017, NIPS’17, pp. 6000–6010, Curran Associates Inc.
+</span>
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock"><span id="bib.bib10.1.1" class="ltx_text" style="font-size:80%;">
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.2.1" class="ltx_text" style="font-size:80%;">“Conformer: Convolution-augmented Transformer for Speech Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib10.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib10.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Interspeech</span><span id="bib.bib10.5.3" class="ltx_text" style="font-size:80%;">. Oct. 2020, pp. 5036–5040, ISCA.
+</span>
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock"><span id="bib.bib11.1.1" class="ltx_text" style="font-size:80%;">
+Pingchuan Ma, Stavros Petridis, and Maja Pantic,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.2.1" class="ltx_text" style="font-size:80%;">“End-To-End Audio-Visual Speech Recognition with Conformers,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib11.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib11.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span><span id="bib.bib11.5.3" class="ltx_text" style="font-size:80%;">. Jun. 2021, pp. 7613–7617, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock"><span id="bib.bib12.1.1" class="ltx_text" style="font-size:80%;">
+K R Prajwal, Triantafyllos Afouras, and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.2.1" class="ltx_text" style="font-size:80%;">“Sub-word Level Lip Reading With Visual Attention,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib12.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib12.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</span><span id="bib.bib12.5.3" class="ltx_text" style="font-size:80%;">. Jun. 2022, pp. 5152–5162, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock"><span id="bib.bib13.1.1" class="ltx_text" style="font-size:80%;">
+Pingchuan Ma, Stavros Petridis, and Maja Pantic,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.2.1" class="ltx_text" style="font-size:80%;">“Visual Speech Recognition for Multiple Languages in the Wild,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib13.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">Nature Machine Intelligence</span><span id="bib.bib13.4.2" class="ltx_text" style="font-size:80%;">, vol. 4, no. 11, pp. 930–939, Oct. 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock"><span id="bib.bib14.1.1" class="ltx_text" style="font-size:80%;">
+Oscar Chang, Hank Liao, Dmitriy Serdyuk, Ankit Shahy, and Olivier Siohan,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.2.1" class="ltx_text" style="font-size:80%;">“Conformer is All You Need for Visual Speech Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib14.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib14.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">ICASSP 2024 - 2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span><span id="bib.bib14.5.3" class="ltx_text" style="font-size:80%;">. Apr. 2024, pp. 10136–10140, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock"><span id="bib.bib15.1.1" class="ltx_text" style="font-size:80%;">
+Jeong Hun Yeo, Minsu Kim, Jeongsoo Choi, Dae Hoe Kim, and Yong Man Ro,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.2.1" class="ltx_text" style="font-size:80%;">“AKVSR: Audio Knowledge Empowered Visual Speech Recognition by Compressing Audio Knowledge of a Pretrained Model,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib15.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">IEEE Transactions on Multimedia</span><span id="bib.bib15.4.2" class="ltx_text" style="font-size:80%;">, vol. 26, pp. 6462–6474, 2024.
+</span>
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock"><span id="bib.bib16.1.1" class="ltx_text" style="font-size:80%;">
+Young Jin Ahn, Jungwoo Park, Sangha Park, Jonghyun Choi, and Kee-Eung Kim,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.2.1" class="ltx_text" style="font-size:80%;">“SyncVSR: Data-Efficient Visual Speech Recognition with End-to-End Crossmodal Audio Token Synchronization,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib16.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:2406.12233</span><span id="bib.bib16.4.2" class="ltx_text" style="font-size:80%;">, Jun. 2024.
+</span>
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock"><span id="bib.bib17.1.1" class="ltx_text" style="font-size:80%;">
+Joon Son Son and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.2.1" class="ltx_text" style="font-size:80%;">“Lip Reading in Profile,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib17.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib17.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the British Machine Vision Conference</span><span id="bib.bib17.5.3" class="ltx_text" style="font-size:80%;">. 2017, p. 155, British Machine Vision Association.
+</span>
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock"><span id="bib.bib18.1.1" class="ltx_text" style="font-size:80%;">
+Takaki Makino, Hank Liao, Yannis Assael, Brendan Shillingford, Basilio Garcia, Otavio Braga, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.2.1" class="ltx_text" style="font-size:80%;">“Recurrent Neural Network Transducer for Audio-Visual Speech Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib18.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib18.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</span><span id="bib.bib18.5.3" class="ltx_text" style="font-size:80%;">. Dec. 2019, pp. 905–912, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock"><span id="bib.bib19.1.1" class="ltx_text" style="font-size:80%;">
+Hendrik Laux, Emil Mededovic, Ahmed Hallawa, Lukas Martin, Arne Peine, and Anke Schmeink,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.2.1" class="ltx_text" style="font-size:80%;">“LiteVSR: Efficient Visual Speech Recognition by Learning from Speech Representations of Unlabeled Data,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib19.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib19.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">ICASSP 2024 - 2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span><span id="bib.bib19.5.3" class="ltx_text" style="font-size:80%;">. Apr. 2024, pp. 10391–10395, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock"><span id="bib.bib20.1.1" class="ltx_text" style="font-size:80%;">
+Oleksii Kuchaiev, Jason Li, Huyen Nguyen, Oleksii Hrinchuk, Ryan Leary, Boris Ginsburg, et al.,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.2.1" class="ltx_text" style="font-size:80%;">“NeMo: A toolkit for building AI applications using Neural Modules,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib20.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:1909.09577</span><span id="bib.bib20.4.2" class="ltx_text" style="font-size:80%;">, Sep. 2019.
+</span>
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock"><span id="bib.bib21.1.1" class="ltx_text" style="font-size:80%;">
+Rico Sennrich, Barry Haddow, and Alexandra Birch,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.2.1" class="ltx_text" style="font-size:80%;">“Neural Machine Translation of Rare Words with Subword Units,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib21.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib21.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</span><span id="bib.bib21.5.3" class="ltx_text" style="font-size:80%;">. 2016, pp. 1715–1725, Association for Computational Linguistics.
+</span>
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock"><span id="bib.bib22.1.1" class="ltx_text" style="font-size:80%;">
+Alex Graves, Santiago Fernandez, Faustino Gomez, and Jurgen Schmidhuber,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.2.1" class="ltx_text" style="font-size:80%;">“Connectionist Temporal Classification: Labelling Unsegmented Sequence Data with Recurrent Neural Networks,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib22.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib22.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">International Conference on Machine Learning (ICML)</span><span id="bib.bib22.5.3" class="ltx_text" style="font-size:80%;">. 2006, pp. 369–376, ACM Press.
+</span>
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock"><span id="bib.bib23.1.1" class="ltx_text" style="font-size:80%;">
+Neil Burgess, Jelena Milanovic, Nigel Stephens, Konstantinos Monachopoulos, and David Mansell,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.2.1" class="ltx_text" style="font-size:80%;">“Bfloat16 Processing for Neural Networks,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib23.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib23.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">2019 IEEE 26th Symposium on Computer Arithmetic (ARITH)</span><span id="bib.bib23.5.3" class="ltx_text" style="font-size:80%;">. Jun. 2019, pp. 88–91, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock"><span id="bib.bib24.1.1" class="ltx_text" style="font-size:80%;">
+Davis E King,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.2.1" class="ltx_text" style="font-size:80%;">“Dlib-ml: A Machine Learning Toolkit,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib24.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">The Journal of Machine Learning Research</span><span id="bib.bib24.4.2" class="ltx_text" style="font-size:80%;">, vol. 10, pp. 1755–1758, 2009.
+</span>
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock"><span id="bib.bib25.1.1" class="ltx_text" style="font-size:80%;">
+Joon Son Chung, Arsha Nagrani, and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.2.1" class="ltx_text" style="font-size:80%;">“VoxCeleb2: Deep Speaker Recognition,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib25.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib25.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Interspeech</span><span id="bib.bib25.5.3" class="ltx_text" style="font-size:80%;">. Sep. 2018, pp. 1086–1090, ISCA.
+</span>
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock"><span id="bib.bib26.1.1" class="ltx_text" style="font-size:80%;">
+Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.2.1" class="ltx_text" style="font-size:80%;">“Robust Speech Recognition via Large-Scale Weak Supervision,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib26.3.1" class="ltx_text ltx_font_italic" style="font-size:80%;">arXiv preprint arXiv:2212.04356</span><span id="bib.bib26.4.2" class="ltx_text" style="font-size:80%;">, Dec. 2022.
+</span>
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock"><span id="bib.bib27.1.1" class="ltx_text" style="font-size:80%;">
+Diederik Kingma and Jimmy Ba,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.2.1" class="ltx_text" style="font-size:80%;">“Adam: A Method for Stochastic Optimization,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib27.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib27.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">Proceedings of the International Conference on Learning Representations (ICLR)</span><span id="bib.bib27.5.3" class="ltx_text" style="font-size:80%;">. 2015, IEEE.
+</span>
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock"><span id="bib.bib28.1.1" class="ltx_text" style="font-size:80%;">
+Triantafyllos Afouras, Joon Son Chung, and Andrew Zisserman,
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.2.1" class="ltx_text" style="font-size:80%;">“ASR is All You Need: Cross-Modal Distillation for Lip Reading,”
+</span>
+</span>
+<span class="ltx_bibblock"><span id="bib.bib28.3.1" class="ltx_text" style="font-size:80%;">in </span><span id="bib.bib28.4.2" class="ltx_text ltx_font_italic" style="font-size:80%;">IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</span><span id="bib.bib28.5.3" class="ltx_text" style="font-size:80%;">. May 2020, pp. 2143–2147, IEEE.
+</span>
+</span>
+</li>
+</ul>
+</section>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2409.07209" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2409.07210" class="ar5iv-text-button ar5iv-severity-ok">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2409.07210">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2409.07210" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2409.07211" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sun Oct  6 01:26:56 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

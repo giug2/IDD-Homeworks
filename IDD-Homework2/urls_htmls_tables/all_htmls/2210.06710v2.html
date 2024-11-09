@@ -1,0 +1,1452 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2210.06710] Large Language Models are few(1)-shot Table Reasoners</title><meta property="og:description" content="Recent literature has shown that large language models (LLMs) are generally excellent few-shot reasoners to solve text reasoning tasks. However, the capability of LLMs on table reasoning tasks is yet to be explored. In…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Large Language Models are few(1)-shot Table Reasoners">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Large Language Models are few(1)-shot Table Reasoners">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2210.06710">
+
+<!--Generated on Thu Mar 14 02:47:14 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">Large Language Models are few(1)-shot Table Reasoners</h1>
+<div class="ltx_authors">
+<span class="ltx_creator ltx_role_author">
+<span class="ltx_personname">Wenhu Chen 
+<br class="ltx_break">University of Waterloo, Vector Institute 
+<br class="ltx_break"><span id="id1.1.id1" class="ltx_text ltx_font_typewriter">wenhuchen@uwaterloo.ca</span> 
+<br class="ltx_break">
+</span></span>
+</div>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id2.id1" class="ltx_p">Recent literature has shown that large language models (LLMs) are generally excellent few-shot reasoners to solve text reasoning tasks. However, the capability of LLMs on table reasoning tasks is yet to be explored. In this paper, we aim at understanding how well LLMs can perform table-related tasks with few-shot in-context learning. Specifically, we evaluated LLMs on popular table QA and fact verification datasets like WikiTableQuestion, FetaQA, TabFact, and FEVEROUS and found that LLMs are competent at complex reasoning over table structures, though these models are not pre-trained on any table corpus. When combined with ‘chain of thoughts’ prompting, LLMs can achieve very strong performance with only a 1-shot demonstration, even on par with some SoTA models. We show that LLMs are even more competent at generating comprehensive long-form answers on FetaQA than tuned T5-large. We further manually studied the reasoning chains elicited from LLMs and found that these reasoning chains are highly consistent with the underlying semantic form. We believe that LLMs can serve as a simple yet generic baseline for future research. The code and data are released in <a target="_blank" href="https://github.com/wenhuchen/TableCoT" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://github.com/wenhuchen/TableCoT</a>.</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">The problem of structured knowledge grounding has been extensively studied for many years. Tables, as one of the most popular (semi)-structured forms to store world knowledge receive significant attention from the natural language processing (NLP) community. Traditional approaches mostly rely on synthesizing executable languages like SQL or SPARQL to access the information inside the table. However, these symbolic languages normally make a rigid assumption about the table and cannot capture the semantics of text chunks inside the table. Such issues are even more pronounced with web tables due to their irregular forms. To fully understand web tables, both structured reasoning and textual reasoning are required. Such challenges have attracted many researchers to work in the field. Recently, a wide range of table-based tasks have been proposed like table question answering <cite class="ltx_cite ltx_citemacro_cite">Pasupat and Liang (<a href="#bib.bib28" title="" class="ltx_ref">2015</a>); Chen et al. (<a href="#bib.bib9" title="" class="ltx_ref">2020c</a>); Zhu et al. (<a href="#bib.bib47" title="" class="ltx_ref">2021</a>); Chen et al. (<a href="#bib.bib10" title="" class="ltx_ref">2021b</a>); Talmor et al. (<a href="#bib.bib33" title="" class="ltx_ref">2020</a>); Chen et al. (<a href="#bib.bib6" title="" class="ltx_ref">2020a</a>); Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>, table fact verification <cite class="ltx_cite ltx_citemacro_cite">Chen et al. (<a href="#bib.bib8" title="" class="ltx_ref">2019</a>); Aly et al. (<a href="#bib.bib2" title="" class="ltx_ref">2021</a>)</cite>, table-based generation <cite class="ltx_cite ltx_citemacro_cite">Chen et al. (<a href="#bib.bib7" title="" class="ltx_ref">2020b</a>); Parikh et al. (<a href="#bib.bib27" title="" class="ltx_ref">2020</a>); Nan et al. (<a href="#bib.bib24" title="" class="ltx_ref">2021</a>)</cite>, and table-grounded conversation <cite class="ltx_cite ltx_citemacro_cite">Budzianowski et al. (<a href="#bib.bib4" title="" class="ltx_ref">2018</a>); Nakamura et al. (<a href="#bib.bib22" title="" class="ltx_ref">2022</a>)</cite>. This wide range of table-based tasks all come with different input-output formats and domains. Due to the heterogeneity of these tasks, models achieving the best results on these tasks normally need to be fully fine-tuned on the specific downstream dataset with 10K-100K examples to achieve reasonable performance.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Recently, there have been efforts like UnifiedSKG <cite class="ltx_cite ltx_citemacro_cite">Xie et al. (<a href="#bib.bib37" title="" class="ltx_ref">2022</a>)</cite> aiming to unify these heterogeneous table-based tasks as a generic text-to-text format. UnifiedSKG has shown that using T5-3B <cite class="ltx_cite ltx_citemacro_cite">Raffel et al. (<a href="#bib.bib30" title="" class="ltx_ref">2020</a>)</cite> with the text-to-text format can already achieve state-of-the-art performance on almost all the table-based tasks without task-specific designs. However, the proposed text-to-text models still need to be fully fine-tuned on the downstream tasks. UnifiedSKG also identified that T0-style <cite class="ltx_cite ltx_citemacro_cite">Sanh et al. (<a href="#bib.bib31" title="" class="ltx_ref">2022</a>)</cite> cross-task transfer can only achieve almost random performance.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure"><img src="/html/2210.06710/assets/model.001.jpeg" id="S1.F1.g1" class="ltx_graphics ltx_centering ltx_img_portrait" width="538" height="937" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>In-context learning for table-related tasks with chain-of-thoughts reasoning.</figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para">
+<p id="S1.p3.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Wei et al. (<a href="#bib.bib36" title="" class="ltx_ref">2022</a>); Wang et al. (<a href="#bib.bib35" title="" class="ltx_ref">2022</a>); Zhou et al. (<a href="#bib.bib46" title="" class="ltx_ref">2022</a>); Drozdov et al. (<a href="#bib.bib14" title="" class="ltx_ref">2022</a>)</cite> have recently discovered that large language models <cite class="ltx_cite ltx_citemacro_cite">Brown et al. (<a href="#bib.bib3" title="" class="ltx_ref">2020</a>); Chowdhery et al. (<a href="#bib.bib12" title="" class="ltx_ref">2022</a>); Ouyang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2022</a>)</cite> can be used to solve complex mathematical and commonsense reasoning tasks with few-shot in-context learning. Inspired by this discovery, we aim at understanding whether these LLMs can also solve complex table-based reasoning tasks. Though the LLMs are not specifically designed to encode tables, given the enormous number of tables present in the pre-training corpus, we believe they are also competent at reasoning over table information.</p>
+</div>
+<div id="S1.p4" class="ltx_para">
+<p id="S1.p4.1" class="ltx_p">In this paper, we experimented with few-shot in-context learning for LLMs as depicted in <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 1</span></a>. Instead of fine-tuning the model, we only provide a few examples to showcase the desired input-output format as the condition for the model to follow to solve unseen test examples. We experiment with several prompting variants including (1) direct prediction, (2) Chain of Thoughts <cite class="ltx_cite ltx_citemacro_cite">Wei et al. (<a href="#bib.bib36" title="" class="ltx_ref">2022</a>)</cite> (CoT), (3) Chains of thoughts with self-consistency <cite class="ltx_cite ltx_citemacro_cite">Wang et al. (<a href="#bib.bib35" title="" class="ltx_ref">2022</a>)</cite> (CoT+SC). We evaluate these methods on WikiTableQA <cite class="ltx_cite ltx_citemacro_cite">Pasupat and Liang (<a href="#bib.bib28" title="" class="ltx_ref">2015</a>)</cite>, FetaQA <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>, TabFact <cite class="ltx_cite ltx_citemacro_cite">Chen et al. (<a href="#bib.bib8" title="" class="ltx_ref">2019</a>)</cite> and FEVEROUS <cite class="ltx_cite ltx_citemacro_cite">Aly et al. (<a href="#bib.bib2" title="" class="ltx_ref">2021</a>)</cite>. Our results reveal that LLMs <cite class="ltx_cite ltx_citemacro_cite">Ouyang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2022</a>); Chen et al. (<a href="#bib.bib5" title="" class="ltx_ref">2021a</a>); Chowdhery et al. (<a href="#bib.bib12" title="" class="ltx_ref">2022</a>)</cite> can achieve striking performance with only 1 or 2 demonstrations, e.g. 48.8% on WikiTableQuestions and 78.8% on TabFact, which are on par some near-SoTA models <cite class="ltx_cite ltx_citemacro_cite">Yu et al. (<a href="#bib.bib40" title="" class="ltx_ref">2021</a>); Eisenschlos et al. (<a href="#bib.bib16" title="" class="ltx_ref">2020</a>)</cite>. On other datasets like FetaQA with long-form answers, our human evaluation reveals that GPT-3 can significantly outperform the fine-tuned T5-large by more than 30% in terms of correctness and adequacy.</p>
+</div>
+<div id="S1.p5" class="ltx_para">
+<p id="S1.p5.1" class="ltx_p">Furthermore, we manually studied the chain of thoughts elicited from LLMs and found that the rationale is highly consistent with the ‘ground truth’ semantic forms when the model predictions are correct. We found that these models are surprisingly competent at performing symbolic operations over the table, like maximum, minimum, counting, comparison, addition, and difference. However, we also identify several issues of the LLMs on these table reasoning tasks: (1) due to the token limitation, the model is unable to generalize to ‘huge’ tables with 30+ rows, which is the major error source, (2) LLMs can sometimes make simple mistakes when performing symbolic operations.</p>
+</div>
+<div id="S1.p6" class="ltx_para">
+<p id="S1.p6.1" class="ltx_p">Due to the simplicity and generality, we believe LLMs with CoT should be used as an important baseline for any future table-related research.</p>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Related Work</h2>
+
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>Reasoning over Tables</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.1" class="ltx_p">Table-based reasoning is traditionally accomplished by semantic parsing to execute commands on tables like WikiTableQuestions <cite class="ltx_cite ltx_citemacro_cite">Pasupat and Liang (<a href="#bib.bib28" title="" class="ltx_ref">2015</a>)</cite>, WikiSQL <cite class="ltx_cite ltx_citemacro_cite">Zhong et al. (<a href="#bib.bib44" title="" class="ltx_ref">2017</a>)</cite>, and Spider <cite class="ltx_cite ltx_citemacro_cite">Yu et al. (<a href="#bib.bib41" title="" class="ltx_ref">2018</a>)</cite>. These models aim to synthesize SQL/SPARQL to interact with tables. However, these machine languages have a rigorous requirement regarding the tables, e.g. the value in the same column should follow the same data type. Such rigorous assumptions are frequently violated by web tables containing unnormalized free-form text in cells. Therefore, language understanding inside the table is essential to achieve a better score. Recently,  <cite class="ltx_cite ltx_citemacro_citet">Yin et al. (<a href="#bib.bib39" title="" class="ltx_ref">2020</a>); Herzig et al. (<a href="#bib.bib17" title="" class="ltx_ref">2020</a>); Liu et al. (<a href="#bib.bib21" title="" class="ltx_ref">2021</a>); Deng et al. (<a href="#bib.bib13" title="" class="ltx_ref">2022</a>)</cite> have proposed to pre-train table and text to learn joint representation. These pre-trained models can use joint representation to perform reasoning implicitly without relying on symbolic execution. By pre-training the model on large-scale crawled or synthesized data, these models can normally achieve the best-known performance on table tasks. However, these models still require a significant amount of fine-tuning on the downstream datasets. Unlike these methods, we are interested in in-context learning, where the model can only learn with a few examples (demonstration) without any fine-tuning. One contemporary work similar to ours is BINDER <cite class="ltx_cite ltx_citemacro_cite">Cheng et al. (<a href="#bib.bib11" title="" class="ltx_ref">2022</a>)</cite>, which utilizes Codex to synthesize SQL to execute logical forms against tables for question answering. One big difference is that BINDER <cite class="ltx_cite ltx_citemacro_cite">Cheng et al. (<a href="#bib.bib11" title="" class="ltx_ref">2022</a>)</cite> involves logical form execution, if the execution fails, BINDER will fall back to using language models to answer the question, which is more similar to ours.</p>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>In-context Learning with LLMs</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">GPT-3 <cite class="ltx_cite ltx_citemacro_cite">Brown et al. (<a href="#bib.bib3" title="" class="ltx_ref">2020</a>)</cite> and other large language models demonstrated strong abilities to perform few-shot predictions without fine-tuning, where the model is given a description of the task in natural language with few examples. Scaling model size, data, and computing are crucial to enable this learning ability. Recently,  <cite class="ltx_cite ltx_citemacro_cite">Rae et al. (<a href="#bib.bib29" title="" class="ltx_ref">2021</a>); Smith et al. (<a href="#bib.bib32" title="" class="ltx_ref">2022</a>); Chowdhery et al. (<a href="#bib.bib12" title="" class="ltx_ref">2022</a>); Du et al. (<a href="#bib.bib15" title="" class="ltx_ref">2022</a>)</cite> have proposed to train different types of large language models with different training recipes. The LLMs have demonstrated a striking capability utilizing the few-shot prompts to accomplish unseen tasks without any fine-tuning, which is found to be an emergent capability not presented in smaller language models.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>Chain of Thoughts Reasoning</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">Although LLMs <cite class="ltx_cite ltx_citemacro_cite">Brown et al. (<a href="#bib.bib3" title="" class="ltx_ref">2020</a>); Chowdhery et al. (<a href="#bib.bib12" title="" class="ltx_ref">2022</a>)</cite> have demonstrated remarkable success across a range of NLP tasks, their ability to demonstrate reasoning is often seen as a limitation. Such capability cannot be acquired simply by scaling up the model size. Recently, the ‘chain of thoughts’ prompting <cite class="ltx_cite ltx_citemacro_cite">Wei et al. (<a href="#bib.bib36" title="" class="ltx_ref">2022</a>)</cite> has been discovered to empower LLMs to perform complex reasoning over text. By providing the model with several exemplars of reasoning chains, LLMs can learn to follow the template to solve difficult unseen tasks. Later,  <cite class="ltx_cite ltx_citemacro_citet">Wang et al. (<a href="#bib.bib35" title="" class="ltx_ref">2022</a>)</cite> propose to use self-consistency with CoT to further improve performance. Later on,  <cite class="ltx_cite ltx_citemacro_citet">Kojima et al. (<a href="#bib.bib18" title="" class="ltx_ref">2022</a>)</cite> discovered that LLMs can even perform reasoning without any demonstration by using appropriate prompts. These recent findings reveal the strong capability of LLMs to perform complex reasoning. However, the current studies are still heavily focused on text-based tasks like question answering, common sense reasoning, etc. The models’ capability to reason over tables is yet unknown. In this paper, we are specifically interested in understanding LLMs’ capability to reason over web tables with CoT prompting.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2210.06710/assets/prompt.001.jpeg" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_portrait" width="598" height="1076" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Prompts used for question answering and fact verification tasks.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Method</h2>
+
+<div id="S3.p1" class="ltx_para">
+<p id="S3.p1.1" class="ltx_p">We experiment with different in-context learning methods to solve the table-based reasoning tasks. To formulate the prompt, we linearize the table and concatenate it with a few examples as demonstrations of the language model to predict the output from an unseen test example. The format is described in <a href="#S2.F2" title="Figure 2 ‣ 2.3 Chain of Thoughts Reasoning ‣ 2 Related Work ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 2</span></a>. We mainly investigate three different variants for language model prompting, including (1) Direct Prediction, (2) Chain of Thoughts (CoT), and (3) Chain of Thoughts + Celf-Consistentcy decoding (CoT+SC). For self-consistency methods, we use LLMs to generate five diverse reasoning paths and then use majority voting to select the most voted answer.</p>
+</div>
+<div id="S3.p2" class="ltx_para">
+<p id="S3.p2.1" class="ltx_p">To limit the budget and constrain the input token length, we truncate the input tables to contain only the first 22 rows and the first 8 columns. For each cell, we truncate the word length to contain only the first 10 words. Through such truncation, we can restrict the input token length to within 2000 tokens. We will talk about the impact of input token length on the final performance.</p>
+</div>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Experimental Results</h2>
+
+<div id="S4.p1" class="ltx_para">
+<p id="S4.p1.1" class="ltx_p">For the GPT-3 experiments, we used the four provided models, Ada, Babbage, Curie, and Davinci with 350M, 1.3B, 6.7B, and 175B parameters respectively. We mainly use Davinci-text-002 <cite class="ltx_cite ltx_citemacro_cite">Ouyang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2022</a>)</cite> in our experiments. We also report results for Codex <cite class="ltx_cite ltx_citemacro_cite">Chen et al. (<a href="#bib.bib5" title="" class="ltx_ref">2021a</a>)</cite> (Davinci-code-002) on some datasets.
+We use a temperature of 0.7 without any frequency penalty and without top-k truncation. We found that the model performance is robust to the sampling strategies and the hyper-parameters. These models are mainly trained on web-crawled data and code data, without any specialized training on table corpus.</p>
+</div>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>Datasets</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">Here we list all of our datasets as follows:</p>
+</div>
+<section id="S4.SS1.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">WikiTableQuestions</h4>
+
+<div id="S4.SS1.SSS0.Px1.p1" class="ltx_para">
+<p id="S4.SS1.SSS0.Px1.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Pasupat and Liang (<a href="#bib.bib28" title="" class="ltx_ref">2015</a>)</cite> consists of complex questions annotated based on Wikipedia tables. Crowd Workers are asked to compose a series of complex questions that include comparisons, superlatives, aggregation, or arithmetic operations. The annotated dataset is cross-validated by other crowd workers. In our experiments, we use the unseen test set for evaluation. We evaluate the standard test set with roughly 4000 questions. In this dataset, we adopt the answer exact match as our evaluation metric.</p>
+</div>
+</section>
+<section id="S4.SS1.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">FetaQA</h4>
+
+<div id="S4.SS1.SSS0.Px2.p1" class="ltx_para">
+<p id="S4.SS1.SSS0.Px2.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite> consists of free-form table questions. These questions are mostly complex questions that require integrating information from discontinuous chunks in the table. Instead of having short answers, the dataset annotates long free-form answers. Unlike other datasets using copies of short text spans from the source, the questions in FetaQA require a high-level understanding. We adopt sacre-BLEU and human evaluation as our evaluation metrics. The evaluation set contains a total of 2003 examples.</p>
+</div>
+</section>
+<section id="S4.SS1.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">TabFact</h4>
+
+<div id="S4.SS1.SSS0.Px3.p1" class="ltx_para">
+<p id="S4.SS1.SSS0.Px3.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Chen et al. (<a href="#bib.bib8" title="" class="ltx_ref">2019</a>)</cite> consists of both simple and complex claims annotated by crowd workers based on Wikipedia tables. In the simple subset, the claims normally do not involve higher-order operations like max/min/count, etc. While the complex subset mainly contains claims involving higher-order operations. We evaluate the original test set containing 12,779 examples. We report binary classification accuracy on the set.</p>
+</div>
+</section>
+<section id="S4.SS1.SSS0.Px4" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">FEVEROUS</h4>
+
+<div id="S4.SS1.SSS0.Px4.p1" class="ltx_para">
+<p id="S4.SS1.SSS0.Px4.p1.1" class="ltx_p"><cite class="ltx_cite ltx_citemacro_citet">Aly et al. (<a href="#bib.bib2" title="" class="ltx_ref">2021</a>)</cite> consists of compositional claims annotated by crowd workers regarding Wikipedia tables. Since the dataset contains both table-supported and text-supported claims. We filter out text-supported claims and only keep the 2,295 table-supported claims as our test set. Different from TabFact, FEVEROUS consists of more complex tables with irregular structures like multi-row, multi-column, multi-table, etc. We report dev-set accuracy.</p>
+</div>
+</section>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Baselines</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">In these experiments, we mainly consider the following baseline models.</p>
+</div>
+<section id="S4.SS2.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Pre-trained Encoder-Decoder Model</h4>
+
+<div id="S4.SS2.SSS0.Px1.p1" class="ltx_para">
+<p id="S4.SS2.SSS0.Px1.p1.1" class="ltx_p">Pre-trained encoder-decoder model is one of our competitors, which aims to encode the table as a plain sequence into the encoder, and then apply the decoder to generate either an answer or a verdict. In this paper, we mainly compare against T5 <cite class="ltx_cite ltx_citemacro_cite">Raffel et al. (<a href="#bib.bib30" title="" class="ltx_ref">2020</a>)</cite> and BART <cite class="ltx_cite ltx_citemacro_cite">Lewis et al. (<a href="#bib.bib19" title="" class="ltx_ref">2020</a>)</cite> as our baselines.</p>
+</div>
+</section>
+<section id="S4.SS2.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Pre-trained Table Understanding Model</h4>
+
+<div id="S4.SS2.SSS0.Px2.p1" class="ltx_para">
+<p id="S4.SS2.SSS0.Px2.p1.1" class="ltx_p">This family of models is specifically pre-trained on the table-related corpus, which utilizes specific architecture to encode table structure and handle symbolic computation. In this paper, we mainly consider TAPAS <cite class="ltx_cite ltx_citemacro_cite">Herzig et al. (<a href="#bib.bib17" title="" class="ltx_ref">2020</a>)</cite>, TABERT <cite class="ltx_cite ltx_citemacro_cite">Yin et al. (<a href="#bib.bib39" title="" class="ltx_ref">2020</a>)</cite>, and TAPEX <cite class="ltx_cite ltx_citemacro_cite">Liu et al. (<a href="#bib.bib21" title="" class="ltx_ref">2021</a>)</cite>.</p>
+</div>
+</section>
+<section id="S4.SS2.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Neural Symbolic Model</h4>
+
+<div id="S4.SS2.SSS0.Px3.p1" class="ltx_para">
+<p id="S4.SS2.SSS0.Px3.p1.1" class="ltx_p">This family of models includes a non-pre-trained neural symbolic model, which can synthesize machine language to interact with the table. This line of work includes LogicFactChecker <cite class="ltx_cite ltx_citemacro_cite">Zhong et al. (<a href="#bib.bib45" title="" class="ltx_ref">2020</a>)</cite>, Neural-Symbolic Machine <cite class="ltx_cite ltx_citemacro_cite">Liang et al. (<a href="#bib.bib20" title="" class="ltx_ref">2018</a>)</cite>, etc.</p>
+</div>
+</section>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Main Results</h3>
+
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Here we show our main results for different datasets as follows.</p>
+</div>
+<section id="S4.SS3.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">WikiTableQuestions</h4>
+
+<div id="S4.SS3.SSS0.Px1.p1" class="ltx_para">
+<p id="S4.SS3.SSS0.Px1.p1.1" class="ltx_p">As can be seen from  <a href="#S4.T1" title="Table 1 ‣ WikiTableQuestions ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Table 1</span></a>, directly asking GPT-3 to generate answers can only lead to 26% EM score. However, if we prompt the model with the CoT demonstrations, GPT-3 is more likely to follow the logical operation to derive the answers. With two demonstrations, GPT-3 can achieve roughly 46% EM score. By switching from GPT-3 to Codex, we are able to further improve the EM score to over 48.8%. These results are particularly surprising given that TAPAS has a built-in module to complete symbolic operations, while GPT-3 was not trained on any table-specific dataset. These results demonstrate GPT-3’s built-in capabilities to perform diverse types of reasoning over tables.</p>
+</div>
+<figure id="S4.T1" class="ltx_table">
+<table id="S4.T1.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T1.1.1.1" class="ltx_tr">
+<td id="S4.T1.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">Type</td>
+<td id="S4.T1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">Model</td>
+<td id="S4.T1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">Test EM</td>
+</tr>
+<tr id="S4.T1.1.2.2" class="ltx_tr">
+<td id="S4.T1.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t">Train</td>
+<td id="S4.T1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t"><cite class="ltx_cite ltx_citemacro_citet">Pasupat and Liang (<a href="#bib.bib28" title="" class="ltx_ref">2015</a>)</cite></td>
+<td id="S4.T1.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">37.1</td>
+</tr>
+<tr id="S4.T1.1.3.3" class="ltx_tr">
+<td id="S4.T1.1.3.3.1" class="ltx_td ltx_align_center">Train</td>
+<td id="S4.T1.1.3.3.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Zhang et al. (<a href="#bib.bib43" title="" class="ltx_ref">2017</a>)</cite></td>
+<td id="S4.T1.1.3.3.3" class="ltx_td ltx_align_center">43.7</td>
+</tr>
+<tr id="S4.T1.1.4.4" class="ltx_tr">
+<td id="S4.T1.1.4.4.1" class="ltx_td ltx_align_center">Train</td>
+<td id="S4.T1.1.4.4.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Liang et al. (<a href="#bib.bib20" title="" class="ltx_ref">2018</a>)</cite></td>
+<td id="S4.T1.1.4.4.3" class="ltx_td ltx_align_center">43.7</td>
+</tr>
+<tr id="S4.T1.1.5.5" class="ltx_tr">
+<td id="S4.T1.1.5.5.1" class="ltx_td ltx_align_center">Train</td>
+<td id="S4.T1.1.5.5.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Agarwal et al. (<a href="#bib.bib1" title="" class="ltx_ref">2019</a>)</cite></td>
+<td id="S4.T1.1.5.5.3" class="ltx_td ltx_align_center">44.1</td>
+</tr>
+<tr id="S4.T1.1.6.6" class="ltx_tr">
+<td id="S4.T1.1.6.6.1" class="ltx_td ltx_align_center">Train</td>
+<td id="S4.T1.1.6.6.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Wang et al. (<a href="#bib.bib34" title="" class="ltx_ref">2019</a>)</cite></td>
+<td id="S4.T1.1.6.6.3" class="ltx_td ltx_align_center">44.5</td>
+</tr>
+<tr id="S4.T1.1.7.7" class="ltx_tr">
+<td id="S4.T1.1.7.7.1" class="ltx_td ltx_align_center">PT + FT</td>
+<td id="S4.T1.1.7.7.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Herzig et al. (<a href="#bib.bib17" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T1.1.7.7.3" class="ltx_td ltx_align_center">48.8</td>
+</tr>
+<tr id="S4.T1.1.8.8" class="ltx_tr">
+<td id="S4.T1.1.8.8.1" class="ltx_td ltx_align_center">PT + FT</td>
+<td id="S4.T1.1.8.8.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Yu et al. (<a href="#bib.bib40" title="" class="ltx_ref">2021</a>)</cite></td>
+<td id="S4.T1.1.8.8.3" class="ltx_td ltx_align_center"><span id="S4.T1.1.8.8.3.1" class="ltx_text ltx_font_bold">52.7</span></td>
+</tr>
+<tr id="S4.T1.1.9.9" class="ltx_tr">
+<td id="S4.T1.1.9.9.1" class="ltx_td ltx_align_center ltx_border_t">1-shot</td>
+<td id="S4.T1.1.9.9.2" class="ltx_td ltx_align_center ltx_border_t">GPT-3 Direct</td>
+<td id="S4.T1.1.9.9.3" class="ltx_td ltx_align_center ltx_border_t">24.0</td>
+</tr>
+<tr id="S4.T1.1.10.10" class="ltx_tr">
+<td id="S4.T1.1.10.10.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T1.1.10.10.2" class="ltx_td ltx_align_center">GPT-3 Direct</td>
+<td id="S4.T1.1.10.10.3" class="ltx_td ltx_align_center">27.3</td>
+</tr>
+<tr id="S4.T1.1.11.11" class="ltx_tr">
+<td id="S4.T1.1.11.11.1" class="ltx_td ltx_align_center">1-shot</td>
+<td id="S4.T1.1.11.11.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T1.1.11.11.3" class="ltx_td ltx_align_center">44.2</td>
+</tr>
+<tr id="S4.T1.1.12.12" class="ltx_tr">
+<td id="S4.T1.1.12.12.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T1.1.12.12.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T1.1.12.12.3" class="ltx_td ltx_align_center">45.7</td>
+</tr>
+<tr id="S4.T1.1.13.13" class="ltx_tr">
+<td id="S4.T1.1.13.13.1" class="ltx_td ltx_align_center ltx_border_bb">2-shot</td>
+<td id="S4.T1.1.13.13.2" class="ltx_td ltx_align_center ltx_border_bb">Codex CoT</td>
+<td id="S4.T1.1.13.13.3" class="ltx_td ltx_align_center ltx_border_bb">48.8</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Experimental Results on WikiTableQuestions. PT means pre-training and FT means fine-tuning. </figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">FetaQA</h4>
+
+<div id="S4.SS3.SSS0.Px2.p1" class="ltx_para">
+<p id="S4.SS3.SSS0.Px2.p1.1" class="ltx_p">As demonstrated in <a href="#S4.T2" title="Table 2 ‣ FetaQA ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Table 2</span></a>, we compare GPT-3 with different fine-tuned models from <cite class="ltx_cite ltx_citemacro_citet">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>. Unlike the other datasets with short phrase answers, the goal of this dataset is to generate a complete long-form answer. Unlike WikiTableQuestion, the questions normally do not involve complex operations like max, min, compare, average, etc. The long-form answer is similar to the role of CoT. Therefore, we only applied ‘direct generation’ in this experiment. In terms of BLEU score <cite class="ltx_cite ltx_citemacro_cite">Papineni et al. (<a href="#bib.bib26" title="" class="ltx_ref">2002</a>)</cite>, GPT-3 is still a bit behind the fine-tuned T5-large. However, the BLEU score cannot reflect the faithfulness and correctness of the model generation. Thus, we follow <cite class="ltx_cite ltx_citemacro_citet">Nan et al. (<a href="#bib.bib24" title="" class="ltx_ref">2021</a>)</cite> to do human evaluation over the four aspects: (1) fluency (whether the generated sentence contains the linguistic error), (2) correctness (whether the generated sentence answers the question correctly), (3) faithfulness (whether the generated sentence is grounded on the input table), and (4) adequacy (whether the generated sentence is comprehensive enough to cover all the answers). We list our results in <a href="#S4.T3" title="Table 3 ‣ FetaQA ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Table 3</span></a>. Similarly, we also sample 100 model predictions and manually evaluate their quality and adopt binary scores for each example. As can be seen, GPT-3 can significantly outperform T5-large over all the aspects, i.e. more than 30% improvement over correctness, adequacy, and faithfulness. The evaluation indicates that the model output is almost on par with the average human performance on this dataset.</p>
+</div>
+<figure id="S4.T2" class="ltx_table">
+<table id="S4.T2.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T2.1.1.1" class="ltx_tr">
+<td id="S4.T2.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">Type</td>
+<td id="S4.T2.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">Model</td>
+<td id="S4.T2.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">sacreBLEU</td>
+</tr>
+<tr id="S4.T2.1.2.2" class="ltx_tr">
+<td id="S4.T2.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t">zero-shot</td>
+<td id="S4.T2.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">Pipeline <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T2.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">9.16</td>
+</tr>
+<tr id="S4.T2.1.3.3" class="ltx_tr">
+<td id="S4.T2.1.3.3.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T2.1.3.3.2" class="ltx_td ltx_align_center">Pipeline <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T2.1.3.3.3" class="ltx_td ltx_align_center">11.00</td>
+</tr>
+<tr id="S4.T2.1.4.4" class="ltx_tr">
+<td id="S4.T2.1.4.4.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T2.1.4.4.2" class="ltx_td ltx_align_center">T5-small <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T2.1.4.4.3" class="ltx_td ltx_align_center">21.60</td>
+</tr>
+<tr id="S4.T2.1.5.5" class="ltx_tr">
+<td id="S4.T2.1.5.5.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T2.1.5.5.2" class="ltx_td ltx_align_center">T5-base <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T2.1.5.5.3" class="ltx_td ltx_align_center">28.14</td>
+</tr>
+<tr id="S4.T2.1.6.6" class="ltx_tr">
+<td id="S4.T2.1.6.6.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T2.1.6.6.2" class="ltx_td ltx_align_center">T5-large <cite class="ltx_cite ltx_citemacro_cite">Nan et al. (<a href="#bib.bib23" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T2.1.6.6.3" class="ltx_td ltx_align_center"><span id="S4.T2.1.6.6.3.1" class="ltx_text ltx_font_bold">30.54</span></td>
+</tr>
+<tr id="S4.T2.1.7.7" class="ltx_tr">
+<td id="S4.T2.1.7.7.1" class="ltx_td ltx_align_center ltx_border_t">1-shot</td>
+<td id="S4.T2.1.7.7.2" class="ltx_td ltx_align_center ltx_border_t">GPT-3 Direct</td>
+<td id="S4.T2.1.7.7.3" class="ltx_td ltx_align_center ltx_border_t">26.88</td>
+</tr>
+<tr id="S4.T2.1.8.8" class="ltx_tr">
+<td id="S4.T2.1.8.8.1" class="ltx_td ltx_align_center ltx_border_bb">2-shot</td>
+<td id="S4.T2.1.8.8.2" class="ltx_td ltx_align_center ltx_border_bb">GPT-3 Direct</td>
+<td id="S4.T2.1.8.8.3" class="ltx_td ltx_align_center ltx_border_bb"><span id="S4.T2.1.8.8.3.1" class="ltx_text ltx_font_bold">27.02</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>Experimental Results on FetaQA. PT means pre-training and FT means fine-tuning. </figcaption>
+</figure>
+<figure id="S4.T3" class="ltx_table">
+<table id="S4.T3.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T3.1.1.1" class="ltx_tr">
+<th id="S4.T3.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Source</th>
+<th id="S4.T3.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Fluency</th>
+<th id="S4.T3.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Correct</th>
+<th id="S4.T3.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Adequate</th>
+<th id="S4.T3.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Faithful</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.2.1" class="ltx_tr">
+<td id="S4.T3.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">Pipeline</td>
+<td id="S4.T3.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">85.2</td>
+<td id="S4.T3.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">25.4</td>
+<td id="S4.T3.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">23.6</td>
+<td id="S4.T3.1.2.1.5" class="ltx_td ltx_align_center ltx_border_t">23.6</td>
+</tr>
+<tr id="S4.T3.1.3.2" class="ltx_tr">
+<td id="S4.T3.1.3.2.1" class="ltx_td ltx_align_center">T5-large</td>
+<td id="S4.T3.1.3.2.2" class="ltx_td ltx_align_center">94.6</td>
+<td id="S4.T3.1.3.2.3" class="ltx_td ltx_align_center">54.8</td>
+<td id="S4.T3.1.3.2.4" class="ltx_td ltx_align_center">50.4</td>
+<td id="S4.T3.1.3.2.5" class="ltx_td ltx_align_center">50.4</td>
+</tr>
+<tr id="S4.T3.1.4.3" class="ltx_tr">
+<td id="S4.T3.1.4.3.1" class="ltx_td ltx_align_center">Human</td>
+<td id="S4.T3.1.4.3.2" class="ltx_td ltx_align_center">95.0</td>
+<td id="S4.T3.1.4.3.3" class="ltx_td ltx_align_center"><span id="S4.T3.1.4.3.3.1" class="ltx_text ltx_font_bold">92.4</span></td>
+<td id="S4.T3.1.4.3.4" class="ltx_td ltx_align_center"><span id="S4.T3.1.4.3.4.1" class="ltx_text ltx_font_bold">95.6</span></td>
+<td id="S4.T3.1.4.3.5" class="ltx_td ltx_align_center"><span id="S4.T3.1.4.3.5.1" class="ltx_text ltx_font_bold">95.6</span></td>
+</tr>
+<tr id="S4.T3.1.5.4" class="ltx_tr">
+<td id="S4.T3.1.5.4.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">GPT-3</td>
+<td id="S4.T3.1.5.4.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t"><span id="S4.T3.1.5.4.2.1" class="ltx_text ltx_font_bold">98.0</span></td>
+<td id="S4.T3.1.5.4.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">84.0</td>
+<td id="S4.T3.1.5.4.4" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">78.0</td>
+<td id="S4.T3.1.5.4.5" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t">90.0</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>Human Evaluation Results on FetaQA.</figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">TabFact</h4>
+
+<div id="S4.SS3.SSS0.Px3.p1" class="ltx_para">
+<p id="S4.SS3.SSS0.Px3.p1.1" class="ltx_p">As demonstrated in <a href="#S4.T4" title="Table 4 ‣ TabFact ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Table 4</span></a>, we compare GPT-3 against the other pre-trained and fine-tuned models including TAPAS <cite class="ltx_cite ltx_citemacro_cite">Eisenschlos et al. (<a href="#bib.bib16" title="" class="ltx_ref">2020</a>)</cite>, TAPEX <cite class="ltx_cite ltx_citemacro_cite">Liu et al. (<a href="#bib.bib21" title="" class="ltx_ref">2021</a>)</cite>, etc. We show that GPT-3 direct prediction is already getting a decent accuracy of 72%, which is slightly higher than Logic FactChecker <cite class="ltx_cite ltx_citemacro_cite">Zhong et al. (<a href="#bib.bib45" title="" class="ltx_ref">2020</a>)</cite>. When combined with CoT reasoning, the model accuracy increases to over 77%. Similar to before, we found that Codex can generate more accurate reasoning chains, thus achieving better accuracy of 78.8%, which is only 2% lower than pre-trained table understanding model TAPAS <cite class="ltx_cite ltx_citemacro_cite">Eisenschlos et al. (<a href="#bib.bib16" title="" class="ltx_ref">2020</a>)</cite>. The more intriguing property about LLM + CoT is that the intermediate rationale can be produced without any training. All the existing trained models do not have the capability to produce the intermediate reasoning steps due to the lack of annotation in the dataset.</p>
+</div>
+<figure id="S4.T4" class="ltx_table">
+<table id="S4.T4.1" class="ltx_tabular ltx_centering ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T4.1.1.1" class="ltx_tr">
+<td id="S4.T4.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">Type</td>
+<td id="S4.T4.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">Model</td>
+<td id="S4.T4.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">Overall</td>
+</tr>
+<tr id="S4.T4.1.2.2" class="ltx_tr">
+<td id="S4.T4.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t">FT</td>
+<td id="S4.T4.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t"><cite class="ltx_cite ltx_citemacro_citet">Chen et al. (<a href="#bib.bib8" title="" class="ltx_ref">2019</a>)</cite></td>
+<td id="S4.T4.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">65.1</td>
+</tr>
+<tr id="S4.T4.1.3.3" class="ltx_tr">
+<td id="S4.T4.1.3.3.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T4.1.3.3.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Zhong et al. (<a href="#bib.bib45" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T4.1.3.3.3" class="ltx_td ltx_align_center">71.1</td>
+</tr>
+<tr id="S4.T4.1.4.4" class="ltx_tr">
+<td id="S4.T4.1.4.4.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T4.1.4.4.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Zhang et al. (<a href="#bib.bib42" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T4.1.4.4.3" class="ltx_td ltx_align_center">73.2</td>
+</tr>
+<tr id="S4.T4.1.5.5" class="ltx_tr">
+<td id="S4.T4.1.5.5.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T4.1.5.5.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Yang et al. (<a href="#bib.bib38" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T4.1.5.5.3" class="ltx_td ltx_align_center">74.4</td>
+</tr>
+<tr id="S4.T4.1.6.6" class="ltx_tr">
+<td id="S4.T4.1.6.6.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T4.1.6.6.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Lewis et al. (<a href="#bib.bib19" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T4.1.6.6.3" class="ltx_td ltx_align_center">82.5</td>
+</tr>
+<tr id="S4.T4.1.7.7" class="ltx_tr">
+<td id="S4.T4.1.7.7.1" class="ltx_td ltx_align_center">PT + FT</td>
+<td id="S4.T4.1.7.7.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Eisenschlos et al. (<a href="#bib.bib16" title="" class="ltx_ref">2020</a>)</cite></td>
+<td id="S4.T4.1.7.7.3" class="ltx_td ltx_align_center">81.0</td>
+</tr>
+<tr id="S4.T4.1.8.8" class="ltx_tr">
+<td id="S4.T4.1.8.8.1" class="ltx_td ltx_align_center">PT + FT</td>
+<td id="S4.T4.1.8.8.2" class="ltx_td ltx_align_center"><cite class="ltx_cite ltx_citemacro_citet">Liu et al. (<a href="#bib.bib21" title="" class="ltx_ref">2021</a>)</cite></td>
+<td id="S4.T4.1.8.8.3" class="ltx_td ltx_align_center"><span id="S4.T4.1.8.8.3.1" class="ltx_text ltx_font_bold">84.2</span></td>
+</tr>
+<tr id="S4.T4.1.9.9" class="ltx_tr">
+<td id="S4.T4.1.9.9.1" class="ltx_td ltx_align_center ltx_border_t">1-shot</td>
+<td id="S4.T4.1.9.9.2" class="ltx_td ltx_align_center ltx_border_t">GPT-3 Direct</td>
+<td id="S4.T4.1.9.9.3" class="ltx_td ltx_align_center ltx_border_t">72.0</td>
+</tr>
+<tr id="S4.T4.1.10.10" class="ltx_tr">
+<td id="S4.T4.1.10.10.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T4.1.10.10.2" class="ltx_td ltx_align_center">GPT-3 Direct</td>
+<td id="S4.T4.1.10.10.3" class="ltx_td ltx_align_center">73.9</td>
+</tr>
+<tr id="S4.T4.1.11.11" class="ltx_tr">
+<td id="S4.T4.1.11.11.1" class="ltx_td ltx_align_center">1-shot</td>
+<td id="S4.T4.1.11.11.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T4.1.11.11.3" class="ltx_td ltx_align_center">75.5</td>
+</tr>
+<tr id="S4.T4.1.12.12" class="ltx_tr">
+<td id="S4.T4.1.12.12.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T4.1.12.12.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T4.1.12.12.3" class="ltx_td ltx_align_center">76.0</td>
+</tr>
+<tr id="S4.T4.1.13.13" class="ltx_tr">
+<td id="S4.T4.1.13.13.1" class="ltx_td ltx_align_center">1-shot</td>
+<td id="S4.T4.1.13.13.2" class="ltx_td ltx_align_center">GPT-3 CoT+SC</td>
+<td id="S4.T4.1.13.13.3" class="ltx_td ltx_align_center">77.3</td>
+</tr>
+<tr id="S4.T4.1.14.14" class="ltx_tr">
+<td id="S4.T4.1.14.14.1" class="ltx_td ltx_align_center ltx_border_bb">2-shot</td>
+<td id="S4.T4.1.14.14.2" class="ltx_td ltx_align_center ltx_border_bb">Codex CoT</td>
+<td id="S4.T4.1.14.14.3" class="ltx_td ltx_align_center ltx_border_bb">78.8</td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span>Experimental Results on TabFact. PT means pre-training and FT means fine-tuning. </figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS0.Px4" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">FEVEROUS</h4>
+
+<div id="S4.SS3.SSS0.Px4.p1" class="ltx_para">
+<p id="S4.SS3.SSS0.Px4.p1.1" class="ltx_p">We demonstrate our results on FEVEROUS dev-set in <a href="#S4.T5" title="Table 5 ‣ FEVEROUS ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Table 5</span></a> and compare different-sized UnifiedSKG models (built with T5). We found that GPT-3’s performance with direct prediction is similar to UnifiedSKG-base. Similar to TabFact, we found that the model performance can be boosted with ‘chain of thoughts’ prompting. The best-performing model is roughly between UnifiedSKG-base and UnifiedSKG-large. Compared to TabFact, the model’s overall performance is weaker mainly because the table structure in FEVEROUS is more irregular, containing lots of segments and subtables. Such structural difficulties pose great challenges to GPT-3.</p>
+</div>
+<figure id="S4.T5" class="ltx_table">
+<table id="S4.T5.1" class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T5.1.1.1" class="ltx_tr">
+<th id="S4.T5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Type</th>
+<th id="S4.T5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th id="S4.T5.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Dev Set</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T5.1.2.1" class="ltx_tr">
+<td id="S4.T5.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">FT</td>
+<td id="S4.T5.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t"><cite class="ltx_cite ltx_citemacro_citet">Aly et al. (<a href="#bib.bib2" title="" class="ltx_ref">2021</a>)</cite></td>
+<td id="S4.T5.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">82.23</td>
+</tr>
+<tr id="S4.T5.1.3.2" class="ltx_tr">
+<td id="S4.T5.1.3.2.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T5.1.3.2.2" class="ltx_td ltx_align_center">UnifiedSKG-base <cite class="ltx_cite ltx_citemacro_cite">Xie et al. (<a href="#bib.bib37" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T5.1.3.2.3" class="ltx_td ltx_align_center">75.05</td>
+</tr>
+<tr id="S4.T5.1.4.3" class="ltx_tr">
+<td id="S4.T5.1.4.3.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T5.1.4.3.2" class="ltx_td ltx_align_center">UnifiedSKG-large <cite class="ltx_cite ltx_citemacro_cite">Xie et al. (<a href="#bib.bib37" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T5.1.4.3.3" class="ltx_td ltx_align_center">79.81</td>
+</tr>
+<tr id="S4.T5.1.5.4" class="ltx_tr">
+<td id="S4.T5.1.5.4.1" class="ltx_td ltx_align_center">FT</td>
+<td id="S4.T5.1.5.4.2" class="ltx_td ltx_align_center">UnifiedSKG-3B <cite class="ltx_cite ltx_citemacro_cite">Xie et al. (<a href="#bib.bib37" title="" class="ltx_ref">2022</a>)</cite>
+</td>
+<td id="S4.T5.1.5.4.3" class="ltx_td ltx_align_center"><span id="S4.T5.1.5.4.3.1" class="ltx_text ltx_font_bold">82.40</span></td>
+</tr>
+<tr id="S4.T5.1.6.5" class="ltx_tr">
+<td id="S4.T5.1.6.5.1" class="ltx_td ltx_align_center ltx_border_t">1-shot</td>
+<td id="S4.T5.1.6.5.2" class="ltx_td ltx_align_center ltx_border_t">GPT-3 Direct</td>
+<td id="S4.T5.1.6.5.3" class="ltx_td ltx_align_center ltx_border_t">74.20</td>
+</tr>
+<tr id="S4.T5.1.7.6" class="ltx_tr">
+<td id="S4.T5.1.7.6.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T5.1.7.6.2" class="ltx_td ltx_align_center">GPT-3 Direct</td>
+<td id="S4.T5.1.7.6.3" class="ltx_td ltx_align_center">75.22</td>
+</tr>
+<tr id="S4.T5.1.8.7" class="ltx_tr">
+<td id="S4.T5.1.8.7.1" class="ltx_td ltx_align_center">1-shot</td>
+<td id="S4.T5.1.8.7.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T5.1.8.7.3" class="ltx_td ltx_align_center">75.70</td>
+</tr>
+<tr id="S4.T5.1.9.8" class="ltx_tr">
+<td id="S4.T5.1.9.8.1" class="ltx_td ltx_align_center">2-shot</td>
+<td id="S4.T5.1.9.8.2" class="ltx_td ltx_align_center">GPT-3 CoT</td>
+<td id="S4.T5.1.9.8.3" class="ltx_td ltx_align_center">76.44</td>
+</tr>
+<tr id="S4.T5.1.10.9" class="ltx_tr">
+<td id="S4.T5.1.10.9.1" class="ltx_td ltx_align_center ltx_border_bb">1-shot</td>
+<td id="S4.T5.1.10.9.2" class="ltx_td ltx_align_center ltx_border_bb">GPT-3 CoT+SC</td>
+<td id="S4.T5.1.10.9.3" class="ltx_td ltx_align_center ltx_border_bb"><span id="S4.T5.1.10.9.3.1" class="ltx_text ltx_font_bold">77.22</span></td>
+</tr>
+</tbody>
+</table>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>Experimental Results on FEVEROUS. PT means pre-training and FT means fine-tuning. </figcaption>
+</figure>
+</section>
+<section id="S4.SS3.SSS0.Px5" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Model Scaling</h4>
+
+<div id="S4.SS3.SSS0.Px5.p1" class="ltx_para">
+<p id="S4.SS3.SSS0.Px5.p1.1" class="ltx_p">We investigate the model scaling’s impact on the final performance and plot our findings in <a href="#S4.F3" title="Figure 3 ‣ Model Scaling ‣ 4.3 Main Results ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 3</span></a>. On the WebTableQuestions dataset, we found that model size is essential for achieving the best performance. As can be seen, the 6.7B GPT-3 model is only achieving half of the performance of the 175B GPT-3 model. Similarly, on TabFact, we found that the smaller models with 6.7B or fewer parameters are almost getting random accuracy, which is even worse than QA tasks. This again suggests that LLMs’ reasoning ability over web tables is emergent as the model scales up.</p>
+</div>
+<figure id="S4.F3" class="ltx_figure"><svg id="S4.F3.pic1" class="ltx_picture" height="141.88" overflow="visible" version="1.1" width="570.55"><g transform="translate(0,141.88) matrix(1 0 0 -1 0 0) translate(0.28,0) translate(0,21.88) matrix(1.0 0.0 0.0 1.0 -0.28 -21.88)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0) translate(47.78,0) translate(0,21.88)"><g stroke-width="0.2pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 0 -5.91 L 0 0 M 158.33 -5.91 L 158.33 0 M 316.66 -5.91 L 316.66 0 M 474.99 -5.91 L 474.99 0" style="fill:none"></path></g><g stroke="#000000" fill="#000000" stroke-width="0.4pt"><path d="M -47.5 0 L 522.49 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 -17.2 -17.27)" fill="#000000" stroke="#000000"><foreignObject width="34.4" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.9.9.9.9.9.1.1" class="ltx_text">0.35B</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 144.59 -17.27)" fill="#000000" stroke="#000000"><foreignObject width="27.48" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.10.10.10.10.10.1.1" class="ltx_text">1.3B</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 302.92 -17.27)" fill="#000000" stroke="#000000"><foreignObject width="27.48" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.11.11.11.11.11.1.1" class="ltx_text">6.7B</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 459.71 -17.27)" fill="#000000" stroke="#000000"><foreignObject width="30.56" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.12.12.12.12.12.1.1" class="ltx_text">175B</span></foreignObject></g><clipPath id="pgfcp1"><path d="M -47.5 0 L 522.49 0 L 522.49 120 L -47.5 120 Z"></path></clipPath><g clip-path="url(#pgfcp1)"><g stroke="#0000FF" fill="#B3B3FF" color="#0000FF"><path d="M -21.07 0 h 19.69 v 17.4 h -19.69 Z M 137.26 0 h 19.69 v 24.24 h -19.69 Z M 295.59 0 h 19.69 v 26.4 h -19.69 Z M 453.92 0 h 19.69 v 55.68 h -19.69 Z"></path></g><g></g><g stroke="#FF0000" fill="#FFB3B3" color="#FF0000"><path d="M 1.38 0 h 19.69 v 60.84 h -19.69 Z M 159.71 0 h 19.69 v 60.36 h -19.69 Z M 318.05 0 h 19.69 v 63.12 h -19.69 Z M 476.38 0 h 19.69 v 92.64 h -19.69 Z"></path></g><g></g></g><g transform="matrix(1.0 0.0 0.0 1.0 -24.68 22.29)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="14.5" display="inline"><semantics id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">14.5</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">14.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">14.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 133.65 29.13)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="20.2" display="inline"><semantics id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">20.2</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">20.2</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">20.2</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 298.52 31.29)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="13.84" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="22" display="inline"><semantics id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">22</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">22</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">22</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 450.31 60.57)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="46.4" display="inline"><semantics id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">46.4</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1">46.4</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1c">46.4</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 -2.23 65.73)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="50.7" display="inline"><semantics id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">50.7</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">50.7</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">50.7</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 156.1 65.25)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="50.3" display="inline"><semantics id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">50.3</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">50.3</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">50.3</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 314.44 68.01)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="52.6" display="inline"><semantics id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">52.6</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">52.6</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">52.6</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 472.77 97.53)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="26.91" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="77.2" display="inline"><semantics id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">77.2</mn><annotation-xml encoding="MathML-Content" id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1">77.2</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F3.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1c">77.2</annotation></semantics></math></foreignObject></g><g fill="#FFFFFF" stroke="#000000"><path d="M -47.23 96.97 h 217.16 v 22.75 h -217.16 Z"></path></g><g fill="#FFFFFF" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 -43.07 99.74)"><g class="ltx_tikzmatrix" transform="matrix(1 0 0 -1 0 8.61)"><g class="ltx_tikzmatrix_row" transform="matrix(1 0 0 1 0 8.61)"><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 0 0) translate(2.35,0)" fill="#B3B3FF" stroke="#0000FF" color="#0000FF"><path d="M -2.08 -2.77 h 4.15 v 11.07 h -4.15 Z M 6.23 -2.77 h 4.15 v 8.3 h -4.15 Z"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 13.01 0) translate(63.77,0) matrix(1.0 0.0 0.0 1.0 -61 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="122" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.13.13.13.13.13.1.1.1.1.1" class="ltx_text">WikiTableQuestions</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 140.54 0) translate(2.35,0)" fill="#FFB3B3" stroke="#FF0000" color="#FF0000"><path d="M -2.08 -2.77 h 4.15 v 11.07 h -4.15 Z M 6.23 -2.77 h 4.15 v 8.3 h -4.15 Z"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 153.54 0) translate(27.65,0) matrix(1.0 0.0 0.0 1.0 -24.89 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="49.77" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F3.pic1.14.14.14.14.14.2.2.2.1.1" class="ltx_text">TabFact</span></foreignObject></g></g></g></g></g></g></g></svg>
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">Figure 3: </span>The model performance with respect to model size on WikiTableQuestions and TabFact.</figcaption>
+</figure>
+</section>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Case Study</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">We demonstrate a few examples in <a href="#S4.F4" title="Figure 4 ‣ 4.4 Case Study ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 4</span></a> where GPT-3 makes correct predictions. In the first example, GPT-3 is able to first identify all the Belgian riders from the table and then perform the addition of 3+3+1=7 precisely. In the second example, GPT-3 can identify the players with the position of ‘d’ and count the number correctly to refute a false claim. In the third example, we can see that GPT-3 is able to associate multiple blocks of information to generate a comprehensive long-form answer. The elicited ‘chain of thoughts’ in these examples are highly aligned with the underlying semantic forms. These findings suggest that LLMs like GPT-3 can provide high-quality explanations to justify their decision-making.</p>
+</div>
+<figure id="S4.F4" class="ltx_figure"><img src="/html/2210.06710/assets/examples.001.jpeg" id="S4.F4.g1" class="ltx_graphics ltx_centering ltx_img_portrait" width="598" height="1404" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 4: </span>‘Correct’ predictions from WikiTableQuestions, TabFact, and FetaQA datasets, where the ‘blue’ text are the outputs from the GPT-3, ‘red’ means the correct rows to reference.</figcaption>
+</figure>
+<div id="S4.SS4.p2" class="ltx_para">
+<p id="S4.SS4.p2.1" class="ltx_p">We also provide a few mistakes made by GPT-3 in <a href="#S4.F5" title="Figure 5 ‣ 4.4 Case Study ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 5</span></a>. In the first example, GPT-3 miscounts the ‘number of countries above 1 billion box office’ because it misidentifies ‘world’ also as a country. In the second example, GPT-3 misunderstood ‘2nd highest’ as ‘highest’, which leads to prediction error. In the last example, GPT-3 misunderstands the semantics of the question and answers ‘left office time’ instead of ‘took office time’. These examples show the typical errors of grounding the inputs to the wrong rows or columns of the table.</p>
+</div>
+<figure id="S4.F5" class="ltx_figure"><img src="/html/2210.06710/assets/examples.002.jpeg" id="S4.F5.g1" class="ltx_graphics ltx_centering ltx_img_portrait" width="598" height="1626" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 5: </span>‘Wrong’ predictions from WikiTableQuestions, TabFact, and FetaQA datasets, where ‘blue’ text are the outputs from the GPT-3, ‘red’ means the region of the correct cell to reference, and ‘green’ means the reference trusted by GPT-3.</figcaption>
+</figure>
+</section>
+<section id="S4.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.5 </span>Analysis</h3>
+
+<section id="S4.SS5.SSS0.Px1" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Impact of Number of Shots</h4>
+
+<div id="S4.SS5.SSS0.Px1.p1" class="ltx_para">
+<p id="S4.SS5.SSS0.Px1.p1.1" class="ltx_p">First of all, we conduct an ablation study to understand the impact of a number of shots in the final performance. In order to control the budget, we only sample 200 samples from WikiTableQuestions, TabFact and FEVEROUS for this ablation study. As can be seen from <a href="#S4.F7" title="Figure 7 ‣ Impact of Number of Shots ‣ 4.5 Analysis ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 7</span></a>, GPT-3 is not quite sensitive to the number of provided demonstrations. Increasing from 1-shot to 2-shot can often benefit the model, however, increasing the shot number further does not yield more performance gain. We conjecture that instruct fine-tuning used in GPT-3 <cite class="ltx_cite ltx_citemacro_cite">Ouyang et al. (<a href="#bib.bib25" title="" class="ltx_ref">2022</a>)</cite> can easily extrapolate the task meaning, thus, having a single demonstration is already enough for the model to understand the task.</p>
+</div>
+<figure id="S4.F7" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1"><svg id="S4.F7.pic1" class="ltx_picture ltx_centering ltx_figure_panel" height="160.46" overflow="visible" version="1.1" width="603.04"><g transform="translate(0,160.46) matrix(1 0 0 -1 0 0) translate(18.45,0) translate(0,40.45) matrix(1.0 0.0 0.0 1.0 -18.45 -40.45)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0) translate(65.95,0) translate(0,40.45)"><g stroke-width="0.2pt" fill="#808080" stroke="#808080" color="#808080"><path d="M -47.5 -5.91 L -47.5 0 M 0 -5.91 L 0 0 M 47.5 -5.91 L 47.5 0 M 95 -5.91 L 95 0 M 142.5 -5.91 L 142.5 0 M 190 -5.91 L 190 0 M 237.5 -5.91 L 237.5 0 M 285 -5.91 L 285 0 M 332.49 -5.91 L 332.49 0 M 379.99 -5.91 L 379.99 0 M 427.49 -5.91 L 427.49 0 M 474.99 -5.91 L 474.99 0 M 522.49 -5.91 L 522.49 0" style="fill:none"></path></g><g stroke="#000000" fill="#000000" stroke-width="0.4pt"><path d="M -47.5 0 L 522.49 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 -61.34 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="27.67" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="-0.5" display="inline"><semantics id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mrow id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml"><mo id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1a" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">−</mo><mn id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.2" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.2.cmml">0.5</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><apply id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1"><minus id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.1.cmml" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1"></minus><cn type="float" id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.2.cmml" xref="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.2">0.5</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">-0.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 -3.46 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">0</cn></annotation-xml></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 37.51 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="0.5" display="inline"><semantics id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">0.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">0.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">0.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 91.54 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="1" display="inline"><semantics id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">1</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1">1</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1c">1</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 132.5 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="1.5" display="inline"><semantics id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">1.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1">1.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1c">1.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 186.54 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="2" display="inline"><semantics id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">2</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1">2</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1c">2</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 227.5 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="2.5" display="inline"><semantics id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">2.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1">2.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1c">2.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 281.54 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="3" display="inline"><semantics id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">3</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1">3</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1c">3</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 322.5 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="3.5" display="inline"><semantics id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">3.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1">3.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1c">3.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 376.53 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="4" display="inline"><semantics id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">4</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1">4</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1c">4</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 417.5 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="4.5" display="inline"><semantics id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">4.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1">4.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1c">4.5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 471.53 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="5" display="inline"><semantics id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1">5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1c">5</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 512.5 -16.73)" fill="#000000" stroke="#000000"><foreignObject width="19.99" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="5.5" display="inline"><semantics id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">5.5</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="float" id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1">5.5</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1c">5.5</annotation></semantics></math></foreignObject></g><clipPath id="pgfcp2"><path d="M -47.5 0 L 522.49 0 L 522.49 120.01 L -47.5 120.01 Z"></path></clipPath><g clip-path="url(#pgfcp2)"><g stroke="#00FFFF" fill="#00FFFF" color="#00FFFF"><path d="M 0 0.6 C 0 0.6 68.64 38.1 95 44.4 C 121.36 50.7 163.64 46.2 190 46 C 216.36 45.81 245.45 42.95 285 43 C 324.54 43.06 474.99 46.4 474.99 46.4" style="fill:none"></path></g><g></g><g stroke="#FF0000" fill="#FF0000" color="#FF0000"><path d="M 0 84.8 C 0 84.8 68.64 110.61 95 114.61 C 121.36 118.6 163.64 113.69 190 113.61 C 216.36 113.52 245.45 114.17 285 114.01 C 324.54 113.84 474.99 112.41 474.99 112.41" style="fill:none"></path></g><g></g><g stroke="#0000FF" fill="#0000FF" color="#0000FF"><path d="M 0 100.8 C 0 100.8 68.64 112.4 95 114.01 C 121.36 115.61 163.64 112.88 190 112.41 C 216.36 111.93 245.45 110.63 285 110.6 C 324.54 110.58 474.99 112.21 474.99 112.21" style="fill:none"></path></g><g></g></g><g stroke="#00FFFF" fill="#00FFFF" color="#00FFFF"><path d="M 0 3.37 L 2.4 -0.78 L -2.4 -0.78 Z" style="fill:none"></path><path d="M 95 47.17 L 97.4 43.02 L 92.6 43.02 Z" style="fill:none"></path><path d="M 190 48.77 L 192.39 44.62 L 187.6 44.62 Z" style="fill:none"></path><path d="M 285 45.77 L 287.39 41.62 L 282.6 41.62 Z" style="fill:none"></path><path d="M 474.99 49.17 L 477.39 45.02 L 472.6 45.02 Z" style="fill:none"></path></g><g stroke="#FF0000" fill="#FF0000" color="#FF0000"><path d="M 0 87.57 L 2.4 83.42 L -2.4 83.42 Z" style="fill:none"></path><path d="M 95 117.37 L 97.4 113.22 L 92.6 113.22 Z" style="fill:none"></path><path d="M 190 116.37 L 192.39 112.22 L 187.6 112.22 Z" style="fill:none"></path><path d="M 285 116.77 L 287.39 112.62 L 282.6 112.62 Z" style="fill:none"></path><path d="M 474.99 115.17 L 477.39 111.02 L 472.6 111.02 Z" style="fill:none"></path></g><g stroke="#0000FF" fill="#0000FF" color="#0000FF"><path d="M 0 103.57 L 2.4 99.42 L -2.4 99.42 Z" style="fill:none"></path><path d="M 95 116.77 L 97.4 112.62 L 92.6 112.62 Z" style="fill:none"></path><path d="M 190 115.17 L 192.39 111.02 L 187.6 111.02 Z" style="fill:none"></path><path d="M 285 113.37 L 287.39 109.22 L 282.6 109.22 Z" style="fill:none"></path><path d="M 474.99 114.97 L 477.39 110.82 L 472.6 110.82 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 198.6 -35.84)" fill="#000000" stroke="#000000"><foreignObject width="77.79" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic1.14.14.14.14.14.1.1" class="ltx_text">num of shots</span></foreignObject></g><g fill="#FFFFFF" stroke="#000000"><path d="M 301.98 60.28 h 220.24 v 22.75 h -220.24 Z"></path></g><g fill="#FFFFFF" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 306.13 63.05)"><g class="ltx_tikzmatrix" transform="matrix(1 0 0 -1 0 8.61)"><g class="ltx_tikzmatrix_row" transform="matrix(1 0 0 1 0 8.61)"><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 0 0) translate(0.28,0)" fill="#00FFFF" stroke="#00FFFF" color="#00FFFF"><path d="M 0 0 C 0 0 8.53 0 11.81 0 C 15.09 0 23.62 0 23.62 0" style="fill:none"></path><path d="M 11.81 2.77 L 14.21 -1.38 L 9.41 -1.38 Z" style="fill:none"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 24.18 0) translate(27.75,0) matrix(1.0 0.0 0.0 1.0 -24.98 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="49.97" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic1.15.15.15.15.15.1.1.1.1.1" class="ltx_text">WikiTQ</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 79.68 0) translate(0.28,0)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><path d="M 0 0 C 0 0 8.53 0 11.81 0 C 15.09 0 23.62 0 23.62 0" style="fill:none"></path><path d="M 11.81 2.77 L 14.21 -1.38 L 9.41 -1.38 Z" style="fill:none"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 103.85 0) translate(24.77,0) matrix(1.0 0.0 0.0 1.0 -22 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="44.01" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic1.16.16.16.16.16.2.2.2.1.1" class="ltx_text">TabFct</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 153.4 0) translate(0.28,0)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><path d="M 0 0 C 0 0 8.53 0 11.81 0 C 15.09 0 23.62 0 23.62 0" style="fill:none"></path><path d="M 11.81 2.77 L 14.21 -1.38 L 9.41 -1.38 Z" style="fill:none"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 177.57 0) translate(17.18,0) matrix(1.0 0.0 0.0 1.0 -14.41 -3.69)" fill="#000000" stroke="#000000"><foreignObject width="28.83" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic1.17.17.17.17.17.3.3.3.1.1" class="ltx_text">FEV</span></foreignObject></g></g></g></g></g></g></g></svg></div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 6: </span>k-shot ablation study over WikiTableQuestions and TabFact and FEVEROUS.</figcaption><div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_1"><svg id="S4.F7.pic2" class="ltx_picture ltx_centering ltx_figure_panel" height="148.59" overflow="visible" version="1.1" width="570.56"><g transform="translate(0,148.59) matrix(1 0 0 -1 0 0) translate(0.28,0) translate(0,21.08) matrix(1.0 0.0 0.0 1.0 -0.28 -21.08)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0) translate(81.7,0) translate(0,21.08)"><g stroke-width="0.2pt" fill="#808080" stroke="#808080" color="#808080"><path d="M 0 -5.91 L 0 0 M 203.57 -5.91 L 203.57 0 M 407.15 -5.91 L 407.15 0" style="fill:none"></path></g><g stroke="#000000" fill="#000000" stroke-width="0.4pt"><path d="M -81.43 0 L 488.57 0" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 -20.79 -16.33)" fill="#000000" stroke="#000000"><foreignObject width="41.59" height="8.51" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.10.10.10.10.10.1.1" class="ltx_text">correct</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 185.1 -13.77)" fill="#000000" stroke="#000000"><foreignObject width="36.94" height="8.65" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.11.11.11.11.11.1.1" class="ltx_text">wrong</span></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 378.26 -13.77)" fill="#000000" stroke="#000000"><foreignObject width="57.77" height="5.96" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.12.12.12.12.12.1.1" class="ltx_text">no reason</span></foreignObject></g><clipPath id="pgfcp3"><path d="M -81.43 0 L 488.57 0 L 488.57 120.01 L -81.43 120.01 Z"></path></clipPath><g clip-path="url(#pgfcp3)"><g stroke="#0000FF" fill="#B3B3FF" color="#0000FF"><path d="M -26.39 0 h 15.75 v 109.1 h -15.75 Z M 177.18 0 h 15.75 v 6.96 h -15.75 Z M 380.76 0 h 15.75 v 0 h -15.75 Z"></path></g><g></g><g stroke="#FF0000" fill="#FFB3B3" color="#FF0000"><path d="M -7.87 0 h 15.75 v 99.81 h -15.75 Z M 195.7 0 h 15.75 v 11.61 h -15.75 Z M 399.27 0 h 15.75 v 4.64 h -15.75 Z"></path></g><g></g><g stroke="#734D26" fill="#ECD9C6" color="#734D26"><path d="M 10.64 0 h 15.75 v 102.13 h -15.75 Z M 214.21 0 h 15.75 v 4.64 h -15.75 Z M 417.79 0 h 15.75 v 9.28 h -15.75 Z"></path></g><g></g></g><g transform="matrix(1.0 0.0 0.0 1.0 -25.43 113.99)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="13.84" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="94" display="inline"><semantics id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">94</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">94</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">94</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 181.6 11.85)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="6" display="inline"><semantics id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">6</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">6</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">6</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 385.17 4.89)" fill="#0000FF" stroke="#0000FF" color="#0000FF"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">0</cn></annotation-xml></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 -6.92 104.7)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="13.84" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="86" display="inline"><semantics id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">86</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">86</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">86</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 196.65 16.49)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="13.84" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="10" display="inline"><semantics id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">10</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">10</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">10</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 403.69 9.53)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="4" display="inline"><semantics id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">4</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">4</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">4</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 11.6 107.02)" fill="#734D26" stroke="#734D26" color="#734D26"><foreignObject width="13.84" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="88" display="inline"><semantics id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn mathcolor="#734D26" id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">88</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">88</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1c">88</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 218.63 9.53)" fill="#734D26" stroke="#734D26" color="#734D26"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="4" display="inline"><semantics id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn mathcolor="#734D26" id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">4</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">4</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">4</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 422.2 14.17)" fill="#734D26" stroke="#734D26" color="#734D26"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="8" display="inline"><semantics id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn mathcolor="#734D26" id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">8</mn><annotation-xml encoding="MathML-Content" id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">8</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F7.pic2.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">8</annotation></semantics></math></foreignObject></g><g fill="#FFFFFF" stroke="#000000"><path d="M 295.8 96.98 h 192.5 v 22.75 h -192.5 Z"></path></g><g fill="#FFFFFF" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 299.95 99.74)"><g class="ltx_tikzmatrix" transform="matrix(1 0 0 -1 0 8.61)"><g class="ltx_tikzmatrix_row" transform="matrix(1 0 0 1 0 8.61)"><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 0 0) translate(2.35,0)" fill="#B3B3FF" stroke="#0000FF" color="#0000FF"><path d="M -2.08 -2.77 h 4.15 v 11.07 h -4.15 Z M 6.23 -2.77 h 4.15 v 8.3 h -4.15 Z"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 13.01 0) translate(27.75,0) matrix(1.0 0.0 0.0 1.0 -24.98 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="49.97" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.13.13.13.13.13.1.1.1.1.1" class="ltx_text">WikiTQ</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 68.51 0) translate(2.35,0)" fill="#FFB3B3" stroke="#FF0000" color="#FF0000"><path d="M -2.08 -2.77 h 4.15 v 11.07 h -4.15 Z M 6.23 -2.77 h 4.15 v 8.3 h -4.15 Z"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 81.52 0) translate(27.65,0) matrix(1.0 0.0 0.0 1.0 -24.89 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="49.77" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.14.14.14.14.14.2.2.2.1.1" class="ltx_text">TabFact</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 136.83 0) translate(2.35,0)" fill="#ECD9C6" stroke="#734D26" color="#734D26"><path d="M -2.08 -2.77 h 4.15 v 11.07 h -4.15 Z M 6.23 -2.77 h 4.15 v 8.3 h -4.15 Z"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 149.83 0) translate(17.18,0) matrix(1.0 0.0 0.0 1.0 -14.41 -3.69)" fill="#000000" stroke="#000000"><foreignObject width="28.83" height="9.46" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F7.pic2.15.15.15.15.15.3.3.3.1.1" class="ltx_text">FEV</span></foreignObject></g></g></g></g></g></g></g></svg></div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 7: </span>human evaluation of ‘reasoning chains’ in WikiTableQuestions, TabFact, and FEVEROUS.</figcaption>
+</figure>
+</section>
+<section id="S4.SS5.SSS0.Px2" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Quality Evaluation of Reasoning Chains</h4>
+
+<div id="S4.SS5.SSS0.Px2.p1" class="ltx_para">
+<p id="S4.SS5.SSS0.Px2.p1.1" class="ltx_p">We conduct a human evaluation to assess whether GPT-3 is making the correct prediction with the correct reasons. Specifically, we sample 100 reasoning paths from the correctly predicted examples and manually study whether these reasoning chains are grounded on the table or simply ‘hallucination’. As can be seen from <a href="#S4.F7" title="Figure 7 ‣ Impact of Number of Shots ‣ 4.5 Analysis ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 7</span></a>, we found that around 90% of reasoning chains are faithful to the information in the table, and only less than 10% of the reasoning chains are hallucinated. Based on this evaluation, we believe that LLMs are not guessing the answers correctly by chance.</p>
+</div>
+<div id="S4.SS5.SSS0.Px2.p2" class="ltx_para">
+<p id="S4.SS5.SSS0.Px2.p2.1" class="ltx_p">We believe these ‘reasoning chains’ are useful in many aspects: (1) the chains can provide a rationale to humans to justify the decision-making process. (2) one of the notorious annotation tasks is to annotate the ‘underlying’ semantic form for many NLP tasks, which require expertise for human annotators, on the other hand, the annotation cost is huge. Using GPT-3 to demonstrate useful natural language ‘semantic forms’ could potentially greatly lower the annotation burden of these tasks.</p>
+</div>
+</section>
+<section id="S4.SS5.SSS0.Px3" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Impact of Table Size</h4>
+
+<div id="S4.SS5.SSS0.Px3.p1" class="ltx_para">
+<p id="S4.SS5.SSS0.Px3.p1.1" class="ltx_p">An important factor for model performance is the size of the table. Here we want to understand how relevant the model performance is w.r.t the input table length. We group the table token length into different groups like ‘0-100’, ‘100-200’, etc, and plot the group-wise accuracy for WikiTables and TabFact in <a href="#S4.F8" title="Figure 8 ‣ Impact of Table Size ‣ 4.5 Analysis ‣ 4 Experimental Results ‣ Large Language Models are few(1)-shot Table Reasoners" class="ltx_ref ltx_refmacro_autoref"><span class="ltx_text ltx_ref_tag">Figure 8</span></a>. As can be seen from the table, we found that GPT-3’s performance is highly sensitive to the table size. As the table size grows, the accuracy almost decreases monotonically. After the table size exceeds 1000 tokens (e.g. 1500 word pieces), GPT-3’s performance almost degrades to random guesses. This ablation study reveals one of the drawbacks of using LLMs for table reasoning. To further enhance LLMs’ performance, we need to develop better methods to maintain more consistent performance across different-sized tables.</p>
+</div>
+<figure id="S4.F8" class="ltx_figure"><svg id="S4.F8.pic1" class="ltx_picture ltx_centering" height="166.61" overflow="visible" version="1.1" width="598.44"><g transform="translate(0,166.61) matrix(1 0 0 -1 0 0) translate(8.07,0) translate(0,45.83) matrix(1.0 0.0 0.0 1.0 -8.07 -45.83)" fill="#000000" stroke="#000000" stroke-width="0.4pt"><g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0) translate(55.57,0) translate(0,7.83)"><g stroke-width="0.2pt" fill="#808080" stroke="#808080" color="#808080"><path d="M -47.5 32.1 L -47.5 38 M 0 32.1 L 0 38 M 47.5 32.1 L 47.5 38 M 95 32.1 L 95 38 M 142.5 32.1 L 142.5 38 M 190 32.1 L 190 38 M 237.5 32.1 L 237.5 38 M 285 32.1 L 285 38 M 332.5 32.1 L 332.5 38 M 380 32.1 L 380 38 M 427.5 32.1 L 427.5 38 M 474.99 32.1 L 474.99 38 M 522.49 32.1 L 522.49 38" style="fill:none"></path></g><g stroke="#000000" fill="#000000" stroke-width="0.4pt"><path d="M -47.5 38 L 522.5 38" style="fill:none"></path><g transform="matrix(1.0 0.0 0.0 1.0 -50.96 21.27)" fill="#000000" stroke="#000000"><foreignObject width="6.92" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="0" display="inline"><semantics id="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">0</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.m1.1.1">0</cn></annotation-xml></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 -10.38 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="100" display="inline"><semantics id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">100</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1.1">100</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1.1.1.1.1.1.1.1.1.m1.1c">100</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 37.12 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="200" display="inline"><semantics id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">200</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1.1">200</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.3.1.1.1.1.1.1.1.1.1.m1.1c">200</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 84.62 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="300" display="inline"><semantics id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">300</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1.1">300</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.4.1.1.1.1.1.1.1.1.1.m1.1c">300</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 132.12 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="400" display="inline"><semantics id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">400</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1.1">400</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.5.1.1.1.1.1.1.1.1.1.m1.1c">400</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 179.62 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="500" display="inline"><semantics id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">500</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1.1">500</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.6.1.1.1.1.1.1.1.1.1.m1.1c">500</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 227.12 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="600" display="inline"><semantics id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">600</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1.1">600</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.7.1.1.1.1.1.1.1.1.1.m1.1c">600</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 274.62 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="700" display="inline"><semantics id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">700</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1.1">700</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.8.1.1.1.1.1.1.1.1.1.m1.1c">700</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 322.12 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="800" display="inline"><semantics id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">800</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1.1">800</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.9.1.1.1.1.1.1.1.1.1.m1.1c">800</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 369.62 21.27)" fill="#000000" stroke="#000000"><foreignObject width="20.76" height="8.92" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1" class="ltx_Math" alttext="900" display="inline"><semantics id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1a"><mn id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">900</mn><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1b"><cn type="integer" id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1.1">900</cn></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.10.1.1.1.1.1.1.1.1.1.m1.1c">900</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 411.74 21.27)" fill="#000000" stroke="#000000"><foreignObject width="31.52" height="11.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2" class="ltx_Math" alttext="1{,}000" display="inline"><semantics id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2a"><mrow id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.2" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml"><mn id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">1</mn><mo id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.2.1" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml">,</mo><mn id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.2" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.2.cmml">000</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2b"><list id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.3.2"><cn type="integer" id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.1.1">1</cn><cn type="integer" id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.2.cmml" xref="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2.2">000</cn></list></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.1.1.1.1.1.1.1.1.1.m1.2c">1{,}000</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 459.24 21.27)" fill="#000000" stroke="#000000"><foreignObject width="31.52" height="11.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2" class="ltx_Math" alttext="1{,}100" display="inline"><semantics id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2a"><mrow id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.2" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml"><mn id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">1</mn><mo id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.2.1" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml">,</mo><mn id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.2" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.2.cmml">100</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2b"><list id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.3.2"><cn type="integer" id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.1.1">1</cn><cn type="integer" id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.2.cmml" xref="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2.2">100</cn></list></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.12.1.1.1.1.1.1.1.1.1.m1.2c">1{,}100</annotation></semantics></math></foreignObject></g><g transform="matrix(1.0 0.0 0.0 1.0 506.74 21.27)" fill="#000000" stroke="#000000"><foreignObject width="31.52" height="11.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><math id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2" class="ltx_Math" alttext="1{,}200" display="inline"><semantics id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2a"><mrow id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.2" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml"><mn id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1.cmml">1</mn><mo id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.2.1" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml">,</mo><mn id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.2" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.2.cmml">200</mn></mrow><annotation-xml encoding="MathML-Content" id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2b"><list id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.1.cmml" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.3.2"><cn type="integer" id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1.cmml" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.1.1">1</cn><cn type="integer" id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.2.cmml" xref="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2.2">200</cn></list></annotation-xml><annotation encoding="application/x-tex" id="S4.F8.pic1.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.13.1.1.1.1.1.1.1.1.1.m1.2c">1{,}200</annotation></semantics></math></foreignObject></g><clipPath id="pgfcp4"><path d="M -47.5 38 L 522.5 38 L 522.5 158.01 L -47.5 158.01 Z"></path></clipPath><g clip-path="url(#pgfcp4)"><g stroke="#00FFFF" fill="#00FFFF" color="#00FFFF"><path d="M 0 156.01 C 0 156.01 34.32 153.95 47.5 152.01 C 60.68 150.06 81.82 145.61 95 142.01 C 108.18 138.4 129.32 127.67 142.5 126.01 C 155.68 124.34 176.82 128.9 190 130.01 C 203.18 131.12 224.32 138.45 237.5 134.01 C 250.68 129.57 271.82 103 285 98 C 298.18 93.01 319.32 98 332.5 98 C 345.68 98 366.81 98 380 98 C 393.18 98 414.31 98 427.5 98 C 440.68 98 468.4 98 474.99 98 C 481.58 98 474.99 98 474.99 98" style="fill:none"></path></g><g></g><g stroke="#FF0000" fill="#FF0000" color="#FF0000"><path d="M 0 122.01 C 0 122.01 34.32 103.89 47.5 100 C 60.68 96.12 81.82 97.06 95 94 C 108.18 90.95 129.32 78.84 142.5 78 C 155.68 77.17 176.82 85.23 190 88 C 203.18 90.78 224.32 100.78 237.5 98 C 250.68 95.23 271.82 76.05 285 68 C 298.18 59.96 319.32 49.44 332.5 40 C 345.68 30.57 366.81 5.55 380 0 C 393.18 -5.55 414.31 0 427.5 0 C 440.68 0 468.4 0 474.99 0 C 481.58 0 474.99 0 474.99 0" style="fill:none"></path></g><g></g></g><g stroke="#00FFFF" fill="#00FFFF" color="#00FFFF"><path d="M 0 158.77 L 2.4 154.62 L -2.4 154.62 Z" style="fill:none"></path><path d="M 47.5 154.77 L 49.9 150.62 L 45.1 150.62 Z" style="fill:none"></path><path d="M 95 144.77 L 97.4 140.62 L 92.6 140.62 Z" style="fill:none"></path><path d="M 142.5 128.77 L 144.89 124.62 L 140.1 124.62 Z" style="fill:none"></path><path d="M 190 132.77 L 192.39 128.62 L 187.6 128.62 Z" style="fill:none"></path><path d="M 237.5 136.77 L 239.89 132.62 L 235.1 132.62 Z" style="fill:none"></path><path d="M 285 100.77 L 287.39 96.62 L 282.6 96.62 Z" style="fill:none"></path><path d="M 332.5 100.77 L 334.89 96.62 L 330.1 96.62 Z" style="fill:none"></path><path d="M 380 100.77 L 382.39 96.62 L 377.6 96.62 Z" style="fill:none"></path><path d="M 427.5 100.77 L 429.89 96.62 L 425.1 96.62 Z" style="fill:none"></path><path d="M 474.99 100.77 L 477.39 96.62 L 472.6 96.62 Z" style="fill:none"></path><path d="M 474.99 100.77 L 477.39 96.62 L 472.6 96.62 Z" style="fill:none"></path></g><g stroke="#FF0000" fill="#FF0000" color="#FF0000"><path d="M 0 124.77 L 2.4 120.62 L -2.4 120.62 Z" style="fill:none"></path><path d="M 47.5 102.77 L 49.9 98.62 L 45.1 98.62 Z" style="fill:none"></path><path d="M 95 96.77 L 97.4 92.62 L 92.6 92.62 Z" style="fill:none"></path><path d="M 142.5 80.77 L 144.89 76.62 L 140.1 76.62 Z" style="fill:none"></path><path d="M 190 90.77 L 192.39 86.62 L 187.6 86.62 Z" style="fill:none"></path><path d="M 237.5 100.77 L 239.89 96.62 L 235.1 96.62 Z" style="fill:none"></path><path d="M 285 70.77 L 287.39 66.62 L 282.6 66.62 Z" style="fill:none"></path><path d="M 332.5 42.77 L 334.89 38.62 L 330.1 38.62 Z" style="fill:none"></path></g><g transform="matrix(1.0 0.0 0.0 1.0 161.36 -0.53)" fill="#000000" stroke="#000000"><foreignObject width="152.28" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F8.pic1.14.14.14.14.14.1.1" class="ltx_text">table size in token length</span></foreignObject></g><g fill="#FFFFFF" stroke="#000000"><path d="M 360.52 134.98 h 161.7 v 22.75 h -161.7 Z"></path></g><g fill="#FFFFFF" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 364.67 137.74)"><g class="ltx_tikzmatrix" transform="matrix(1 0 0 -1 0 8.61)"><g class="ltx_tikzmatrix_row" transform="matrix(1 0 0 1 0 8.61)"><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 0 0) translate(0.28,0)" fill="#00FFFF" stroke="#00FFFF" color="#00FFFF"><path d="M 0 0 C 0 0 8.53 0 11.81 0 C 15.09 0 23.62 0 23.62 0" style="fill:none"></path><path d="M 11.81 2.77 L 14.21 -1.38 L 9.41 -1.38 Z" style="fill:none"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 24.18 0) translate(24.77,0) matrix(1.0 0.0 0.0 1.0 -22 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="44.01" height="9.61" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F8.pic1.15.15.15.15.15.1.1.1.1.1" class="ltx_text">TabFct</span></foreignObject></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 73.72 0) translate(0.28,0)" fill="#FF0000" stroke="#FF0000" color="#FF0000"><path d="M 0 0 C 0 0 8.53 0 11.81 0 C 15.09 0 23.62 0 23.62 0" style="fill:none"></path><path d="M 11.81 2.77 L 14.21 -1.38 L 9.41 -1.38 Z" style="fill:none"></path></g><g class="ltx_tikzmatrix_col ltx_nopad_l ltx_nopad_r" transform="matrix(1 0 0 -1 97.9 0) translate(27.75,0) matrix(1.0 0.0 0.0 1.0 -24.98 -3.77)" fill="#000000" stroke="#000000"><foreignObject width="49.97" height="12.3" transform="matrix(1 0 0 -1 0 16.6)" overflow="visible"><span id="S4.F8.pic1.16.16.16.16.16.2.2.2.1.1" class="ltx_text">WikiTQ</span></foreignObject></g></g></g></g></g></g></g></svg>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 8: </span>Model performance on WikiTableQuestions and TabFact w.r.t the input table size.</figcaption>
+</figure>
+</section>
+<section id="S4.SS5.SSS0.Px4" class="ltx_paragraph">
+<h4 class="ltx_title ltx_title_paragraph">Discussions</h4>
+
+<div id="S4.SS5.SSS0.Px4.p1" class="ltx_para">
+<p id="S4.SS5.SSS0.Px4.p1.1" class="ltx_p">In this study, we investigate the possibilities of prompting LLMs to perform complex reasoning tasks over tables. However, we do not believe LLM prompting can replace the existing symbolic methods. LLMs have several favorable properties: (1) no annotation is needed, and (2) the functional coverage is broader than symbolic methods. However, LLM prompting exhibits unpredictable randomness and cannot generalize to large tables. In contrast, symbolic models are (1) agnostic to the table size, and (2) can reliably perform designed functions without much randomness. But they in general require a significant amount of annotated data to learn.</p>
+</div>
+<div id="S4.SS5.SSS0.Px4.p2" class="ltx_para">
+<p id="S4.SS5.SSS0.Px4.p2.1" class="ltx_p">In conclusion, these two types of models are complementary to each other. To push the limit forward, we need to investigate how to combine the merits of these two types of methods. For example, the symbolic methods can perform certain operations to narrow down to a targeted region in the table, and then LLMs can be used to reason over the limited information.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Conclusion</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In this paper, we investigate whether the current LLMs (GPT-3) can be directly utilized to perform table reasoning tasks. Surprisingly, though LLMs are not optimized for table-based tasks, we found these models highly competent in performing complex table reasoning tasks, especially when combined with ‘chain of thoughts’ prompting. We believe this study can open new possibilities for LLM application in table-related tasks to either directly predict the output or to serve as an auxiliary tool for annotating complex intermediate forms.</p>
+</div>
+</section>
+<section id="Sx1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">Limitations</h2>
+
+<div id="Sx1.p1" class="ltx_para">
+<p id="Sx1.p1.1" class="ltx_p">Our approach has several limitations: (1) the proposed approach is still far from state-of-the-art performance, and there is still room for improve before it can be used as an alternative. (2) the method is still costly, we show that the model can only achieve superior performance when scaling up. Smaller-sized models are still weak at table reasoning. Therefore, we need to consider how to empower smaller models with such reasoning capabilities.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Agarwal et al. (2019)</span>
+<span class="ltx_bibblock">
+Rishabh Agarwal, Chen Liang, Dale Schuurmans, and Mohammad Norouzi. 2019.
+
+</span>
+<span class="ltx_bibblock">Learning to generalize from sparse and underspecified rewards.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">International conference on machine learning</em>, pages
+130–140. PMLR.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Aly et al. (2021)</span>
+<span class="ltx_bibblock">
+Rami Aly, Zhijiang Guo, Michael Sejr Schlichtkrull, James Thorne, Andreas
+Vlachos, Christos Christodoulopoulos, Oana Cocarascu, and Arpit Mittal. 2021.
+
+</span>
+<span class="ltx_bibblock">The fact extraction and verification over unstructured and structured
+information (feverous) shared task.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">Proceedings of the Fourth Workshop on Fact Extraction and
+VERification (FEVER)</em>, pages 1–13.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Brown et al. (2020)</span>
+<span class="ltx_bibblock">
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla
+Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell,
+et al. 2020.
+
+</span>
+<span class="ltx_bibblock">Language models are few-shot learners.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">Advances in neural information processing systems</em>,
+33:1877–1901.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Budzianowski et al. (2018)</span>
+<span class="ltx_bibblock">
+Paweł Budzianowski, Tsung-Hsien Wen, Bo-Hsiang Tseng, Iñigo Casanueva,
+Stefan Ultes, Osman Ramadan, and Milica Gasic. 2018.
+
+</span>
+<span class="ltx_bibblock">Multiwoz-a large-scale multi-domain wizard-of-oz dataset for
+task-oriented dialogue modelling.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2018 Conference on Empirical Methods in
+Natural Language Processing</em>, pages 5016–5026.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2021a)</span>
+<span class="ltx_bibblock">
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira
+Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg
+Brockman, et al. 2021a.
+
+</span>
+<span class="ltx_bibblock">Evaluating large language models trained on code.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2107.03374</em>.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2020a)</span>
+<span class="ltx_bibblock">
+Wenhu Chen, Ming-Wei Chang, Eva Schlinger, William Yang Wang, and William W
+Cohen. 2020a.
+
+</span>
+<span class="ltx_bibblock">Open question answering over tables and text.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2020b)</span>
+<span class="ltx_bibblock">
+Wenhu Chen, Jianshu Chen, Yu Su, Zhiyu Chen, and William Yang Wang.
+2020b.
+
+</span>
+<span class="ltx_bibblock">Logical natural language generation from open-domain tables.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>, pages 7929–7942.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2019)</span>
+<span class="ltx_bibblock">
+Wenhu Chen, Hongmin Wang, Jianshu Chen, Yunkai Zhang, Hong Wang, Shiyang Li,
+Xiyou Zhou, and William Yang Wang. 2019.
+
+</span>
+<span class="ltx_bibblock">Tabfact: A large-scale dataset for table-based fact verification.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2020c)</span>
+<span class="ltx_bibblock">
+Wenhu Chen, Hanwen Zha, Zhiyu Chen, Wenhan Xiong, Hong Wang, and William Yang
+Wang. 2020c.
+
+</span>
+<span class="ltx_bibblock">Hybridqa: A dataset of multi-hop question answering over tabular and
+textual data.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">Findings of the Association for Computational Linguistics:
+EMNLP 2020</em>, pages 1026–1036.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chen et al. (2021b)</span>
+<span class="ltx_bibblock">
+Zhiyu Chen, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Dylan
+Langdon, Reema Moussa, Matt Beane, Ting-Hao Huang, Bryan R Routledge, et al.
+2021b.
+
+</span>
+<span class="ltx_bibblock">Finqa: A dataset of numerical reasoning over financial data.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2021 Conference on Empirical Methods in
+Natural Language Processing</em>, pages 3697–3711.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Cheng et al. (2022)</span>
+<span class="ltx_bibblock">
+Zhoujun Cheng, Tianbao Xie, Peng Shi, Chengzu Li, Rahul Nadkarni, Yushi Hu,
+Caiming Xiong, Dragomir Radev, Mari Ostendorf, Luke Zettlemoyer, et al. 2022.
+
+</span>
+<span class="ltx_bibblock">Binding language models in symbolic languages.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2210.02875</em>.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Chowdhery et al. (2022)</span>
+<span class="ltx_bibblock">
+Aakanksha Chowdhery, Sharan Narang, Jacob Devlin, Maarten Bosma, Gaurav Mishra,
+Adam Roberts, Paul Barham, Hyung Won Chung, Charles Sutton, Sebastian
+Gehrmann, et al. 2022.
+
+</span>
+<span class="ltx_bibblock">Palm: Scaling language modeling with pathways.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2204.02311</em>.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Deng et al. (2022)</span>
+<span class="ltx_bibblock">
+Xiang Deng, Huan Sun, Alyssa Lees, You Wu, and Cong Yu. 2022.
+
+</span>
+<span class="ltx_bibblock">Turl: Table understanding through representation learning.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">ACM SIGMOD Record</em>, 51(1):33–40.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Drozdov et al. (2022)</span>
+<span class="ltx_bibblock">
+Andrew Drozdov, Nathanael Schärli, Ekin Akyürek, Nathan Scales, Xinying
+Song, Xinyun Chen, Olivier Bousquet, and Denny Zhou. 2022.
+
+</span>
+<span class="ltx_bibblock">Compositional semantic parsing with large language models.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2209.15003</em>.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Du et al. (2022)</span>
+<span class="ltx_bibblock">
+Nan Du, Yanping Huang, Andrew M Dai, Simon Tong, Dmitry Lepikhin, Yuanzhong Xu,
+Maxim Krikun, Yanqi Zhou, Adams Wei Yu, Orhan Firat, et al. 2022.
+
+</span>
+<span class="ltx_bibblock">Glam: Efficient scaling of language models with mixture-of-experts.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">International Conference on Machine Learning</em>, pages
+5547–5569. PMLR.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Eisenschlos et al. (2020)</span>
+<span class="ltx_bibblock">
+Julian Eisenschlos, Syrine Krichene, and Thomas Mueller. 2020.
+
+</span>
+<span class="ltx_bibblock">Understanding tables with intermediate pre-training.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">Findings of the Association for Computational Linguistics:
+EMNLP 2020</em>, pages 281–296.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Herzig et al. (2020)</span>
+<span class="ltx_bibblock">
+Jonathan Herzig, Pawel Krzysztof Nowak, Thomas Mueller, Francesco Piccinno, and
+Julian Eisenschlos. 2020.
+
+</span>
+<span class="ltx_bibblock">Tapas: Weakly supervised table parsing via pre-training.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>, pages 4320–4333.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Kojima et al. (2022)</span>
+<span class="ltx_bibblock">
+Takeshi Kojima, Shixiang Shane Gu, Machel Reid, Yutaka Matsuo, and Yusuke
+Iwasawa. 2022.
+
+</span>
+<span class="ltx_bibblock">Large language models are zero-shot reasoners.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2205.11916</em>.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Lewis et al. (2020)</span>
+<span class="ltx_bibblock">
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed,
+Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. 2020.
+
+</span>
+<span class="ltx_bibblock">Bart: Denoising sequence-to-sequence pre-training for natural
+language generation, translation, and comprehension.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>, pages 7871–7880.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Liang et al. (2018)</span>
+<span class="ltx_bibblock">
+Chen Liang, Mohammad Norouzi, Jonathan Berant, Quoc V Le, and Ni Lao. 2018.
+
+</span>
+<span class="ltx_bibblock">Memory augmented policy optimization for program synthesis and
+semantic parsing.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems</em>, 31.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Liu et al. (2021)</span>
+<span class="ltx_bibblock">
+Qian Liu, Bei Chen, Jiaqi Guo, Morteza Ziyadi, Zeqi Lin, Weizhu Chen, and
+Jian-Guang Lou. 2021.
+
+</span>
+<span class="ltx_bibblock">Tapex: Table pre-training via learning a neural sql executor.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nakamura et al. (2022)</span>
+<span class="ltx_bibblock">
+Kai Nakamura, Sharon Levy, Yi-Lin Tuan, Wenhu Chen, and William Yang Wang.
+2022.
+
+</span>
+<span class="ltx_bibblock">Hybridialogue: An information-seeking dialogue dataset grounded on
+tabular and textual data.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">Findings of the Association for Computational Linguistics:
+ACL 2022</em>, pages 481–492.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nan et al. (2022)</span>
+<span class="ltx_bibblock">
+Linyong Nan, Chiachun Hsieh, Ziming Mao, Xi Victoria Lin, Neha Verma, Rui
+Zhang, Wojciech Kryściński, Nick Schoelkopf, Riley Kong, Xiangru
+Tang, et al. 2022.
+
+</span>
+<span class="ltx_bibblock">Fetaqa: Free-form table question answering.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">Transactions of the Association for Computational Linguistics</em>,
+10:35–49.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Nan et al. (2021)</span>
+<span class="ltx_bibblock">
+Linyong Nan, Dragomir Radev, Rui Zhang, Amrit Rau, Abhinand Sivaprasad,
+Chiachun Hsieh, Xiangru Tang, Aadit Vyas, Neha Verma, Pranav Krishna, et al.
+2021.
+
+</span>
+<span class="ltx_bibblock">Dart: Open-domain structured data record to text generation.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2021 Conference of the North American
+Chapter of the Association for Computational Linguistics: Human Language
+Technologies</em>, pages 432–447.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ouyang et al. (2022)</span>
+<span class="ltx_bibblock">
+Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Carroll L Wainwright, Pamela
+Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, et al.
+2022.
+
+</span>
+<span class="ltx_bibblock">Training language models to follow instructions with human feedback.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2203.02155</em>.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Papineni et al. (2002)</span>
+<span class="ltx_bibblock">
+Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002.
+
+</span>
+<span class="ltx_bibblock">Bleu: a method for automatic evaluation of machine translation.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 40th annual meeting of the Association
+for Computational Linguistics</em>, pages 311–318.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Parikh et al. (2020)</span>
+<span class="ltx_bibblock">
+Ankur Parikh, Xuezhi Wang, Sebastian Gehrmann, Manaal Faruqui, Bhuwan Dhingra,
+Diyi Yang, and Dipanjan Das. 2020.
+
+</span>
+<span class="ltx_bibblock">Totto: A controlled table-to-text generation dataset.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2020 Conference on Empirical Methods in
+Natural Language Processing (EMNLP)</em>, pages 1173–1186.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Pasupat and Liang (2015)</span>
+<span class="ltx_bibblock">
+Panupong Pasupat and Percy Liang. 2015.
+
+</span>
+<span class="ltx_bibblock">Compositional semantic parsing on semi-structured tables.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 53rd Annual Meeting of the Association
+for Computational Linguistics and the 7th International Joint Conference on
+Natural Language Processing (Volume 1: Long Papers)</em>, pages 1470–1480.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Rae et al. (2021)</span>
+<span class="ltx_bibblock">
+Jack W Rae, Sebastian Borgeaud, Trevor Cai, Katie Millican, Jordan Hoffmann,
+Francis Song, John Aslanides, Sarah Henderson, Roman Ring, Susannah Young,
+et al. 2021.
+
+</span>
+<span class="ltx_bibblock">Scaling language models: Methods, analysis &amp; insights from training
+gopher.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2112.11446</em>.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Raffel et al. (2020)</span>
+<span class="ltx_bibblock">
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael
+Matena, Yanqi Zhou, Wei Li, Peter J Liu, et al. 2020.
+
+</span>
+<span class="ltx_bibblock">Exploring the limits of transfer learning with a unified text-to-text
+transformer.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib30.1.1" class="ltx_emph ltx_font_italic">J. Mach. Learn. Res.</em>, 21(140):1–67.
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sanh et al. (2022)</span>
+<span class="ltx_bibblock">
+Victor Sanh, Albert Webson, Colin Raffel, Stephen Bach, Lintang Sutawika, Zaid
+Alyafeai, Antoine Chaffin, Arnaud Stiegler, Teven Le Scao, Arun Raja, et al.
+2022.
+
+</span>
+<span class="ltx_bibblock">Multitask prompted training enables zero-shot task generalization.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">The Tenth International Conference on Learning
+Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib32" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Smith et al. (2022)</span>
+<span class="ltx_bibblock">
+Shaden Smith, Mostofa Patwary, Brandon Norick, Patrick LeGresley, Samyam
+Rajbhandari, Jared Casper, Zhun Liu, Shrimai Prabhumoye, George Zerveas,
+Vijay Korthikanti, et al. 2022.
+
+</span>
+<span class="ltx_bibblock">Using deepspeed and megatron to train megatron-turing nlg 530b, a
+large-scale generative language model.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib32.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2201.11990</em>.
+
+</span>
+</li>
+<li id="bib.bib33" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Talmor et al. (2020)</span>
+<span class="ltx_bibblock">
+Alon Talmor, Ori Yoran, Amnon Catav, Dan Lahav, Yizhong Wang, Akari Asai,
+Gabriel Ilharco, Hannaneh Hajishirzi, and Jonathan Berant. 2020.
+
+</span>
+<span class="ltx_bibblock">Multimodalqa: complex question answering over text, tables and
+images.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib33.1.1" class="ltx_emph ltx_font_italic">International Conference on Learning Representations</em>.
+
+</span>
+</li>
+<li id="bib.bib34" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al. (2019)</span>
+<span class="ltx_bibblock">
+Bailin Wang, Ivan Titov, and Mirella Lapata. 2019.
+
+</span>
+<span class="ltx_bibblock">Learning semantic parsers from denotations with latent structured
+alignments and abstract programs.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib34.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2019 Conference on Empirical Methods in
+Natural Language Processing and the 9th International Joint Conference on
+Natural Language Processing (EMNLP-IJCNLP)</em>, pages 3774–3785.
+
+</span>
+</li>
+<li id="bib.bib35" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wang et al. (2022)</span>
+<span class="ltx_bibblock">
+Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, and Denny Zhou. 2022.
+
+</span>
+<span class="ltx_bibblock">Self-consistency improves chain of thought reasoning in language
+models.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib35.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2203.11171</em>.
+
+</span>
+</li>
+<li id="bib.bib36" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Wei et al. (2022)</span>
+<span class="ltx_bibblock">
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Ed Chi, Quoc Le, and
+Denny Zhou. 2022.
+
+</span>
+<span class="ltx_bibblock">Chain of thought prompting elicits reasoning in large language
+models.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib36.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2201.11903</em>.
+
+</span>
+</li>
+<li id="bib.bib37" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Xie et al. (2022)</span>
+<span class="ltx_bibblock">
+Tianbao Xie, Chen Henry Wu, Peng Shi, Ruiqi Zhong, Torsten Scholak, Michihiro
+Yasunaga, Chien-Sheng Wu, Ming Zhong, Pengcheng Yin, Sida I. Wang, Victor
+Zhong, Bailin Wang, Chengzu Li, Connor Boyle, Ansong Ni, Ziyu Yao, Dragomir
+Radev, Caiming Xiong, Lingpeng Kong, Rui Zhang, Noah A. Smith, Luke
+Zettlemoyer, and Tao Yu. 2022.
+
+</span>
+<span class="ltx_bibblock">Unifiedskg: Unifying and multi-tasking structured knowledge grounding
+with text-to-text language models.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib37.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2201.05966</em>.
+
+</span>
+</li>
+<li id="bib.bib38" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yang et al. (2020)</span>
+<span class="ltx_bibblock">
+Xiaoyu Yang, Feng Nie, Yufei Feng, Quan Liu, Zhigang Chen, and Xiaodan Zhu.
+2020.
+
+</span>
+<span class="ltx_bibblock">Program enhanced fact verification with verbalization and graph
+attention network.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib38.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2020 Conference on Empirical Methods in
+Natural Language Processing (EMNLP)</em>, pages 7810–7825.
+
+</span>
+</li>
+<li id="bib.bib39" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yin et al. (2020)</span>
+<span class="ltx_bibblock">
+Pengcheng Yin, Graham Neubig, Wen-tau Yih, and Sebastian Riedel. 2020.
+
+</span>
+<span class="ltx_bibblock">Tabert: Pretraining for joint understanding of textual and tabular
+data.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib39.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>, pages 8413–8426.
+
+</span>
+</li>
+<li id="bib.bib40" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yu et al. (2021)</span>
+<span class="ltx_bibblock">
+Tao Yu, Chien-Sheng Wu, Xi Victoria Lin, Bailin Wang, Yi Chern Tan, Xinyi Yang,
+Dragomir R Radev, Richard Socher, and Caiming Xiong. 2021.
+
+</span>
+<span class="ltx_bibblock">Grappa: Grammar-augmented pre-training for table semantic parsing.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib40.1.1" class="ltx_emph ltx_font_italic">ICLR</em>.
+
+</span>
+</li>
+<li id="bib.bib41" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Yu et al. (2018)</span>
+<span class="ltx_bibblock">
+Tao Yu, Rui Zhang, Kai Yang, Michihiro Yasunaga, Dongxu Wang, Zifan Li, James
+Ma, Irene Li, Qingning Yao, Shanelle Roman, et al. 2018.
+
+</span>
+<span class="ltx_bibblock">Spider: A large-scale human-labeled dataset for complex and
+cross-domain semantic parsing and text-to-sql task.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib41.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2018 Conference on Empirical Methods in
+Natural Language Processing</em>, pages 3911–3921.
+
+</span>
+</li>
+<li id="bib.bib42" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2020)</span>
+<span class="ltx_bibblock">
+Hongzhi Zhang, Yingyao Wang, Sirui Wang, Xuezhi Cao, Fuzheng Zhang, and
+Zhongyuan Wang. 2020.
+
+</span>
+<span class="ltx_bibblock">Table fact verification with structure-aware transformer.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib42.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2020 Conference on Empirical Methods in
+Natural Language Processing (EMNLP)</em>, pages 1624–1629.
+
+</span>
+</li>
+<li id="bib.bib43" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhang et al. (2017)</span>
+<span class="ltx_bibblock">
+Yuchen Zhang, Panupong Pasupat, and Percy Liang. 2017.
+
+</span>
+<span class="ltx_bibblock">Macro grammars and holistic triggering for efficient semantic
+parsing.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib43.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2017 Conference on Empirical Methods in
+Natural Language Processing</em>, pages 1214–1223.
+
+</span>
+</li>
+<li id="bib.bib44" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhong et al. (2017)</span>
+<span class="ltx_bibblock">
+Victor Zhong, Caiming Xiong, and Richard Socher. 2017.
+
+</span>
+<span class="ltx_bibblock">Seq2sql: Generating structured queries from natural language using
+reinforcement learning.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib44.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:1709.00103</em>.
+
+</span>
+</li>
+<li id="bib.bib45" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhong et al. (2020)</span>
+<span class="ltx_bibblock">
+Wanjun Zhong, Duyu Tang, Zhangyin Feng, Nan Duan, Ming Zhou, Ming Gong, Linjun
+Shou, Daxin Jiang, Jiahai Wang, and Jian Yin. 2020.
+
+</span>
+<span class="ltx_bibblock">Logicalfactchecker: Leveraging logical operations for fact checking
+with graph module network.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib45.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 58th Annual Meeting of the Association
+for Computational Linguistics</em>, pages 6053–6065.
+
+</span>
+</li>
+<li id="bib.bib46" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhou et al. (2022)</span>
+<span class="ltx_bibblock">
+Denny Zhou, Nathanael Schärli, Le Hou, Jason Wei, Nathan Scales, Xuezhi
+Wang, Dale Schuurmans, Olivier Bousquet, Quoc Le, and Ed Chi. 2022.
+
+</span>
+<span class="ltx_bibblock">Least-to-most prompting enables complex reasoning in large language
+models.
+
+</span>
+<span class="ltx_bibblock"><em id="bib.bib46.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2205.10625</em>.
+
+</span>
+</li>
+<li id="bib.bib47" class="ltx_bibitem">
+<span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Zhu et al. (2021)</span>
+<span class="ltx_bibblock">
+Fengbin Zhu, Wenqiang Lei, Youcheng Huang, Chao Wang, Shuo Zhang, Jiancheng Lv,
+Fuli Feng, and Tat-Seng Chua. 2021.
+
+</span>
+<span class="ltx_bibblock">Tat-qa: A question answering benchmark on a hybrid of tabular and
+textual content in finance.
+
+</span>
+<span class="ltx_bibblock">In <em id="bib.bib47.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 59th Annual Meeting of the Association
+for Computational Linguistics and the 11th International Joint Conference on
+Natural Language Processing (Volume 1: Long Papers)</em>, pages 3277–3287.
+
+</span>
+</li>
+</ul>
+</section>
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2210.06709" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2210.06710" class="ar5iv-text-button ar5iv-severity-warning">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2210.06710">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2210.06710" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2210.06711" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Thu Mar 14 02:47:14 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>

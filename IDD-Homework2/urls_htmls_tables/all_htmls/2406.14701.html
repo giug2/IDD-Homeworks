@@ -1,0 +1,1178 @@
+<!DOCTYPE html><html prefix="dcterms: http://purl.org/dc/terms/" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>[2406.14701] Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions</title><meta property="og:description" content="In this paper, we focus on addressing the constraints faced when applying LLMs to ASR. Recent works utilize prefixLM-type models, which directly apply speech as a prefix to LLMs for ASR. We have found that optimizing s…">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions">
+<meta name="twitter:image:src" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta name="twitter:image:alt" content="ar5iv logo">
+<meta property="og:title" content="Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions">
+<meta property="og:site_name" content="ar5iv">
+<meta property="og:image" content="https://ar5iv.labs.arxiv.org/assets/ar5iv_card.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ar5iv.labs.arxiv.org/html/2406.14701">
+
+<!--Generated on Sat Jul  6 01:51:55 2024 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<script>
+  function detectColorScheme(){
+    var theme="light";
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if(current_theme){
+      if(current_theme == "dark"){
+        theme = "dark";
+      } }
+    else if(!window.matchMedia) { return false; }
+    else if(window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark"; }
+    if (theme=="dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light"); } }
+
+  detectColorScheme();
+
+  function toggleColorScheme(){
+    var current_theme = localStorage.getItem("ar5iv_theme");
+    if (current_theme) {
+      if (current_theme == "light") {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+      else {
+        localStorage.setItem("ar5iv_theme", "light"); } }
+    else {
+        localStorage.setItem("ar5iv_theme", "dark"); }
+    detectColorScheme(); }
+</script>
+<link media="all" rel="stylesheet" href="/assets/ar5iv-fonts.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv.0.8.0.min.css"><link media="all" rel="stylesheet" href="/assets/ar5iv-site.0.2.2.css">
+</head>
+<body>
+<div class="ltx_page_main">
+<div class="ltx_page_content">
+<article class="ltx_document ltx_authors_1line">
+<div id="p1" class="ltx_para">
+<span id="p1.1" class="ltx_ERROR undefined">\interspeechcameraready</span><span id="p1.2" class="ltx_ERROR undefined">\name</span>
+<p id="p1.3" class="ltx_p">Murali Karthick Baskar, Andrew Rosenberg, Bhuvana Ramabhadran, Neeraj Gaur, Zhong Meng
+
+
+
+
+</p>
+</div>
+<h1 class="ltx_title ltx_title_document">Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions</h1>
+
+<div class="ltx_abstract">
+<h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p id="id1.id1" class="ltx_p">In this paper, we focus on addressing the constraints faced when applying LLMs to ASR. Recent works utilize prefixLM-type models, which directly apply speech as a prefix to LLMs for ASR. We have found that optimizing speech prefixes leads to better ASR performance and propose applying RNNT loss to perform speech prefix-tuning. This is a simple approach and does not increase the model complexity or alter the inference pipeline. We also propose language-based soft prompting to further improve with frozen LLMs. Empirical analysis on realtime testset from 10 Indic languages demonstrate that our proposed speech prefix-tuning yields improvements with both frozen and fine-tuned LLMs. Our recognition results on an average of 10 Indics show that the proposed prefix-tuning with RNNT loss results in a 12% relative improvement in WER over the baseline with a fine-tuned LLM. Our proposed approches with the frozen LLM leads to a 31% relative improvement over basic soft-prompting prefixLM.
+
+</p>
+</div>
+<div id="p2" class="ltx_para ltx_noindent">
+<p id="p2.1" class="ltx_p"><span id="p2.1.1" class="ltx_text ltx_font_bold">Index Terms</span>: speech recognition, large language models, LLM, ASR, prefixLM, prompt-tuning, prefix-tuning</p>
+</div>
+<section id="S1" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">1 </span>Introduction</h2>
+
+<div id="S1.p1" class="ltx_para">
+<p id="S1.p1.1" class="ltx_p">Large language models (LLMs) are revolutionizing automatic speech recognition (ASR) research by addressing various types of prediction errors. PrefixLM is an LLM variant where the input text is accompanied by a prefix. This prefix can take the form of text <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> or speech <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite> or image <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="" class="ltx_ref">3</a>]</cite> providing additional context for the model. When using speech tokens as prefixes (as in this work), PrefixLM learns to predict text autoregressively, mimicking an end-to-end ASR model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="" class="ltx_ref">4</a>, <a href="#bib.bib5" title="" class="ltx_ref">5</a>]</cite>. Previous work <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>]</cite> demonstrates that LLM performance improves with better speech encodings or prefix tokens extracted from self-supervised and supervised models. Scaling the speech encoder also enhances the use of speech prefixes <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, further improving the recognition ability of LLM models such as LLaMA <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib8" title="" class="ltx_ref">8</a>]</cite>. PrefixLM with speech prefixes have been trained for multiple tasks, including speech recognition and speech translation <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>. Notably, these approaches directly use pretrained LLMs without additional fine-tuning on the target task.</p>
+</div>
+<div id="S1.p2" class="ltx_para">
+<p id="S1.p2.1" class="ltx_p">Prefix-tuning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib10" title="" class="ltx_ref">10</a>]</cite> offers a lightweight alternative to fine-tuning, as it prepends a trainable token sequence to the text input. Optimizing only the prefix-related parameters adapts the model effectively to downstream tasks. This technique is being incorporated into image and video-based prefixLM models as well. Cross-modal prefix-tuning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib11" title="" class="ltx_ref">11</a>]</cite> has been proposed for adapting multilingual translation models to bilingual speech translation tasks. While the final training objective is still only the LLM loss, a pre-trained speech encoder is used for adaptation across modalities.
+While LLMs gain significant improvement in recognition performance, they still suffer from drawbacks such as higher insertions <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> and code-switching errors <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>. The authors in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib12" title="" class="ltx_ref">12</a>]</cite> demonstrate that using LLMs for error correction for ASR helps to improve substitutions compared to RNNTs but increases insertion errors. A simple shallow fusion with a bi-directional LLM leads to code-switching between Mandarin and English when compared to an RNNT model <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib13" title="" class="ltx_ref">13</a>]</cite>. Despite these studies, our multilingual experiments also indicate that RNNTs do not suffer from insertions and code-switching to the same degree as LLM predictions. We attribute this behavior of RNNT to training with robust aligments and hypothesize that integrating it with LLM will lead to reduced hallucinations and better prediction.</p>
+</div>
+<figure id="S1.F1" class="ltx_figure">
+<div class="ltx_flex_figure">
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S1.F1.sf1" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.14701/assets/figures/pv_aa2.png" id="S1.F1.sf1.g1" class="ltx_graphics ltx_img_square" width="100" height="102" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(a) </span>a</figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S1.F1.sf2" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.14701/assets/figures/pv_bb2.png" id="S1.F1.sf2.g1" class="ltx_graphics ltx_img_landscape" width="120" height="93" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(b) </span>b</figcaption>
+</figure>
+</div>
+<div class="ltx_flex_break"></div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S1.F1.sf3" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.14701/assets/figures/pv_cc.png" id="S1.F1.sf3.g1" class="ltx_graphics ltx_img_square" width="100" height="104" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(c) </span>c</figcaption>
+</figure>
+</div>
+<div class="ltx_flex_cell ltx_flex_size_2">
+<figure id="S1.F1.sf4" class="ltx_figure ltx_figure_panel ltx_align_center"><img src="/html/2406.14701/assets/figures/pv_ddd.png" id="S1.F1.sf4.g1" class="ltx_graphics ltx_img_square" width="120" height="101" alt="Refer to caption">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_figure">(d) </span>d</figcaption>
+</figure>
+</div>
+</div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 1: </span>Previous works [a] and [b] denotes the baseline prefixLM and soft prompting with prefixLM respectively. Subfigures [c] and [d] are our proposed approaches representing the prefix-tuning with RNNT loss and langID based soft prompting respectively</figcaption>
+</figure>
+<div id="S1.p3" class="ltx_para ltx_noindent">
+<p id="S1.p3.1" class="ltx_p">Our primary contributions are as follows:</p>
+<ul id="S1.I1" class="ltx_itemize">
+<li id="S1.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i1.p1" class="ltx_para">
+<p id="S1.I1.i1.p1.1" class="ltx_p">RNNT loss for speech prefix tuning: We demonstrate improvements over both frozen and fine-tuned LLMs. We also examine the constraints encountered when tuning with speech prefixes using Connectionist Temporal Classification (CTC) loss, a non-autoregressive technique. We compare CTC with RNNT loss, highlighting distinctions relevant to prefixLM.</p>
+</div>
+</li>
+<li id="S1.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i2.p1" class="ltx_para">
+<p id="S1.I1.i2.p1.1" class="ltx_p">Language ID (langID) soft prompting: This technique enhances performance of frozen LLMs.</p>
+</div>
+</li>
+<li id="S1.I1.i3" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S1.I1.i3.p1" class="ltx_para">
+<p id="S1.I1.i3.p1.1" class="ltx_p">Bridging the gap: Applying both speech prefix-tuning and langID-based soft prompting can be additive and further reduce the performance gap between frozen and fine-tuned LMs.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section id="S2" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">2 </span>Methodology</h2>
+
+<div id="S2.p1" class="ltx_para">
+<p id="S2.p1.1" class="ltx_p">Our proposed method focuses on finetuning the speech prefix tokens of prefixLM with ASR loss for improved recognition performance. Figures <a href="#S2.F2" title="Figure 2 ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> presents the training and evaluation pipeline for our proposed speech prefix-tuning approach. Unlike previous works in figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> that solely focus on tuning only the prefix embeddings with the same loss used for text prediction, tuning with RNNT loss updates both speech encoder and prefix embeddings allows the model to learn more discriminant speech features as prefix tokens.</p>
+</div>
+<figure id="S2.F2" class="ltx_figure"><img src="/html/2406.14701/assets/figures/basic_block.png" id="S2.F2.g1" class="ltx_graphics ltx_centering ltx_img_landscape" width="538" height="320" alt="Refer to caption">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_figure">Figure 2: </span>Training and Evaluation flow for PrefixLM with speech prefix-tuning</figcaption>
+</figure>
+<div id="S2.p2" class="ltx_para">
+<p id="S2.p2.6" class="ltx_p">Given a input speech sequence <math id="S2.p2.1.m1.4" class="ltx_Math" alttext="\mathbf{X}=x_{0},x_{1},x_{2},x_{3}" display="inline"><semantics id="S2.p2.1.m1.4a"><mrow id="S2.p2.1.m1.4.4" xref="S2.p2.1.m1.4.4.cmml"><mi id="S2.p2.1.m1.4.4.6" xref="S2.p2.1.m1.4.4.6.cmml">𝐗</mi><mo id="S2.p2.1.m1.4.4.5" xref="S2.p2.1.m1.4.4.5.cmml">=</mo><mrow id="S2.p2.1.m1.4.4.4.4" xref="S2.p2.1.m1.4.4.4.5.cmml"><msub id="S2.p2.1.m1.1.1.1.1.1" xref="S2.p2.1.m1.1.1.1.1.1.cmml"><mi id="S2.p2.1.m1.1.1.1.1.1.2" xref="S2.p2.1.m1.1.1.1.1.1.2.cmml">x</mi><mn id="S2.p2.1.m1.1.1.1.1.1.3" xref="S2.p2.1.m1.1.1.1.1.1.3.cmml">0</mn></msub><mo id="S2.p2.1.m1.4.4.4.4.5" xref="S2.p2.1.m1.4.4.4.5.cmml">,</mo><msub id="S2.p2.1.m1.2.2.2.2.2" xref="S2.p2.1.m1.2.2.2.2.2.cmml"><mi id="S2.p2.1.m1.2.2.2.2.2.2" xref="S2.p2.1.m1.2.2.2.2.2.2.cmml">x</mi><mn id="S2.p2.1.m1.2.2.2.2.2.3" xref="S2.p2.1.m1.2.2.2.2.2.3.cmml">1</mn></msub><mo id="S2.p2.1.m1.4.4.4.4.6" xref="S2.p2.1.m1.4.4.4.5.cmml">,</mo><msub id="S2.p2.1.m1.3.3.3.3.3" xref="S2.p2.1.m1.3.3.3.3.3.cmml"><mi id="S2.p2.1.m1.3.3.3.3.3.2" xref="S2.p2.1.m1.3.3.3.3.3.2.cmml">x</mi><mn id="S2.p2.1.m1.3.3.3.3.3.3" xref="S2.p2.1.m1.3.3.3.3.3.3.cmml">2</mn></msub><mo id="S2.p2.1.m1.4.4.4.4.7" xref="S2.p2.1.m1.4.4.4.5.cmml">,</mo><msub id="S2.p2.1.m1.4.4.4.4.4" xref="S2.p2.1.m1.4.4.4.4.4.cmml"><mi id="S2.p2.1.m1.4.4.4.4.4.2" xref="S2.p2.1.m1.4.4.4.4.4.2.cmml">x</mi><mn id="S2.p2.1.m1.4.4.4.4.4.3" xref="S2.p2.1.m1.4.4.4.4.4.3.cmml">3</mn></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.1.m1.4b"><apply id="S2.p2.1.m1.4.4.cmml" xref="S2.p2.1.m1.4.4"><eq id="S2.p2.1.m1.4.4.5.cmml" xref="S2.p2.1.m1.4.4.5"></eq><ci id="S2.p2.1.m1.4.4.6.cmml" xref="S2.p2.1.m1.4.4.6">𝐗</ci><list id="S2.p2.1.m1.4.4.4.5.cmml" xref="S2.p2.1.m1.4.4.4.4"><apply id="S2.p2.1.m1.1.1.1.1.1.cmml" xref="S2.p2.1.m1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.p2.1.m1.1.1.1.1.1.1.cmml" xref="S2.p2.1.m1.1.1.1.1.1">subscript</csymbol><ci id="S2.p2.1.m1.1.1.1.1.1.2.cmml" xref="S2.p2.1.m1.1.1.1.1.1.2">𝑥</ci><cn type="integer" id="S2.p2.1.m1.1.1.1.1.1.3.cmml" xref="S2.p2.1.m1.1.1.1.1.1.3">0</cn></apply><apply id="S2.p2.1.m1.2.2.2.2.2.cmml" xref="S2.p2.1.m1.2.2.2.2.2"><csymbol cd="ambiguous" id="S2.p2.1.m1.2.2.2.2.2.1.cmml" xref="S2.p2.1.m1.2.2.2.2.2">subscript</csymbol><ci id="S2.p2.1.m1.2.2.2.2.2.2.cmml" xref="S2.p2.1.m1.2.2.2.2.2.2">𝑥</ci><cn type="integer" id="S2.p2.1.m1.2.2.2.2.2.3.cmml" xref="S2.p2.1.m1.2.2.2.2.2.3">1</cn></apply><apply id="S2.p2.1.m1.3.3.3.3.3.cmml" xref="S2.p2.1.m1.3.3.3.3.3"><csymbol cd="ambiguous" id="S2.p2.1.m1.3.3.3.3.3.1.cmml" xref="S2.p2.1.m1.3.3.3.3.3">subscript</csymbol><ci id="S2.p2.1.m1.3.3.3.3.3.2.cmml" xref="S2.p2.1.m1.3.3.3.3.3.2">𝑥</ci><cn type="integer" id="S2.p2.1.m1.3.3.3.3.3.3.cmml" xref="S2.p2.1.m1.3.3.3.3.3.3">2</cn></apply><apply id="S2.p2.1.m1.4.4.4.4.4.cmml" xref="S2.p2.1.m1.4.4.4.4.4"><csymbol cd="ambiguous" id="S2.p2.1.m1.4.4.4.4.4.1.cmml" xref="S2.p2.1.m1.4.4.4.4.4">subscript</csymbol><ci id="S2.p2.1.m1.4.4.4.4.4.2.cmml" xref="S2.p2.1.m1.4.4.4.4.4.2">𝑥</ci><cn type="integer" id="S2.p2.1.m1.4.4.4.4.4.3.cmml" xref="S2.p2.1.m1.4.4.4.4.4.3">3</cn></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.1.m1.4c">\mathbf{X}=x_{0},x_{1},x_{2},x_{3}</annotation></semantics></math> with <math id="S2.p2.2.m2.1" class="ltx_Math" alttext="T=4" display="inline"><semantics id="S2.p2.2.m2.1a"><mrow id="S2.p2.2.m2.1.1" xref="S2.p2.2.m2.1.1.cmml"><mi id="S2.p2.2.m2.1.1.2" xref="S2.p2.2.m2.1.1.2.cmml">T</mi><mo id="S2.p2.2.m2.1.1.1" xref="S2.p2.2.m2.1.1.1.cmml">=</mo><mn id="S2.p2.2.m2.1.1.3" xref="S2.p2.2.m2.1.1.3.cmml">4</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.2.m2.1b"><apply id="S2.p2.2.m2.1.1.cmml" xref="S2.p2.2.m2.1.1"><eq id="S2.p2.2.m2.1.1.1.cmml" xref="S2.p2.2.m2.1.1.1"></eq><ci id="S2.p2.2.m2.1.1.2.cmml" xref="S2.p2.2.m2.1.1.2">𝑇</ci><cn type="integer" id="S2.p2.2.m2.1.1.3.cmml" xref="S2.p2.2.m2.1.1.3">4</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.2.m2.1c">T=4</annotation></semantics></math> frames and text sequence <math id="S2.p2.3.m3.2" class="ltx_Math" alttext="\mathbf{Y}=y_{0},y_{1}" display="inline"><semantics id="S2.p2.3.m3.2a"><mrow id="S2.p2.3.m3.2.2" xref="S2.p2.3.m3.2.2.cmml"><mi id="S2.p2.3.m3.2.2.4" xref="S2.p2.3.m3.2.2.4.cmml">𝐘</mi><mo id="S2.p2.3.m3.2.2.3" xref="S2.p2.3.m3.2.2.3.cmml">=</mo><mrow id="S2.p2.3.m3.2.2.2.2" xref="S2.p2.3.m3.2.2.2.3.cmml"><msub id="S2.p2.3.m3.1.1.1.1.1" xref="S2.p2.3.m3.1.1.1.1.1.cmml"><mi id="S2.p2.3.m3.1.1.1.1.1.2" xref="S2.p2.3.m3.1.1.1.1.1.2.cmml">y</mi><mn id="S2.p2.3.m3.1.1.1.1.1.3" xref="S2.p2.3.m3.1.1.1.1.1.3.cmml">0</mn></msub><mo id="S2.p2.3.m3.2.2.2.2.3" xref="S2.p2.3.m3.2.2.2.3.cmml">,</mo><msub id="S2.p2.3.m3.2.2.2.2.2" xref="S2.p2.3.m3.2.2.2.2.2.cmml"><mi id="S2.p2.3.m3.2.2.2.2.2.2" xref="S2.p2.3.m3.2.2.2.2.2.2.cmml">y</mi><mn id="S2.p2.3.m3.2.2.2.2.2.3" xref="S2.p2.3.m3.2.2.2.2.2.3.cmml">1</mn></msub></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.3.m3.2b"><apply id="S2.p2.3.m3.2.2.cmml" xref="S2.p2.3.m3.2.2"><eq id="S2.p2.3.m3.2.2.3.cmml" xref="S2.p2.3.m3.2.2.3"></eq><ci id="S2.p2.3.m3.2.2.4.cmml" xref="S2.p2.3.m3.2.2.4">𝐘</ci><list id="S2.p2.3.m3.2.2.2.3.cmml" xref="S2.p2.3.m3.2.2.2.2"><apply id="S2.p2.3.m3.1.1.1.1.1.cmml" xref="S2.p2.3.m3.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.p2.3.m3.1.1.1.1.1.1.cmml" xref="S2.p2.3.m3.1.1.1.1.1">subscript</csymbol><ci id="S2.p2.3.m3.1.1.1.1.1.2.cmml" xref="S2.p2.3.m3.1.1.1.1.1.2">𝑦</ci><cn type="integer" id="S2.p2.3.m3.1.1.1.1.1.3.cmml" xref="S2.p2.3.m3.1.1.1.1.1.3">0</cn></apply><apply id="S2.p2.3.m3.2.2.2.2.2.cmml" xref="S2.p2.3.m3.2.2.2.2.2"><csymbol cd="ambiguous" id="S2.p2.3.m3.2.2.2.2.2.1.cmml" xref="S2.p2.3.m3.2.2.2.2.2">subscript</csymbol><ci id="S2.p2.3.m3.2.2.2.2.2.2.cmml" xref="S2.p2.3.m3.2.2.2.2.2.2">𝑦</ci><cn type="integer" id="S2.p2.3.m3.2.2.2.2.2.3.cmml" xref="S2.p2.3.m3.2.2.2.2.2.3">1</cn></apply></list></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.3.m3.2c">\mathbf{Y}=y_{0},y_{1}</annotation></semantics></math> with <math id="S2.p2.4.m4.1" class="ltx_Math" alttext="U=2" display="inline"><semantics id="S2.p2.4.m4.1a"><mrow id="S2.p2.4.m4.1.1" xref="S2.p2.4.m4.1.1.cmml"><mi id="S2.p2.4.m4.1.1.2" xref="S2.p2.4.m4.1.1.2.cmml">U</mi><mo id="S2.p2.4.m4.1.1.1" xref="S2.p2.4.m4.1.1.1.cmml">=</mo><mn id="S2.p2.4.m4.1.1.3" xref="S2.p2.4.m4.1.1.3.cmml">2</mn></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.4.m4.1b"><apply id="S2.p2.4.m4.1.1.cmml" xref="S2.p2.4.m4.1.1"><eq id="S2.p2.4.m4.1.1.1.cmml" xref="S2.p2.4.m4.1.1.1"></eq><ci id="S2.p2.4.m4.1.1.2.cmml" xref="S2.p2.4.m4.1.1.2">𝑈</ci><cn type="integer" id="S2.p2.4.m4.1.1.3.cmml" xref="S2.p2.4.m4.1.1.3">2</cn></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.4.m4.1c">U=2</annotation></semantics></math> length, the prefixLM <math id="S2.p2.5.m5.1" class="ltx_Math" alttext="f(\cdot)" display="inline"><semantics id="S2.p2.5.m5.1a"><mrow id="S2.p2.5.m5.1.2" xref="S2.p2.5.m5.1.2.cmml"><mi id="S2.p2.5.m5.1.2.2" xref="S2.p2.5.m5.1.2.2.cmml">f</mi><mo lspace="0em" rspace="0em" id="S2.p2.5.m5.1.2.1" xref="S2.p2.5.m5.1.2.1.cmml">​</mo><mrow id="S2.p2.5.m5.1.2.3.2" xref="S2.p2.5.m5.1.2.cmml"><mo stretchy="false" id="S2.p2.5.m5.1.2.3.2.1" xref="S2.p2.5.m5.1.2.cmml">(</mo><mo lspace="0em" rspace="0em" id="S2.p2.5.m5.1.1" xref="S2.p2.5.m5.1.1.cmml">⋅</mo><mo stretchy="false" id="S2.p2.5.m5.1.2.3.2.2" xref="S2.p2.5.m5.1.2.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.5.m5.1b"><apply id="S2.p2.5.m5.1.2.cmml" xref="S2.p2.5.m5.1.2"><times id="S2.p2.5.m5.1.2.1.cmml" xref="S2.p2.5.m5.1.2.1"></times><ci id="S2.p2.5.m5.1.2.2.cmml" xref="S2.p2.5.m5.1.2.2">𝑓</ci><ci id="S2.p2.5.m5.1.1.cmml" xref="S2.p2.5.m5.1.1">⋅</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.5.m5.1c">f(\cdot)</annotation></semantics></math> takes the concatenated input <math id="S2.p2.6.m6.2" class="ltx_Math" alttext="[X,\,Y]" display="inline"><semantics id="S2.p2.6.m6.2a"><mrow id="S2.p2.6.m6.2.3.2" xref="S2.p2.6.m6.2.3.1.cmml"><mo stretchy="false" id="S2.p2.6.m6.2.3.2.1" xref="S2.p2.6.m6.2.3.1.cmml">[</mo><mi id="S2.p2.6.m6.1.1" xref="S2.p2.6.m6.1.1.cmml">X</mi><mo rspace="0.337em" id="S2.p2.6.m6.2.3.2.2" xref="S2.p2.6.m6.2.3.1.cmml">,</mo><mi id="S2.p2.6.m6.2.2" xref="S2.p2.6.m6.2.2.cmml">Y</mi><mo stretchy="false" id="S2.p2.6.m6.2.3.2.3" xref="S2.p2.6.m6.2.3.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.p2.6.m6.2b"><interval closure="closed" id="S2.p2.6.m6.2.3.1.cmml" xref="S2.p2.6.m6.2.3.2"><ci id="S2.p2.6.m6.1.1.cmml" xref="S2.p2.6.m6.1.1">𝑋</ci><ci id="S2.p2.6.m6.2.2.cmml" xref="S2.p2.6.m6.2.2">𝑌</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.p2.6.m6.2c">[X,\,Y]</annotation></semantics></math>.</p>
+</div>
+<section id="S2.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.1 </span>PrefixLM</h3>
+
+<div id="S2.SS1.p1" class="ltx_para">
+<p id="S2.SS1.p1.7" class="ltx_p">PrefixLM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite> is a decoder only model operating in an input-to-target paradigm. It can be viewed as almost encoder-decoder models with shared parameters. PrefixLM has shown competitive advantage <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib14" title="" class="ltx_ref">14</a>]</cite> as an adaptation method for tasks with relatively small amount of data.The PrefixLM architecture <math id="S2.SS1.p1.1.m1.1" class="ltx_math_unparsed" alttext="f(.)" display="inline"><semantics id="S2.SS1.p1.1.m1.1a"><mrow id="S2.SS1.p1.1.m1.1b"><mi id="S2.SS1.p1.1.m1.1.1">f</mi><mrow id="S2.SS1.p1.1.m1.1.2"><mo stretchy="false" id="S2.SS1.p1.1.m1.1.2.1">(</mo><mo lspace="0em" rspace="0.167em" id="S2.SS1.p1.1.m1.1.2.2">.</mo><mo stretchy="false" id="S2.SS1.p1.1.m1.1.2.3">)</mo></mrow></mrow><annotation encoding="application/x-tex" id="S2.SS1.p1.1.m1.1c">f(.)</annotation></semantics></math> intakes <math id="S2.SS1.p1.2.m2.2" class="ltx_Math" alttext="[X,\,Y]" display="inline"><semantics id="S2.SS1.p1.2.m2.2a"><mrow id="S2.SS1.p1.2.m2.2.3.2" xref="S2.SS1.p1.2.m2.2.3.1.cmml"><mo stretchy="false" id="S2.SS1.p1.2.m2.2.3.2.1" xref="S2.SS1.p1.2.m2.2.3.1.cmml">[</mo><mi id="S2.SS1.p1.2.m2.1.1" xref="S2.SS1.p1.2.m2.1.1.cmml">X</mi><mo rspace="0.337em" id="S2.SS1.p1.2.m2.2.3.2.2" xref="S2.SS1.p1.2.m2.2.3.1.cmml">,</mo><mi id="S2.SS1.p1.2.m2.2.2" xref="S2.SS1.p1.2.m2.2.2.cmml">Y</mi><mo stretchy="false" id="S2.SS1.p1.2.m2.2.3.2.3" xref="S2.SS1.p1.2.m2.2.3.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.2.m2.2b"><interval closure="closed" id="S2.SS1.p1.2.m2.2.3.1.cmml" xref="S2.SS1.p1.2.m2.2.3.2"><ci id="S2.SS1.p1.2.m2.1.1.cmml" xref="S2.SS1.p1.2.m2.1.1">𝑋</ci><ci id="S2.SS1.p1.2.m2.2.2.cmml" xref="S2.SS1.p1.2.m2.2.2">𝑌</ci></interval></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.2.m2.2c">[X,\,Y]</annotation></semantics></math> and enables bi-directional attention on the prefix sequence <math id="S2.SS1.p1.3.m3.1" class="ltx_Math" alttext="x_{0:T-1}" display="inline"><semantics id="S2.SS1.p1.3.m3.1a"><msub id="S2.SS1.p1.3.m3.1.1" xref="S2.SS1.p1.3.m3.1.1.cmml"><mi id="S2.SS1.p1.3.m3.1.1.2" xref="S2.SS1.p1.3.m3.1.1.2.cmml">x</mi><mrow id="S2.SS1.p1.3.m3.1.1.3" xref="S2.SS1.p1.3.m3.1.1.3.cmml"><mn id="S2.SS1.p1.3.m3.1.1.3.2" xref="S2.SS1.p1.3.m3.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.3.m3.1.1.3.1" xref="S2.SS1.p1.3.m3.1.1.3.1.cmml">:</mo><mrow id="S2.SS1.p1.3.m3.1.1.3.3" xref="S2.SS1.p1.3.m3.1.1.3.3.cmml"><mi id="S2.SS1.p1.3.m3.1.1.3.3.2" xref="S2.SS1.p1.3.m3.1.1.3.3.2.cmml">T</mi><mo id="S2.SS1.p1.3.m3.1.1.3.3.1" xref="S2.SS1.p1.3.m3.1.1.3.3.1.cmml">−</mo><mn id="S2.SS1.p1.3.m3.1.1.3.3.3" xref="S2.SS1.p1.3.m3.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.3.m3.1b"><apply id="S2.SS1.p1.3.m3.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.3.m3.1.1.1.cmml" xref="S2.SS1.p1.3.m3.1.1">subscript</csymbol><ci id="S2.SS1.p1.3.m3.1.1.2.cmml" xref="S2.SS1.p1.3.m3.1.1.2">𝑥</ci><apply id="S2.SS1.p1.3.m3.1.1.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3"><ci id="S2.SS1.p1.3.m3.1.1.3.1.cmml" xref="S2.SS1.p1.3.m3.1.1.3.1">:</ci><cn type="integer" id="S2.SS1.p1.3.m3.1.1.3.2.cmml" xref="S2.SS1.p1.3.m3.1.1.3.2">0</cn><apply id="S2.SS1.p1.3.m3.1.1.3.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3.3"><minus id="S2.SS1.p1.3.m3.1.1.3.3.1.cmml" xref="S2.SS1.p1.3.m3.1.1.3.3.1"></minus><ci id="S2.SS1.p1.3.m3.1.1.3.3.2.cmml" xref="S2.SS1.p1.3.m3.1.1.3.3.2">𝑇</ci><cn type="integer" id="S2.SS1.p1.3.m3.1.1.3.3.3.cmml" xref="S2.SS1.p1.3.m3.1.1.3.3.3">1</cn></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.3.m3.1c">x_{0:T-1}</annotation></semantics></math>. This serves as the prefix for subsequent prediction on <math id="S2.SS1.p1.4.m4.1" class="ltx_Math" alttext="x_{T:N}" display="inline"><semantics id="S2.SS1.p1.4.m4.1a"><msub id="S2.SS1.p1.4.m4.1.1" xref="S2.SS1.p1.4.m4.1.1.cmml"><mi id="S2.SS1.p1.4.m4.1.1.2" xref="S2.SS1.p1.4.m4.1.1.2.cmml">x</mi><mrow id="S2.SS1.p1.4.m4.1.1.3" xref="S2.SS1.p1.4.m4.1.1.3.cmml"><mi id="S2.SS1.p1.4.m4.1.1.3.2" xref="S2.SS1.p1.4.m4.1.1.3.2.cmml">T</mi><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.4.m4.1.1.3.1" xref="S2.SS1.p1.4.m4.1.1.3.1.cmml">:</mo><mi id="S2.SS1.p1.4.m4.1.1.3.3" xref="S2.SS1.p1.4.m4.1.1.3.3.cmml">N</mi></mrow></msub><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.4.m4.1b"><apply id="S2.SS1.p1.4.m4.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1"><csymbol cd="ambiguous" id="S2.SS1.p1.4.m4.1.1.1.cmml" xref="S2.SS1.p1.4.m4.1.1">subscript</csymbol><ci id="S2.SS1.p1.4.m4.1.1.2.cmml" xref="S2.SS1.p1.4.m4.1.1.2">𝑥</ci><apply id="S2.SS1.p1.4.m4.1.1.3.cmml" xref="S2.SS1.p1.4.m4.1.1.3"><ci id="S2.SS1.p1.4.m4.1.1.3.1.cmml" xref="S2.SS1.p1.4.m4.1.1.3.1">:</ci><ci id="S2.SS1.p1.4.m4.1.1.3.2.cmml" xref="S2.SS1.p1.4.m4.1.1.3.2">𝑇</ci><ci id="S2.SS1.p1.4.m4.1.1.3.3.cmml" xref="S2.SS1.p1.4.m4.1.1.3.3">𝑁</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.4.m4.1c">x_{T:N}</annotation></semantics></math>.
+The output logits <math id="S2.SS1.p1.5.m5.1" class="ltx_Math" alttext="\hat{Z}_{0:T-1}=\hat{x}_{0:T-1}" display="inline"><semantics id="S2.SS1.p1.5.m5.1a"><mrow id="S2.SS1.p1.5.m5.1.1" xref="S2.SS1.p1.5.m5.1.1.cmml"><msub id="S2.SS1.p1.5.m5.1.1.2" xref="S2.SS1.p1.5.m5.1.1.2.cmml"><mover accent="true" id="S2.SS1.p1.5.m5.1.1.2.2" xref="S2.SS1.p1.5.m5.1.1.2.2.cmml"><mi id="S2.SS1.p1.5.m5.1.1.2.2.2" xref="S2.SS1.p1.5.m5.1.1.2.2.2.cmml">Z</mi><mo id="S2.SS1.p1.5.m5.1.1.2.2.1" xref="S2.SS1.p1.5.m5.1.1.2.2.1.cmml">^</mo></mover><mrow id="S2.SS1.p1.5.m5.1.1.2.3" xref="S2.SS1.p1.5.m5.1.1.2.3.cmml"><mn id="S2.SS1.p1.5.m5.1.1.2.3.2" xref="S2.SS1.p1.5.m5.1.1.2.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.5.m5.1.1.2.3.1" xref="S2.SS1.p1.5.m5.1.1.2.3.1.cmml">:</mo><mrow id="S2.SS1.p1.5.m5.1.1.2.3.3" xref="S2.SS1.p1.5.m5.1.1.2.3.3.cmml"><mi id="S2.SS1.p1.5.m5.1.1.2.3.3.2" xref="S2.SS1.p1.5.m5.1.1.2.3.3.2.cmml">T</mi><mo id="S2.SS1.p1.5.m5.1.1.2.3.3.1" xref="S2.SS1.p1.5.m5.1.1.2.3.3.1.cmml">−</mo><mn id="S2.SS1.p1.5.m5.1.1.2.3.3.3" xref="S2.SS1.p1.5.m5.1.1.2.3.3.3.cmml">1</mn></mrow></mrow></msub><mo id="S2.SS1.p1.5.m5.1.1.1" xref="S2.SS1.p1.5.m5.1.1.1.cmml">=</mo><msub id="S2.SS1.p1.5.m5.1.1.3" xref="S2.SS1.p1.5.m5.1.1.3.cmml"><mover accent="true" id="S2.SS1.p1.5.m5.1.1.3.2" xref="S2.SS1.p1.5.m5.1.1.3.2.cmml"><mi id="S2.SS1.p1.5.m5.1.1.3.2.2" xref="S2.SS1.p1.5.m5.1.1.3.2.2.cmml">x</mi><mo id="S2.SS1.p1.5.m5.1.1.3.2.1" xref="S2.SS1.p1.5.m5.1.1.3.2.1.cmml">^</mo></mover><mrow id="S2.SS1.p1.5.m5.1.1.3.3" xref="S2.SS1.p1.5.m5.1.1.3.3.cmml"><mn id="S2.SS1.p1.5.m5.1.1.3.3.2" xref="S2.SS1.p1.5.m5.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.5.m5.1.1.3.3.1" xref="S2.SS1.p1.5.m5.1.1.3.3.1.cmml">:</mo><mrow id="S2.SS1.p1.5.m5.1.1.3.3.3" xref="S2.SS1.p1.5.m5.1.1.3.3.3.cmml"><mi id="S2.SS1.p1.5.m5.1.1.3.3.3.2" xref="S2.SS1.p1.5.m5.1.1.3.3.3.2.cmml">T</mi><mo id="S2.SS1.p1.5.m5.1.1.3.3.3.1" xref="S2.SS1.p1.5.m5.1.1.3.3.3.1.cmml">−</mo><mn id="S2.SS1.p1.5.m5.1.1.3.3.3.3" xref="S2.SS1.p1.5.m5.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.5.m5.1b"><apply id="S2.SS1.p1.5.m5.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1"><eq id="S2.SS1.p1.5.m5.1.1.1.cmml" xref="S2.SS1.p1.5.m5.1.1.1"></eq><apply id="S2.SS1.p1.5.m5.1.1.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.1.1.2.1.cmml" xref="S2.SS1.p1.5.m5.1.1.2">subscript</csymbol><apply id="S2.SS1.p1.5.m5.1.1.2.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2.2"><ci id="S2.SS1.p1.5.m5.1.1.2.2.1.cmml" xref="S2.SS1.p1.5.m5.1.1.2.2.1">^</ci><ci id="S2.SS1.p1.5.m5.1.1.2.2.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2.2.2">𝑍</ci></apply><apply id="S2.SS1.p1.5.m5.1.1.2.3.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3"><ci id="S2.SS1.p1.5.m5.1.1.2.3.1.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.1">:</ci><cn type="integer" id="S2.SS1.p1.5.m5.1.1.2.3.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.2">0</cn><apply id="S2.SS1.p1.5.m5.1.1.2.3.3.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.3"><minus id="S2.SS1.p1.5.m5.1.1.2.3.3.1.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.3.1"></minus><ci id="S2.SS1.p1.5.m5.1.1.2.3.3.2.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.3.2">𝑇</ci><cn type="integer" id="S2.SS1.p1.5.m5.1.1.2.3.3.3.cmml" xref="S2.SS1.p1.5.m5.1.1.2.3.3.3">1</cn></apply></apply></apply><apply id="S2.SS1.p1.5.m5.1.1.3.cmml" xref="S2.SS1.p1.5.m5.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p1.5.m5.1.1.3.1.cmml" xref="S2.SS1.p1.5.m5.1.1.3">subscript</csymbol><apply id="S2.SS1.p1.5.m5.1.1.3.2.cmml" xref="S2.SS1.p1.5.m5.1.1.3.2"><ci id="S2.SS1.p1.5.m5.1.1.3.2.1.cmml" xref="S2.SS1.p1.5.m5.1.1.3.2.1">^</ci><ci id="S2.SS1.p1.5.m5.1.1.3.2.2.cmml" xref="S2.SS1.p1.5.m5.1.1.3.2.2">𝑥</ci></apply><apply id="S2.SS1.p1.5.m5.1.1.3.3.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3"><ci id="S2.SS1.p1.5.m5.1.1.3.3.1.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.1">:</ci><cn type="integer" id="S2.SS1.p1.5.m5.1.1.3.3.2.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.2">0</cn><apply id="S2.SS1.p1.5.m5.1.1.3.3.3.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.3"><minus id="S2.SS1.p1.5.m5.1.1.3.3.3.1.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.3.1"></minus><ci id="S2.SS1.p1.5.m5.1.1.3.3.3.2.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.3.2">𝑇</ci><cn type="integer" id="S2.SS1.p1.5.m5.1.1.3.3.3.3.cmml" xref="S2.SS1.p1.5.m5.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.5.m5.1c">\hat{Z}_{0:T-1}=\hat{x}_{0:T-1}</annotation></semantics></math> corresponding to the acoustic prefix are discarded and the output logits of predicted text <math id="S2.SS1.p1.6.m6.1" class="ltx_Math" alttext="\hat{Z}_{T:T+\hat{U}-1}=\hat{y}_{0:\hat{U}-1}" display="inline"><semantics id="S2.SS1.p1.6.m6.1a"><mrow id="S2.SS1.p1.6.m6.1.1" xref="S2.SS1.p1.6.m6.1.1.cmml"><msub id="S2.SS1.p1.6.m6.1.1.2" xref="S2.SS1.p1.6.m6.1.1.2.cmml"><mover accent="true" id="S2.SS1.p1.6.m6.1.1.2.2" xref="S2.SS1.p1.6.m6.1.1.2.2.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2.2.2" xref="S2.SS1.p1.6.m6.1.1.2.2.2.cmml">Z</mi><mo id="S2.SS1.p1.6.m6.1.1.2.2.1" xref="S2.SS1.p1.6.m6.1.1.2.2.1.cmml">^</mo></mover><mrow id="S2.SS1.p1.6.m6.1.1.2.3" xref="S2.SS1.p1.6.m6.1.1.2.3.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2.3.2" xref="S2.SS1.p1.6.m6.1.1.2.3.2.cmml">T</mi><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.6.m6.1.1.2.3.1" xref="S2.SS1.p1.6.m6.1.1.2.3.1.cmml">:</mo><mrow id="S2.SS1.p1.6.m6.1.1.2.3.3" xref="S2.SS1.p1.6.m6.1.1.2.3.3.cmml"><mrow id="S2.SS1.p1.6.m6.1.1.2.3.3.2" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2.3.3.2.2" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.2.cmml">T</mi><mo id="S2.SS1.p1.6.m6.1.1.2.3.3.2.1" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.1.cmml">+</mo><mover accent="true" id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.cmml"><mi id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.2" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.2.cmml">U</mi><mo id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.1" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.1.cmml">^</mo></mover></mrow><mo id="S2.SS1.p1.6.m6.1.1.2.3.3.1" xref="S2.SS1.p1.6.m6.1.1.2.3.3.1.cmml">−</mo><mn id="S2.SS1.p1.6.m6.1.1.2.3.3.3" xref="S2.SS1.p1.6.m6.1.1.2.3.3.3.cmml">1</mn></mrow></mrow></msub><mo id="S2.SS1.p1.6.m6.1.1.1" xref="S2.SS1.p1.6.m6.1.1.1.cmml">=</mo><msub id="S2.SS1.p1.6.m6.1.1.3" xref="S2.SS1.p1.6.m6.1.1.3.cmml"><mover accent="true" id="S2.SS1.p1.6.m6.1.1.3.2" xref="S2.SS1.p1.6.m6.1.1.3.2.cmml"><mi id="S2.SS1.p1.6.m6.1.1.3.2.2" xref="S2.SS1.p1.6.m6.1.1.3.2.2.cmml">y</mi><mo id="S2.SS1.p1.6.m6.1.1.3.2.1" xref="S2.SS1.p1.6.m6.1.1.3.2.1.cmml">^</mo></mover><mrow id="S2.SS1.p1.6.m6.1.1.3.3" xref="S2.SS1.p1.6.m6.1.1.3.3.cmml"><mn id="S2.SS1.p1.6.m6.1.1.3.3.2" xref="S2.SS1.p1.6.m6.1.1.3.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.SS1.p1.6.m6.1.1.3.3.1" xref="S2.SS1.p1.6.m6.1.1.3.3.1.cmml">:</mo><mrow id="S2.SS1.p1.6.m6.1.1.3.3.3" xref="S2.SS1.p1.6.m6.1.1.3.3.3.cmml"><mover accent="true" id="S2.SS1.p1.6.m6.1.1.3.3.3.2" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2.cmml"><mi id="S2.SS1.p1.6.m6.1.1.3.3.3.2.2" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2.2.cmml">U</mi><mo id="S2.SS1.p1.6.m6.1.1.3.3.3.2.1" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2.1.cmml">^</mo></mover><mo id="S2.SS1.p1.6.m6.1.1.3.3.3.1" xref="S2.SS1.p1.6.m6.1.1.3.3.3.1.cmml">−</mo><mn id="S2.SS1.p1.6.m6.1.1.3.3.3.3" xref="S2.SS1.p1.6.m6.1.1.3.3.3.3.cmml">1</mn></mrow></mrow></msub></mrow><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.6.m6.1b"><apply id="S2.SS1.p1.6.m6.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1"><eq id="S2.SS1.p1.6.m6.1.1.1.cmml" xref="S2.SS1.p1.6.m6.1.1.1"></eq><apply id="S2.SS1.p1.6.m6.1.1.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2"><csymbol cd="ambiguous" id="S2.SS1.p1.6.m6.1.1.2.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2">subscript</csymbol><apply id="S2.SS1.p1.6.m6.1.1.2.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.2"><ci id="S2.SS1.p1.6.m6.1.1.2.2.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2.2.1">^</ci><ci id="S2.SS1.p1.6.m6.1.1.2.2.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.2.2">𝑍</ci></apply><apply id="S2.SS1.p1.6.m6.1.1.2.3.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3"><ci id="S2.SS1.p1.6.m6.1.1.2.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.1">:</ci><ci id="S2.SS1.p1.6.m6.1.1.2.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.2">𝑇</ci><apply id="S2.SS1.p1.6.m6.1.1.2.3.3.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3"><minus id="S2.SS1.p1.6.m6.1.1.2.3.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.1"></minus><apply id="S2.SS1.p1.6.m6.1.1.2.3.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2"><plus id="S2.SS1.p1.6.m6.1.1.2.3.3.2.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.1"></plus><ci id="S2.SS1.p1.6.m6.1.1.2.3.3.2.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.2">𝑇</ci><apply id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3"><ci id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.1">^</ci><ci id="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.2.3.2">𝑈</ci></apply></apply><cn type="integer" id="S2.SS1.p1.6.m6.1.1.2.3.3.3.cmml" xref="S2.SS1.p1.6.m6.1.1.2.3.3.3">1</cn></apply></apply></apply><apply id="S2.SS1.p1.6.m6.1.1.3.cmml" xref="S2.SS1.p1.6.m6.1.1.3"><csymbol cd="ambiguous" id="S2.SS1.p1.6.m6.1.1.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.3">subscript</csymbol><apply id="S2.SS1.p1.6.m6.1.1.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.3.2"><ci id="S2.SS1.p1.6.m6.1.1.3.2.1.cmml" xref="S2.SS1.p1.6.m6.1.1.3.2.1">^</ci><ci id="S2.SS1.p1.6.m6.1.1.3.2.2.cmml" xref="S2.SS1.p1.6.m6.1.1.3.2.2">𝑦</ci></apply><apply id="S2.SS1.p1.6.m6.1.1.3.3.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3"><ci id="S2.SS1.p1.6.m6.1.1.3.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.1">:</ci><cn type="integer" id="S2.SS1.p1.6.m6.1.1.3.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.2">0</cn><apply id="S2.SS1.p1.6.m6.1.1.3.3.3.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3"><minus id="S2.SS1.p1.6.m6.1.1.3.3.3.1.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3.1"></minus><apply id="S2.SS1.p1.6.m6.1.1.3.3.3.2.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2"><ci id="S2.SS1.p1.6.m6.1.1.3.3.3.2.1.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2.1">^</ci><ci id="S2.SS1.p1.6.m6.1.1.3.3.3.2.2.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3.2.2">𝑈</ci></apply><cn type="integer" id="S2.SS1.p1.6.m6.1.1.3.3.3.3.cmml" xref="S2.SS1.p1.6.m6.1.1.3.3.3.3">1</cn></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.6.m6.1c">\hat{Z}_{T:T+\hat{U}-1}=\hat{y}_{0:\hat{U}-1}</annotation></semantics></math> are used for decoding.
+The final training objective to learn the model parameters <math id="S2.SS1.p1.7.m7.1" class="ltx_Math" alttext="\phi" display="inline"><semantics id="S2.SS1.p1.7.m7.1a"><mi id="S2.SS1.p1.7.m7.1.1" xref="S2.SS1.p1.7.m7.1.1.cmml">ϕ</mi><annotation-xml encoding="MathML-Content" id="S2.SS1.p1.7.m7.1b"><ci id="S2.SS1.p1.7.m7.1.1.cmml" xref="S2.SS1.p1.7.m7.1.1">italic-ϕ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS1.p1.7.m7.1c">\phi</annotation></semantics></math> is done minimizing the errors during next text token prediction using CE loss:</p>
+<table id="S2.E1" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S2.E1.m1.2" class="ltx_Math" alttext="\mathcal{L_{\mathrm{LM}}}=-\sum_{u=1}^{\hat{U}}\log p_{\phi}(\hat{y}_{u}\mid\hat{y}_{0:u-1},\mathbf{X})." display="block"><semantics id="S2.E1.m1.2a"><mrow id="S2.E1.m1.2.2.1" xref="S2.E1.m1.2.2.1.1.cmml"><mrow id="S2.E1.m1.2.2.1.1" xref="S2.E1.m1.2.2.1.1.cmml"><msub id="S2.E1.m1.2.2.1.1.3" xref="S2.E1.m1.2.2.1.1.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E1.m1.2.2.1.1.3.2" xref="S2.E1.m1.2.2.1.1.3.2.cmml">ℒ</mi><mi id="S2.E1.m1.2.2.1.1.3.3" xref="S2.E1.m1.2.2.1.1.3.3.cmml">LM</mi></msub><mo id="S2.E1.m1.2.2.1.1.2" xref="S2.E1.m1.2.2.1.1.2.cmml">=</mo><mrow id="S2.E1.m1.2.2.1.1.1" xref="S2.E1.m1.2.2.1.1.1.cmml"><mo id="S2.E1.m1.2.2.1.1.1a" xref="S2.E1.m1.2.2.1.1.1.cmml">−</mo><mrow id="S2.E1.m1.2.2.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.cmml"><munderover id="S2.E1.m1.2.2.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.2.cmml"><mo movablelimits="false" id="S2.E1.m1.2.2.1.1.1.1.2.2.2" xref="S2.E1.m1.2.2.1.1.1.1.2.2.2.cmml">∑</mo><mrow id="S2.E1.m1.2.2.1.1.1.1.2.2.3" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.2.2.3.2" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.2.cmml">u</mi><mo id="S2.E1.m1.2.2.1.1.1.1.2.2.3.1" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.1.cmml">=</mo><mn id="S2.E1.m1.2.2.1.1.1.1.2.2.3.3" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.3.cmml">1</mn></mrow><mover accent="true" id="S2.E1.m1.2.2.1.1.1.1.2.3" xref="S2.E1.m1.2.2.1.1.1.1.2.3.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.2.3.2" xref="S2.E1.m1.2.2.1.1.1.1.2.3.2.cmml">U</mi><mo id="S2.E1.m1.2.2.1.1.1.1.2.3.1" xref="S2.E1.m1.2.2.1.1.1.1.2.3.1.cmml">^</mo></mover></munderover><mrow id="S2.E1.m1.2.2.1.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.1.cmml"><mrow id="S2.E1.m1.2.2.1.1.1.1.1.3" xref="S2.E1.m1.2.2.1.1.1.1.1.3.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.1.3.1" xref="S2.E1.m1.2.2.1.1.1.1.1.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.E1.m1.2.2.1.1.1.1.1.3a" xref="S2.E1.m1.2.2.1.1.1.1.1.3.cmml">⁡</mo><msub id="S2.E1.m1.2.2.1.1.1.1.1.3.2" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.1.3.2.2" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2.2.cmml">p</mi><mi id="S2.E1.m1.2.2.1.1.1.1.1.3.2.3" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2.3.cmml">ϕ</mi></msub></mrow><mo lspace="0em" rspace="0em" id="S2.E1.m1.2.2.1.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.1.2.cmml">​</mo><mrow id="S2.E1.m1.2.2.1.1.1.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml"><msub id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.cmml"><mover accent="true" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.2.cmml">y</mi><mo id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.1.cmml">^</mo></mover><mi id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.3.cmml">u</mi></msub><mo id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.2.cmml">∣</mo><mrow id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.2.cmml"><msub id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.cmml"><mover accent="true" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.2.cmml">y</mi><mo id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.1.cmml">^</mo></mover><mrow id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.cmml"><mn id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml">0</mn><mo lspace="0.278em" rspace="0.278em" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml">:</mo><mrow id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml"><mi id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.2.cmml">u</mi><mo id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.1" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.1.cmml">−</mo><mn id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.3.cmml">1</mn></mrow></mrow></msub><mo id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.2" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.2.cmml">,</mo><mi id="S2.E1.m1.1.1" xref="S2.E1.m1.1.1.cmml">𝐗</mi></mrow></mrow><mo stretchy="false" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.3" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow></mrow><mo lspace="0em" id="S2.E1.m1.2.2.1.2" xref="S2.E1.m1.2.2.1.1.cmml">.</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.E1.m1.2b"><apply id="S2.E1.m1.2.2.1.1.cmml" xref="S2.E1.m1.2.2.1"><eq id="S2.E1.m1.2.2.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.2"></eq><apply id="S2.E1.m1.2.2.1.1.3.cmml" xref="S2.E1.m1.2.2.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.3.1.cmml" xref="S2.E1.m1.2.2.1.1.3">subscript</csymbol><ci id="S2.E1.m1.2.2.1.1.3.2.cmml" xref="S2.E1.m1.2.2.1.1.3.2">ℒ</ci><ci id="S2.E1.m1.2.2.1.1.3.3.cmml" xref="S2.E1.m1.2.2.1.1.3.3">LM</ci></apply><apply id="S2.E1.m1.2.2.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1"><minus id="S2.E1.m1.2.2.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1"></minus><apply id="S2.E1.m1.2.2.1.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1"><apply id="S2.E1.m1.2.2.1.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.1.1.2.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2">superscript</csymbol><apply id="S2.E1.m1.2.2.1.1.1.1.2.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.1.1.2.2.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2">subscript</csymbol><sum id="S2.E1.m1.2.2.1.1.1.1.2.2.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.2.2"></sum><apply id="S2.E1.m1.2.2.1.1.1.1.2.2.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3"><eq id="S2.E1.m1.2.2.1.1.1.1.2.2.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.1"></eq><ci id="S2.E1.m1.2.2.1.1.1.1.2.2.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.2">𝑢</ci><cn type="integer" id="S2.E1.m1.2.2.1.1.1.1.2.2.3.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.2.3.3">1</cn></apply></apply><apply id="S2.E1.m1.2.2.1.1.1.1.2.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.3"><ci id="S2.E1.m1.2.2.1.1.1.1.2.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.3.1">^</ci><ci id="S2.E1.m1.2.2.1.1.1.1.2.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.2.3.2">𝑈</ci></apply></apply><apply id="S2.E1.m1.2.2.1.1.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1"><times id="S2.E1.m1.2.2.1.1.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.2"></times><apply id="S2.E1.m1.2.2.1.1.1.1.1.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3"><log id="S2.E1.m1.2.2.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3.1"></log><apply id="S2.E1.m1.2.2.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.1.1.1.3.2.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2">subscript</csymbol><ci id="S2.E1.m1.2.2.1.1.1.1.1.3.2.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2.2">𝑝</ci><ci id="S2.E1.m1.2.2.1.1.1.1.1.3.2.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.3.2.3">italic-ϕ</ci></apply></apply><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.2">conditional</csymbol><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3">subscript</csymbol><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2"><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.1">^</ci><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.2.2">𝑦</ci></apply><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.3.3">𝑢</ci></apply><list id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1"><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2"><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.1">^</ci><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.2.2">𝑦</ci></apply><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3"><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.1">:</ci><cn type="integer" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.2">0</cn><apply id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3"><minus id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.1.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.1"></minus><ci id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.2.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.2">𝑢</ci><cn type="integer" id="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.3.cmml" xref="S2.E1.m1.2.2.1.1.1.1.1.1.1.1.1.1.1.3.3.3">1</cn></apply></apply></apply><ci id="S2.E1.m1.1.1.cmml" xref="S2.E1.m1.1.1">𝐗</ci></list></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E1.m1.2c">\mathcal{L_{\mathrm{LM}}}=-\sum_{u=1}^{\hat{U}}\log p_{\phi}(\hat{y}_{u}\mid\hat{y}_{0:u-1},\mathbf{X}).</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td>
+</tr></tbody>
+</table>
+</div>
+</section>
+<section id="S2.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.2 </span>Prefix-tuning</h3>
+
+<div id="S2.SS2.p1" class="ltx_para">
+<p id="S2.SS2.p1.1" class="ltx_p">Prefix-tuning is fine-tuning only the embedding layer which contains the stack of prefixes to guide the text embeddings towards the target task. During training with the equation (<a href="#S2.E1" title="In 2.1 PrefixLM ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>), the prefix embeddings learns the abstract representations of the underlying task. The prefix embeddings remain fixed during inference and projects the required information from the evaluation dataset. Prefix-tuning is computationally efficient with much fewer trainable parameters and also avoids over-fitting.</p>
+</div>
+</section>
+<section id="S2.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.3 </span>RNNT decoder</h3>
+
+<div id="S2.SS3.p1" class="ltx_para">
+<p id="S2.SS3.p1.1" class="ltx_p">RNNT <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib15" title="" class="ltx_ref">15</a>]</cite> is an autoregressive sequence-to-sequence model that processes the encoded speech sequence to generate a distribution of text tokens for each timestep of the encoder output. A joint network then combines encoder information and the previous prediction to generate the current token. The RNNT decoder relies on the output of a speech encoder. In our work, we propose using the output logits of a prefixLM's speech prefixes as input to the RNNT decoder.</p>
+</div>
+</section>
+<section id="S2.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.4 </span>Speech prefix-tuning with RNNT loss</h3>
+
+<div id="S2.SS4.p1" class="ltx_para">
+<p id="S2.SS4.p1.2" class="ltx_p">Based on prior ASR works with LLM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib2" title="" class="ltx_ref">2</a>, <a href="#bib.bib7" title="" class="ltx_ref">7</a>]</cite>, we believe that having well encoded speech prefixes act as better context to drive the LM towards the target task. The prefixLM has the ability to learn the speech-to-text alignment better as the speech sequence length gets closer to the text sequence length <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="" class="ltx_ref">2</a>]</cite>. Extending this intuition beyond the sequence length, we want to find better speech representations that steers the LM to improve the ASR task. Intuitively, the speech prefixes can influence the text encodings <math id="S2.SS4.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{Y}" display="inline"><semantics id="S2.SS4.p1.1.m1.1a"><mi id="S2.SS4.p1.1.m1.1.1" xref="S2.SS4.p1.1.m1.1.1.cmml">𝐘</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p1.1.m1.1b"><ci id="S2.SS4.p1.1.m1.1.1.cmml" xref="S2.SS4.p1.1.m1.1.1">𝐘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p1.1.m1.1c">\mathbf{Y}</annotation></semantics></math> by guiding what to extract from <math id="S2.SS4.p1.2.m2.1" class="ltx_Math" alttext="\mathbf{Y}" display="inline"><semantics id="S2.SS4.p1.2.m2.1a"><mi id="S2.SS4.p1.2.m2.1.1" xref="S2.SS4.p1.2.m2.1.1.cmml">𝐘</mi><annotation-xml encoding="MathML-Content" id="S2.SS4.p1.2.m2.1b"><ci id="S2.SS4.p1.2.m2.1.1.cmml" xref="S2.SS4.p1.2.m2.1.1">𝐘</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p1.2.m2.1c">\mathbf{Y}</annotation></semantics></math>; and can improve the text generation by driving the next token distribution. The proposed objective to use ASR loss amplifies the distinctiveness of the speech features by updating the speech related parameters.</p>
+</div>
+<div id="S2.SS4.p2" class="ltx_para">
+<p id="S2.SS4.p2.1" class="ltx_p">To perform speech prefix-tuning, we propagate the speech output logits from LLM to the RNNT decoder. The RNNT loss learns the speech-to-text alignment and <math id="S2.SS4.p2.1.m1.1" class="ltx_Math" alttext="\langle\rm{eos}\rangle" display="inline"><semantics id="S2.SS4.p2.1.m1.1a"><mrow id="S2.SS4.p2.1.m1.1.2.2" xref="S2.SS4.p2.1.m1.1.2.1.cmml"><mo stretchy="false" id="S2.SS4.p2.1.m1.1.2.2.1" xref="S2.SS4.p2.1.m1.1.2.1.1.cmml">⟨</mo><mi id="S2.SS4.p2.1.m1.1.1" xref="S2.SS4.p2.1.m1.1.1.cmml">eos</mi><mo stretchy="false" id="S2.SS4.p2.1.m1.1.2.2.2" xref="S2.SS4.p2.1.m1.1.2.1.1.cmml">⟩</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.1.m1.1b"><apply id="S2.SS4.p2.1.m1.1.2.1.cmml" xref="S2.SS4.p2.1.m1.1.2.2"><csymbol cd="latexml" id="S2.SS4.p2.1.m1.1.2.1.1.cmml" xref="S2.SS4.p2.1.m1.1.2.2.1">delimited-⟨⟩</csymbol><ci id="S2.SS4.p2.1.m1.1.1.cmml" xref="S2.SS4.p2.1.m1.1.1">eos</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.1.m1.1c">\langle\rm{eos}\rangle</annotation></semantics></math> prediction allowing the speech prefixes to accomodate more knowledge of underlying speech and the text to be predicted. The joint training objective is:</p>
+<table id="S6.EGx1" class="ltx_equationgroup ltx_eqn_align ltx_eqn_table">
+
+<tbody id="S2.E2"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E2.m1.1" class="ltx_Math" alttext="\displaystyle\mathcal{L}_{\mathrm{RNNT}}" display="inline"><semantics id="S2.E2.m1.1a"><msub id="S2.E2.m1.1.1" xref="S2.E2.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E2.m1.1.1.2" xref="S2.E2.m1.1.1.2.cmml">ℒ</mi><mi id="S2.E2.m1.1.1.3" xref="S2.E2.m1.1.1.3.cmml">RNNT</mi></msub><annotation-xml encoding="MathML-Content" id="S2.E2.m1.1b"><apply id="S2.E2.m1.1.1.cmml" xref="S2.E2.m1.1.1"><csymbol cd="ambiguous" id="S2.E2.m1.1.1.1.cmml" xref="S2.E2.m1.1.1">subscript</csymbol><ci id="S2.E2.m1.1.1.2.cmml" xref="S2.E2.m1.1.1.2">ℒ</ci><ci id="S2.E2.m1.1.1.3.cmml" xref="S2.E2.m1.1.1.3">RNNT</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m1.1c">\displaystyle\mathcal{L}_{\mathrm{RNNT}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E2.m2.1" class="ltx_Math" alttext="\displaystyle=-\log p(\mathbf{Y}\mid\mathbf{\hat{X}})" display="inline"><semantics id="S2.E2.m2.1a"><mrow id="S2.E2.m2.1.1" xref="S2.E2.m2.1.1.cmml"><mi id="S2.E2.m2.1.1.3" xref="S2.E2.m2.1.1.3.cmml"></mi><mo id="S2.E2.m2.1.1.2" xref="S2.E2.m2.1.1.2.cmml">=</mo><mrow id="S2.E2.m2.1.1.1" xref="S2.E2.m2.1.1.1.cmml"><mo rspace="0.167em" id="S2.E2.m2.1.1.1a" xref="S2.E2.m2.1.1.1.cmml">−</mo><mrow id="S2.E2.m2.1.1.1.1" xref="S2.E2.m2.1.1.1.1.cmml"><mrow id="S2.E2.m2.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.3.cmml"><mi id="S2.E2.m2.1.1.1.1.3.1" xref="S2.E2.m2.1.1.1.1.3.1.cmml">log</mi><mo lspace="0.167em" id="S2.E2.m2.1.1.1.1.3a" xref="S2.E2.m2.1.1.1.1.3.cmml">⁡</mo><mi id="S2.E2.m2.1.1.1.1.3.2" xref="S2.E2.m2.1.1.1.1.3.2.cmml">p</mi></mrow><mo lspace="0em" rspace="0em" id="S2.E2.m2.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.2.cmml">​</mo><mrow id="S2.E2.m2.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E2.m2.1.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E2.m2.1.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.1.cmml"><mi id="S2.E2.m2.1.1.1.1.1.1.1.2" xref="S2.E2.m2.1.1.1.1.1.1.1.2.cmml">𝐘</mi><mo id="S2.E2.m2.1.1.1.1.1.1.1.1" xref="S2.E2.m2.1.1.1.1.1.1.1.1.cmml">∣</mo><mover accent="true" id="S2.E2.m2.1.1.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.1.1.3.cmml"><mi id="S2.E2.m2.1.1.1.1.1.1.1.3.2" xref="S2.E2.m2.1.1.1.1.1.1.1.3.2.cmml">𝐗</mi><mo id="S2.E2.m2.1.1.1.1.1.1.1.3.1" xref="S2.E2.m2.1.1.1.1.1.1.1.3.1.cmml">^</mo></mover></mrow><mo stretchy="false" id="S2.E2.m2.1.1.1.1.1.1.3" xref="S2.E2.m2.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E2.m2.1b"><apply id="S2.E2.m2.1.1.cmml" xref="S2.E2.m2.1.1"><eq id="S2.E2.m2.1.1.2.cmml" xref="S2.E2.m2.1.1.2"></eq><csymbol cd="latexml" id="S2.E2.m2.1.1.3.cmml" xref="S2.E2.m2.1.1.3">absent</csymbol><apply id="S2.E2.m2.1.1.1.cmml" xref="S2.E2.m2.1.1.1"><minus id="S2.E2.m2.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1"></minus><apply id="S2.E2.m2.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1"><times id="S2.E2.m2.1.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1.1.2"></times><apply id="S2.E2.m2.1.1.1.1.3.cmml" xref="S2.E2.m2.1.1.1.1.3"><log id="S2.E2.m2.1.1.1.1.3.1.cmml" xref="S2.E2.m2.1.1.1.1.3.1"></log><ci id="S2.E2.m2.1.1.1.1.3.2.cmml" xref="S2.E2.m2.1.1.1.1.3.2">𝑝</ci></apply><apply id="S2.E2.m2.1.1.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1"><csymbol cd="latexml" id="S2.E2.m2.1.1.1.1.1.1.1.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.1">conditional</csymbol><ci id="S2.E2.m2.1.1.1.1.1.1.1.2.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.2">𝐘</ci><apply id="S2.E2.m2.1.1.1.1.1.1.1.3.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.3"><ci id="S2.E2.m2.1.1.1.1.1.1.1.3.1.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.3.1">^</ci><ci id="S2.E2.m2.1.1.1.1.1.1.1.3.2.cmml" xref="S2.E2.m2.1.1.1.1.1.1.1.3.2">𝐗</ci></apply></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E2.m2.1c">\displaystyle=-\log p(\mathbf{Y}\mid\mathbf{\hat{X}})</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td>
+</tr></tbody>
+<tbody id="S2.E3"><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_td ltx_align_right ltx_eqn_cell"><math id="S2.E3.m1.1" class="ltx_Math" alttext="\displaystyle\mathcal{L}_{\mathrm{joint}}" display="inline"><semantics id="S2.E3.m1.1a"><msub id="S2.E3.m1.1.1" xref="S2.E3.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E3.m1.1.1.2" xref="S2.E3.m1.1.1.2.cmml">ℒ</mi><mi id="S2.E3.m1.1.1.3" xref="S2.E3.m1.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S2.E3.m1.1b"><apply id="S2.E3.m1.1.1.cmml" xref="S2.E3.m1.1.1"><csymbol cd="ambiguous" id="S2.E3.m1.1.1.1.cmml" xref="S2.E3.m1.1.1">subscript</csymbol><ci id="S2.E3.m1.1.1.2.cmml" xref="S2.E3.m1.1.1.2">ℒ</ci><ci id="S2.E3.m1.1.1.3.cmml" xref="S2.E3.m1.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m1.1c">\displaystyle\mathcal{L}_{\mathrm{joint}}</annotation></semantics></math></td>
+<td class="ltx_td ltx_align_left ltx_eqn_cell"><math id="S2.E3.m2.1" class="ltx_Math" alttext="\displaystyle=\alpha\cdot\mathcal{L}_{\mathrm{LM}}+(1-\alpha)\cdot\mathcal{L}_{\mathrm{RNNT}}" display="inline"><semantics id="S2.E3.m2.1a"><mrow id="S2.E3.m2.1.1" xref="S2.E3.m2.1.1.cmml"><mi id="S2.E3.m2.1.1.3" xref="S2.E3.m2.1.1.3.cmml"></mi><mo id="S2.E3.m2.1.1.2" xref="S2.E3.m2.1.1.2.cmml">=</mo><mrow id="S2.E3.m2.1.1.1" xref="S2.E3.m2.1.1.1.cmml"><mrow id="S2.E3.m2.1.1.1.3" xref="S2.E3.m2.1.1.1.3.cmml"><mi id="S2.E3.m2.1.1.1.3.2" xref="S2.E3.m2.1.1.1.3.2.cmml">α</mi><mo lspace="0.222em" rspace="0.222em" id="S2.E3.m2.1.1.1.3.1" xref="S2.E3.m2.1.1.1.3.1.cmml">⋅</mo><msub id="S2.E3.m2.1.1.1.3.3" xref="S2.E3.m2.1.1.1.3.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E3.m2.1.1.1.3.3.2" xref="S2.E3.m2.1.1.1.3.3.2.cmml">ℒ</mi><mi id="S2.E3.m2.1.1.1.3.3.3" xref="S2.E3.m2.1.1.1.3.3.3.cmml">LM</mi></msub></mrow><mo id="S2.E3.m2.1.1.1.2" xref="S2.E3.m2.1.1.1.2.cmml">+</mo><mrow id="S2.E3.m2.1.1.1.1" xref="S2.E3.m2.1.1.1.1.cmml"><mrow id="S2.E3.m2.1.1.1.1.1.1" xref="S2.E3.m2.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S2.E3.m2.1.1.1.1.1.1.2" xref="S2.E3.m2.1.1.1.1.1.1.1.cmml">(</mo><mrow id="S2.E3.m2.1.1.1.1.1.1.1" xref="S2.E3.m2.1.1.1.1.1.1.1.cmml"><mn id="S2.E3.m2.1.1.1.1.1.1.1.2" xref="S2.E3.m2.1.1.1.1.1.1.1.2.cmml">1</mn><mo id="S2.E3.m2.1.1.1.1.1.1.1.1" xref="S2.E3.m2.1.1.1.1.1.1.1.1.cmml">−</mo><mi id="S2.E3.m2.1.1.1.1.1.1.1.3" xref="S2.E3.m2.1.1.1.1.1.1.1.3.cmml">α</mi></mrow><mo rspace="0.055em" stretchy="false" id="S2.E3.m2.1.1.1.1.1.1.3" xref="S2.E3.m2.1.1.1.1.1.1.1.cmml">)</mo></mrow><mo rspace="0.222em" id="S2.E3.m2.1.1.1.1.2" xref="S2.E3.m2.1.1.1.1.2.cmml">⋅</mo><msub id="S2.E3.m2.1.1.1.1.3" xref="S2.E3.m2.1.1.1.1.3.cmml"><mi class="ltx_font_mathcaligraphic" id="S2.E3.m2.1.1.1.1.3.2" xref="S2.E3.m2.1.1.1.1.3.2.cmml">ℒ</mi><mi id="S2.E3.m2.1.1.1.1.3.3" xref="S2.E3.m2.1.1.1.1.3.3.cmml">RNNT</mi></msub></mrow></mrow></mrow><annotation-xml encoding="MathML-Content" id="S2.E3.m2.1b"><apply id="S2.E3.m2.1.1.cmml" xref="S2.E3.m2.1.1"><eq id="S2.E3.m2.1.1.2.cmml" xref="S2.E3.m2.1.1.2"></eq><csymbol cd="latexml" id="S2.E3.m2.1.1.3.cmml" xref="S2.E3.m2.1.1.3">absent</csymbol><apply id="S2.E3.m2.1.1.1.cmml" xref="S2.E3.m2.1.1.1"><plus id="S2.E3.m2.1.1.1.2.cmml" xref="S2.E3.m2.1.1.1.2"></plus><apply id="S2.E3.m2.1.1.1.3.cmml" xref="S2.E3.m2.1.1.1.3"><ci id="S2.E3.m2.1.1.1.3.1.cmml" xref="S2.E3.m2.1.1.1.3.1">⋅</ci><ci id="S2.E3.m2.1.1.1.3.2.cmml" xref="S2.E3.m2.1.1.1.3.2">𝛼</ci><apply id="S2.E3.m2.1.1.1.3.3.cmml" xref="S2.E3.m2.1.1.1.3.3"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.1.3.3.1.cmml" xref="S2.E3.m2.1.1.1.3.3">subscript</csymbol><ci id="S2.E3.m2.1.1.1.3.3.2.cmml" xref="S2.E3.m2.1.1.1.3.3.2">ℒ</ci><ci id="S2.E3.m2.1.1.1.3.3.3.cmml" xref="S2.E3.m2.1.1.1.3.3.3">LM</ci></apply></apply><apply id="S2.E3.m2.1.1.1.1.cmml" xref="S2.E3.m2.1.1.1.1"><ci id="S2.E3.m2.1.1.1.1.2.cmml" xref="S2.E3.m2.1.1.1.1.2">⋅</ci><apply id="S2.E3.m2.1.1.1.1.1.1.1.cmml" xref="S2.E3.m2.1.1.1.1.1.1"><minus id="S2.E3.m2.1.1.1.1.1.1.1.1.cmml" xref="S2.E3.m2.1.1.1.1.1.1.1.1"></minus><cn type="integer" id="S2.E3.m2.1.1.1.1.1.1.1.2.cmml" xref="S2.E3.m2.1.1.1.1.1.1.1.2">1</cn><ci id="S2.E3.m2.1.1.1.1.1.1.1.3.cmml" xref="S2.E3.m2.1.1.1.1.1.1.1.3">𝛼</ci></apply><apply id="S2.E3.m2.1.1.1.1.3.cmml" xref="S2.E3.m2.1.1.1.1.3"><csymbol cd="ambiguous" id="S2.E3.m2.1.1.1.1.3.1.cmml" xref="S2.E3.m2.1.1.1.1.3">subscript</csymbol><ci id="S2.E3.m2.1.1.1.1.3.2.cmml" xref="S2.E3.m2.1.1.1.1.3.2">ℒ</ci><ci id="S2.E3.m2.1.1.1.1.3.3.cmml" xref="S2.E3.m2.1.1.1.1.3.3">RNNT</ci></apply></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.E3.m2.1c">\displaystyle=\alpha\cdot\mathcal{L}_{\mathrm{LM}}+(1-\alpha)\cdot\mathcal{L}_{\mathrm{RNNT}}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td>
+</tr></tbody>
+</table>
+<p id="S2.SS4.p2.2" class="ltx_p">Here, <math id="S2.SS4.p2.2.m1.1" class="ltx_Math" alttext="\hat{\mathbf{X}}" display="inline"><semantics id="S2.SS4.p2.2.m1.1a"><mover accent="true" id="S2.SS4.p2.2.m1.1.1" xref="S2.SS4.p2.2.m1.1.1.cmml"><mi id="S2.SS4.p2.2.m1.1.1.2" xref="S2.SS4.p2.2.m1.1.1.2.cmml">𝐗</mi><mo id="S2.SS4.p2.2.m1.1.1.1" xref="S2.SS4.p2.2.m1.1.1.1.cmml">^</mo></mover><annotation-xml encoding="MathML-Content" id="S2.SS4.p2.2.m1.1b"><apply id="S2.SS4.p2.2.m1.1.1.cmml" xref="S2.SS4.p2.2.m1.1.1"><ci id="S2.SS4.p2.2.m1.1.1.1.cmml" xref="S2.SS4.p2.2.m1.1.1.1">^</ci><ci id="S2.SS4.p2.2.m1.1.1.2.cmml" xref="S2.SS4.p2.2.m1.1.1.2">𝐗</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS4.p2.2.m1.1c">\hat{\mathbf{X}}</annotation></semantics></math> is the speech prefix output (speech logits) from the LLM as in figure <a href="#S2.F2" title="Figure 2 ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>.</p>
+</div>
+</section>
+<section id="S2.SS5" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.5 </span>Language ID based soft prompting</h3>
+
+<div id="S2.SS5.p1" class="ltx_para">
+<p id="S2.SS5.p1.5" class="ltx_p">Prefix tuning learns task specific information and conditioning the prefix with LangID allows it to learn language specific embeddings. This helps to stabilize performance on multiple languages when the LLM is frozen. Figure <a href="#S1.F1" title="Figure 1 ‣ 1 Introduction ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>[d] shows the training and eval pipeline for langID based prompting. The LangID embeddings are of size <math id="S2.SS5.p1.1.m1.1" class="ltx_Math" alttext="[L\times M\times D]" display="inline"><semantics id="S2.SS5.p1.1.m1.1a"><mrow id="S2.SS5.p1.1.m1.1.1.1" xref="S2.SS5.p1.1.m1.1.1.2.cmml"><mo stretchy="false" id="S2.SS5.p1.1.m1.1.1.1.2" xref="S2.SS5.p1.1.m1.1.1.2.1.cmml">[</mo><mrow id="S2.SS5.p1.1.m1.1.1.1.1" xref="S2.SS5.p1.1.m1.1.1.1.1.cmml"><mi id="S2.SS5.p1.1.m1.1.1.1.1.2" xref="S2.SS5.p1.1.m1.1.1.1.1.2.cmml">L</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS5.p1.1.m1.1.1.1.1.1" xref="S2.SS5.p1.1.m1.1.1.1.1.1.cmml">×</mo><mi id="S2.SS5.p1.1.m1.1.1.1.1.3" xref="S2.SS5.p1.1.m1.1.1.1.1.3.cmml">M</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS5.p1.1.m1.1.1.1.1.1a" xref="S2.SS5.p1.1.m1.1.1.1.1.1.cmml">×</mo><mi id="S2.SS5.p1.1.m1.1.1.1.1.4" xref="S2.SS5.p1.1.m1.1.1.1.1.4.cmml">D</mi></mrow><mo stretchy="false" id="S2.SS5.p1.1.m1.1.1.1.3" xref="S2.SS5.p1.1.m1.1.1.2.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.1.m1.1b"><apply id="S2.SS5.p1.1.m1.1.1.2.cmml" xref="S2.SS5.p1.1.m1.1.1.1"><csymbol cd="latexml" id="S2.SS5.p1.1.m1.1.1.2.1.cmml" xref="S2.SS5.p1.1.m1.1.1.1.2">delimited-[]</csymbol><apply id="S2.SS5.p1.1.m1.1.1.1.1.cmml" xref="S2.SS5.p1.1.m1.1.1.1.1"><times id="S2.SS5.p1.1.m1.1.1.1.1.1.cmml" xref="S2.SS5.p1.1.m1.1.1.1.1.1"></times><ci id="S2.SS5.p1.1.m1.1.1.1.1.2.cmml" xref="S2.SS5.p1.1.m1.1.1.1.1.2">𝐿</ci><ci id="S2.SS5.p1.1.m1.1.1.1.1.3.cmml" xref="S2.SS5.p1.1.m1.1.1.1.1.3">𝑀</ci><ci id="S2.SS5.p1.1.m1.1.1.1.1.4.cmml" xref="S2.SS5.p1.1.m1.1.1.1.1.4">𝐷</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.1.m1.1c">[L\times M\times D]</annotation></semantics></math>, where <math id="S2.SS5.p1.2.m2.1" class="ltx_Math" alttext="L" display="inline"><semantics id="S2.SS5.p1.2.m2.1a"><mi id="S2.SS5.p1.2.m2.1.1" xref="S2.SS5.p1.2.m2.1.1.cmml">L</mi><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.2.m2.1b"><ci id="S2.SS5.p1.2.m2.1.1.cmml" xref="S2.SS5.p1.2.m2.1.1">𝐿</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.2.m2.1c">L</annotation></semantics></math> is the number of languages, <math id="S2.SS5.p1.3.m3.1" class="ltx_Math" alttext="M" display="inline"><semantics id="S2.SS5.p1.3.m3.1a"><mi id="S2.SS5.p1.3.m3.1.1" xref="S2.SS5.p1.3.m3.1.1.cmml">M</mi><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.3.m3.1b"><ci id="S2.SS5.p1.3.m3.1.1.cmml" xref="S2.SS5.p1.3.m3.1.1">𝑀</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.3.m3.1c">M</annotation></semantics></math> is the prompt length and <math id="S2.SS5.p1.4.m4.1" class="ltx_Math" alttext="D" display="inline"><semantics id="S2.SS5.p1.4.m4.1a"><mi id="S2.SS5.p1.4.m4.1.1" xref="S2.SS5.p1.4.m4.1.1.cmml">D</mi><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.4.m4.1b"><ci id="S2.SS5.p1.4.m4.1.1.cmml" xref="S2.SS5.p1.4.m4.1.1">𝐷</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.4.m4.1c">D</annotation></semantics></math> is the number of dimensions. The soft prompt <math id="S2.SS5.p1.5.m5.1" class="ltx_Math" alttext="[M\times D]" display="inline"><semantics id="S2.SS5.p1.5.m5.1a"><mrow id="S2.SS5.p1.5.m5.1.1.1" xref="S2.SS5.p1.5.m5.1.1.2.cmml"><mo stretchy="false" id="S2.SS5.p1.5.m5.1.1.1.2" xref="S2.SS5.p1.5.m5.1.1.2.1.cmml">[</mo><mrow id="S2.SS5.p1.5.m5.1.1.1.1" xref="S2.SS5.p1.5.m5.1.1.1.1.cmml"><mi id="S2.SS5.p1.5.m5.1.1.1.1.2" xref="S2.SS5.p1.5.m5.1.1.1.1.2.cmml">M</mi><mo lspace="0.222em" rspace="0.222em" id="S2.SS5.p1.5.m5.1.1.1.1.1" xref="S2.SS5.p1.5.m5.1.1.1.1.1.cmml">×</mo><mi id="S2.SS5.p1.5.m5.1.1.1.1.3" xref="S2.SS5.p1.5.m5.1.1.1.1.3.cmml">D</mi></mrow><mo stretchy="false" id="S2.SS5.p1.5.m5.1.1.1.3" xref="S2.SS5.p1.5.m5.1.1.2.1.cmml">]</mo></mrow><annotation-xml encoding="MathML-Content" id="S2.SS5.p1.5.m5.1b"><apply id="S2.SS5.p1.5.m5.1.1.2.cmml" xref="S2.SS5.p1.5.m5.1.1.1"><csymbol cd="latexml" id="S2.SS5.p1.5.m5.1.1.2.1.cmml" xref="S2.SS5.p1.5.m5.1.1.1.2">delimited-[]</csymbol><apply id="S2.SS5.p1.5.m5.1.1.1.1.cmml" xref="S2.SS5.p1.5.m5.1.1.1.1"><times id="S2.SS5.p1.5.m5.1.1.1.1.1.cmml" xref="S2.SS5.p1.5.m5.1.1.1.1.1"></times><ci id="S2.SS5.p1.5.m5.1.1.1.1.2.cmml" xref="S2.SS5.p1.5.m5.1.1.1.1.2">𝑀</ci><ci id="S2.SS5.p1.5.m5.1.1.1.1.3.cmml" xref="S2.SS5.p1.5.m5.1.1.1.1.3">𝐷</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S2.SS5.p1.5.m5.1c">[M\times D]</annotation></semantics></math> is chosen corresponding to the langID from the source input and is fed along with the speech prefixes from Section <a href="#S2.SS4" title="2.4 Speech prefix-tuning with RNNT loss ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.4</span></a>. During training, the soft prompt embeddings are only updated and are fixed during inference.</p>
+</div>
+</section>
+<section id="S2.SS6" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">2.6 </span>LLM training</h3>
+
+<div id="S2.SS6.p1" class="ltx_para">
+<p id="S2.SS6.p1.1" class="ltx_p">LLMs can be trained in one of the following ways when using speech prefixes:</p>
+<ul id="S2.I1" class="ltx_itemize">
+<li id="S2.I1.i1" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i1.p1" class="ltx_para">
+<p id="S2.I1.i1.p1.1" class="ltx_p">Frozen LLM: The RNNT loss updates only the speech encoder and the soft prompt embeddings while the entire LLM parameters <math id="S2.I1.i1.p1.1.m1.1" class="ltx_Math" alttext="\phi" display="inline"><semantics id="S2.I1.i1.p1.1.m1.1a"><mi id="S2.I1.i1.p1.1.m1.1.1" xref="S2.I1.i1.p1.1.m1.1.1.cmml">ϕ</mi><annotation-xml encoding="MathML-Content" id="S2.I1.i1.p1.1.m1.1b"><ci id="S2.I1.i1.p1.1.m1.1.1.cmml" xref="S2.I1.i1.p1.1.m1.1.1">italic-ϕ</ci></annotation-xml><annotation encoding="application/x-tex" id="S2.I1.i1.p1.1.m1.1c">\phi</annotation></semantics></math> are kept frozen. The LM loss (<a href="#S2.E1" title="In 2.1 PrefixLM ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) updates the soft prompt embeddings only.</p>
+</div>
+</li>
+<li id="S2.I1.i2" class="ltx_item" style="list-style-type:none;">
+<span class="ltx_tag ltx_tag_item">•</span> 
+<div id="S2.I1.i2.p1" class="ltx_para">
+<p id="S2.I1.i2.p1.1" class="ltx_p">Finetuned LLM: LLM parameters are updated simultaneously with both ASR and LM loss. The soft prompt embeddings are tuned only with the LM loss given in equation (<a href="#S2.E1" title="In 2.1 PrefixLM ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>).</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+</section>
+<section id="S3" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">3 </span>Experiments</h2>
+
+<section id="S3.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">3.1 </span>Datasets and Models</h3>
+
+<div id="S3.SS1.p1" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p1.1" class="ltx_p"><span id="S3.SS1.p1.1.1" class="ltx_text ltx_font_italic">Data</span>: The training data used in these experiments is composed of YouTube longform data as described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib16" title="" class="ltx_ref">16</a>, <a href="#bib.bib17" title="" class="ltx_ref">17</a>]</cite> and drawn from 10 Indic languages. All data is drawn from 10 Indic languages and segmented into ``utterances'' with a maximum length of 30s.
+Language information is obtained from the uploaded language tag in the video and incorporated as an auxiliary embedding along with speech features.
+For evaluation we use a YouTube test set for 10 Indic languages which combines utterances spanning a broad set of topics ranging from sports and entertainment to education. Both training and test data is segmented into utterances with a maximum length of 30s.
+See Table <a href="#S3.T1" title="Table 1 ‣ 3.1 Datasets and Models ‣ 3 Experiments ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a> for the distribution of training and test material across languages.</p>
+</div>
+<figure id="S3.T1" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 1: </span>Training and testing data statistics</figcaption>
+<div id="S3.T1.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:216.8pt;height:248.5pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(14.2pt,-16.3pt) scale(1.15052289833574,1.15052289833574) ;">
+<table id="S3.T1.1.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S3.T1.1.1.1.1" class="ltx_tr">
+<th id="S3.T1.1.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">LID</th>
+<th id="S3.T1.1.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Language</th>
+<th id="S3.T1.1.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T1.1.1.1.1.3.1" class="ltx_text">#Hours</span></th>
+<th id="S3.T1.1.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S3.T1.1.1.1.1.4.1" class="ltx_text">#Hours</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S3.T1.1.1.2.1" class="ltx_tr">
+<td id="S3.T1.1.1.2.1.1" class="ltx_td"></td>
+<th id="S3.T1.1.1.2.1.2" class="ltx_td ltx_th ltx_th_column"></th>
+<th id="S3.T1.1.1.2.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column">(Train)</th>
+<th id="S3.T1.1.1.2.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">(Test)</th>
+</tr>
+<tr id="S3.T1.1.1.3.2" class="ltx_tr">
+<td id="S3.T1.1.1.3.2.1" class="ltx_td ltx_align_center ltx_border_t">bn</td>
+<td id="S3.T1.1.1.3.2.2" class="ltx_td ltx_align_center ltx_border_t">Bengali</td>
+<td id="S3.T1.1.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t">3.3k</td>
+<td id="S3.T1.1.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t">30.2</td>
+</tr>
+<tr id="S3.T1.1.1.4.3" class="ltx_tr">
+<td id="S3.T1.1.1.4.3.1" class="ltx_td ltx_align_center">en</td>
+<td id="S3.T1.1.1.4.3.2" class="ltx_td ltx_align_center">English</td>
+<td id="S3.T1.1.1.4.3.3" class="ltx_td ltx_align_center">3.5k</td>
+<td id="S3.T1.1.1.4.3.4" class="ltx_td ltx_align_center">22.2</td>
+</tr>
+<tr id="S3.T1.1.1.5.4" class="ltx_tr">
+<td id="S3.T1.1.1.5.4.1" class="ltx_td ltx_align_center">gu</td>
+<td id="S3.T1.1.1.5.4.2" class="ltx_td ltx_align_center">Gujarati</td>
+<td id="S3.T1.1.1.5.4.3" class="ltx_td ltx_align_center">3.5k</td>
+<td id="S3.T1.1.1.5.4.4" class="ltx_td ltx_align_center">30.4</td>
+</tr>
+<tr id="S3.T1.1.1.6.5" class="ltx_tr">
+<td id="S3.T1.1.1.6.5.1" class="ltx_td ltx_align_center">hi</td>
+<td id="S3.T1.1.1.6.5.2" class="ltx_td ltx_align_center">Hindi</td>
+<td id="S3.T1.1.1.6.5.3" class="ltx_td ltx_align_center">5.5k</td>
+<td id="S3.T1.1.1.6.5.4" class="ltx_td ltx_align_center">30.1</td>
+</tr>
+<tr id="S3.T1.1.1.7.6" class="ltx_tr">
+<td id="S3.T1.1.1.7.6.1" class="ltx_td ltx_align_center">kn</td>
+<td id="S3.T1.1.1.7.6.2" class="ltx_td ltx_align_center">Kannada</td>
+<td id="S3.T1.1.1.7.6.3" class="ltx_td ltx_align_center">3.6k</td>
+<td id="S3.T1.1.1.7.6.4" class="ltx_td ltx_align_center">29.8</td>
+</tr>
+<tr id="S3.T1.1.1.8.7" class="ltx_tr">
+<td id="S3.T1.1.1.8.7.1" class="ltx_td ltx_align_center">ml</td>
+<td id="S3.T1.1.1.8.7.2" class="ltx_td ltx_align_center">Malayalam</td>
+<td id="S3.T1.1.1.8.7.3" class="ltx_td ltx_align_center">3.2k</td>
+<td id="S3.T1.1.1.8.7.4" class="ltx_td ltx_align_center">29.3</td>
+</tr>
+<tr id="S3.T1.1.1.9.8" class="ltx_tr">
+<td id="S3.T1.1.1.9.8.1" class="ltx_td ltx_align_center">mr</td>
+<td id="S3.T1.1.1.9.8.2" class="ltx_td ltx_align_center">Marathi</td>
+<td id="S3.T1.1.1.9.8.3" class="ltx_td ltx_align_center">3.7k</td>
+<td id="S3.T1.1.1.9.8.4" class="ltx_td ltx_align_center">30.0</td>
+</tr>
+<tr id="S3.T1.1.1.10.9" class="ltx_tr">
+<td id="S3.T1.1.1.10.9.1" class="ltx_td ltx_align_center">ta</td>
+<td id="S3.T1.1.1.10.9.2" class="ltx_td ltx_align_center">Tamil</td>
+<td id="S3.T1.1.1.10.9.3" class="ltx_td ltx_align_center">4.5k</td>
+<td id="S3.T1.1.1.10.9.4" class="ltx_td ltx_align_center">28.7</td>
+</tr>
+<tr id="S3.T1.1.1.11.10" class="ltx_tr">
+<td id="S3.T1.1.1.11.10.1" class="ltx_td ltx_align_center">te</td>
+<td id="S3.T1.1.1.11.10.2" class="ltx_td ltx_align_center">Telugu</td>
+<td id="S3.T1.1.1.11.10.3" class="ltx_td ltx_align_center">4.2k</td>
+<td id="S3.T1.1.1.11.10.4" class="ltx_td ltx_align_center">29.6</td>
+</tr>
+<tr id="S3.T1.1.1.12.11" class="ltx_tr">
+<td id="S3.T1.1.1.12.11.1" class="ltx_td ltx_align_center ltx_border_bb">ur</td>
+<td id="S3.T1.1.1.12.11.2" class="ltx_td ltx_align_center ltx_border_bb">Urdu</td>
+<td id="S3.T1.1.1.12.11.3" class="ltx_td ltx_align_center ltx_border_bb">2.0k</td>
+<td id="S3.T1.1.1.12.11.4" class="ltx_td ltx_align_center ltx_border_bb">30.2</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<div id="S3.SS1.p2" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p2.1" class="ltx_p"><span id="S3.SS1.p2.1.1" class="ltx_text ltx_font_italic">Speech Encoder</span>: We employ universal speech models (USM) <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> with model complexity of 300M (USM-S) and 600M (USM-L) parameters. USM-S leverages a 24-layer Conformer with a model dimension (768) resulting in a total of 333.5 million parameters while USM-L has the same number of layers as USM-S but with 1024 dimensions. Both USM architectures use chunk-wise bi-directional attention allowing them to accurately model long audio sequences (30-second segments during training). Mel fiterbank based speech features are fed to the USM speech encoder and the encoded outputs are subsampled by factor of 4 (160ms frame rate) for efficiency. This subsampled encoder output <math id="S3.SS1.p2.1.m1.1" class="ltx_Math" alttext="\mathbf{X}" display="inline"><semantics id="S3.SS1.p2.1.m1.1a"><mi id="S3.SS1.p2.1.m1.1.1" xref="S3.SS1.p2.1.m1.1.1.cmml">𝐗</mi><annotation-xml encoding="MathML-Content" id="S3.SS1.p2.1.m1.1b"><ci id="S3.SS1.p2.1.m1.1.1.cmml" xref="S3.SS1.p2.1.m1.1.1">𝐗</ci></annotation-xml><annotation encoding="application/x-tex" id="S3.SS1.p2.1.m1.1c">\mathbf{X}</annotation></semantics></math> serves as the prefix embedding.
+The USM is trained using a large amount of multilingual data: over 10 million hours of unlabeled audio, tens of billions of text sentences, over a hundred thousand hours of supervised and semi-supervised audio. The data is drawn from over a hundred languages covering various topics <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite>.</p>
+</div>
+<div id="S3.SS1.p3" class="ltx_para ltx_noindent">
+<p id="S3.SS1.p3.1" class="ltx_p"><span id="S3.SS1.p3.1.1" class="ltx_text ltx_font_italic">LLM</span>: The large language model used in this paper builds upon the JAX based M4 multipod model  <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib19" title="" class="ltx_ref">19</a>]</cite>). This a Transformer based decoder only model. In this paper, we present results with two LLM sizes, 128M and 500M parameters. 128M has 8 layers with 16 heads, 4096 hidden dimensions. 500M model has 30 layers with 16 heads and 4096 hidden dimensions. The feed-forward layer configuration is common to both 128M (LLM-S) and 500M (LLM-L) parameter models with 16384 dimensions and the attention head size is 64. Both these models are trained with 800B text tokens. We use relative positional embeddings and GELU activations. Adafactor optimizer with momentum is used for training with a batch size of 1024 and a sequence lengths of 1k tokens. Finally, the model is quantized to bfloat16 precision for efficient tuning and inference.
+256k vocab based sentencepiece tokens <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib20" title="" class="ltx_ref">20</a>]</cite> are used for training. Training is performed using a variant of UL2 objective <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib21" title="" class="ltx_ref">21</a>]</cite>, as described in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib22" title="" class="ltx_ref">22</a>]</cite>.</p>
+</div>
+</section>
+</section>
+<section id="S4" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">4 </span>Results and Discussion</h2>
+
+<figure id="S4.T2" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 2: </span>WER on the average of 10 Indic languages using CTC, RNNT and PrefixLM using 300M (USM-S) and 600M (USM-L) speech encoders. PrefixLM (finetuned) model is trained using <math id="S4.T2.3.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{LM}}" display="inline"><semantics id="S4.T2.3.m1.1b"><msub id="S4.T2.3.m1.1.1" xref="S4.T2.3.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T2.3.m1.1.1.2" xref="S4.T2.3.m1.1.1.2.cmml">ℒ</mi><mi id="S4.T2.3.m1.1.1.3" xref="S4.T2.3.m1.1.1.3.cmml">LM</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T2.3.m1.1c"><apply id="S4.T2.3.m1.1.1.cmml" xref="S4.T2.3.m1.1.1"><csymbol cd="ambiguous" id="S4.T2.3.m1.1.1.1.cmml" xref="S4.T2.3.m1.1.1">subscript</csymbol><ci id="S4.T2.3.m1.1.1.2.cmml" xref="S4.T2.3.m1.1.1.2">ℒ</ci><ci id="S4.T2.3.m1.1.1.3.cmml" xref="S4.T2.3.m1.1.1.3">LM</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.3.m1.1d">\mathcal{L}_{\mathrm{LM}}</annotation></semantics></math> in  (<a href="#S2.E1" title="In 2.1 PrefixLM ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) and PrefixLM (prefix-tuned with RNNT) model is trained using <math id="S4.T2.4.m2.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{joint}}" display="inline"><semantics id="S4.T2.4.m2.1b"><msub id="S4.T2.4.m2.1.1" xref="S4.T2.4.m2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T2.4.m2.1.1.2" xref="S4.T2.4.m2.1.1.2.cmml">ℒ</mi><mi id="S4.T2.4.m2.1.1.3" xref="S4.T2.4.m2.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T2.4.m2.1c"><apply id="S4.T2.4.m2.1.1.cmml" xref="S4.T2.4.m2.1.1"><csymbol cd="ambiguous" id="S4.T2.4.m2.1.1.1.cmml" xref="S4.T2.4.m2.1.1">subscript</csymbol><ci id="S4.T2.4.m2.1.1.2.cmml" xref="S4.T2.4.m2.1.1.2">ℒ</ci><ci id="S4.T2.4.m2.1.1.3.cmml" xref="S4.T2.4.m2.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T2.4.m2.1d">\mathcal{L}_{\mathrm{joint}}</annotation></semantics></math> in  (<a href="#S2.E3" title="In 2.4 Speech prefix-tuning with RNNT loss ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>).
+</figcaption>
+<div id="S4.T2.5" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:429.3pt;height:207.1pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(46.8pt,-22.6pt) scale(1.27869239459378,1.27869239459378) ;">
+<table id="S4.T2.5.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T2.5.1.1.1" class="ltx_tr">
+<td id="S4.T2.5.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">Train decoder</td>
+<td id="S4.T2.5.1.1.1.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_tt">Eval decoder</td>
+<td id="S4.T2.5.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt" colspan="2">Avg WER (%)</td>
+</tr>
+<tr id="S4.T2.5.1.2.2" class="ltx_tr">
+<td id="S4.T2.5.1.2.2.1" class="ltx_td"></td>
+<td id="S4.T2.5.1.2.2.2" class="ltx_td ltx_border_r"></td>
+<td id="S4.T2.5.1.2.2.3" class="ltx_td ltx_align_center ltx_border_r">USM-S</td>
+<td id="S4.T2.5.1.2.2.4" class="ltx_td ltx_align_center">USM-L</td>
+</tr>
+<tr id="S4.T2.5.1.3.3" class="ltx_tr">
+<td id="S4.T2.5.1.3.3.1" class="ltx_td ltx_align_center ltx_border_t">CTC</td>
+<td id="S4.T2.5.1.3.3.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">CTC</td>
+<td id="S4.T2.5.1.3.3.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">35.9</td>
+<td id="S4.T2.5.1.3.3.4" class="ltx_td ltx_align_center ltx_border_t">33.0</td>
+</tr>
+<tr id="S4.T2.5.1.4.4" class="ltx_tr">
+<td id="S4.T2.5.1.4.4.1" class="ltx_td ltx_align_center">PrefixLM (finetuned)</td>
+<td id="S4.T2.5.1.4.4.2" class="ltx_td ltx_align_center ltx_border_r">LM</td>
+<td id="S4.T2.5.1.4.4.3" class="ltx_td ltx_align_center ltx_border_r">36.7</td>
+<td id="S4.T2.5.1.4.4.4" class="ltx_td ltx_align_center">32.2</td>
+</tr>
+<tr id="S4.T2.5.1.5.5" class="ltx_tr">
+<td id="S4.T2.5.1.5.5.1" class="ltx_td ltx_align_center">PrefixLM (prefix-tuned with CTC)</td>
+<td id="S4.T2.5.1.5.5.2" class="ltx_td ltx_align_center ltx_border_r">CTC</td>
+<td id="S4.T2.5.1.5.5.3" class="ltx_td ltx_align_center ltx_border_r">33.8</td>
+<td id="S4.T2.5.1.5.5.4" class="ltx_td ltx_align_center">31.8</td>
+</tr>
+<tr id="S4.T2.5.1.6.6" class="ltx_tr">
+<td id="S4.T2.5.1.6.6.1" class="ltx_td ltx_align_center">PrefixLM (prefix-tuned with CTC)</td>
+<td id="S4.T2.5.1.6.6.2" class="ltx_td ltx_align_center ltx_border_r">LM</td>
+<td id="S4.T2.5.1.6.6.3" class="ltx_td ltx_align_center ltx_border_r">33.7</td>
+<td id="S4.T2.5.1.6.6.4" class="ltx_td ltx_align_center">31.8</td>
+</tr>
+<tr id="S4.T2.5.1.7.7" class="ltx_tr">
+<td id="S4.T2.5.1.7.7.1" class="ltx_td ltx_align_center ltx_border_t">RNNT</td>
+<td id="S4.T2.5.1.7.7.2" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">RNNT</td>
+<td id="S4.T2.5.1.7.7.3" class="ltx_td ltx_align_center ltx_border_r ltx_border_t">31.5</td>
+<td id="S4.T2.5.1.7.7.4" class="ltx_td ltx_align_center ltx_border_t">29.4</td>
+</tr>
+<tr id="S4.T2.5.1.8.8" class="ltx_tr">
+<td id="S4.T2.5.1.8.8.1" class="ltx_td ltx_align_center">PrefixLM (prefix-tuned with RNNT)</td>
+<td id="S4.T2.5.1.8.8.2" class="ltx_td ltx_align_center ltx_border_r">RNNT</td>
+<td id="S4.T2.5.1.8.8.3" class="ltx_td ltx_align_center ltx_border_r">29.8</td>
+<td id="S4.T2.5.1.8.8.4" class="ltx_td ltx_align_center">28.4</td>
+</tr>
+<tr id="S4.T2.5.1.9.9" class="ltx_tr">
+<td id="S4.T2.5.1.9.9.1" class="ltx_td ltx_align_center ltx_border_bb">PrefixLM (prefix-tuned with RNNT)</td>
+<td id="S4.T2.5.1.9.9.2" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">LM</td>
+<td id="S4.T2.5.1.9.9.3" class="ltx_td ltx_align_center ltx_border_bb ltx_border_r">29.8</td>
+<td id="S4.T2.5.1.9.9.4" class="ltx_td ltx_align_center ltx_border_bb">28.3</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<figure id="S4.T3" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 3: </span>WER on all 10 Indic languages using prompt tuning, prefix tuning and language ID prompt tuning with and without fine-tuning the LLM.
+</figcaption>
+<div id="S4.T3.1" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:390.3pt;height:98.1pt;vertical-align:-0.7pt;"><span class="ltx_transformed_inner" style="transform:translate(-93.5pt,23.3pt) scale(0.676155826637148,0.676155826637148) ;">
+<table id="S4.T3.1.1" class="ltx_tabular ltx_align_middle">
+<tbody class="ltx_tbody">
+<tr id="S4.T3.1.1.1.1" class="ltx_tr">
+<td id="S4.T3.1.1.1.1.1" class="ltx_td ltx_align_center ltx_border_tt">LLM</td>
+<td id="S4.T3.1.1.1.1.2" class="ltx_td ltx_align_center ltx_border_tt">Tune</td>
+<td id="S4.T3.1.1.1.1.3" class="ltx_td ltx_align_center ltx_border_tt">bn</td>
+<td id="S4.T3.1.1.1.1.4" class="ltx_td ltx_align_center ltx_border_tt">en</td>
+<td id="S4.T3.1.1.1.1.5" class="ltx_td ltx_align_center ltx_border_tt">gu</td>
+<td id="S4.T3.1.1.1.1.6" class="ltx_td ltx_align_center ltx_border_tt">hi</td>
+<td id="S4.T3.1.1.1.1.7" class="ltx_td ltx_align_center ltx_border_tt">kn</td>
+<td id="S4.T3.1.1.1.1.8" class="ltx_td ltx_align_center ltx_border_tt">ml</td>
+<td id="S4.T3.1.1.1.1.9" class="ltx_td ltx_align_center ltx_border_tt">mr</td>
+<td id="S4.T3.1.1.1.1.10" class="ltx_td ltx_align_center ltx_border_tt">ta</td>
+<td id="S4.T3.1.1.1.1.11" class="ltx_td ltx_align_center ltx_border_tt">te</td>
+<td id="S4.T3.1.1.1.1.12" class="ltx_td ltx_align_center ltx_border_tt">ur</td>
+<td id="S4.T3.1.1.1.1.13" class="ltx_td ltx_align_center ltx_border_tt">Avg</td>
+</tr>
+<tr id="S4.T3.1.1.2.2" class="ltx_tr">
+<td id="S4.T3.1.1.2.2.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="5"><span id="S4.T3.1.1.2.2.1.1" class="ltx_text">USM-L + frozen LLM-L</span></td>
+<td id="S4.T3.1.1.2.2.2" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="S4.T3.1.1.2.2.3" class="ltx_td ltx_align_center ltx_border_t">33.5</td>
+<td id="S4.T3.1.1.2.2.4" class="ltx_td ltx_align_center ltx_border_t">16.6</td>
+<td id="S4.T3.1.1.2.2.5" class="ltx_td ltx_align_center ltx_border_t">51.1</td>
+<td id="S4.T3.1.1.2.2.6" class="ltx_td ltx_align_center ltx_border_t">49.4</td>
+<td id="S4.T3.1.1.2.2.7" class="ltx_td ltx_align_center ltx_border_t">57.6</td>
+<td id="S4.T3.1.1.2.2.8" class="ltx_td ltx_align_center ltx_border_t">54.6</td>
+<td id="S4.T3.1.1.2.2.9" class="ltx_td ltx_align_center ltx_border_t">30.3</td>
+<td id="S4.T3.1.1.2.2.10" class="ltx_td ltx_align_center ltx_border_t">52.2</td>
+<td id="S4.T3.1.1.2.2.11" class="ltx_td ltx_align_center ltx_border_t">45.7</td>
+<td id="S4.T3.1.1.2.2.12" class="ltx_td ltx_align_center ltx_border_t">45.7</td>
+<td id="S4.T3.1.1.2.2.13" class="ltx_td ltx_align_center ltx_border_t">43.6</td>
+</tr>
+<tr id="S4.T3.1.1.3.3" class="ltx_tr">
+<td id="S4.T3.1.1.3.3.1" class="ltx_td ltx_align_center">Prompt</td>
+<td id="S4.T3.1.1.3.3.2" class="ltx_td ltx_align_center">33.5</td>
+<td id="S4.T3.1.1.3.3.3" class="ltx_td ltx_align_center">15.2</td>
+<td id="S4.T3.1.1.3.3.4" class="ltx_td ltx_align_center">50.2</td>
+<td id="S4.T3.1.1.3.3.5" class="ltx_td ltx_align_center">45.1</td>
+<td id="S4.T3.1.1.3.3.6" class="ltx_td ltx_align_center">52.3</td>
+<td id="S4.T3.1.1.3.3.7" class="ltx_td ltx_align_center">51.1</td>
+<td id="S4.T3.1.1.3.3.8" class="ltx_td ltx_align_center">30.4</td>
+<td id="S4.T3.1.1.3.3.9" class="ltx_td ltx_align_center">52.0</td>
+<td id="S4.T3.1.1.3.3.10" class="ltx_td ltx_align_center">44.6</td>
+<td id="S4.T3.1.1.3.3.11" class="ltx_td ltx_align_center">41.0</td>
+<td id="S4.T3.1.1.3.3.12" class="ltx_td ltx_align_center">41.5</td>
+</tr>
+<tr id="S4.T3.1.1.4.4" class="ltx_tr">
+<td id="S4.T3.1.1.4.4.1" class="ltx_td ltx_align_center">Prefix</td>
+<td id="S4.T3.1.1.4.4.2" class="ltx_td ltx_align_center">22.0</td>
+<td id="S4.T3.1.1.4.4.3" class="ltx_td ltx_align_center">14.1</td>
+<td id="S4.T3.1.1.4.4.4" class="ltx_td ltx_align_center">37.8</td>
+<td id="S4.T3.1.1.4.4.5" class="ltx_td ltx_align_center">15.5</td>
+<td id="S4.T3.1.1.4.4.6" class="ltx_td ltx_align_center">37.6</td>
+<td id="S4.T3.1.1.4.4.7" class="ltx_td ltx_align_center">40.1</td>
+<td id="S4.T3.1.1.4.4.8" class="ltx_td ltx_align_center">27.3</td>
+<td id="S4.T3.1.1.4.4.9" class="ltx_td ltx_align_center">42.0</td>
+<td id="S4.T3.1.1.4.4.10" class="ltx_td ltx_align_center">33.0</td>
+<td id="S4.T3.1.1.4.4.11" class="ltx_td ltx_align_center">21.4</td>
+<td id="S4.T3.1.1.4.4.12" class="ltx_td ltx_align_center">29.1</td>
+</tr>
+<tr id="S4.T3.1.1.5.5" class="ltx_tr">
+<td id="S4.T3.1.1.5.5.1" class="ltx_td ltx_align_center">Prefix+Prompt</td>
+<td id="S4.T3.1.1.5.5.2" class="ltx_td ltx_align_center">20.9</td>
+<td id="S4.T3.1.1.5.5.3" class="ltx_td ltx_align_center">14.5</td>
+<td id="S4.T3.1.1.5.5.4" class="ltx_td ltx_align_center">37.6</td>
+<td id="S4.T3.1.1.5.5.5" class="ltx_td ltx_align_center">15.3</td>
+<td id="S4.T3.1.1.5.5.6" class="ltx_td ltx_align_center">37.4</td>
+<td id="S4.T3.1.1.5.5.7" class="ltx_td ltx_align_center">39.7</td>
+<td id="S4.T3.1.1.5.5.8" class="ltx_td ltx_align_center">26.9</td>
+<td id="S4.T3.1.1.5.5.9" class="ltx_td ltx_align_center">42.2</td>
+<td id="S4.T3.1.1.5.5.10" class="ltx_td ltx_align_center">32.7</td>
+<td id="S4.T3.1.1.5.5.11" class="ltx_td ltx_align_center">21.3</td>
+<td id="S4.T3.1.1.5.5.12" class="ltx_td ltx_align_center">28.9</td>
+</tr>
+<tr id="S4.T3.1.1.6.6" class="ltx_tr">
+<td id="S4.T3.1.1.6.6.1" class="ltx_td ltx_align_center">Prefix+LangIDPrompt</td>
+<td id="S4.T3.1.1.6.6.2" class="ltx_td ltx_align_center">20.5</td>
+<td id="S4.T3.1.1.6.6.3" class="ltx_td ltx_align_center">14.3</td>
+<td id="S4.T3.1.1.6.6.4" class="ltx_td ltx_align_center">37.0</td>
+<td id="S4.T3.1.1.6.6.5" class="ltx_td ltx_align_center">15.2</td>
+<td id="S4.T3.1.1.6.6.6" class="ltx_td ltx_align_center">37.2</td>
+<td id="S4.T3.1.1.6.6.7" class="ltx_td ltx_align_center">39.4</td>
+<td id="S4.T3.1.1.6.6.8" class="ltx_td ltx_align_center">26.4</td>
+<td id="S4.T3.1.1.6.6.9" class="ltx_td ltx_align_center">41.1</td>
+<td id="S4.T3.1.1.6.6.10" class="ltx_td ltx_align_center">32.4</td>
+<td id="S4.T3.1.1.6.6.11" class="ltx_td ltx_align_center">21.0</td>
+<td id="S4.T3.1.1.6.6.12" class="ltx_td ltx_align_center">28.5</td>
+</tr>
+<tr id="S4.T3.1.1.7.7" class="ltx_tr">
+<td id="S4.T3.1.1.7.7.1" class="ltx_td ltx_align_center ltx_border_b ltx_border_t" rowspan="2"><span id="S4.T3.1.1.7.7.1.1" class="ltx_text">USM-L + finetuned LLM-L</span></td>
+<td id="S4.T3.1.1.7.7.2" class="ltx_td ltx_align_center ltx_border_t">-</td>
+<td id="S4.T3.1.1.7.7.3" class="ltx_td ltx_align_center ltx_border_t">27.5</td>
+<td id="S4.T3.1.1.7.7.4" class="ltx_td ltx_align_center ltx_border_t">17.4</td>
+<td id="S4.T3.1.1.7.7.5" class="ltx_td ltx_align_center ltx_border_t">40.7</td>
+<td id="S4.T3.1.1.7.7.6" class="ltx_td ltx_align_center ltx_border_t">18.3</td>
+<td id="S4.T3.1.1.7.7.7" class="ltx_td ltx_align_center ltx_border_t">40.6</td>
+<td id="S4.T3.1.1.7.7.8" class="ltx_td ltx_align_center ltx_border_t">42.8</td>
+<td id="S4.T3.1.1.7.7.9" class="ltx_td ltx_align_center ltx_border_t">29.9</td>
+<td id="S4.T3.1.1.7.7.10" class="ltx_td ltx_align_center ltx_border_t">44.0</td>
+<td id="S4.T3.1.1.7.7.11" class="ltx_td ltx_align_center ltx_border_t">35.6</td>
+<td id="S4.T3.1.1.7.7.12" class="ltx_td ltx_align_center ltx_border_t">25.6</td>
+<td id="S4.T3.1.1.7.7.13" class="ltx_td ltx_align_center ltx_border_t">32.2</td>
+</tr>
+<tr id="S4.T3.1.1.8.8" class="ltx_tr">
+<td id="S4.T3.1.1.8.8.1" class="ltx_td ltx_align_center ltx_border_b">Prefix</td>
+<td id="S4.T3.1.1.8.8.2" class="ltx_td ltx_align_center ltx_border_b">20.2</td>
+<td id="S4.T3.1.1.8.8.3" class="ltx_td ltx_align_center ltx_border_b">13.7</td>
+<td id="S4.T3.1.1.8.8.4" class="ltx_td ltx_align_center ltx_border_b">37.1</td>
+<td id="S4.T3.1.1.8.8.5" class="ltx_td ltx_align_center ltx_border_b">15.2</td>
+<td id="S4.T3.1.1.8.8.6" class="ltx_td ltx_align_center ltx_border_b">37.2</td>
+<td id="S4.T3.1.1.8.8.7" class="ltx_td ltx_align_center ltx_border_b">39.5</td>
+<td id="S4.T3.1.1.8.8.8" class="ltx_td ltx_align_center ltx_border_b">26.5</td>
+<td id="S4.T3.1.1.8.8.9" class="ltx_td ltx_align_center ltx_border_b">41.5</td>
+<td id="S4.T3.1.1.8.8.10" class="ltx_td ltx_align_center ltx_border_b">32.4</td>
+<td id="S4.T3.1.1.8.8.11" class="ltx_td ltx_align_center ltx_border_b">21.0</td>
+<td id="S4.T3.1.1.8.8.12" class="ltx_td ltx_align_center ltx_border_b">28.3</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<section id="S4.SS1" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.1 </span>PrefixLM with CTC and RNNT</h3>
+
+<div id="S4.SS1.p1" class="ltx_para">
+<p id="S4.SS1.p1.1" class="ltx_p">The introduction of RNNT or CTC decoders and corresponding losses to a PrefixLM ASR model demonstrates clear improvements. Using a CTC auxiliary loss, WER on USM-L drops from 32.2 to 31.8 with a larger win on USM-S, where performance goes from 36.7 to 33.7 (8% relative). RNNT in isolation is a better ASR model than CTC (29.4 vs. 33.0) given by rows 1 and 5 in Table <a href="#S4.T2" title="Table 2 ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>. This is also reflected in its combination with PrefixLM. The introduction of the RNNT decoder and loss to PrefixLM yields 5.4 % and 3.7% relative wins on USM-S and USM-L respectively.</p>
+</div>
+</section>
+<section id="S4.SS2" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.2 </span>Language-based Prompting allows the LM to be frozen</h3>
+
+<div id="S4.SS2.p1" class="ltx_para">
+<p id="S4.SS2.p1.1" class="ltx_p">The results in Table <a href="#S4.T2" title="Table 2 ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> update the full PrefixLM model (Figure <a href="#S2.F2" title="Figure 2 ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a>), both the speech encoder and LM. However, updating the LLM is computationally expensive. In this section we explore in-context, prompting techniques to achieve similar performance by updating the speech encoder while keeping the LLM frozen.</p>
+</div>
+<div id="S4.SS2.p2" class="ltx_para">
+<p id="S4.SS2.p2.1" class="ltx_p">Table <a href="#S4.T3" title="Table 3 ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> also shows the results of using both learned soft-prompts and language-conditioned prompts as described in Section <a href="#S2.SS5" title="2.5 Language ID based soft prompting ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.5</span></a> using LLM-L with USM-L as the speech encoder. The average %WER performance of using frozen LLM is significantly worse with 43.6 over finetuned LLM with 28.3. Prompt tuning shows that it improves on average by absolute 2.1%. Our proposed speech prefix-tuning brings the average %WER down to 29.1. Tuning both speech prefixes and prompt embeddings is complimentary and shows marginal gain.
+We hypothesize this marginal improvement with speech prefix+prompt tuning is due to the limitation of using a single prompt embedding to model the multilingual input data. Extending the prompt to be language specific by using the langID prompt tuning is able to bring the performance of the frozen LLM to within 0.2% WER of the best performing fully-updated model in Table <a href="#S4.T3" title="Table 3 ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a> (28.5 vs. 28.3). This results in a model where approximately half of the parameters do not need to be updated with a very modest impact on quality.</p>
+</div>
+</section>
+<section id="S4.SS3" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.3 </span>Error analysis of speech prefix-tuning</h3>
+
+<figure id="S4.T4" class="ltx_table">
+<div id="S4.T4.5" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:115.6pt;height:216.8pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(-95.7pt,179.6pt) scale(0.376406245761447,0.376406245761447) ;">
+<table id="S4.T4.5.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T4.5.1.1.1" class="ltx_tr">
+<th id="S4.T4.5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T4.5.1.1.1.1.1" class="ltx_text">Lang</span></th>
+<th id="S4.T4.5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T4.5.1.1.1.2.1" class="ltx_text">Error</span></th>
+<th id="S4.T4.5.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T4.5.1.1.1.3.1" class="ltx_text">RNNT</span></th>
+<th id="S4.T4.5.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T4.5.1.1.1.4.1" class="ltx_text">PrefixLM</span></th>
+<th id="S4.T4.5.1.1.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"><span id="S4.T4.5.1.1.1.5.1" class="ltx_text">PrefixLM</span></th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T4.5.1.2.1" class="ltx_tr">
+<td id="S4.T4.5.1.2.1.1" class="ltx_td"></td>
+<th id="S4.T4.5.1.2.1.2" class="ltx_td ltx_th ltx_th_column"></th>
+<th id="S4.T4.5.1.2.1.3" class="ltx_td ltx_th ltx_th_column"></th>
+<th id="S4.T4.5.1.2.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column">(finetuned)</th>
+<th id="S4.T4.5.1.2.1.5" class="ltx_td ltx_align_center ltx_th ltx_th_column">(prefix-tuned with RNNT)</th>
+</tr>
+<tr id="S4.T4.5.1.3.2" class="ltx_tr">
+<td id="S4.T4.5.1.3.2.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.3.2.1.1" class="ltx_text">bn</span></td>
+<td id="S4.T4.5.1.3.2.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.3.2.3" class="ltx_td ltx_align_center ltx_border_t">3.6</td>
+<td id="S4.T4.5.1.3.2.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.3.2.4.1" class="ltx_text" style="background-color:#E8FFE8;">3.6</span></td>
+<td id="S4.T4.5.1.3.2.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.3.2.5.1" class="ltx_text" style="background-color:#BFFFBF;">4.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.4.3" class="ltx_tr">
+<td id="S4.T4.5.1.4.3.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.4.3.2" class="ltx_td ltx_align_center">2.0</td>
+<td id="S4.T4.5.1.4.3.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.4.3.3.1" class="ltx_text" style="background-color:#BFBFFF;">6.7</span></td>
+<td id="S4.T4.5.1.4.3.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.4.3.4.1" class="ltx_text" style="background-color:#E8E8FF;">1.9</span></td>
+</tr>
+<tr id="S4.T4.5.1.5.4" class="ltx_tr">
+<td id="S4.T4.5.1.5.4.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.5.4.2" class="ltx_td ltx_align_center">14.6</td>
+<td id="S4.T4.5.1.5.4.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.5.4.3.1" class="ltx_text" style="background-color:#FFBFBF;">17.2</span></td>
+<td id="S4.T4.5.1.5.4.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.5.4.4.1" class="ltx_text" style="background-color:#FFE8E8;">13.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.6.5" class="ltx_tr">
+<td id="S4.T4.5.1.6.5.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.6.5.1.1" class="ltx_text">en</span></td>
+<td id="S4.T4.5.1.6.5.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.6.5.3" class="ltx_td ltx_align_center ltx_border_t">3.1</td>
+<td id="S4.T4.5.1.6.5.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.6.5.4.1" class="ltx_text" style="background-color:#E8FFE8;">3.0</span></td>
+<td id="S4.T4.5.1.6.5.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.6.5.5.1" class="ltx_text" style="background-color:#BFFFBF;">3.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.7.6" class="ltx_tr">
+<td id="S4.T4.5.1.7.6.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.7.6.2" class="ltx_td ltx_align_center">2.7</td>
+<td id="S4.T4.5.1.7.6.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.7.6.3.1" class="ltx_text" style="background-color:#BFBFFF;">5.4</span></td>
+<td id="S4.T4.5.1.7.6.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.7.6.4.1" class="ltx_text" style="background-color:#E8E8FF;">2.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.8.7" class="ltx_tr">
+<td id="S4.T4.5.1.8.7.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.8.7.2" class="ltx_td ltx_align_center">11.6</td>
+<td id="S4.T4.5.1.8.7.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.8.7.3.1" class="ltx_text" style="background-color:#FFBFBF;">9.0</span></td>
+<td id="S4.T4.5.1.8.7.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.8.7.4.1" class="ltx_text" style="background-color:#FFE8E8;">7.8</span></td>
+</tr>
+<tr id="S4.T4.5.1.9.8" class="ltx_tr">
+<td id="S4.T4.5.1.9.8.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.9.8.1.1" class="ltx_text">gu</span></td>
+<td id="S4.T4.5.1.9.8.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.9.8.3" class="ltx_td ltx_align_center ltx_border_t">5.4</td>
+<td id="S4.T4.5.1.9.8.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.9.8.4.1" class="ltx_text" style="background-color:#E8FFE8;">5.5</span></td>
+<td id="S4.T4.5.1.9.8.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.9.8.5.1" class="ltx_text" style="background-color:#E8FFE8;">5.5</span></td>
+</tr>
+<tr id="S4.T4.5.1.10.9" class="ltx_tr">
+<td id="S4.T4.5.1.10.9.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.10.9.2" class="ltx_td ltx_align_center">8.8</td>
+<td id="S4.T4.5.1.10.9.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.10.9.3.1" class="ltx_text" style="background-color:#BFBFFF;">11.7</span></td>
+<td id="S4.T4.5.1.10.9.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.10.9.4.1" class="ltx_text" style="background-color:#E8E8FF;">8.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.11.10" class="ltx_tr">
+<td id="S4.T4.5.1.11.10.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.11.10.2" class="ltx_td ltx_align_center">23.7</td>
+<td id="S4.T4.5.1.11.10.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.11.10.3.1" class="ltx_text" style="background-color:#FFBFBF;">23.5</span></td>
+<td id="S4.T4.5.1.11.10.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.11.10.4.1" class="ltx_text" style="background-color:#FFE8E8;">23.0</span></td>
+</tr>
+<tr id="S4.T4.5.1.12.11" class="ltx_tr">
+<td id="S4.T4.5.1.12.11.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.12.11.1.1" class="ltx_text">hi</span></td>
+<td id="S4.T4.5.1.12.11.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.12.11.3" class="ltx_td ltx_align_center ltx_border_t">3.8</td>
+<td id="S4.T4.5.1.12.11.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.12.11.4.1" class="ltx_text" style="background-color:#BFFFBF;">3.5</span></td>
+<td id="S4.T4.5.1.12.11.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.12.11.5.1" class="ltx_text" style="background-color:#E8FFE8;">3.1</span></td>
+</tr>
+<tr id="S4.T4.5.1.13.12" class="ltx_tr">
+<td id="S4.T4.5.1.13.12.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.13.12.2" class="ltx_td ltx_align_center">2.2</td>
+<td id="S4.T4.5.1.13.12.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.13.12.3.1" class="ltx_text" style="background-color:#BFBFFF;">3.8</span></td>
+<td id="S4.T4.5.1.13.12.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.13.12.4.1" class="ltx_text" style="background-color:#E8E8FF;">2.1</span></td>
+</tr>
+<tr id="S4.T4.5.1.14.13" class="ltx_tr">
+<td id="S4.T4.5.1.14.13.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.14.13.2" class="ltx_td ltx_align_center">23.7</td>
+<td id="S4.T4.5.1.14.13.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.14.13.3.1" class="ltx_text" style="background-color:#FFBFBF;">11.0</span></td>
+<td id="S4.T4.5.1.14.13.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.14.13.4.1" class="ltx_text" style="background-color:#FFE8E8;">10.0</span></td>
+</tr>
+<tr id="S4.T4.5.1.15.14" class="ltx_tr">
+<td id="S4.T4.5.1.15.14.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.15.14.1.1" class="ltx_text">kn</span></td>
+<td id="S4.T4.5.1.15.14.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.15.14.3" class="ltx_td ltx_align_center ltx_border_t">5.8</td>
+<td id="S4.T4.5.1.15.14.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.15.14.4.1" class="ltx_text" style="background-color:#BFFFBF;">5.7</span></td>
+<td id="S4.T4.5.1.15.14.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.15.14.5.1" class="ltx_text" style="background-color:#E8FFE8;">5.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.16.15" class="ltx_tr">
+<td id="S4.T4.5.1.16.15.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.16.15.2" class="ltx_td ltx_align_center">4.1</td>
+<td id="S4.T4.5.1.16.15.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.16.15.3.1" class="ltx_text" style="background-color:#BFBFFF;">6.7</span></td>
+<td id="S4.T4.5.1.16.15.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.16.15.4.1" class="ltx_text" style="background-color:#E8E8FF;">4.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.17.16" class="ltx_tr">
+<td id="S4.T4.5.1.17.16.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.17.16.2" class="ltx_td ltx_align_center">27.8</td>
+<td id="S4.T4.5.1.17.16.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.17.16.3.1" class="ltx_text" style="background-color:#FFBFBF;">28.2</span></td>
+<td id="S4.T4.5.1.17.16.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.17.16.4.1" class="ltx_text" style="background-color:#FFE8E8;">27.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.18.17" class="ltx_tr">
+<td id="S4.T4.5.1.18.17.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.18.17.1.1" class="ltx_text">ml</span></td>
+<td id="S4.T4.5.1.18.17.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.18.17.3" class="ltx_td ltx_align_center ltx_border_t">5.3</td>
+<td id="S4.T4.5.1.18.17.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.18.17.4.1" class="ltx_text" style="background-color:#BFFFBF;">6.1</span></td>
+<td id="S4.T4.5.1.18.17.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.18.17.5.1" class="ltx_text" style="background-color:#E8FFE8;">5.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.19.18" class="ltx_tr">
+<td id="S4.T4.5.1.19.18.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.19.18.2" class="ltx_td ltx_align_center">7.4</td>
+<td id="S4.T4.5.1.19.18.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.19.18.3.1" class="ltx_text" style="background-color:#BFBFFF;">9.3</span></td>
+<td id="S4.T4.5.1.19.18.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.19.18.4.1" class="ltx_text" style="background-color:#E8E8FF;">7.2</span></td>
+</tr>
+<tr id="S4.T4.5.1.20.19" class="ltx_tr">
+<td id="S4.T4.5.1.20.19.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.20.19.2" class="ltx_td ltx_align_center">27.2</td>
+<td id="S4.T4.5.1.20.19.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.20.19.3.1" class="ltx_text" style="background-color:#FFBFBF;">27.5</span></td>
+<td id="S4.T4.5.1.20.19.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.20.19.4.1" class="ltx_text" style="background-color:#FFE8E8;">26.1</span></td>
+</tr>
+<tr id="S4.T4.5.1.21.20" class="ltx_tr">
+<td id="S4.T4.5.1.21.20.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.21.20.1.1" class="ltx_text">mr</span></td>
+<td id="S4.T4.5.1.21.20.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.21.20.3" class="ltx_td ltx_align_center ltx_border_t">5.4</td>
+<td id="S4.T4.5.1.21.20.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.21.20.4.1" class="ltx_text" style="background-color:#BFFFBF;">6.0</span></td>
+<td id="S4.T4.5.1.21.20.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.21.20.5.1" class="ltx_text" style="background-color:#E8FFE8;">6.5</span></td>
+</tr>
+<tr id="S4.T4.5.1.22.21" class="ltx_tr">
+<td id="S4.T4.5.1.22.21.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.22.21.2" class="ltx_td ltx_align_center">2.6</td>
+<td id="S4.T4.5.1.22.21.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.22.21.3.1" class="ltx_text" style="background-color:#BFBFFF;">5.5</span></td>
+<td id="S4.T4.5.1.22.21.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.22.21.4.1" class="ltx_text" style="background-color:#E8E8FF;">2.4</span></td>
+</tr>
+<tr id="S4.T4.5.1.23.22" class="ltx_tr">
+<td id="S4.T4.5.1.23.22.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.23.22.2" class="ltx_td ltx_align_center">18.7</td>
+<td id="S4.T4.5.1.23.22.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.23.22.3.1" class="ltx_text" style="background-color:#FFBFBF;">18.4</span></td>
+<td id="S4.T4.5.1.23.22.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.23.22.4.1" class="ltx_text" style="background-color:#FFE8E8;">17.6</span></td>
+</tr>
+<tr id="S4.T4.5.1.24.23" class="ltx_tr">
+<td id="S4.T4.5.1.24.23.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.24.23.1.1" class="ltx_text">ta</span></td>
+<td id="S4.T4.5.1.24.23.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.24.23.3" class="ltx_td ltx_align_center ltx_border_t">6.1</td>
+<td id="S4.T4.5.1.24.23.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.24.23.4.1" class="ltx_text" style="background-color:#E8FFE8;">5.4</span></td>
+<td id="S4.T4.5.1.24.23.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.24.23.5.1" class="ltx_text" style="background-color:#BFFFBF;">5.5</span></td>
+</tr>
+<tr id="S4.T4.5.1.25.24" class="ltx_tr">
+<td id="S4.T4.5.1.25.24.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.25.24.2" class="ltx_td ltx_align_center">5.5</td>
+<td id="S4.T4.5.1.25.24.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.25.24.3.1" class="ltx_text" style="background-color:#BFBFFF;">7.6</span></td>
+<td id="S4.T4.5.1.25.24.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.25.24.4.1" class="ltx_text" style="background-color:#E8E8FF;">5.7</span></td>
+</tr>
+<tr id="S4.T4.5.1.26.25" class="ltx_tr">
+<td id="S4.T4.5.1.26.25.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.26.25.2" class="ltx_td ltx_align_center">31.0</td>
+<td id="S4.T4.5.1.26.25.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.26.25.3.1" class="ltx_text" style="background-color:#FFBFBF;">31.1</span></td>
+<td id="S4.T4.5.1.26.25.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.26.25.4.1" class="ltx_text" style="background-color:#FFE8E8;">30.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.27.26" class="ltx_tr">
+<td id="S4.T4.5.1.27.26.1" class="ltx_td ltx_align_center ltx_border_t" rowspan="3"><span id="S4.T4.5.1.27.26.1.1" class="ltx_text">te</span></td>
+<td id="S4.T4.5.1.27.26.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.27.26.3" class="ltx_td ltx_align_center ltx_border_t">4.5</td>
+<td id="S4.T4.5.1.27.26.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.27.26.4.1" class="ltx_text" style="background-color:#E8FFE8;">4.4</span></td>
+<td id="S4.T4.5.1.27.26.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.27.26.5.1" class="ltx_text" style="background-color:#BFFFBF;">4.7</span></td>
+</tr>
+<tr id="S4.T4.5.1.28.27" class="ltx_tr">
+<td id="S4.T4.5.1.28.27.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.28.27.2" class="ltx_td ltx_align_center">5.4</td>
+<td id="S4.T4.5.1.28.27.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.28.27.3.1" class="ltx_text" style="background-color:#BFBFFF;">7.7</span></td>
+<td id="S4.T4.5.1.28.27.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.28.27.4.1" class="ltx_text" style="background-color:#E8E8FF;">5.4</span></td>
+</tr>
+<tr id="S4.T4.5.1.29.28" class="ltx_tr">
+<td id="S4.T4.5.1.29.28.1" class="ltx_td ltx_align_center">S</td>
+<td id="S4.T4.5.1.29.28.2" class="ltx_td ltx_align_center">23.0</td>
+<td id="S4.T4.5.1.29.28.3" class="ltx_td ltx_align_center" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.29.28.3.1" class="ltx_text" style="background-color:#FFBFBF;">23.5</span></td>
+<td id="S4.T4.5.1.29.28.4" class="ltx_td ltx_align_center" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.29.28.4.1" class="ltx_text" style="background-color:#FFE8E8;">22.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.30.29" class="ltx_tr">
+<td id="S4.T4.5.1.30.29.1" class="ltx_td ltx_align_center ltx_border_bb ltx_border_t" rowspan="3"><span id="S4.T4.5.1.30.29.1.1" class="ltx_text">ur</span></td>
+<td id="S4.T4.5.1.30.29.2" class="ltx_td ltx_align_center ltx_border_t">D</td>
+<td id="S4.T4.5.1.30.29.3" class="ltx_td ltx_align_center ltx_border_t">3.4</td>
+<td id="S4.T4.5.1.30.29.4" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#BFFFBF;"><span id="S4.T4.5.1.30.29.4.1" class="ltx_text" style="background-color:#BFFFBF;">4.0</span></td>
+<td id="S4.T4.5.1.30.29.5" class="ltx_td ltx_align_center ltx_border_t" style="background-color:#E8FFE8;"><span id="S4.T4.5.1.30.29.5.1" class="ltx_text" style="background-color:#E8FFE8;">3.1</span></td>
+</tr>
+<tr id="S4.T4.5.1.31.30" class="ltx_tr">
+<td id="S4.T4.5.1.31.30.1" class="ltx_td ltx_align_center">I</td>
+<td id="S4.T4.5.1.31.30.2" class="ltx_td ltx_align_center">6.2</td>
+<td id="S4.T4.5.1.31.30.3" class="ltx_td ltx_align_center" style="background-color:#BFBFFF;"><span id="S4.T4.5.1.31.30.3.1" class="ltx_text" style="background-color:#BFBFFF;">7.6</span></td>
+<td id="S4.T4.5.1.31.30.4" class="ltx_td ltx_align_center" style="background-color:#E8E8FF;"><span id="S4.T4.5.1.31.30.4.1" class="ltx_text" style="background-color:#E8E8FF;">6.3</span></td>
+</tr>
+<tr id="S4.T4.5.1.32.31" class="ltx_tr">
+<td id="S4.T4.5.1.32.31.1" class="ltx_td ltx_align_center ltx_border_bb">S</td>
+<td id="S4.T4.5.1.32.31.2" class="ltx_td ltx_align_center ltx_border_bb">19.4</td>
+<td id="S4.T4.5.1.32.31.3" class="ltx_td ltx_align_center ltx_border_bb" style="background-color:#FFBFBF;"><span id="S4.T4.5.1.32.31.3.1" class="ltx_text" style="background-color:#FFBFBF;">13.9</span></td>
+<td id="S4.T4.5.1.32.31.4" class="ltx_td ltx_align_center ltx_border_bb" style="background-color:#FFE8E8;"><span id="S4.T4.5.1.32.31.4.1" class="ltx_text" style="background-color:#FFE8E8;">11.7</span></td>
+</tr>
+</tbody>
+</table>
+</span></div>
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 4: </span><span id="S4.T4.11.1" class="ltx_text ltx_font_bold" style="background-color:#BFFFBF;">D<span id="S4.T4.11.1.1" class="ltx_text ltx_font_medium">eletion</span></span>/ <span id="S4.T4.12.2" class="ltx_text ltx_font_bold" style="background-color:#BFBFFF;">I<span id="S4.T4.12.2.1" class="ltx_text ltx_font_medium">nsertion</span></span>/ <span id="S4.T4.13.3" class="ltx_text ltx_font_bold" style="background-color:#FFBFBF;">S<span id="S4.T4.13.3.1" class="ltx_text ltx_font_medium" style="background-color:#FFBFBF;">ubstitution</span></span> rate across PrefixLM and RNNT for Indian languages. The errors are color coded as <span id="S4.T4.14.4" class="ltx_text" style="background-color:#FFBFBF;">higher errors</span> and <span id="S4.T4.15.5" class="ltx_text" style="background-color:#FFE8E8;">lower errors</span> between the finetuned prefixlm <math id="S4.T4.3.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{LM}}" display="inline"><semantics id="S4.T4.3.m1.1b"><msub id="S4.T4.3.m1.1.1" xref="S4.T4.3.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T4.3.m1.1.1.2" xref="S4.T4.3.m1.1.1.2.cmml">ℒ</mi><mi id="S4.T4.3.m1.1.1.3" xref="S4.T4.3.m1.1.1.3.cmml">LM</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T4.3.m1.1c"><apply id="S4.T4.3.m1.1.1.cmml" xref="S4.T4.3.m1.1.1"><csymbol cd="ambiguous" id="S4.T4.3.m1.1.1.1.cmml" xref="S4.T4.3.m1.1.1">subscript</csymbol><ci id="S4.T4.3.m1.1.1.2.cmml" xref="S4.T4.3.m1.1.1.2">ℒ</ci><ci id="S4.T4.3.m1.1.1.3.cmml" xref="S4.T4.3.m1.1.1.3">LM</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.3.m1.1d">\mathcal{L}_{\mathrm{LM}}</annotation></semantics></math> as in (<a href="#S2.E1" title="In 2.1 PrefixLM ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">1</span></a>) and PrefixLM with speech prefix-tuning (<math id="S4.T4.4.m2.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{joint}}" display="inline"><semantics id="S4.T4.4.m2.1b"><msub id="S4.T4.4.m2.1.1" xref="S4.T4.4.m2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T4.4.m2.1.1.2" xref="S4.T4.4.m2.1.1.2.cmml">ℒ</mi><mi id="S4.T4.4.m2.1.1.3" xref="S4.T4.4.m2.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T4.4.m2.1c"><apply id="S4.T4.4.m2.1.1.cmml" xref="S4.T4.4.m2.1.1"><csymbol cd="ambiguous" id="S4.T4.4.m2.1.1.1.cmml" xref="S4.T4.4.m2.1.1">subscript</csymbol><ci id="S4.T4.4.m2.1.1.2.cmml" xref="S4.T4.4.m2.1.1.2">ℒ</ci><ci id="S4.T4.4.m2.1.1.3.cmml" xref="S4.T4.4.m2.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T4.4.m2.1d">\mathcal{L}_{\mathrm{joint}}</annotation></semantics></math>) in (<a href="#S2.E3" title="In 2.4 Speech prefix-tuning with RNNT loss ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">3</span></a>).</figcaption>
+</figure>
+<div id="S4.SS3.p1" class="ltx_para">
+<p id="S4.SS3.p1.1" class="ltx_p">Table <a href="#S4.T4" title="Table 4 ‣ 4.3 Error analysis of speech prefix-tuning ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">4</span></a> shows that the PrefixLM (finetuned) model demonstrates a substantially higher rate of insertions.This is due to the effect of hallucinations during decoding. Our proposed approach speech prefix-tuning with RNNT using <math id="S4.SS3.p1.1.m1.1" class="ltx_Math" alttext="\mathbf{L}_{\mathrm{joint}}" display="inline"><semantics id="S4.SS3.p1.1.m1.1a"><msub id="S4.SS3.p1.1.m1.1.1" xref="S4.SS3.p1.1.m1.1.1.cmml"><mi id="S4.SS3.p1.1.m1.1.1.2" xref="S4.SS3.p1.1.m1.1.1.2.cmml">𝐋</mi><mi id="S4.SS3.p1.1.m1.1.1.3" xref="S4.SS3.p1.1.m1.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS3.p1.1.m1.1b"><apply id="S4.SS3.p1.1.m1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS3.p1.1.m1.1.1.1.cmml" xref="S4.SS3.p1.1.m1.1.1">subscript</csymbol><ci id="S4.SS3.p1.1.m1.1.1.2.cmml" xref="S4.SS3.p1.1.m1.1.1.2">𝐋</ci><ci id="S4.SS3.p1.1.m1.1.1.3.cmml" xref="S4.SS3.p1.1.m1.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS3.p1.1.m1.1c">\mathbf{L}_{\mathrm{joint}}</annotation></semantics></math> loss reduces this insertion rate while maintaining the overall quality. The average performance gains in table <a href="#S4.T2" title="Table 2 ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2</span></a> are attributed primarily to improvement in insertions and substitutions without hurting the deletion rate. We observe this behavior for all 10 Indic languages.</p>
+</div>
+</section>
+<section id="S4.SS4" class="ltx_subsection">
+<h3 class="ltx_title ltx_title_subsection">
+<span class="ltx_tag ltx_tag_subsection">4.4 </span>Code-switching analysis</h3>
+
+<div id="S4.SS4.p1" class="ltx_para">
+<p id="S4.SS4.p1.1" class="ltx_p">Without language ID information, multilingual ASR models have a tendency to produce hypotheses in multiple languages, sometimes multiple scripts. Some of this is by design, as speech in Indian languages is frequently code mixed. However, this is also a source of error where a hypothesis may be acoustically ``correct'' but produced in an unexpected script. Here we measure the code-mixing behavior of the different approaches using the Code Mixing Index (CMI) measure denoted in <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib23" title="" class="ltx_ref">23</a>]</cite>:</p>
+</div>
+<div id="S4.SS4.p2" class="ltx_para">
+<table id="S4.E4" class="ltx_equation ltx_eqn_table">
+
+<tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+<td class="ltx_eqn_cell ltx_align_center"><math id="S4.E4.m1.4" class="ltx_Math" alttext="\mathrm{CMI}=\begin{cases}100*[\frac{1-\mathrm{max}(w_{i})}{n-u}];&amp;n&gt;u\\
+0\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,;&amp;n=u\end{cases}" display="block"><semantics id="S4.E4.m1.4a"><mrow id="S4.E4.m1.4.5" xref="S4.E4.m1.4.5.cmml"><mi id="S4.E4.m1.4.5.2" xref="S4.E4.m1.4.5.2.cmml">CMI</mi><mo id="S4.E4.m1.4.5.1" xref="S4.E4.m1.4.5.1.cmml">=</mo><mrow id="S4.E4.m1.4.4" xref="S4.E4.m1.4.5.3.1.cmml"><mo id="S4.E4.m1.4.4.5" xref="S4.E4.m1.4.5.3.1.1.cmml">{</mo><mtable columnspacing="5pt" displaystyle="true" rowspacing="0pt" id="S4.E4.m1.4.4.4" xref="S4.E4.m1.4.5.3.1.cmml"><mtr id="S4.E4.m1.4.4.4a" xref="S4.E4.m1.4.5.3.1.cmml"><mtd class="ltx_align_left" columnalign="left" id="S4.E4.m1.4.4.4b" xref="S4.E4.m1.4.5.3.1.cmml"><mrow id="S4.E4.m1.1.1.1.1.1.1.2" xref="S4.E4.m1.1.1.1.1.1.1.2.1.cmml"><mrow id="S4.E4.m1.1.1.1.1.1.1.2.1" xref="S4.E4.m1.1.1.1.1.1.1.2.1.cmml"><mn id="S4.E4.m1.1.1.1.1.1.1.2.1.2" xref="S4.E4.m1.1.1.1.1.1.1.2.1.2.cmml">100</mn><mo lspace="0.222em" rspace="0.222em" id="S4.E4.m1.1.1.1.1.1.1.2.1.1" xref="S4.E4.m1.1.1.1.1.1.1.2.1.1.cmml">∗</mo><mrow id="S4.E4.m1.1.1.1.1.1.1.2.1.3.2" xref="S4.E4.m1.1.1.1.1.1.1.2.1.3.1.cmml"><mo stretchy="false" id="S4.E4.m1.1.1.1.1.1.1.2.1.3.2.1" xref="S4.E4.m1.1.1.1.1.1.1.2.1.3.1.1.cmml">[</mo><mstyle displaystyle="false" id="S4.E4.m1.1.1.1.1.1.1.1" xref="S4.E4.m1.1.1.1.1.1.1.1.cmml"><mfrac id="S4.E4.m1.1.1.1.1.1.1.1a" xref="S4.E4.m1.1.1.1.1.1.1.1.cmml"><mrow id="S4.E4.m1.1.1.1.1.1.1.1.1" xref="S4.E4.m1.1.1.1.1.1.1.1.1.cmml"><mn id="S4.E4.m1.1.1.1.1.1.1.1.1.3" xref="S4.E4.m1.1.1.1.1.1.1.1.1.3.cmml">1</mn><mo id="S4.E4.m1.1.1.1.1.1.1.1.1.2" xref="S4.E4.m1.1.1.1.1.1.1.1.1.2.cmml">−</mo><mrow id="S4.E4.m1.1.1.1.1.1.1.1.1.1" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S4.E4.m1.1.1.1.1.1.1.1.1.1.3" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.3.cmml">max</mi><mo lspace="0em" rspace="0em" id="S4.E4.m1.1.1.1.1.1.1.1.1.1.2" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.2.cmml">​</mo><mrow id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">(</mo><msub id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.cmml"><mi id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.2" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml">w</mi><mi id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml">i</mi></msub><mo stretchy="false" id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.3" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.cmml">)</mo></mrow></mrow></mrow><mrow id="S4.E4.m1.1.1.1.1.1.1.1.3" xref="S4.E4.m1.1.1.1.1.1.1.1.3.cmml"><mi id="S4.E4.m1.1.1.1.1.1.1.1.3.2" xref="S4.E4.m1.1.1.1.1.1.1.1.3.2.cmml">n</mi><mo id="S4.E4.m1.1.1.1.1.1.1.1.3.1" xref="S4.E4.m1.1.1.1.1.1.1.1.3.1.cmml">−</mo><mi id="S4.E4.m1.1.1.1.1.1.1.1.3.3" xref="S4.E4.m1.1.1.1.1.1.1.1.3.3.cmml">u</mi></mrow></mfrac></mstyle><mo stretchy="false" id="S4.E4.m1.1.1.1.1.1.1.2.1.3.2.2" xref="S4.E4.m1.1.1.1.1.1.1.2.1.3.1.1.cmml">]</mo></mrow></mrow><mo id="S4.E4.m1.1.1.1.1.1.1.2.2" xref="S4.E4.m1.1.1.1.1.1.1.2.1.cmml">;</mo></mrow></mtd><mtd class="ltx_align_left" columnalign="left" id="S4.E4.m1.4.4.4c" xref="S4.E4.m1.4.5.3.1.cmml"><mrow id="S4.E4.m1.2.2.2.2.2.1" xref="S4.E4.m1.2.2.2.2.2.1.cmml"><mi id="S4.E4.m1.2.2.2.2.2.1.2" xref="S4.E4.m1.2.2.2.2.2.1.2.cmml">n</mi><mo id="S4.E4.m1.2.2.2.2.2.1.1" xref="S4.E4.m1.2.2.2.2.2.1.1.cmml">&gt;</mo><mi id="S4.E4.m1.2.2.2.2.2.1.3" xref="S4.E4.m1.2.2.2.2.2.1.3.cmml">u</mi></mrow></mtd></mtr><mtr id="S4.E4.m1.4.4.4d" xref="S4.E4.m1.4.5.3.1.cmml"><mtd class="ltx_align_left" columnalign="left" id="S4.E4.m1.4.4.4e" xref="S4.E4.m1.4.5.3.1.cmml"><mrow id="S4.E4.m1.3.3.3.3.1.1.3" xref="S4.E4.m1.4.5.3.1.cmml"><mn id="S4.E4.m1.3.3.3.3.1.1.1" xref="S4.E4.m1.3.3.3.3.1.1.1.cmml">0</mn><mspace width="6.66666666666678em" id="S4.E4.m1.3.3.3.3.1.1.3.1" xref="S4.E4.m1.4.5.3.1.cmml"></mspace><mo id="S4.E4.m1.3.3.3.3.1.1.3.2" xref="S4.E4.m1.4.5.3.1.cmml">;</mo></mrow></mtd><mtd class="ltx_align_left" columnalign="left" id="S4.E4.m1.4.4.4f" xref="S4.E4.m1.4.5.3.1.cmml"><mrow id="S4.E4.m1.4.4.4.4.2.1" xref="S4.E4.m1.4.4.4.4.2.1.cmml"><mi id="S4.E4.m1.4.4.4.4.2.1.2" xref="S4.E4.m1.4.4.4.4.2.1.2.cmml">n</mi><mo id="S4.E4.m1.4.4.4.4.2.1.1" xref="S4.E4.m1.4.4.4.4.2.1.1.cmml">=</mo><mi id="S4.E4.m1.4.4.4.4.2.1.3" xref="S4.E4.m1.4.4.4.4.2.1.3.cmml">u</mi></mrow></mtd></mtr></mtable></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.E4.m1.4b"><apply id="S4.E4.m1.4.5.cmml" xref="S4.E4.m1.4.5"><eq id="S4.E4.m1.4.5.1.cmml" xref="S4.E4.m1.4.5.1"></eq><ci id="S4.E4.m1.4.5.2.cmml" xref="S4.E4.m1.4.5.2">CMI</ci><apply id="S4.E4.m1.4.5.3.1.cmml" xref="S4.E4.m1.4.4"><csymbol cd="latexml" id="S4.E4.m1.4.5.3.1.1.cmml" xref="S4.E4.m1.4.4.5">cases</csymbol><apply id="S4.E4.m1.1.1.1.1.1.1.2.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.2"><times id="S4.E4.m1.1.1.1.1.1.1.2.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.2.1.1"></times><cn type="integer" id="S4.E4.m1.1.1.1.1.1.1.2.1.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.2.1.2">100</cn><apply id="S4.E4.m1.1.1.1.1.1.1.2.1.3.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.2.1.3.2"><csymbol cd="latexml" id="S4.E4.m1.1.1.1.1.1.1.2.1.3.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.2.1.3.2.1">delimited-[]</csymbol><apply id="S4.E4.m1.1.1.1.1.1.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1"><divide id="S4.E4.m1.1.1.1.1.1.1.1.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1"></divide><apply id="S4.E4.m1.1.1.1.1.1.1.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1"><minus id="S4.E4.m1.1.1.1.1.1.1.1.1.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.2"></minus><cn type="integer" id="S4.E4.m1.1.1.1.1.1.1.1.1.3.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.3">1</cn><apply id="S4.E4.m1.1.1.1.1.1.1.1.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1"><times id="S4.E4.m1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.2"></times><ci id="S4.E4.m1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.3">max</ci><apply id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1"><csymbol cd="ambiguous" id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1">subscript</csymbol><ci id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.2">𝑤</ci><ci id="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.3.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.1.1.1.1.1.3">𝑖</ci></apply></apply></apply><apply id="S4.E4.m1.1.1.1.1.1.1.1.3.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.3"><minus id="S4.E4.m1.1.1.1.1.1.1.1.3.1.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.3.1"></minus><ci id="S4.E4.m1.1.1.1.1.1.1.1.3.2.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.3.2">𝑛</ci><ci id="S4.E4.m1.1.1.1.1.1.1.1.3.3.cmml" xref="S4.E4.m1.1.1.1.1.1.1.1.3.3">𝑢</ci></apply></apply></apply></apply><apply id="S4.E4.m1.2.2.2.2.2.1.cmml" xref="S4.E4.m1.2.2.2.2.2.1"><gt id="S4.E4.m1.2.2.2.2.2.1.1.cmml" xref="S4.E4.m1.2.2.2.2.2.1.1"></gt><ci id="S4.E4.m1.2.2.2.2.2.1.2.cmml" xref="S4.E4.m1.2.2.2.2.2.1.2">𝑛</ci><ci id="S4.E4.m1.2.2.2.2.2.1.3.cmml" xref="S4.E4.m1.2.2.2.2.2.1.3">𝑢</ci></apply><cn type="integer" id="S4.E4.m1.3.3.3.3.1.1.1.cmml" xref="S4.E4.m1.3.3.3.3.1.1.1">0</cn><apply id="S4.E4.m1.4.4.4.4.2.1.cmml" xref="S4.E4.m1.4.4.4.4.2.1"><eq id="S4.E4.m1.4.4.4.4.2.1.1.cmml" xref="S4.E4.m1.4.4.4.4.2.1.1"></eq><ci id="S4.E4.m1.4.4.4.4.2.1.2.cmml" xref="S4.E4.m1.4.4.4.4.2.1.2">𝑛</ci><ci id="S4.E4.m1.4.4.4.4.2.1.3.cmml" xref="S4.E4.m1.4.4.4.4.2.1.3">𝑢</ci></apply></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.E4.m1.4c">\mathrm{CMI}=\begin{cases}100*[\frac{1-\mathrm{max}(w_{i})}{n-u}];&amp;n&gt;u\\
+0\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,\,;&amp;n=u\end{cases}</annotation></semantics></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+<td rowspan="1" class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right"><span class="ltx_tag ltx_tag_equation ltx_align_right">(4)</span></td>
+</tr></tbody>
+</table>
+<p id="S4.SS4.p2.4" class="ltx_p">Here,
+<math id="S4.SS4.p2.1.m1.1" class="ltx_Math" alttext="\mathrm{max}(w_{i})" display="inline"><semantics id="S4.SS4.p2.1.m1.1a"><mrow id="S4.SS4.p2.1.m1.1.1" xref="S4.SS4.p2.1.m1.1.1.cmml"><mi id="S4.SS4.p2.1.m1.1.1.3" xref="S4.SS4.p2.1.m1.1.1.3.cmml">max</mi><mo lspace="0em" rspace="0em" id="S4.SS4.p2.1.m1.1.1.2" xref="S4.SS4.p2.1.m1.1.1.2.cmml">​</mo><mrow id="S4.SS4.p2.1.m1.1.1.1.1" xref="S4.SS4.p2.1.m1.1.1.1.1.1.cmml"><mo stretchy="false" id="S4.SS4.p2.1.m1.1.1.1.1.2" xref="S4.SS4.p2.1.m1.1.1.1.1.1.cmml">(</mo><msub id="S4.SS4.p2.1.m1.1.1.1.1.1" xref="S4.SS4.p2.1.m1.1.1.1.1.1.cmml"><mi id="S4.SS4.p2.1.m1.1.1.1.1.1.2" xref="S4.SS4.p2.1.m1.1.1.1.1.1.2.cmml">w</mi><mi id="S4.SS4.p2.1.m1.1.1.1.1.1.3" xref="S4.SS4.p2.1.m1.1.1.1.1.1.3.cmml">i</mi></msub><mo stretchy="false" id="S4.SS4.p2.1.m1.1.1.1.1.3" xref="S4.SS4.p2.1.m1.1.1.1.1.1.cmml">)</mo></mrow></mrow><annotation-xml encoding="MathML-Content" id="S4.SS4.p2.1.m1.1b"><apply id="S4.SS4.p2.1.m1.1.1.cmml" xref="S4.SS4.p2.1.m1.1.1"><times id="S4.SS4.p2.1.m1.1.1.2.cmml" xref="S4.SS4.p2.1.m1.1.1.2"></times><ci id="S4.SS4.p2.1.m1.1.1.3.cmml" xref="S4.SS4.p2.1.m1.1.1.3">max</ci><apply id="S4.SS4.p2.1.m1.1.1.1.1.1.cmml" xref="S4.SS4.p2.1.m1.1.1.1.1"><csymbol cd="ambiguous" id="S4.SS4.p2.1.m1.1.1.1.1.1.1.cmml" xref="S4.SS4.p2.1.m1.1.1.1.1">subscript</csymbol><ci id="S4.SS4.p2.1.m1.1.1.1.1.1.2.cmml" xref="S4.SS4.p2.1.m1.1.1.1.1.1.2">𝑤</ci><ci id="S4.SS4.p2.1.m1.1.1.1.1.1.3.cmml" xref="S4.SS4.p2.1.m1.1.1.1.1.1.3">𝑖</ci></apply></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS4.p2.1.m1.1c">\mathrm{max}(w_{i})</annotation></semantics></math> = highest number of words present from any language (more than 1 language can have the same highest word count), <math id="S4.SS4.p2.2.m2.1" class="ltx_Math" alttext="n" display="inline"><semantics id="S4.SS4.p2.2.m2.1a"><mi id="S4.SS4.p2.2.m2.1.1" xref="S4.SS4.p2.2.m2.1.1.cmml">n</mi><annotation-xml encoding="MathML-Content" id="S4.SS4.p2.2.m2.1b"><ci id="S4.SS4.p2.2.m2.1.1.cmml" xref="S4.SS4.p2.2.m2.1.1">𝑛</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS4.p2.2.m2.1c">n</annotation></semantics></math> = no of tokens in utterance <math id="S4.SS4.p2.3.m3.1" class="ltx_Math" alttext="x" display="inline"><semantics id="S4.SS4.p2.3.m3.1a"><mi id="S4.SS4.p2.3.m3.1.1" xref="S4.SS4.p2.3.m3.1.1.cmml">x</mi><annotation-xml encoding="MathML-Content" id="S4.SS4.p2.3.m3.1b"><ci id="S4.SS4.p2.3.m3.1.1.cmml" xref="S4.SS4.p2.3.m3.1.1">𝑥</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS4.p2.3.m3.1c">x</annotation></semantics></math>, <math id="S4.SS4.p2.4.m4.1" class="ltx_Math" alttext="u" display="inline"><semantics id="S4.SS4.p2.4.m4.1a"><mi id="S4.SS4.p2.4.m4.1.1" xref="S4.SS4.p2.4.m4.1.1.cmml">u</mi><annotation-xml encoding="MathML-Content" id="S4.SS4.p2.4.m4.1b"><ci id="S4.SS4.p2.4.m4.1.1.cmml" xref="S4.SS4.p2.4.m4.1.1">𝑢</ci></annotation-xml><annotation encoding="application/x-tex" id="S4.SS4.p2.4.m4.1c">u</annotation></semantics></math> = number of tokens given other language tags.</p>
+</div>
+<figure id="S4.T5" class="ltx_table">
+<figcaption class="ltx_caption ltx_centering"><span class="ltx_tag ltx_tag_table">Table 5: </span>Code Mixing percentage on Tamil (ta) for finetuned prefixlm <math id="S4.T5.3.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{LM}}" display="inline"><semantics id="S4.T5.3.m1.1b"><msub id="S4.T5.3.m1.1.1" xref="S4.T5.3.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T5.3.m1.1.1.2" xref="S4.T5.3.m1.1.1.2.cmml">ℒ</mi><mi id="S4.T5.3.m1.1.1.3" xref="S4.T5.3.m1.1.1.3.cmml">LM</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T5.3.m1.1c"><apply id="S4.T5.3.m1.1.1.cmml" xref="S4.T5.3.m1.1.1"><csymbol cd="ambiguous" id="S4.T5.3.m1.1.1.1.cmml" xref="S4.T5.3.m1.1.1">subscript</csymbol><ci id="S4.T5.3.m1.1.1.2.cmml" xref="S4.T5.3.m1.1.1.2">ℒ</ci><ci id="S4.T5.3.m1.1.1.3.cmml" xref="S4.T5.3.m1.1.1.3">LM</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.3.m1.1d">\mathcal{L}_{\mathrm{LM}}</annotation></semantics></math> and PrefixLM with speech prefix-tuning (<math id="S4.T5.4.m2.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{joint}}" display="inline"><semantics id="S4.T5.4.m2.1b"><msub id="S4.T5.4.m2.1.1" xref="S4.T5.4.m2.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.T5.4.m2.1.1.2" xref="S4.T5.4.m2.1.1.2.cmml">ℒ</mi><mi id="S4.T5.4.m2.1.1.3" xref="S4.T5.4.m2.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S4.T5.4.m2.1c"><apply id="S4.T5.4.m2.1.1.cmml" xref="S4.T5.4.m2.1.1"><csymbol cd="ambiguous" id="S4.T5.4.m2.1.1.1.cmml" xref="S4.T5.4.m2.1.1">subscript</csymbol><ci id="S4.T5.4.m2.1.1.2.cmml" xref="S4.T5.4.m2.1.1.2">ℒ</ci><ci id="S4.T5.4.m2.1.1.3.cmml" xref="S4.T5.4.m2.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.T5.4.m2.1d">\mathcal{L}_{\mathrm{joint}}</annotation></semantics></math>) models</figcaption>
+<div id="S4.T5.5" class="ltx_inline-block ltx_align_center ltx_transformed_outer" style="width:390.3pt;height:96.6pt;vertical-align:-0.0pt;"><span class="ltx_transformed_inner" style="transform:translate(49.6pt,-12.3pt) scale(1.34120931938951,1.34120931938951) ;">
+<table id="S4.T5.5.1" class="ltx_tabular ltx_guessed_headers ltx_align_middle">
+<thead class="ltx_thead">
+<tr id="S4.T5.5.1.1.1" class="ltx_tr">
+<th id="S4.T5.5.1.1.1.1" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">Model</th>
+<th id="S4.T5.5.1.1.1.2" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"># words</th>
+<th id="S4.T5.5.1.1.1.3" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt"># maxwords in ta</th>
+<th id="S4.T5.5.1.1.1.4" class="ltx_td ltx_align_center ltx_th ltx_th_column ltx_border_tt">CMI</th>
+</tr>
+</thead>
+<tbody class="ltx_tbody">
+<tr id="S4.T5.5.1.2.1" class="ltx_tr">
+<td id="S4.T5.5.1.2.1.1" class="ltx_td ltx_align_center ltx_border_t">RNNT</td>
+<td id="S4.T5.5.1.2.1.2" class="ltx_td ltx_align_center ltx_border_t">137257</td>
+<td id="S4.T5.5.1.2.1.3" class="ltx_td ltx_align_center ltx_border_t">136788</td>
+<td id="S4.T5.5.1.2.1.4" class="ltx_td ltx_align_center ltx_border_t">34.2%</td>
+</tr>
+<tr id="S4.T5.5.1.3.2" class="ltx_tr">
+<td id="S4.T5.5.1.3.2.1" class="ltx_td ltx_align_center">PrefixLM (finetuned)</td>
+<td id="S4.T5.5.1.3.2.2" class="ltx_td ltx_align_center">137394</td>
+<td id="S4.T5.5.1.3.2.3" class="ltx_td ltx_align_center">136888</td>
+<td id="S4.T5.5.1.3.2.4" class="ltx_td ltx_align_center">36.8%</td>
+</tr>
+<tr id="S4.T5.5.1.4.3" class="ltx_tr">
+<td id="S4.T5.5.1.4.3.1" class="ltx_td ltx_align_center ltx_border_bb">Proposed</td>
+<td id="S4.T5.5.1.4.3.2" class="ltx_td ltx_align_center ltx_border_bb">137299</td>
+<td id="S4.T5.5.1.4.3.3" class="ltx_td ltx_align_center ltx_border_bb">136849</td>
+<td id="S4.T5.5.1.4.3.4" class="ltx_td ltx_align_center ltx_border_bb">32.8%</td>
+</tr>
+</tbody>
+</table>
+</span></div>
+</figure>
+<div id="S4.SS4.p3" class="ltx_para">
+<p id="S4.SS4.p3.1" class="ltx_p">In Table <a href="#S4.T5" title="Table 5 ‣ 4.4 Code-switching analysis ‣ 4 Results and Discussion ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">5</span></a> we see that, for Tamil (ta), the PrefixLM generates more code-mixed hypotheses than the proposed speech prefix-tuning <math id="S4.SS4.p3.1.m1.1" class="ltx_Math" alttext="\mathcal{L}_{\mathrm{joint}}" display="inline"><semantics id="S4.SS4.p3.1.m1.1a"><msub id="S4.SS4.p3.1.m1.1.1" xref="S4.SS4.p3.1.m1.1.1.cmml"><mi class="ltx_font_mathcaligraphic" id="S4.SS4.p3.1.m1.1.1.2" xref="S4.SS4.p3.1.m1.1.1.2.cmml">ℒ</mi><mi id="S4.SS4.p3.1.m1.1.1.3" xref="S4.SS4.p3.1.m1.1.1.3.cmml">joint</mi></msub><annotation-xml encoding="MathML-Content" id="S4.SS4.p3.1.m1.1b"><apply id="S4.SS4.p3.1.m1.1.1.cmml" xref="S4.SS4.p3.1.m1.1.1"><csymbol cd="ambiguous" id="S4.SS4.p3.1.m1.1.1.1.cmml" xref="S4.SS4.p3.1.m1.1.1">subscript</csymbol><ci id="S4.SS4.p3.1.m1.1.1.2.cmml" xref="S4.SS4.p3.1.m1.1.1.2">ℒ</ci><ci id="S4.SS4.p3.1.m1.1.1.3.cmml" xref="S4.SS4.p3.1.m1.1.1.3">joint</ci></apply></annotation-xml><annotation encoding="application/x-tex" id="S4.SS4.p3.1.m1.1c">\mathcal{L}_{\mathrm{joint}}</annotation></semantics></math> model. The %CMI improves from 36.8 to 32.8 which shows that the number of non Tamil words are predicted less compared to the baseline. This behavior was observed across other Indic languages as well.</p>
+</div>
+</section>
+</section>
+<section id="S5" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">5 </span>Related works</h2>
+
+<div id="S5.p1" class="ltx_para">
+<p id="S5.p1.1" class="ltx_p">In just the last few years there has been a lot of work on using LLMs within ASR. These include Flamingo <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib24" title="" class="ltx_ref">24</a>]</cite>, PrefixLM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="" class="ltx_ref">1</a>]</cite>, and SLM <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib9" title="" class="ltx_ref">9</a>]</cite>. Some other notable works <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib25" title="" class="ltx_ref">25</a>, <a href="#bib.bib26" title="" class="ltx_ref">26</a>, <a href="#bib.bib27" title="" class="ltx_ref">27</a>]</cite>, merge pretrained speech encoder with pretrained text based LLM to perform ASR and other speech related tasks. Given the rate of progress this is a necessarily incomplete list. Most of these works rely on a well pretrained speech encoder <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib18" title="" class="ltx_ref">18</a>]</cite> with matching domain to achieve better recognition performance. On the other hand, the LLMs are adapted to the target domain by performing either complete finetuning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib28" title="" class="ltx_ref">28</a>, <a href="#bib.bib29" title="" class="ltx_ref">29</a>]</cite> or other lightweight approaches such as prompt-tuning <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib30" title="" class="ltx_ref">30</a>, <a href="#bib.bib6" title="" class="ltx_ref">6</a>, <a href="#bib.bib31" title="" class="ltx_ref">31</a>]</cite> .</p>
+</div>
+<div id="S5.p2" class="ltx_para">
+<p id="S5.p2.1" class="ltx_p">In this work, we show that these two techniques can be unified by performing speech prefix-tuning using a joint RNNT and LM loss provides both better prefix embeddings and also performs lightweight finetuning. To further reduce the tunable parameters, we present the langID based soft prompting in Section <a href="#S2.SS5" title="2.5 Language ID based soft prompting ‣ 2 Methodology ‣ Speech Prefix-Tuning with RNNT Loss for Improving LLM Predictions" class="ltx_ref"><span class="ltx_text ltx_ref_tag">2.5</span></a> by using conditioning information to learn a soft-prompt, rather than hand crafting a hard-prompt for this conditioning.</p>
+</div>
+</section>
+<section id="S6" class="ltx_section">
+<h2 class="ltx_title ltx_title_section">
+<span class="ltx_tag ltx_tag_section">6 </span>Conclusions</h2>
+
+<div id="S6.p1" class="ltx_para">
+<p id="S6.p1.1" class="ltx_p">The inclusion of traditional RNNT loss successfully complements the success of PrefixLM-based ASR. The overall quality remains high, while balancing the insertion rate. Moreover the rate of code-mixed output is reduced. We have also demonstrated the value of learned soft-prompts conditioned on language ID as a route to eliminate the need for a fine-tuned LM, substantially reducing the training required for this technique to obtain high quality results.</p>
+</div>
+</section>
+<section id="bib" class="ltx_bibliography">
+<h2 class="ltx_title ltx_title_bibliography">References</h2>
+
+<ul class="ltx_biblist">
+<li id="bib.bib1" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[1]</span>
+<span class="ltx_bibblock">
+C. Raffel, N. Shazeer, A. Roberts, K. Lee, S. Narang, M. Matena, Y. Zhou, W. Li, and P. J. Liu, ``Exploring the limits of transfer learning with a unified text-to-text transformer,'' <em id="bib.bib1.1.1" class="ltx_emph ltx_font_italic">The Journal of Machine Learning Research</em>, vol. 21, no. 1, pp. 5485–5551, 2020.
+
+</span>
+</li>
+<li id="bib.bib2" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[2]</span>
+<span class="ltx_bibblock">
+Y. Fathullah, C. Wu, E. Lakomkin, J. Jia, Y. Shangguan, K. Li, J. Guo, W. Xiong, J. Mahadeokar, O. Kalinli <em id="bib.bib2.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Prompting large language models with speech recognition abilities,'' <em id="bib.bib2.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2307.11795</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib3" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[3]</span>
+<span class="ltx_bibblock">
+R. Mokady, A. Hertz, and A. H. Bermano, ``Clipcap: Clip prefix for image captioning,'' <em id="bib.bib3.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2111.09734</em>, 2021.
+
+</span>
+</li>
+<li id="bib.bib4" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[4]</span>
+<span class="ltx_bibblock">
+J. Cho, M. K. Baskar, R. Li, M. Wiesner, S. H. Mallidi, N. Yalta, M. Karafiát, S. Watanabe, and T. Hori, ``Multilingual sequence-to-sequence speech recognition: Architecture, transfer learning, and language modeling,'' in <em id="bib.bib4.1.1" class="ltx_emph ltx_font_italic">2018 IEEE Spoken Language Technology Workshop (SLT)</em>, 2018, pp. 521–527.
+
+</span>
+</li>
+<li id="bib.bib5" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[5]</span>
+<span class="ltx_bibblock">
+M. Kim, K. Sung-Bin, and T.-H. Oh, ``Prefix tuning for automated audio captioning,'' in <em id="bib.bib5.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib6" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[6]</span>
+<span class="ltx_bibblock">
+Z. Ma, G. Yang, Y. Yang, Z. Gao, J. Wang, Z. Du, F. Yu, Q. Chen, S. Zheng, S. Zhang, and X. Chen, ``An Embarrassingly Simple Approach for LLM with Strong ASR Capacity,'' <em id="bib.bib6.1.1" class="ltx_emph ltx_font_italic">arXiv e-prints</em>, p. arXiv:2402.08846, Feb. 2024.
+
+</span>
+</li>
+<li id="bib.bib7" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[7]</span>
+<span class="ltx_bibblock">
+E. Lakomkin, C. Wu, Y. Fathullah, O. Kalinli, M. L. Seltzer, and C. Fuegen, ``End-to-end speech recognition contextualization with large language models,'' <em id="bib.bib7.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2309.10917</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib8" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[8]</span>
+<span class="ltx_bibblock">
+H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar <em id="bib.bib8.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Llama: Open and efficient foundation language models,'' <em id="bib.bib8.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2302.13971</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib9" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[9]</span>
+<span class="ltx_bibblock">
+M. Wang, W. Han, I. Shafran, Z. Wu, C.-C. Chiu, Y. Cao, N. Chen, Y. Zhang, H. Soltau, P. K. Rubenstein <em id="bib.bib9.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Slm: Bridge the thin gap between speech and text foundation models,'' in <em id="bib.bib9.2.2" class="ltx_emph ltx_font_italic">2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</em>.   IEEE, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib10" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[10]</span>
+<span class="ltx_bibblock">
+X. L. Li and P. Liang, ``Prefix-tuning: Optimizing continuous prompts for generation,'' in <em id="bib.bib10.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</em>, 2021, pp. 4582–4597.
+
+</span>
+</li>
+<li id="bib.bib11" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[11]</span>
+<span class="ltx_bibblock">
+Y. Ma, T. H. Nguyen, and B. Ma, ``Cpt: Cross-modal prefix-tuning for speech-to-text translation,'' in <em id="bib.bib11.1.1" class="ltx_emph ltx_font_italic">ICASSP 2022-2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2022, pp. 6217–6221.
+
+</span>
+</li>
+<li id="bib.bib12" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[12]</span>
+<span class="ltx_bibblock">
+R. Ma, M. Qian, P. Manakul, M. Gales, and K. Knill, ``Can generative large language models perform asr error correction?'' <em id="bib.bib12.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2307.04172</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib13" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[13]</span>
+<span class="ltx_bibblock">
+K. Hu, T. N. Sainath, B. Li, N. Du, Y. Huang, A. M. Dai, Y. Zhang, R. Cabrera, Z. Chen, and T. Strohman, ``Massively multilingual shallow fusion with large language models,'' in <em id="bib.bib13.1.1" class="ltx_emph ltx_font_italic">ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2023, pp. 1–5.
+
+</span>
+</li>
+<li id="bib.bib14" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[14]</span>
+<span class="ltx_bibblock">
+N. Ding, T. Levinboim, J. Wu, S. Goodman, and R. Soricut, ``Causallm is not optimal for in-context learning,'' in <em id="bib.bib14.1.1" class="ltx_emph ltx_font_italic">The Twelfth International Conference on Learning Representations</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib15" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[15]</span>
+<span class="ltx_bibblock">
+M. Ghodsi, X. Liu, J. Apfel, R. Cabrera, and E. Weinstein, ``Rnn-transducer with stateless prediction network,'' in <em id="bib.bib15.1.1" class="ltx_emph ltx_font_italic">ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>.   IEEE, 2020, pp. 7049–7053.
+
+</span>
+</li>
+<li id="bib.bib16" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[16]</span>
+<span class="ltx_bibblock">
+H. Liao, E. McDermott, and A. Senior, ``Large scale deep neural network acoustic modeling with semi-supervised training data for youtube video transcription,'' in <em id="bib.bib16.1.1" class="ltx_emph ltx_font_italic">2013 IEEE Workshop on Automatic Speech Recognition and Understanding</em>, 2013, pp. 368–373.
+
+</span>
+</li>
+<li id="bib.bib17" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[17]</span>
+<span class="ltx_bibblock">
+T. Chen, C. Allauzen, Y. Huang, D. Park, D. Rybach, W. R. Huang, R. Cabrera, K. Audhkhasi, B. Ramabhadran, P. J. Moreno, and M. Riley, ``Large-scale language model rescoring on long-form data,'' in <em id="bib.bib17.1.1" class="ltx_emph ltx_font_italic">ICASSP</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib18" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[18]</span>
+<span class="ltx_bibblock">
+Y. Zhang, W. Han, J. Qin, Y. Wang, A. Bapna, Z. Chen, N. Chen, B. Li, V. Axelrod, G. Wang <em id="bib.bib18.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Google usm: Scaling automatic speech recognition beyond 100 languages,'' <em id="bib.bib18.2.2" class="ltx_emph ltx_font_italic">arXiv e-prints</em>, pp. arXiv–2303, 2023.
+
+</span>
+</li>
+<li id="bib.bib19" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[19]</span>
+<span class="ltx_bibblock">
+A. Chowdhery, S. Narang, J. Devlin, M. Bosma, G. Mishra, A. Roberts, P. Barham, H. W. Chung, C. Sutton, S. Gehrmann <em id="bib.bib19.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Palm: Scaling language modeling with pathways,'' <em id="bib.bib19.2.2" class="ltx_emph ltx_font_italic">Journal of Machine Learning Research</em>, vol. 24, no. 240, pp. 1–113, 2023.
+
+</span>
+</li>
+<li id="bib.bib20" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[20]</span>
+<span class="ltx_bibblock">
+T. Kudo and J. Richardson, ``Sentencepiece: A simple and language independent subword tokenizer and detokenizer for neural text processing,'' in <em id="bib.bib20.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</em>, 2018, pp. 66–71.
+
+</span>
+</li>
+<li id="bib.bib21" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[21]</span>
+<span class="ltx_bibblock">
+Y. Tay, M. Dehghani, V. Q. Tran, X. Garcia, D. Bahri, T. Schuster, H. S. Zheng, N. Houlsby, and D. Metzler, ``Unifying language learning paradigms,'' <em id="bib.bib21.1.1" class="ltx_emph ltx_font_italic">arXiv e-prints</em>, pp. arXiv–2205, 2022.
+
+</span>
+</li>
+<li id="bib.bib22" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[22]</span>
+<span class="ltx_bibblock">
+X. Garcia, Y. Bansal, C. Cherry, G. Foster, M. Krikun, M. Johnson, and O. Firat, ``The unreasonable effectiveness of few-shot learning for machine translation,'' in <em id="bib.bib22.1.1" class="ltx_emph ltx_font_italic">International Conference on Machine Learning</em>.   PMLR, 2023, pp. 10 867–10 878.
+
+</span>
+</li>
+<li id="bib.bib23" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[23]</span>
+<span class="ltx_bibblock">
+B. Gambäck and A. Das, ``On measuring the complexity of code-mixing,'' in <em id="bib.bib23.1.1" class="ltx_emph ltx_font_italic">Proceedings of the 11th international conference on natural language processing, Goa, India</em>, 2014, pp. 1–7.
+
+</span>
+</li>
+<li id="bib.bib24" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[24]</span>
+<span class="ltx_bibblock">
+J.-B. Alayrac, J. Donahue, P. Luc, A. Miech, I. Barr, Y. Hasson, K. Lenc, A. Mensch, K. Millican, M. Reynolds <em id="bib.bib24.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Flamingo: a visual language model for few-shot learning,'' <em id="bib.bib24.2.2" class="ltx_emph ltx_font_italic">Advances in Neural Information Processing Systems</em>, vol. 35, pp. 23 716–23 736, 2022.
+
+</span>
+</li>
+<li id="bib.bib25" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[25]</span>
+<span class="ltx_bibblock">
+Q. Chen, Y. Chu, Z. Gao, Z. Li, K. Hu, X. Zhou, J. Xu, Z. Ma, W. Wang, S. Zheng <em id="bib.bib25.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``Lauragpt: Listen, attend, understand, and regenerate audio with gpt,'' <em id="bib.bib25.2.2" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2310.04673</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib26" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[26]</span>
+<span class="ltx_bibblock">
+D. Zhang, S. Li, X. Zhang, J. Zhan, P. Wang, Y. Zhou, and X. Qiu, ``Speechgpt: Empowering large language models with intrinsic cross-modal conversational abilities,'' <em id="bib.bib26.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2305.11000</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib27" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[27]</span>
+<span class="ltx_bibblock">
+W. Yu, C. Tang, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, Z. Ma, and C. Zhang, ``Connecting speech encoder and large language model for asr,'' <em id="bib.bib27.1.1" class="ltx_emph ltx_font_italic">arXiv preprint arXiv:2309.13963</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib28" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[28]</span>
+<span class="ltx_bibblock">
+J. Wu, Y. Gaur, Z. Chen, L. Zhou, Y. Zhu, T. Wang, J. Li, S. Liu, B. Ren, L. Liu <em id="bib.bib28.1.1" class="ltx_emph ltx_font_italic">et al.</em>, ``On decoder-only architecture for speech-to-text and large language model integration,'' in <em id="bib.bib28.2.2" class="ltx_emph ltx_font_italic">2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU)</em>.   IEEE, 2023, pp. 1–8.
+
+</span>
+</li>
+<li id="bib.bib29" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[29]</span>
+<span class="ltx_bibblock">
+C. Tang, W. Yu, G. Sun, X. Chen, T. Tan, W. Li, L. Lu, M. Zejun, and C. Zhang, ``Salmonn: Towards generic hearing abilities for large language models,'' in <em id="bib.bib29.1.1" class="ltx_emph ltx_font_italic">The Twelfth International Conference on Learning Representations</em>, 2023.
+
+</span>
+</li>
+<li id="bib.bib30" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[30]</span>
+<span class="ltx_bibblock">
+H. Yu, H. Zheng, Y. Zhang, S. Xie, X. Cao, and Z. Fang, ``Prompt tuning is all we need?'' 2024. [Online]. Available: <a target="_blank" href="https://openreview.net/forum?id=eBTtShIjxu" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://openreview.net/forum?id=eBTtShIjxu</a>
+
+</span>
+</li>
+<li id="bib.bib31" class="ltx_bibitem">
+<span class="ltx_tag ltx_tag_bibitem">[31]</span>
+<span class="ltx_bibblock">
+X. Liu, K. Ji, Y. Fu, Z. Du, Z. Yang, and J. Tang, ``P-tuning v2: Prompt tuning can be comparable to fine-tuning universally across scales and tasks,'' <em id="bib.bib31.1.1" class="ltx_emph ltx_font_italic">CoRR</em>, vol. abs/2110.07602, 2021. [Online]. Available: <a target="_blank" href="https://arxiv.org/abs/2110.07602" title="" class="ltx_ref ltx_url ltx_font_typewriter">https://arxiv.org/abs/2110.07602</a>
+
+</span>
+</li>
+</ul>
+</section><div class="ltx_rdf" about="" property="dcterms:creator" content="{Author name(s) withheld}"></div>
+<div class="ltx_rdf" about="" property="dcterms:title" content="{Submitted to INTERSPEECH}"></div>
+
+<div class="ltx_pagination ltx_role_newpage"></div>
+</article>
+</div>
+<div class="ar5iv-footer"><a href="/html/2406.14700" class="ar5iv-nav-button ar5iv-nav-button-prev">◄</a>
+    <a class="ar5iv-home-button" href="/"><img height="40" alt="ar5iv homepage" src="/assets/ar5iv.png"></a>
+    <a href="/feeling_lucky" class="ar5iv-text-button">Feeling<br>lucky?</a>
+    <a href="/log/2406.14701" class="ar5iv-text-button ar5iv-severity-error">Conversion<br>report</a>
+    <a class="ar5iv-text-button" target="_blank" href="https://github.com/dginev/ar5iv/issues/new?template=improve-article--arxiv-id-.md&title=Improve+article+2406.14701">Report<br>an issue</a>
+    <a href="https://arxiv.org/abs/2406.14701" class="ar5iv-text-button arxiv-ui-theme">View&nbsp;original<br>on&nbsp;arXiv</a><a href="/html/2406.14702" class="ar5iv-nav-button ar5iv-nav-button-next">►</a>
+</div><footer class="ltx_page_footer">
+<a class="ar5iv-toggle-color-scheme" href="javascript:toggleColorScheme()" title="Toggle ar5iv color scheme"><span class="color-scheme-icon"></span></a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/license" target="_blank">Copyright</a>
+<a class="ar5iv-footer-button" href="https://arxiv.org/help/policies/privacy_policy" target="_blank">Privacy Policy</a>
+
+<div class="ltx_page_logo">Generated  on Sat Jul  6 01:51:55 2024 by <a target="_blank" href="http://dlmf.nist.gov/LaTeXML/" class="ltx_LaTeXML_logo"><span style="letter-spacing:-0.2em; margin-right:0.1em;">L<span class="ltx_font_smallcaps" style="position:relative; bottom:2.2pt;">a</span>T<span class="ltx_font_smallcaps" style="font-size:120%;position:relative; bottom:-0.2ex;">e</span></span><span style="font-size:90%; position:relative; bottom:-0.2ex;">XML</span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg==" alt="Mascot Sammy"></a>
+</div></footer>
+</div>
+
+    <script>
+      var canMathML = typeof(MathMLElement) == "function";
+      if (!canMathML) {
+        var body = document.querySelector("body");
+        body.firstElementChild.setAttribute('style', 'opacity: 0;');
+        var loading = document.createElement("div");
+        loading.setAttribute("id", "mathjax-loading-spinner");
+        var message = document.createElement("div");
+        message.setAttribute("id", "mathjax-loading-message");
+        message.innerText = "Typesetting Equations...";
+        body.prepend(loading);
+        body.prepend(message);
+
+        var el = document.createElement("script");
+        el.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+        document.querySelector("head").appendChild(el);
+
+        window.MathJax = {
+          startup: {
+            pageReady: () => {
+              return MathJax.startup.defaultPageReady().then(() => {
+                body.removeChild(loading);
+                body.removeChild(message);
+                body.firstElementChild.removeAttribute('style');
+              }); } } };
+      }
+    </script>
+    <script>
+    // Auxiliary function, building the preview feature when
+    // an inline citation is clicked
+    function clicked_cite(e) {
+      e.preventDefault();
+      let cite = this.closest('.ltx_cite');
+      let next = cite.nextSibling;
+      if (next && next.nodeType == Node.ELEMENT_NODE && next.getAttribute('class') == "ar5iv-bibitem-preview") {
+        next.remove();
+        return; }
+      // Before adding a preview modal,
+      // cleanup older previews, in case they're still open
+      document.querySelectorAll('span.ar5iv-bibitem-preview').forEach(function(node) {
+        node.remove();
+      })
+
+      // Create the preview
+      preview = document.createElement('span');
+      preview.setAttribute('class','ar5iv-bibitem-preview');
+      let target = document.getElementById(this.getAttribute('href').slice(1));
+      target.childNodes.forEach(function (child) {
+        preview.append(child.cloneNode(true));
+      });
+      let close_x = document.createElement('button');
+      close_x.setAttribute("aria-label","Close modal for bibliography item preview");
+      close_x.textContent = "×";
+      close_x.setAttribute('class', 'ar5iv-button-close-preview');
+      close_x.setAttribute('onclick','this.parentNode.remove()');
+      preview.append(close_x);
+      preview.querySelectorAll('.ltx_tag_bibitem').forEach(function(node) {
+        node.remove();
+      });
+      cite.parentNode.insertBefore(preview, cite.nextSibling);
+      return;
+    }
+    // Global Document initialization:
+    // - assign the preview feature to all inline citation links
+    document.querySelectorAll(".ltx_cite .ltx_ref").forEach(function (link) {
+      link.addEventListener("click", clicked_cite);
+    });
+    </script>
+    </body>
+</html>
