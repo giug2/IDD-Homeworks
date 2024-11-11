@@ -10,6 +10,6 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/all_htmls/**")
-                .addResourceLocations("file:./all_htmls/");
+                .addResourceLocations("file:C:/Users/gi.gaglione/Desktop/IDD-Homeworks/IDD-Homeworks/IDD-Homework2/urls_htmls_tables/all_htmls/");
     }
 }

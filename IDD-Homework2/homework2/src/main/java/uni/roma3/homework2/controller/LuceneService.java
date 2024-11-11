@@ -26,7 +26,7 @@ public class LuceneService {
     public List<SearchResult> search(String searchField, String queryString) {
         List<SearchResult> resultsList = new ArrayList<>();
         try {
-            Directory indexDirectory = FSDirectory.open(Paths.get("lucene-index"));
+            Directory indexDirectory = FSDirectory.open(Paths.get("index"));
             Map<String, Analyzer> analyzerPerField = new HashMap<>();
             // Mappa degli analyzer per ciascun campo (presa da CustomAnalyzers)
             analyzerPerField.put("filename", CustomAnalyzer.getSimpleAnalyzer());
