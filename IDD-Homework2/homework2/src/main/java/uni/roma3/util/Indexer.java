@@ -1,4 +1,4 @@
-package util;
+package uni.roma3.util;
 
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
 import org.apache.lucene.analysis.core.WhitespaceTokenizerFactory;
@@ -18,20 +18,18 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
-public class CreaIndice {
+public class Indexer {
 
     public void creaIndice() {
-        Locale.setDefault(Locale.ENGLISH);
         try {
-            System.out.println("Indicizzazione inizio!");
-            // Memorizzo l'istante di inizio dell'indicizzazione
+            System.out.println("Indicizzazione iniziata!");
+            // Memorizza l'istante di inizio dell'indicizzazione
             long startTime = System.currentTimeMillis();
 
-            // Definiamo dove salvare il nostro indice Lucene
-            Directory directory = FSDirectory.open(Paths.get("index"));
+            // Definisce la directory dove salvare gli index
+            Directory directory = FSDirectory.open(Paths.get("lucene-index"));
 
             Map<String, Analyzer> perFieldAnalyzers = new HashMap<>();
 
@@ -47,23 +45,25 @@ public class CreaIndice {
 
             Analyzer perFieldAnalyzer = new PerFieldAnalyzerWrapper(new EnglishAnalyzer(), perFieldAnalyzers);
 
-            // Definiamo la configurazione dell' IndexWriter
+            // Definisce la configurazione dell' IndexWriter
             IndexWriterConfig config = new IndexWriterConfig(perFieldAnalyzer);
             config.setCodec(new SimpleTextCodec());
             IndexWriter writer = new IndexWriter(directory, config);
 
-            // "C:/Users/hp/papers/urls_htmls_tables/test_one_doc" path per i test su 10 documenti
-            // Recuperiamo i documenti
-            List<Document> test_documenti = CreaDocumenti.parseHtmlFilesInDirectory("C:\\Users\\gi.gaglione\\Desktop\\IDD-Homeworks\\IDD-Homeworks\\IDD-Homework2\\urls_htmls_tables\\all_htmls");
+            // Recupera i documenti
+            List<Document> test_documenti = Docs.parseHtmlFilesInDirectory("C:\\Users\\gi.gaglione\\Desktop\\IDD-Homeworks\\IDD-Homeworks\\IDD-Homework2\\urls_htmls_tables\\all_htmls");
 
+            System.out.println("Inizio ciclo for");
+            // Ciclo per indicizzare tutti i documenti
             for(Document documento : test_documenti){
-                System.out.println("sono qui");
-                writer.addDocument(documento); // Indicizzazione dei documenti
+                writer.addDocument(documento);
             }
+            System.out.println("Fine ciclo for");
 
             writer.commit();
             writer.close();
             System.out.println("Indicizzazione completata!");
+
             // Calcola il tempo impiegato per l'indicizzazione
             long endTime = System.currentTimeMillis();
             long elapsedTime = endTime - startTime;
@@ -72,5 +72,4 @@ public class CreaIndice {
             e.printStackTrace();
         }
     }
-
 }

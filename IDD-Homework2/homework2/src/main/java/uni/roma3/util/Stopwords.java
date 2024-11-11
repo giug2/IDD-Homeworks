@@ -1,4 +1,4 @@
-package util;
+package uni.roma3.util;
 
 import org.apache.lucene.analysis.CharArraySet;
 import java.util.Arrays;
@@ -15,7 +15,7 @@ public class Stopwords {
             "find", "findings", "show", "shows", "effect", "effects", "model", "models",
             "use", "uses", "evidence", "case", "cases", "some", "many", "several",
             "related", "associated", "impact", "impacts", "implications", "role", "roles",
-            "perspective", "perspectives", "review", "reviews"), true);
+            "perspective", "perspectives", "review", "reviews", "but", "if", "else", ""), true);
 
     public CharArraySet getStopWords() {
         return stopWords;
