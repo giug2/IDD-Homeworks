@@ -98,6 +98,8 @@ public class Searcher {
             int relevantDocumentsFound = 0;
             long totalDocumentsReturned = 0;
 
+            ScoreDoc[] hits = new ScoreDoc[0];
+
             if(sceltaComposta.equals("Y")){
 
                 Pair<QueryParser,QueryParser> parserDouble = checkFields();
@@ -119,7 +121,7 @@ public class Searcher {
                 booleanQuery.add(queryAuthor, BooleanClause.Occur.MUST);
 
                 // Esegui la ricerca
-                ScoreDoc[] hits = searcher.search(booleanQuery.build(), 10).scoreDocs;
+                hits = searcher.search(booleanQuery.build(), 10).scoreDocs;
 
                 System.out.println("Trovati " + hits.length + " documenti.");
 
@@ -150,20 +152,13 @@ public class Searcher {
 
                     String content = doc.get("content");
                     if (content != null && content.length() > 100) {
-                        System.out.println("Contenuto: " + content.substring(0, 100));
+                        System.out.println("Contenuto: " + content.substring(0, 400));
                     } else {
                         System.out.println("Contenuto: " + content);
                     }
 
                     System.out.println("Score: " + hit.score);
                     System.out.println("\n-------------------------------------------------------\n");
-
-                    String relevantValue = doc.get("relevant");
-                    boolean isRelevant = relevantValue != null && Boolean.parseBoolean(relevantValue);
-
-                    if (isRelevant) {
-                        relevantDocumentsFound++;
-                    }
                 }
             } else{
 
@@ -176,7 +171,7 @@ public class Searcher {
 
                 // Esegue la ricerca
                 TopDocs results = searcher.search(query, 10);
-                ScoreDoc[] hits = results.scoreDocs;
+                hits = results.scoreDocs;
 
                 // Stampa i risultati
                 System.out.println("Numero di risultati: " + hits.length + "\n");
@@ -210,25 +205,30 @@ public class Searcher {
 
                     String content = doc.get("content");
                     if (content != null && content.length() > 100) {
-                        System.out.println("Contenuto: " + content.substring(0, 100));
+                        System.out.println("Contenuto: " + content.substring(0, 400));
                     } else {
                         System.out.println("Contenuto: " + content);
                     }
 
                     System.out.println("Score: " + hit.score);
                     System.out.println("\n-------------------------------------------------------\n");
-
-                    String relevantValue = doc.get("relevant");
-                    boolean isRelevant = relevantValue != null && Boolean.parseBoolean(relevantValue);
-
-                    if (isRelevant) {
-                        relevantDocumentsFound++;
-                    }
                 }
             }
 
             long endTime = System.nanoTime();
             long duration = endTime - startTime;
+
+            for (ScoreDoc hit : hits){
+                int docId = hit.doc;
+                Document doc = searcher.doc(docId);
+
+                String relevantValue = doc.get("relevant");
+                boolean isRelevant = relevantValue != null && Boolean.parseBoolean(relevantValue);
+
+                if (isRelevant) {
+                    relevantDocumentsFound++;
+                }
+            }
 
             // Calcolo della precisione e del richiamo
             double precision = (totalDocumentsReturned == 0) ? 0 : (double) relevantDocumentsFound / totalDocumentsReturned;
@@ -237,8 +237,8 @@ public class Searcher {
             // Statistiche finali
             System.out.println("\nStatistiche:");
             System.out.println("Tempo di risposta: " + (duration / 1_000_000.0) + " ms");
-            System.out.println("Precisione: " + precision);
-            System.out.println("Richiamo: " + recall);
+            System.out.println("Precision: " + precision);
+            System.out.println("Recall: " + recall);
 
             reader.close();
         } catch(Exception e){
