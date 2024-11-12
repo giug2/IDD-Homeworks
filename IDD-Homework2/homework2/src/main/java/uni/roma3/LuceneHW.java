@@ -12,16 +12,16 @@ public class LuceneHW {
 
     public static void main(String[] args) {
 
-        creator.creaIndice();
+        creator.createIndex();
 
-        new Stats().statisticheIndice();
+        new Stats().statsIndex();
 
-        // Inizio ricerche tramite prompt
+        // Inizio loop di ricerche tramite prompt
         while(true){
-            searcher.cercaIndice();
+            searcher.searchIndex();
 
             Scanner scanner = new Scanner(System.in);
-            System.out.print("Vuoi continuare? Y/N:  ");
+            System.out.print("Vuoi continuare la ricerca? Y/N:  ");
             String exit = scanner.nextLine();
 
             if (exit.equalsIgnoreCase("N")) {

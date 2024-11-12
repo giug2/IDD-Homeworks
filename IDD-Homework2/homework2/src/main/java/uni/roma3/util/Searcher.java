@@ -23,16 +23,12 @@ public class Searcher {
     private long totalDocs;
 
     public Pair<QueryParser,QueryParser> checkFields() throws IOException {
-        Directory dir = null;
-        try {
-            dir = FSDirectory.open(Paths.get("lucene-index"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Directory dir = FSDirectory.open(Paths.get("lucene-index"));
+
         IndexReader reader = DirectoryReader.open(dir);
         totalDocs = reader.numDocs();
 
-        // Verifica che il campo selezionato sia effettivo
+        // Verifica che il campo selezionato sia giusto
         try {
             Analyzer analyzerCustom = CustomAnalyzer.builder()
                     .withTokenizer(WhitespaceTokenizerFactory.class)
@@ -41,12 +37,12 @@ public class Searcher {
                     .build();
 
             // Query sul campo "titolo"
-            QueryParser titoloParser = new QueryParser("titolo", analyzerCustom);
+            QueryParser titleParser = new QueryParser("title", analyzerCustom);
 
             // Query sul campo "autori"
-            QueryParser autoriParser = new QueryParser("autore", analyzerCustom);
+            QueryParser authorParser = new QueryParser("authors", analyzerCustom);
 
-            return Pair.of(titoloParser, autoriParser);
+            return Pair.of(titleParser, authorParser);
 
         } catch(Exception e) {
             e.printStackTrace();
@@ -56,12 +52,11 @@ public class Searcher {
 
     public QueryParser checkField() {
 
-        // Impostazione dell'analyzer per la query
         Scanner scanner = new Scanner(System.in);
-        System.out.print("Su quale campo singolo vuoi eseguire la tua ricerca: ");
+        System.out.print("Su quale campo vuoi eseguire la tua ricerca: ");
         String userField = scanner.nextLine();
 
-        // Verifica che il campo selezionato sia effettivo
+        // Verifica che il campo selezionato sia giusto
         try {
             Analyzer analyzerCustom = CustomAnalyzer.builder()
                     .withTokenizer(WhitespaceTokenizerFactory.class)
@@ -69,12 +64,12 @@ public class Searcher {
                     .addTokenFilter(WordDelimiterGraphFilterFactory.class)
                     .build();
 
-            if (userField.equals("titolo") || userField.equals("autori")) {
-                QueryParser parserTitoloAutori = new QueryParser(userField, analyzerCustom);
-                return parserTitoloAutori;
-            } else if (userField.equals("contenuto")) {
-                QueryParser parserContenuto = new QueryParser(userField, new StandardAnalyzer(new Stopwords().getStopWords()));
-                return parserContenuto;
+            if (userField.equals("title") || userField.equals("authors")) {
+                QueryParser parserDouble = new QueryParser(userField, analyzerCustom);
+                return parserDouble;
+            } else if (userField.equals("content")) {
+                QueryParser parserContent = new QueryParser(userField, new StandardAnalyzer(new Stopwords().getStopWords()));
+                return parserContent;
             } else {
                 System.out.println("Campo non valido!");
                 return checkField();
@@ -85,10 +80,9 @@ public class Searcher {
         return null;
     }
 
-    public void cercaIndice() {
+    public void searchIndex() {
         try {
 
-            // Percorso dell'indice creato in precedenza
             String indexPath = "lucene-index";
 
             // Apri l'indice
@@ -96,68 +90,73 @@ public class Searcher {
             IndexSearcher searcher = new IndexSearcher(reader);
 
             Scanner scanner = new Scanner(System.in);
-            System.out.print("Vuoi eseguire una ricerca composta (titolo & autore): Y/n ");
+            System.out.print("Vuoi eseguire una ricerca composta inserendo sia titlo sia autore? Y/N ");
             String sceltaComposta = scanner.nextLine();
+
+            // Tempistiche
+            long startTime = System.nanoTime();
+            int relevantDocumentsFound = 0;
+            long totalDocumentsReturned = 0;
 
             if(sceltaComposta.equals("Y")){
 
-                long startTime = System.nanoTime();
-
-                Pair<QueryParser,QueryParser> parserTitoloAutori = checkFields();
+                Pair<QueryParser,QueryParser> parserDouble = checkFields();
 
                 // Impostazione dell'analyzer per la query
                 System.out.print("Digita il 'titolo' per la ricerca: ");
-                String titoloComposto = scanner.nextLine();
+                String title = scanner.nextLine();
 
                 // Impostazione dell'analyzer per la query
                 System.out.print("Digita gli 'autori' per la ricerca: ");
-                String autoriComposto = scanner.nextLine();
+                String author = scanner.nextLine();
 
-                Query queryTitolo = parserTitoloAutori.getLeft().parse(titoloComposto);
-                Query queryAutori = parserTitoloAutori.getRight().parse(autoriComposto);
+                Query queryTitle = parserDouble.getLeft().parse(title);
+                Query queryAuthor = parserDouble.getRight().parse(author);
 
                 // Combina le query con BooleanQuery
                 BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-                booleanQuery.add(queryTitolo, BooleanClause.Occur.MUST); // Il termine deve essere nel titolo
-                booleanQuery.add(queryAutori, BooleanClause.Occur.MUST); // L'autore deve essere presente
+                booleanQuery.add(queryTitle, BooleanClause.Occur.MUST);
+                booleanQuery.add(queryAuthor, BooleanClause.Occur.MUST);
 
                 // Esegui la ricerca
                 ScoreDoc[] hits = searcher.search(booleanQuery.build(), 10).scoreDocs;
 
-                long endTime = System.nanoTime();
-                long duration = endTime - startTime;
-
                 System.out.println("Trovati " + hits.length + " documenti.");
-                System.out.println("Tempo " + duration);
 
                 // Mostra i risultati
                 System.out.println("Risultati della query composta:" + "\n");
 
-                int relevantDocumentsFound = 0;
-                long totalDocumentsReturned = hits.length;
+                totalDocumentsReturned = hits.length;
 
                 for (ScoreDoc hit : hits) {
                     Document doc = searcher.doc(hit.doc);
-                    System.out.println("Titolo: " + doc.get("titolo"));
-                    System.out.print("Autori: ");
-                    String[] autori = doc.getValues("autori");
+                    System.out.println("Titolo: " + doc.get("title"));
 
-                    if(autori != null && autori.length > 0) {
-                        System.out.print("[" + autori[0]);
-                        String[] autoriNomi = new String[autori.length - 1];
-                        System.arraycopy(autori, 1, autoriNomi, 0, autoriNomi.length);
-                        for (String a : autoriNomi) {
+                    System.out.print("Autori: ");
+                    String[] authors = doc.getValues("authors");
+
+                    if(authors != null && authors.length > 0) {
+                        System.out.print("[" + authors[0]);
+                        String[] authorsName = new String[authors.length - 1];
+                        System.arraycopy(authors, 1, authorsName, 0, authorsName.length);
+                        for (String a : authorsName) {
                             System.out.print(", " + a);
                         }
                         System.out.println("]");
                     }
                     else{
-                        System.out.println("Autori non presenti");
+                        System.out.println("Autori non presenti.");
                     }
 
-                    System.out.println("Contenuto: " + doc.get("contenuto"));
-                    System.out.println("Punteggio: " + hit.score);
-                    System.out.println("\n------------------------------------------------\n");
+                    String content = doc.get("content");
+                    if (content != null && content.length() > 100) {
+                        System.out.println("Contenuto: " + content.substring(0, 100));
+                    } else {
+                        System.out.println("Contenuto: " + content);
+                    }
+
+                    System.out.println("Score: " + hit.score);
+                    System.out.println("\n-------------------------------------------------------\n");
 
                     String relevantValue = doc.get("relevant");
                     boolean isRelevant = relevantValue != null && Boolean.parseBoolean(relevantValue);
@@ -167,8 +166,8 @@ public class Searcher {
                     }
                 }
             } else{
-                long startTime = System.nanoTime();
-                QueryParser parser = checkField(); // check sul campo selezionato
+
+                QueryParser parser = checkField();
 
                 // Impostazione della query
                 System.out.print("Digita la tua query: ");
@@ -176,47 +175,48 @@ public class Searcher {
                 Query query = parser.parse(q);
 
                 // Esegue la ricerca
-                TopDocs results = searcher.search(query, 10); // Recupera i primi 10 risultati
+                TopDocs results = searcher.search(query, 10);
                 ScoreDoc[] hits = results.scoreDocs;
 
                 // Stampa i risultati
                 System.out.println("Numero di risultati: " + hits.length + "\n");
 
-                long endTime = System.nanoTime();
-                long duration = endTime - startTime;
-
                 System.out.println("Trovati " + hits.length + " documenti.");
-                System.out.println("Tempo " + duration);
 
                 // Mostra i risultati
-                System.out.println("Risultati della query composta:" + "\n");
+                System.out.println("Risultati della query:" + "\n");
 
-                int relevantDocumentsFound = 0;
-                long totalDocumentsReturned = hits.length;
+                totalDocumentsReturned = hits.length;
 
                 for (ScoreDoc hit : hits) {
                     int docId = hit.doc;
                     Document doc = searcher.doc(docId);
-                    System.out.println("Titolo: " + doc.get("titolo"));
+                    System.out.println("Titolo: " + doc.get("title"));
                     System.out.print("Autori: ");
-                    String[] autori = doc.getValues("autori");
+                    String[] authors = doc.getValues("authors");
 
-                    if(autori != null && autori.length > 0) {
-                        System.out.print("[" + autori[0]);
-                        String[] autoriNomi = new String[autori.length - 1];
-                        System.arraycopy(autori, 1, autoriNomi, 0, autoriNomi.length);
-                        for (String a : autoriNomi) {
+                    if(authors != null && authors.length > 0) {
+                        System.out.print("[" + authors[0]);
+                        String[] authorsName = new String[authors.length - 1];
+                        System.arraycopy(authors, 1, authorsName, 0, authorsName.length);
+                        for (String a : authorsName) {
                             System.out.print(", " + a);
                         }
                         System.out.println("]");
                     }
                     else{
-                        System.out.println("Autori non presenti");
+                        System.out.println("Autori non presenti.");
                     }
 
-                    System.out.println("Contenuto: " + doc.get("contenuto"));
-                    System.out.println("Punteggio: " + hit.score);
-                    System.out.println("\n------------------------------------------------\n");
+                    String content = doc.get("content");
+                    if (content != null && content.length() > 100) {
+                        System.out.println("Contenuto: " + content.substring(0, 100));
+                    } else {
+                        System.out.println("Contenuto: " + content);
+                    }
+
+                    System.out.println("Score: " + hit.score);
+                    System.out.println("\n-------------------------------------------------------\n");
 
                     String relevantValue = doc.get("relevant");
                     boolean isRelevant = relevantValue != null && Boolean.parseBoolean(relevantValue);
@@ -225,18 +225,20 @@ public class Searcher {
                         relevantDocumentsFound++;
                     }
                 }
-
-                // Calcolo della precisione e del richiamo
-                double precision = (totalDocumentsReturned == 0) ? 0 : (double) relevantDocumentsFound / totalDocumentsReturned;
-                double recall = (totalDocs == 0) ? 0 : (double) relevantDocumentsFound / totalDocs;
-
-                // Statistiche finali
-                System.out.println("\nStatistiche:");
-                System.out.println("Tempo di risposta: " + (duration / 1_000_000.0) + " ms");
-                System.out.println("Precisione: " + precision);
-                System.out.println("Richiamo: " + recall);
-
             }
+
+            long endTime = System.nanoTime();
+            long duration = endTime - startTime;
+
+            // Calcolo della precisione e del richiamo
+            double precision = (totalDocumentsReturned == 0) ? 0 : (double) relevantDocumentsFound / totalDocumentsReturned;
+            double recall = (totalDocs == 0) ? 0 : (double) relevantDocumentsFound / totalDocs;
+
+            // Statistiche finali
+            System.out.println("\nStatistiche:");
+            System.out.println("Tempo di risposta: " + (duration / 1_000_000.0) + " ms");
+            System.out.println("Precisione: " + precision);
+            System.out.println("Richiamo: " + recall);
 
             reader.close();
         } catch(Exception e){

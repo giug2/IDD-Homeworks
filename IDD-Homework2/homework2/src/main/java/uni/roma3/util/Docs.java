@@ -14,84 +14,81 @@ import org.jsoup.select.Elements;
 public class Docs {
 
     public static List<Document> parseHtmlFilesInDirectory(String directoryPath) throws IOException {
-        List<Document> documenti = new ArrayList<>();
+        List<Document> docs = new ArrayList<>();
 
         // Carica tutti i file HTML dalla directory specificata
         File directory = new File(directoryPath);
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".html"));
 
         if (files == null) {
-            throw new IOException("La directory specificata non contiene file HTML o non è accessibile.");
+            throw new IOException("La directory non è accessibile oppure al suo interno non ci sono file di tipo .html.");
         }
 
         for (File file : files) {
 
-            // Parsing del file HTML, jsoupDoc dedicato al parsing
+            // Legge e analizza il file HTML
             org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(file, "UTF-8");
 
-            // Estrai il titolo dall'elemento <h1 class="ltx_title ltx_title_document">
-            Element titoloElement = jsoupDoc.selectFirst("h1.ltx_title.ltx_title_document");
-            String titolo = (titoloElement != null) ? titoloElement.text() : "Titolo non trovato";
+            // Estrai il titolo dall'elemento
+            Element titleElem = jsoupDoc.selectFirst("h1.ltx_title.ltx_title_document");
+            String title = (titleElem != null) ? titleElem.text() : "Titolo non trovato";
+
+            // Estrai gli autori dall'elemento
+            Element authorElem = jsoupDoc.selectFirst("div.ltx_authors");
+            List<String> authors = extractAuthors(authorElem);
 
             // Estrai il contenuto testuale rimuovendo i tag HTML
-            String contenuto = jsoupDoc.text();
+            String content = jsoupDoc.text();
 
-            // Estrai gli autori dall'elemento <div class="ltx_authors">
-            Element autoriElement = jsoupDoc.selectFirst("div.ltx_authors");
-            List<String> autori = estraiAutori(autoriElement);
+            // Crea un oggetto Documento di Lucene
+            Document document = new Document();
 
-            // Crea un oggetto Documento di Lucene con l'aggiunta dei relativi campi
-            Document documento = new Document();
-            documento.add(new TextField("titolo", titolo, Field.Store.YES));
-
-            // Aggiunta di ciascun autore come un valore separato nel campo "authors"
-            for (String autore : autori) {
-                documento.add(new TextField("autori", autore, Field.Store.YES));
+            document.add(new TextField("title", title, Field.Store.YES));
+            for (String author : authors) {
+                document.add(new TextField("authors", author, Field.Store.YES));
             }
-            documento.add(new TextField("contenuto", contenuto, Field.Store.YES));
-            documenti.add(documento);
+            document.add(new TextField("content", content, Field.Store.YES));
+
+            docs.add(document);
         }
 
-        return documenti;
+        return docs;
     }
 
-    /**
-     * Metodo per estrarre i nomi degli autori come lista di stringhe.
+    /** Estrazione dei nomi degli autori
      */
-    private static List<String> estraiAutori(Element autoriElement) {
-        List<String> autoriNomiList = new ArrayList<>();
+    private static List<String> extractAuthors(Element authorsElem) {
+        List<String> nameAuthors = new ArrayList<>();
 
-        String cleanRegex = "[^\\p{L}\\p{M}\\-' ]"; // Regex per la pulizia dei nomi
+        String cleanRegex = "[^\\p{L}\\p{M}\\-' ]";
 
-        if (autoriElement == null) {
-            return autoriNomiList;  // Restituisce una lista vuota se non ci sono autori
+        if (authorsElem == null) {
+            return nameAuthors;
         }
 
-        // Seleziona tutti gli elementi con classe ltx_personname per ottenere i nomi
-        Elements autoriBlocchi = autoriElement.select("span.ltx_personname");
+        // Trova gli elementi con classe ltx_personname
+        Elements authorTags = authorsElem.select("span.ltx_personname");
 
-        // Itera su ogni elemento "ltx_personname" trovato
-        for (Element autoriBlocco : autoriBlocchi) {
+        // Itera per ogni elemento "ltx_personname" trovato
+        for (Element tag : authorTags) {
 
-            String htmlBlocco = autoriBlocco.html()
-                    .replaceAll("<br[^>]*>", " ")      // Sostituisce i tag <br> con uno spazio
-                    .replaceAll("<[^>]+>", " ");       // Rimuove eventuali tag html residui
+            // Pulisce da eventuali tag residui
+            String htmlTag = tag.html()
+                    .replaceAll("<br[^>]*>", " ")
+                    .replaceAll("<[^>]+>", " ");
 
-            // Usa la regex generalizzata per dividere i nomi degli autori
-            String[] autoriNomi = htmlBlocco.split("\\s*(,|;|\\s{2,}| |<br.*?>|\\n|\\\"|\\band\\b)\\s*");
+            String[] names = htmlTag.split("\\s*(,|;|\\s{2,}| |<br.*?>|\\n|\\\"|\\band\\b)\\s*");
 
-            // Modifica ogni nome per rimuovere caratteri non validi e aggiungilo alla lista
-            for (String nome : autoriNomi) {
+            // Modifica ogni nome per pulirlo e poi lo aggiunge nella lista
+            for (String name : names) {
 
-                // Rimuove numeri e caratteri non desiderati, mantenendo solo lettere, trattini e apostrofi
-                String nomePulito = nome.replaceAll(cleanRegex, "").trim();
+                String defName = name.replaceAll(cleanRegex, "").trim();
 
-                // Aggiungi il nome alla lista solo se non è vuoto e se sembra un nome valido
-                if (!nomePulito.isEmpty()) {
-                    autoriNomiList.add(nomePulito);
+                if (!defName.isEmpty()) {
+                    nameAuthors.add(defName);
                 }
             }
         }
-        return autoriNomiList;
+        return nameAuthors;
     }
 }

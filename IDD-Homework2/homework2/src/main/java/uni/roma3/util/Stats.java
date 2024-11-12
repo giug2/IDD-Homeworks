@@ -8,11 +8,11 @@ import java.nio.file.Paths;
 
 public class Stats {
 
-    public void statisticheIndice() {
-        String indexPath = "lucene-index"; // Sostituisci con il percorso dell'indice
+    public void statsIndex() {
+        String indexPath = "lucene-index";
 
         try {
-            // Apri l'indice
+
             Directory directory = FSDirectory.open(Paths.get(indexPath));
             IndexReader reader = DirectoryReader.open(directory);
 
@@ -25,7 +25,7 @@ public class Stats {
             for (LeafReaderContext leafContext : reader.leaves()) {
                 var leafReader = leafContext.reader();
 
-                // Itera su tutti i FieldInfo (rappresentano i campi)
+                // Itera su tutti i FieldInfo
                 for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
                     String fieldName = fieldInfo.name;
                     Terms terms = leafReader.terms(fieldName);
@@ -34,7 +34,6 @@ public class Stats {
                         TermsEnum termsEnum = terms.iterator();
                         int termCount = 0;
 
-                        // Conta i termini per il campo
                         while (termsEnum.next() != null) {
                             termCount++;
                         }

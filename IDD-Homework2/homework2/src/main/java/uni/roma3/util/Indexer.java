@@ -22,9 +22,10 @@ import java.util.Map;
 
 public class Indexer {
 
-    public void creaIndice() {
+    public void createIndex() {
         try {
             System.out.println("Indicizzazione iniziata!");
+
             // Memorizza l'istante di inizio dell'indicizzazione
             long startTime = System.currentTimeMillis();
 
@@ -33,30 +34,31 @@ public class Indexer {
 
             Map<String, Analyzer> perFieldAnalyzers = new HashMap<>();
 
+            // Analyzer personalizzato
             Analyzer analyzerCustom = CustomAnalyzer.builder()
                     .withTokenizer(WhitespaceTokenizerFactory.class)
                     .addTokenFilter(LowerCaseFilterFactory.class)
                     .addTokenFilter(WordDelimiterGraphFilterFactory.class)
                     .build();
 
-            perFieldAnalyzers.put("titolo", analyzerCustom);
-            perFieldAnalyzers.put("autori", analyzerCustom);
-            perFieldAnalyzers.put("contenuto", new StandardAnalyzer(new Stopwords().getStopWords()));
+            perFieldAnalyzers.put("title", analyzerCustom);
+            perFieldAnalyzers.put("authors", analyzerCustom);
+            perFieldAnalyzers.put("content", new StandardAnalyzer(new Stopwords().getStopWords()));
 
             Analyzer perFieldAnalyzer = new PerFieldAnalyzerWrapper(new EnglishAnalyzer(), perFieldAnalyzers);
 
-            // Definisce la configurazione dell' IndexWriter
+            // Definisce la configurazione dell'IndexWriter
             IndexWriterConfig config = new IndexWriterConfig(perFieldAnalyzer);
             config.setCodec(new SimpleTextCodec());
             IndexWriter writer = new IndexWriter(directory, config);
 
             // Recupera i documenti
-            List<Document> test_documenti = Docs.parseHtmlFilesInDirectory("C:\\Users\\gi.gaglione\\Desktop\\IDD-Homeworks\\IDD-Homeworks\\IDD-Homework2\\urls_htmls_tables\\all_htmls");
+            List<Document> test_docs = Docs.parseHtmlFilesInDirectory("C:\\Users\\gi.gaglione\\Desktop\\IDD-Homeworks\\IDD-Homeworks\\IDD-Homework2\\urls_htmls_tables\\all_htmls");
 
             System.out.println("Inizio ciclo for");
             // Ciclo per indicizzare tutti i documenti
-            for(Document documento : test_documenti){
-                writer.addDocument(documento);
+            for(Document doc : test_docs){
+                writer.addDocument(doc);
             }
             System.out.println("Fine ciclo for");
 
@@ -68,6 +70,7 @@ public class Indexer {
             long endTime = System.currentTimeMillis();
             long elapsedTime = endTime - startTime;
             System.out.println("Tempo impiegato per l'indicizzazione: " + elapsedTime + " ms");
+
         } catch (IOException e) {
             e.printStackTrace();
         }
